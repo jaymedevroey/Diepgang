@@ -1,10 +1,15 @@
 extends Node3D
-## Opstartscene. Bouwt het terrein en start een scenario:
+## Opstartscene. Start de netwerksessie en de Game, plus HUD en scenario's.
+## Sessie (argumenten na `--`):
+##   (niets)                 solo
+##   --host [--port=N]       host op poort N (standaard 24565)
+##   --join=ADRES [--port=N] verbinden met een host
+## Scenario's (--scenario=…):
 ##   play (standaard)  speler op het oppervlak, graven met het houweel
 ##   dig_test          headless controle van graven en de TerrainAPI-laag
 ##   stress            4 gesimuleerde gravers + 30 fysica-objecten, frametijden naar logs/
 ##   render            vaste camera in een tunnel, screenshot naar logs/
-## Voorbeeld: tools\godot.cmd --path game -- --scenario=stress --duration=60
+##   net_test          host + client: beweging en terrein-sync (tools/net_test.py)
 ## Extra in play (voor controle door de agent):
 ##   --shot=naam --frames=90,140   screenshots N frames na het spawnen, dan afsluiten
 ##   --autodig                     houweel zwaait vanzelf
@@ -14,22 +19,28 @@ const SCENARIOS := {
 	"dig_test": preload("res://src/main/scenarios/dig_test.gd"),
 	"stress": preload("res://src/main/scenarios/stress_test.gd"),
 	"render": preload("res://src/main/scenarios/render_showcase.gd"),
+	"net_test": preload("res://src/main/scenarios/net_test.gd"),
 }
+## Scenario's waarin de host ook een eigen speler krijgt.
+const SCENARIOS_WITH_PLAYER := ["play", "net_test"]
 const AIM_COLORS := {
 	Pickaxe.Aim.NONE: Color(1, 1, 1, 0.35),
 	Pickaxe.Aim.DIGGABLE: Color(1, 1, 1, 0.95),
 	Pickaxe.Aim.TOO_HARD: Color(1.0, 0.45, 0.3, 0.95),
 }
 
-var terrain: TerrainAPI
-var fx: DigFx
-var player: DebugPlayer
+var game: Game
+var player: Player
 var scenario := "play"
 var scenario_node: Node
+var terrain: TerrainAPI:
+	get:
+		return game.terrain if game else null
 
 var _hud_label: Label
 var _crosshair: Label
 var _hint: Label
+var _banner: Label
 var _stats_visible := true
 var _frame_since_spawn := -1
 var _shot_frames: PackedInt32Array = []
@@ -47,24 +58,17 @@ func _ready() -> void:
 		scenario])
 	print("[diepgang] voxel=%s" % VoxelEngine.get_version_v())
 
-	terrain = TerrainAPI.new()
-	terrain.name = "Terrain"
-	terrain.pit_seed = int(CmdArgs.value("seed", 1))
-	add_child(terrain)
-	terrain.loaded.connect(_on_terrain_loaded)
-
-	fx = DigFx.new()
-	fx.name = "DigFx"
-	add_child(fx)
-
 	_build_hud()
-	var overview := $OverviewCamera as Camera3D
-	overview.position = terrain.world_size() * Vector3(0.5, 1.0, 0.5) + Vector3(0, 25, 45)
-	overview.look_at(terrain.shaft_center_world() + Vector3(0, terrain.world_size().y - 15, 0))
-
 	if CmdArgs.has("shot"):
 		for f in str(CmdArgs.value("frames", "90")).split(","):
 			_shot_frames.append(int(f))
+
+	game = Game.new()
+	game.name = "Game"
+	game.spawn_host_player = scenario in SCENARIOS_WITH_PLAYER
+	add_child(game)
+	game.world_loaded.connect(_on_world_loaded)
+	game.player_spawned.connect(_on_player_spawned)
 
 	if scenario != "play":
 		if not SCENARIOS.has(scenario):
@@ -72,34 +76,53 @@ func _ready() -> void:
 			get_tree().quit(2)
 			return
 		scenario_node = SCENARIOS[scenario].new()
+		scenario_node.name = "Scenario"
 		scenario_node.set("main", self)
 		add_child(scenario_node)
 
+	Net.started.connect(_on_net_started)
+	Net.failed.connect(func(reason: String) -> void: _show_banner("Netwerk: " + reason))
+	Net.ended.connect(func(reason: String) -> void: _show_banner("Sessie voorbij: " + reason))
+	var port := int(CmdArgs.value("port", Net.DEFAULT_PORT))
+	if CmdArgs.has("host"):
+		Net.start_host(port)
+	elif CmdArgs.has("join"):
+		_show_banner("Verbinden met %s…" % CmdArgs.value("join"))
+		Net.join(str(CmdArgs.value("join")), port)
+	else:
+		Net.start_solo()
 
-func _on_terrain_loaded(stats: Dictionary) -> void:
+
+func _on_net_started() -> void:
+	_show_banner("")
+	if Net.is_host():
+		game.start_host(int(CmdArgs.value("seed", 1)))
+	else:
+		_show_banner("Wereld ophalen bij de host…")
+		game.start_client()
+
+
+func _on_world_loaded(stats: Dictionary) -> void:
+	_show_banner("")
 	print("[diepgang] terrein geladen in %.0f ms (time-out: %s), statisch geheugen %.1f MB, videogeheugen %.1f MB" % [
 		stats.load_ms, stats.load_timed_out, stats.mem_static_mb, stats.video_mem_mb])
 	print("[diepgang] terrein-statistieken: ", JSON.stringify(stats))
-	if scenario == "play":
-		_spawn_player()
-	elif scenario_node and scenario_node.has_method("on_terrain_loaded"):
+	var overview := $OverviewCamera as Camera3D
+	overview.position = terrain.world_size() * Vector3(0.5, 1.0, 0.5) + Vector3(0, 25, 45)
+	overview.look_at(terrain.shaft_center_world() + Vector3(0, terrain.world_size().y - 15, 0))
+	if scenario_node and scenario_node.has_method("on_terrain_loaded"):
 		scenario_node.on_terrain_loaded(stats)
 
 
-func _spawn_player() -> void:
-	player = DebugPlayer.new()
-	player.terrain = terrain
-	player.fx = fx
-	add_child(player)
-	player.global_position = terrain.spawn_point()
-	var target := terrain.shaft_center_world()
-	target.y = player.global_position.y
-	player.look_at(target)
-	player.rotation.x = 0.0
-	player.head.rotation.x = deg_to_rad(float(CmdArgs.value("pitch", 0.0)))
-	player.pickaxe.auto_swing = CmdArgs.has("autodig")
-	player.pickaxe.aim_changed.connect(_on_aim_changed)
-	_on_aim_changed(player.pickaxe.aim)
+func _on_player_spawned(p: Player) -> void:
+	print("[diepgang] speler %d gespawnd%s" % [p.peer_id, " (lokaal)" if p.is_local else ""])
+	if not p.is_local:
+		return
+	player = p
+	p.head.rotation.x = deg_to_rad(float(CmdArgs.value("pitch", 0.0)))
+	p.pickaxe.auto_swing = CmdArgs.has("autodig")
+	p.pickaxe.aim_changed.connect(_on_aim_changed)
+	_on_aim_changed(p.pickaxe.aim)
 	_frame_since_spawn = 0
 
 
@@ -121,8 +144,10 @@ func _process(_delta: float) -> void:
 	if not _stats_visible:
 		return
 	var lines := PackedStringArray()
-	lines.append("DIEPGANG M1-proto  ·  %d fps" % Engine.get_frames_per_second())
-	if not terrain.is_loaded:
+	var net: String = ["solo", "host", "client"][Net.mode]
+	lines.append("DIEPGANG M1-proto  ·  %d fps  ·  %s  ·  %d speler(s)" % [
+		Engine.get_frames_per_second(), net, game.players.get_child_count()])
+	if terrain == null or not terrain.is_loaded:
 		lines.append("Put laden…")
 	if player:
 		var p := player.global_position
@@ -139,14 +164,19 @@ func _take_shots() -> void:
 	var idx := _shot_frames.find(_frame_since_spawn)
 	if idx == -1:
 		return
-	var name := str(CmdArgs.value("shot"))
+	var shot_name := str(CmdArgs.value("shot"))
 	if _shot_frames.size() > 1:
-		name += "_%d" % (idx + 1)
-	var path := PerfLog.log_dir().path_join(name + ".png")
+		shot_name += "_%d" % (idx + 1)
+	var path := PerfLog.log_dir().path_join(shot_name + ".png")
 	get_viewport().get_texture().get_image().save_png(path)
 	print("[diepgang] screenshot: ", path)
 	if _frame_since_spawn >= _shot_frames[_shot_frames.size() - 1]:
 		get_tree().quit(0)
+
+
+func _show_banner(text: String) -> void:
+	_banner.text = text
+	_banner.visible = text != ""
 
 
 func _build_hud() -> void:
@@ -173,3 +203,13 @@ func _build_hud() -> void:
 	_hint.add_theme_color_override("font_color", Color(1.0, 0.6, 0.45))
 	_hint.add_theme_color_override("font_shadow_color", Color.BLACK)
 	hud.add_child(_hint)
+
+	_banner = Label.new()
+	_banner.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_banner.position.y += 80
+	_banner.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_banner.add_theme_font_size_override("font_size", 24)
+	_banner.add_theme_color_override("font_shadow_color", Color.BLACK)
+	_banner.visible = false
+	hud.add_child(_banner)

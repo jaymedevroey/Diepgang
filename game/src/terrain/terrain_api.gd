@@ -14,6 +14,8 @@ extends Node3D
 
 signal loaded(stats: Dictionary)
 signal dug(world_center: Vector3, radius_m: float)
+## Na het toepassen van elke op (lokaal of van het netwerk).
+signal op_applied(op: Dictionary)
 
 enum Op { SPHERE_REMOVE, CHIP }
 
@@ -112,6 +114,7 @@ func _physics_process(_delta: float) -> void:
 		var world := _terrain.to_global(c)
 		_wake_bodies(world, reach * VOXEL_SIZE)
 		dug.emit(world, reach * VOXEL_SIZE)
+		op_applied.emit(op)
 	ops_applied_total += ops_applied_last_tick
 	_queue = pending
 
@@ -119,20 +122,35 @@ func _physics_process(_delta: float) -> void:
 # --- Graven -------------------------------------------------------------------
 
 ## Graafactie van een speler. Beperkt tot dig.max_ops_per_second per speler.
-## Geeft false als de speler te snel graaft.
+## Geeft false als de speler te snel graaft. (Lokaal; netwerkspel gaat via TerrainSync.)
 func request_dig(player_id: int, world_center: Vector3, radius_m: float) -> bool:
-	if not _take_token(player_id):
+	if not take_token(player_id):
 		return false
-	_enqueue(world_center, radius_m, player_id)
+	apply_op(make_sphere_op(player_id, world_center, radius_m))
 	return true
+
+
+## Houweelslag, lokaal. Zie make_chip_op.
+func request_chip(player_id: int, world_hit: Vector3, world_normal: Vector3,
+		radius_m: float, depth_m: float, rough_m: float) -> bool:
+	if not take_token(player_id):
+		return false
+	apply_op(make_chip_op(player_id, world_hit, world_normal, radius_m, depth_m, rough_m))
+	return true
+
+
+## Bol wegnemen rond `world_center`. Maakt enkel de op; toepassen met apply_op.
+func make_sphere_op(player_id: int, world_center: Vector3, radius_m: float) -> Dictionary:
+	var r := radius_m / VOXEL_SIZE
+	var c := _clamp_center(_terrain.to_local(world_center), r)
+	return {"op": Op.SPHERE_REMOVE, "c": c, "r": r, "h": world_center, "tick": _tick, "p": player_id}
 
 
 ## Houweelslag: een afgeplatte, ruwe schilfer van `depth_m` diep en ±`radius_m` breed,
 ## ingebed in de wand op het raakpunt. `world_normal` wijst uit de rots naar buiten.
-func request_chip(player_id: int, world_hit: Vector3, world_normal: Vector3,
-		radius_m: float, depth_m: float, rough_m: float) -> bool:
-	if not _take_token(player_id):
-		return false
+## Maakt enkel de op; toepassen met apply_op.
+func make_chip_op(player_id: int, world_hit: Vector3, world_normal: Vector3,
+		radius_m: float, depth_m: float, rough_m: float) -> Dictionary:
 	var n := world_normal.normalized()
 	var rt := radius_m / VOXEL_SIZE
 	var rd := maxf(depth_m * 1.6, rt * 0.55) / VOXEL_SIZE
@@ -140,19 +158,40 @@ func request_chip(player_id: int, world_hit: Vector3, world_normal: Vector3,
 	# De ellipsoïde steekt precies `depth` voorbij het raakpunt de rots in.
 	var c := _terrain.to_local(world_hit) + n * (rd - depth)
 	c = _clamp_center(c, maxf(rt, rd))
-	_queue.append({"op": Op.CHIP, "c": c, "n": n, "rt": rt, "rd": rd,
-			"amp": rough_m / VOXEL_SIZE, "tick": _tick, "p": player_id})
-	return true
+	return {"op": Op.CHIP, "c": c, "n": n, "rt": rt, "rd": rd, "amp": rough_m / VOXEL_SIZE,
+			"h": world_hit, "tick": _tick, "p": player_id}
 
 
-## Past een op toe die al elders gevalideerd is (netwerk, replay). Geen snelheidslimiet.
+## Past een op toe (lokaal gemaakt of van het netwerk). Geen snelheidslimiet:
+## wie een op van een ander aanvaardt, moet die eerst zelf valideren.
 func apply_op(op: Dictionary) -> void:
 	_queue.append(op)
 
 
+## Wereldpositie van het centrum van een op, voor validatie (afstand tot de speler).
+func op_world_center(op: Dictionary) -> Vector3:
+	return _terrain.to_global(op.c)
+
+
 ## Graven zonder snelheidslimiet, voor tests en scenario's.
 func debug_dig(world_center: Vector3, radius_m: float) -> void:
-	_enqueue(world_center, radius_m, 0)
+	apply_op(make_sphere_op(0, world_center, radius_m))
+
+
+## Snelheidslimiet per speler (token bucket, dig.max_ops_per_second en dig.burst).
+func take_token(player_id: int) -> bool:
+	return _take_token(player_id)
+
+
+## Checksum van het volledige SDF-kanaal. Twee peers met hetzelfde terrein geven dezelfde waarde.
+func checksum() -> String:
+	var buf := VoxelBuffer.new()
+	buf.create(dims.x, dims.y, dims.z)
+	_tool.copy(Vector3i.ZERO, buf, SDF_BIT, false)
+	var ctx := HashingContext.new()
+	ctx.start(HashingContext.HASH_MD5)
+	ctx.update(buf.get_channel_as_byte_array(VoxelBuffer.CHANNEL_SDF))
+	return ctx.finish().hex_encode()
 
 
 func op_log() -> Array[Dictionary]:
@@ -215,12 +254,6 @@ func get_stats() -> Dictionary:
 
 
 # --- Intern -------------------------------------------------------------------
-
-func _enqueue(world_center: Vector3, radius_m: float, player_id: int) -> void:
-	var r := radius_m / VOXEL_SIZE
-	var c := _clamp_center(_terrain.to_local(world_center), r)
-	_queue.append({"op": Op.SPHERE_REMOVE, "c": c, "r": r, "tick": _tick, "p": player_id})
-
 
 func _op_reach(op: Dictionary) -> float:
 	match op.op:

@@ -10,7 +10,7 @@ const GLOVE := Color(0.95, 0.55, 0.12) # robotkleur van speler 1
 const VIEWMODEL_LAYER := 1 << 1
 
 
-static func build(viewmodel_fov: float) -> Node3D:
+static func build(viewmodel_fov: float, glove_color := GLOVE) -> Node3D:
 	var root := Node3D.new()
 	root.name = "PickaxeModel"
 
@@ -57,10 +57,10 @@ static func build(viewmodel_fov: float) -> Node3D:
 	var glove := CapsuleMesh.new()
 	glove.radius = 0.045
 	glove.height = 0.13
-	_add(root, glove, _mat(GLOVE, 0.55, 0.1, viewmodel_fov), Vector3(0.0, 0.0, 0.0))
+	_add(root, glove, _mat(glove_color, 0.55, 0.1, viewmodel_fov), Vector3(0.0, 0.0, 0.0))
 	var knuckle := BoxMesh.new()
 	knuckle.size = Vector3(0.07, 0.05, 0.06)
-	_add(root, knuckle, _mat(GLOVE.darkened(0.3), 0.6, 0.1, viewmodel_fov), Vector3(0.0, 0.0, -0.03))
+	_add(root, knuckle, _mat(glove_color.darkened(0.3), 0.6, 0.1, viewmodel_fov), Vector3(0.0, 0.0, -0.03))
 	return root
 
 

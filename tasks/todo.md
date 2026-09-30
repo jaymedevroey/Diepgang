@@ -11,6 +11,8 @@ Afvinkbare taken per mijlpaal. Bron: [docs/GDD.md](../docs/GDD.md) §10 en §13.
 | Stresstest (venster, 60 s) | `tools\godot.cmd --path game -- --scenario=stress --duration=60 --no-steam` |
 | Rendertest | `tools\godot.cmd --path game -- --scenario=render --no-steam` (+ `--rendering-method gl_compatibility` vóór `--`) |
 | Windows-build | `tools\export_windows.cmd` → `builds\windows\Diepgang.exe` |
+| Nettest (host + client, headless) | `py -3.11 tools/net_test.py` (of `--exe builds/windows/Diepgang.console.exe`) |
+| Twee instanties met de hand | `tools\godot.cmd --path game -- --host` en `tools\godot.cmd --path game -- --join=127.0.0.1` |
 
 Logs, CSV's en screenshots komen in `logs/` (editor) of `builds\windows\logs\` (build).
 
@@ -50,8 +52,35 @@ Aanleiding: "het is gewoon klikken en er gaat een bolletje weg". Onderzoek: [doc
   - Juice: camera-kick en schok, stofwolk, gruis, 3–5 echte steentjes (lokaal), geluid per slag (klei, klink, woesj, kruimels; `tools/audio/synth_dig.py`).
   - Rotsshader met reliëf-normalen op 2 schalen en donkere holtes. Kost ±0,25 ms op de RTX 4090.
   - Waarden in `data/tuning/pickaxe.cfg` en `camera.cfg`.
-- [ ] **Jayme test het houweel** in `builds\windows\Diepgang.exe`.
-- [ ] **Boor** (na akkoord op het houweel): continu, kegelvormig, aanloop, trager lopen, hittemeter, gruisstraal, motorgeluid onder belasting.
+- [x] **Jayme test het houweel** — 2026-10-01: "al iets beter, niet perfect". Door naar M1.
+  - Bekend probleem, bewust gelaten: soms blijven dunne zwevende stukjes terrein over (vooral aan het oppervlak). Later: `separate_floating_chunks` of een minimale dikte.
+
+## M1 Graafspeelgoed (begin november 2026)
+
+Doel (GDD §10): first-person robot, graven, korsten uitbikken, dragen, lift. **Al met netwerk** tussen twee lokale instanties. Tuning-menu. **Poort 1: voelen graven en slepen goed?**
+
+Netwerkmodel (GDD §9): host-autoritatief voor terrein en buit; elke speler bepaalt zijn eigen beweging. Solo = host zonder gasten, zelfde codepad.
+
+- [x] **Stap 1: netwerkbasis.** `NetSession` (ENet lokaal, later Steam), host/join via argumenten, spelers spawnen met eigen kleur, beweging gesynchroniseerd met interpolatie. Wereld-init (seed + op-logboek) voor wie binnenkomt.
+  Verificatie: twee instanties op één pc zien elkaar bewegen; geautomatiseerde nettest slaagt.
+  - 2026-10-01: `Net`-autoload (solo/host/join), `Game` (wereld-init, spawns, kleuren, klaar-melding), `Player` (lokaal of geïnterpoleerd, 20 Hz, 100 ms buffer). `py -3.11 tools/net_test.py` slaagt: positie van de client bij de host klopt tot op 0,00 m.
+- [x] **Stap 2: terrein-sync.** Graafacties via de host (validatie: snelheid, afstand, gereedschap/laag), lokale voorspelling voor je eigen slagen, broadcast naar de rest.
+  Verificatie: nettest vergelijkt een checksum van het terrein op host en client na dezelfde reeks slagen.
+  - 2026-10-01: `TerrainSync`. Nettest: 4 slagen van de host voor de join (via logboek), 3 tijdens het laden van de client (gebufferd), 6 van de client (voorspeld + gevalideerd). MD5 van het volledige SDF-kanaal is identiek op host en client, 0 geweigerde ops.
+- [ ] **Stap 3: de robot.** Procedureel robotlijf (rond lijf, schermgezicht, antenne die meeveert) voor andere spelers; eigen handen/gereedschap in first-person.
+  Verificatie: screenshot van de andere speler.
+- [ ] **Stap 4: boor T1.** Continu, kegelvormig, aanloop, trager lopen, hittemeter, gruisstraal, motorgeluid onder belasting; graaft zandsteen. Gesynchroniseerd als "streep" per netwerktick.
+  Verificatie: dig_test + nettest met boor; screenshot.
+- [ ] **Stap 5: vondsten met korst.** Een eerste vondstfamilie (fossielstukken) in het terrein, elk in een korst. Houweel bikt de korst weg zonder schade; boor is sneller maar verlaagt de waarde. Vrij = fysica-object.
+  Verificatie: test: korst weg → vondst los, waarde klopt per gereedschap.
+- [ ] **Stap 6: dragen.** Grijphandschoen: oppakken, dragen (volgt de hand kinematisch, lokaal voorspeld), loslaten/gooien (fysica neemt over). Host simuleert buit, clients interpoleren. Zware stukken met twee dragen.
+  Verificatie: nettest: client draagt vondst, host ziet dezelfde positie; screenshot.
+- [ ] **Stap 7: lift.** Platform in de centrale schacht, terminal per niveau om de lift te roepen, hendel om naar boven te gaan. Buit op het platform gaat mee.
+  Verificatie: test: lift roepen, buit meenemen naar boven.
+- [ ] **Stap 8: tuning-menu.** In het spel (F1) alle waarden uit `data/tuning/*.cfg` aanpassen en bewaren.
+  Verificatie: waarde aanpassen werkt meteen en blijft na herstart.
+- [ ] **Stap 9: playtestbuild.** Build + korte handleiding om met twee instanties (of twee pc's in het LAN) te testen.
+  Verificatie: **Poort 1** met Jayme (en Ian/Anir): voelen graven en slepen goed?
 
 ## Jayme (parallel)
 

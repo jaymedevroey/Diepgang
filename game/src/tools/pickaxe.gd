@@ -5,7 +5,7 @@ extends Node3D
 ## (docs/research/graven.md). Graaft enkel lagen waar het houweel volstaat (klei);
 ## op hardere rots ketst het af met vonken.
 ##
-## Hang dit onder de camera. Verwacht: terrain, camera, body, fx (DigFx), camera_fx, player_id.
+## Hang dit onder de camera. Verwacht: terrain, sync (TerrainSync), camera, body, fx, camera_fx, color.
 
 signal aim_changed(state: Aim)
 
@@ -22,11 +22,12 @@ const POSE_RAISED := [Vector3(0.44, -0.18, -0.52), Vector3(40, -14, 20)]
 const POSE_STRUCK := [Vector3(0.12, -0.34, -0.7), Vector3(-80, -4, 2)]
 
 var terrain: TerrainAPI
+var sync: TerrainSync
 var camera: Camera3D
 var body: CharacterBody3D
 var fx: DigFx
 var camera_fx: CameraFx
-var player_id := 1
+var color := PickaxeModel.GLOVE
 var aim := Aim.NONE
 ## Voor tests en screenshots: zwaait alsof de knop ingedrukt is.
 var auto_swing := false
@@ -44,7 +45,7 @@ var _rng := RandomNumberGenerator.new()
 
 
 func _ready() -> void:
-	_model = PickaxeModel.build(VIEWMODEL_FOV)
+	_model = PickaxeModel.build(VIEWMODEL_FOV, color)
 	add_child(_model)
 	# Zacht vullicht dat enkel het gereedschap in beeld raakt (renderlaag 2),
 	# anders valt het buiten de helmlamp en is het zwart.
@@ -136,10 +137,10 @@ func _impact() -> bool:
 	var layer := terrain.layer_at(pos - normal * 0.2)
 	var color := Strata.DEBRIS_COLORS[layer]
 	if Strata.can_dig(layer, TOOL):
-		var ok := terrain.request_chip(player_id, pos, normal,
+		var ok := sync.submit_chip(pos, normal,
 				Tuning.get_f("pickaxe", "chip_radius", 0.75),
 				Tuning.get_f("pickaxe", "chip_depth", 0.45),
-				Tuning.get_f("pickaxe", "chip_roughness", 0.14))
+				Tuning.get_f("pickaxe", "chip_roughness", 0.14), TOOL)
 		if ok:
 			var pebbles := _rng.randi_range(Tuning.get_i("pickaxe", "pebbles_min", 3), Tuning.get_i("pickaxe", "pebbles_max", 5))
 			fx.impact(pos, normal, color, pebbles)
