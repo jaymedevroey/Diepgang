@@ -13,6 +13,7 @@ extends Node3D
 ##   find_test         vondsten en korsten: uitbikken, boren, vrijkomen (headless)
 ##   carry_test        oppakken, dragen, gooien, botsschade (headless)
 ##   lift_test         lift roepen, meerijden met speler en vondst (headless)
+##   tuning_test       tuning-waarden aanpassen en bewaren (headless)
 ## Extra in play (voor controle door de agent):
 ##   --shot=naam --frames=90,140   screenshots N frames na het spawnen, dan afsluiten
 ##   --autodig                     gereedschap werkt vanzelf (houweel zwaait, boor boort)
@@ -30,6 +31,7 @@ const SCENARIOS := {
 	"carry_test": preload("res://src/main/scenarios/carry_test.gd"),
 	"carry_preview": preload("res://src/main/scenarios/carry_preview.gd"),
 	"lift_test": preload("res://src/main/scenarios/lift_test.gd"),
+	"tuning_test": preload("res://src/main/scenarios/tuning_test.gd"),
 }
 ## Scenario's waarin de host ook een eigen speler krijgt.
 const SCENARIOS_WITH_PLAYER := ["play", "net_test", "find_test", "carry_test", "carry_preview", "lift_test"]
@@ -52,6 +54,7 @@ var _hud_label: Label
 var _crosshair: Label
 var _hint: Label
 var _banner: Label
+var _tuning_menu: TuningMenu
 var _stats_visible := true
 var _aim := Pickaxe.Aim.NONE
 var _frame_since_spawn := -1
@@ -140,6 +143,8 @@ func _on_player_spawned(p: Player) -> void:
 		p.select_tool(1)
 	_on_tool_changed(p.active_tool)
 	_frame_since_spawn = 0
+	if CmdArgs.has("tuning-open"):
+		_tuning_menu.toggle()
 
 
 func _on_tool_changed(tool: Node3D) -> void:
@@ -157,7 +162,10 @@ func _on_aim_changed(aim: Pickaxe.Aim) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("toggle_stats"):
+	if event.is_action_pressed("toggle_tuning"):
+		_tuning_menu.toggle()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("toggle_stats"):
 		_stats_visible = not _stats_visible
 		_hud_label.visible = _stats_visible
 
@@ -188,7 +196,7 @@ func _process(_delta: float) -> void:
 			var frac := d.heat / Tuning.get_f("drill", "heat_max", 5.5)
 			var bar := "█".repeat(int(frac * 12)) + "░".repeat(12 - int(frac * 12))
 			lines.append("Hitte %s%s" % [bar, "  OVERVERHIT" if d.overheated else ""])
-		lines.append("Linkermuis: graven (vasthouden) · E: oppakken · V vliegen · Esc muis los · F3 paneel")
+		lines.append("Linkermuis: graven (vasthouden) · E: oppakken · V vliegen · F1 tuning · F3 paneel")
 	_hud_label.text = "\n".join(lines)
 
 
@@ -275,3 +283,6 @@ func _build_hud() -> void:
 	_banner.add_theme_color_override("font_shadow_color", Color.BLACK)
 	_banner.visible = false
 	hud.add_child(_banner)
+
+	_tuning_menu = TuningMenu.new()
+	hud.add_child(_tuning_menu)

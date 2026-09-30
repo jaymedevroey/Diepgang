@@ -29,6 +29,8 @@ func _on_player_spawned(p: Player) -> void:
 	elif Net.is_host():
 		# Graven terwijl de client nog laadt: moet bij de client gebufferd worden.
 		_host_chips.call_deferred(main.game.local_player, 3, Vector3(0, 0, 1.2))
+		# Tuning van de host moet bij de client aankomen.
+		Tuning.set_value("carry", "throw_speed", 7.25)
 
 
 func _host_chips(p: Player, count: int, offset: Vector3) -> void:
@@ -105,10 +107,17 @@ func _run_client(p: Player) -> void:
 	lift.request(Lift.Command.DOWN, p)
 	await get_tree().create_timer(6.0).timeout
 	_rpc_lift_report.rpc_id(1, lift.y)
+	_rpc_tuning_report.rpc_id(1, Tuning.get_f("carry", "throw_speed", 0.0))
 	var sum := t.checksum()
 	print("[net_test] client: %d slagen, vondst vrij: %s, checksum %s" % [done, it.freed, sum])
 	_rpc_report.rpc_id(1, sum, p.global_position, done)
 	_rpc_find_report.rpc_id(1, it.find_id, it.freed, it.global_position)
+
+
+@rpc("any_peer", "reliable")
+func _rpc_tuning_report(client_value: float) -> void:
+	if multiplayer.is_server():
+		_expect(is_equal_approx(client_value, 7.25), "tuning van de host kwam aan bij de client (%.2f)" % client_value)
 
 
 @rpc("any_peer", "reliable")

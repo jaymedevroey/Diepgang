@@ -90,8 +90,10 @@ Netwerkmodel (GDD §9): host-autoritatief voor terrein en buit; elke speler bepa
   Verificatie: test: lift roepen, buit meenemen naar boven.
   - 2026-10-01: `Lift` (platform als AnimatableBody3D, reling met 4 openingen, bedieningspaal met ▲/▼ en dieptedisplay, hangende lamp, kabels, portaal met motor). Vier roeprails langs de schachtwand: E = lift naar jouw diepte (de "terminal per niveau" werkt zo op elke diepte). Werklampjes + dieptecijfers om de 12 m. 4 m/s met zacht optrekken/afremmen (3 m/s²): een bruuske stop lanceerde vondsten van het platform (lift_test vond het). `Interactable` voor knoppen en rails; E bedient eerst een knop, anders oppakken.
   - Tests: `--scenario=lift_test` (10 controles: roepen, snelheid, speler en vondst rijden mee, ▼, te ver = geweigerd), nettest (lift op dezelfde hoogte bij host en client). Screenshot `logs/lift.png`.
-- [ ] **Stap 8: tuning-menu.** In het spel (F1) alle waarden uit `data/tuning/*.cfg` aanpassen en bewaren.
+- [x] **Stap 8: tuning-menu.** In het spel (F1) alle waarden uit `data/tuning/*.cfg` aanpassen en bewaren.
   Verificatie: waarde aanpassen werkt meteen en blijft na herstart.
+  - 2026-10-01: `TuningMenu` (F1): tab per bestand, veld per waarde, uitleg uit het bestand als tooltip. Wijzigingen werken meteen. Bewaren: in de editor naar `data/tuning/` (commentaar blijft staan), in een build naar `user://tuning/`. De host stuurt zijn waarden naar alle clients (bij binnenkomen en bij elke wijziging), anders lopen de werelden uiteen.
+  - Tests: `--scenario=tuning_test` (9 controles), nettest (waarde van de host komt aan bij de client). Screenshot `logs/tuning.png`.
 - [ ] **Stap 9: playtestbuild.** Build + korte handleiding om met twee instanties (of twee pc's in het LAN) te testen.
   Verificatie: **Poort 1** met Jayme (en Ian/Anir): voelen graven en slepen goed?
 

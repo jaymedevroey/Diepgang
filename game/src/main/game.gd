@@ -34,6 +34,8 @@ var ready_peers: Array[int] = [1]
 var _pending_spawns: Array = [] # client: spawns die binnenkomen voor het terrein geladen is
 var _join_queue: Array[int] = [] # host: aanvragen voor de eigen wereld geladen is
 var _color_of: Dictionary = {} # host: peer_id -> kleurindex
+var _tuning_dirty := false
+var _tuning_timer := 0.0
 
 
 func _ready() -> void:
@@ -53,6 +55,9 @@ func _ready() -> void:
 	finds.game = self
 	add_child(finds)
 	Net.peer_left.connect(_on_peer_left)
+	Tuning.changed.connect(func(_f: String, _k: String) -> void:
+		if multiplayer.is_server():
+			_tuning_dirty = true)
 
 
 func start_host(seed_value: int) -> void:
@@ -138,6 +143,7 @@ func _accept(id: int) -> void:
 	var existing: Array = []
 	for p: Player in players.get_children():
 		existing.append([p.peer_id, _color_of.get(p.peer_id, 0), p.global_position])
+	_rpc_tuning.rpc_id(id, Tuning.snapshot())
 	_rpc_world_init.rpc_id(id, pit_seed, terrain.op_log(), existing, finds.snapshot())
 	lift.send_state(id)
 	var idx := _free_color()
@@ -221,6 +227,27 @@ func _spawn_pos(idx: int) -> Vector3:
 	var p := sc + Vector3(cos(ang), 0.0, sin(ang)) * 7.5
 	p.y = terrain.surface_height_at(p.x, p.z) + 1.0
 	return p
+
+
+# --- Tuning van de host --------------------------------------------------------
+
+func _process(delta: float) -> void:
+	if not _tuning_dirty:
+		return
+	# Gebundeld: slepen aan een waarde geeft tientallen wijzigingen per seconde.
+	_tuning_timer += delta
+	if _tuning_timer < 0.3:
+		return
+	_tuning_timer = 0.0
+	_tuning_dirty = false
+	var snap := Tuning.snapshot()
+	for peer in multiplayer.get_peers():
+		_rpc_tuning.rpc_id(peer, snap)
+
+
+@rpc("authority", "reliable")
+func _rpc_tuning(snap: Dictionary) -> void:
+	Tuning.apply_remote(snap)
 
 
 # --- Effecten van anderen -----------------------------------------------------
