@@ -5,6 +5,7 @@ extends Node3D
 ##   stress            4 gesimuleerde gravers + 30 fysica-objecten, frametijden naar logs/
 ##   render            vaste camera in een tunnel, screenshot naar logs/
 ## Voorbeeld: tools\godot.cmd --path game -- --scenario=stress --duration=60
+## In play: --shot=naam neemt na het spawnen (--frames=N, standaard 90) een screenshot en sluit af.
 
 const SCENARIOS := {
 	"dig_test": preload("res://src/main/scenarios/dig_test.gd"),
@@ -19,6 +20,7 @@ var scenario_node: Node
 
 var _hud_label: Label
 var _stats_visible := true
+var _shot_frames_left := -1
 
 
 func _ready() -> void:
@@ -65,6 +67,8 @@ func _on_terrain_loaded(stats: Dictionary) -> void:
 		player.global_position = terrain.spawn_point()
 		player.look_at(terrain.shaft_center_world() + Vector3(0, player.global_position.y, 0))
 		player.rotation.x = 0.0
+		if CmdArgs.has("shot"):
+			_shot_frames_left = int(CmdArgs.value("frames", 90))
 	elif scenario_node and scenario_node.has_method("on_terrain_loaded"):
 		scenario_node.on_terrain_loaded(stats)
 
@@ -76,6 +80,13 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _process(_delta: float) -> void:
+	if _shot_frames_left > 0:
+		_shot_frames_left -= 1
+		if _shot_frames_left == 0:
+			var path := PerfLog.log_dir().path_join(str(CmdArgs.value("shot")) + ".png")
+			get_viewport().get_texture().get_image().save_png(path)
+			print("[diepgang] screenshot: ", path)
+			get_tree().quit(0)
 	if not _stats_visible:
 		return
 	var lines := PackedStringArray()

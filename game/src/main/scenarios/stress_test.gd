@@ -78,22 +78,22 @@ func _physics_process(delta: float) -> void:
 		bot.turn -= delta
 		if bot.turn <= 0.0:
 			bot.turn = _rng.randf_range(2.0, 4.0)
-			var d: Vector3 = bot.dir.rotated(Vector3.UP, _rng.randf_range(-0.9, 0.9))
-			d.y = clampf(d.y + _rng.randf_range(-0.3, 0.15), -0.7, 0.3)
-			bot.dir = d.normalized()
+			var turned: Vector3 = bot.dir.rotated(Vector3.UP, _rng.randf_range(-0.9, 0.9))
+			turned.y = clampf(turned.y + _rng.randf_range(-0.3, 0.15), -0.7, 0.3)
+			bot.dir = turned.normalized()
+		# Terugkaatsen enkel als de graver naar de rand toe beweegt.
+		var d: Vector3 = bot.dir
+		var p: Vector3 = bot.pos
+		if (p.x < inner_min.x and d.x < 0.0) or (p.x > inner_max.x and d.x > 0.0):
+			d.x = -d.x
+		if (p.z < inner_min.z and d.z < 0.0) or (p.z > inner_max.z and d.z > 0.0):
+			d.z = -d.z
+		if p.y < inner_min.y and d.y < 0.0:
+			d.y = -d.y
+		if p.y > _t.surface_height_at(p.x, p.z) - 3.0 and d.y > -0.3:
+			d.y = -0.45
+		bot.dir = d.normalized()
 		var next: Vector3 = bot.pos + bot.dir * DIG_STEP_M
-		var d2: Vector3 = bot.dir
-		if next.x < inner_min.x or next.x > inner_max.x:
-			d2.x = -d2.x
-		if next.z < inner_min.z or next.z > inner_max.z:
-			d2.z = -d2.z
-		if next.y < inner_min.y:
-			d2.y = absf(d2.y)
-		if next.y > _t.surface_height_at(next.x, next.z) - 3.0:
-			d2.y = -absf(d2.y) - 0.2
-		if d2 != bot.dir:
-			bot.dir = d2.normalized()
-			continue
 		if _t.request_dig(bot.id, next, DIG_RADIUS_M):
 			bot.pos = next
 
@@ -116,11 +116,11 @@ func _process(delta: float) -> void:
 	for i in _bots.size():
 		var bot: Dictionary = _bots[i]
 		_lamps[i].global_position = bot.pos - bot.dir * 1.2 + Vector3.UP * 0.4
-		_lamps[i].look_at(bot.pos + bot.dir * 3.0)
+		_safe_look_at(_lamps[i], bot.pos + bot.dir * 3.0)
 	var lead: Dictionary = _bots[0]
 	var want: Vector3 = lead.pos - lead.dir * 3.0 + Vector3.UP * 0.6
 	_camera.global_position = _camera.global_position.lerp(want, minf(1.0, delta * 4.0)) if _elapsed > 0.1 else want
-	_camera.look_at(lead.pos)
+	_safe_look_at(_camera, lead.pos)
 
 	var now := Time.get_ticks_usec()
 	_elapsed += delta
@@ -166,6 +166,13 @@ func _finish() -> void:
 	print("[stress] klaar. CSV: %s" % csv)
 	print("[stress] samenvatting: %s" % JSON.stringify(summary))
 	get_tree().quit(0)
+
+
+static func _safe_look_at(node: Node3D, target: Vector3) -> void:
+	var to := target - node.global_position
+	if to.length_squared() < 0.0001 or absf(to.normalized().y) > 0.99:
+		return
+	node.look_at(target)
 
 
 func _make_body(i: int) -> RigidBody3D:

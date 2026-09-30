@@ -29,7 +29,7 @@ var _tool: VoxelToolTerrain
 var _generator: PitGenerator
 var _queue: Array[Dictionary] = []
 var _op_log: Array[Dictionary] = []
-var _buckets: Dictionary = {} # player_id -> Vector2(tokens, laatste tijd in s)
+var _buckets: Dictionary = {} # player_id -> [tokens, laatste tijd in s]
 var _tick := 0
 var _load_start_us := 0
 var _wake_shape := SphereShape3D.new()
@@ -195,13 +195,14 @@ func _clamp_center(c: Vector3, r: float) -> Vector3:
 func _take_token(player_id: int) -> bool:
 	var rate: float = Tuning.get_f("dig", "max_ops_per_second", 8.0)
 	var burst: float = Tuning.get_f("dig", "burst", 3.0)
-	var now := Time.get_ticks_msec() / 1000.0
-	var bucket: Vector2 = _buckets.get(player_id, Vector2(burst, now))
-	var tokens := minf(burst, bucket.x + (now - bucket.y) * rate)
+	var now := Time.get_ticks_usec() / 1000000.0
+	# Array i.p.v. Vector2: Vector2 is 32-bit en de afronding van `now` kan een token doen verdwijnen.
+	var bucket: Array = _buckets.get(player_id, [burst, now])
+	var tokens := minf(burst, float(bucket[0]) + maxf(0.0, now - float(bucket[1])) * rate)
 	if tokens < 1.0:
-		_buckets[player_id] = Vector2(tokens, now)
+		_buckets[player_id] = [tokens, now]
 		return false
-	_buckets[player_id] = Vector2(tokens - 1.0, now)
+	_buckets[player_id] = [tokens - 1.0, now]
 	return true
 
 
