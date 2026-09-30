@@ -86,8 +86,10 @@ Netwerkmodel (GDD §9): host-autoritatief voor terrein en buit; elke speler bepa
   - Vangnet: een losse vondst die in de rots belandt of onder de put valt, gaat terug naar zijn laatste veilige plek (de nettest vond dit).
   - Tests: `--scenario=carry_test` (10 controles), nettest (client draagt, positie gelijk bij host). Screenshot `logs/carry.png`.
   - Onstabiele test gevonden en opgelost: host valideert treffers in echte tijd, gereedschap telt in speltijd; die kunnen 20% verschillen. Grenzen nu ruim onder het echte tempo.
-- [ ] **Stap 7: lift.** Platform in de centrale schacht, terminal per niveau om de lift te roepen, hendel om naar boven te gaan. Buit op het platform gaat mee.
+- [x] **Stap 7: lift.** Platform in de centrale schacht, terminal per niveau om de lift te roepen, hendel om naar boven te gaan. Buit op het platform gaat mee.
   Verificatie: test: lift roepen, buit meenemen naar boven.
+  - 2026-10-01: `Lift` (platform als AnimatableBody3D, reling met 4 openingen, bedieningspaal met ▲/▼ en dieptedisplay, hangende lamp, kabels, portaal met motor). Vier roeprails langs de schachtwand: E = lift naar jouw diepte (de "terminal per niveau" werkt zo op elke diepte). Werklampjes + dieptecijfers om de 12 m. 4 m/s met zacht optrekken/afremmen (3 m/s²): een bruuske stop lanceerde vondsten van het platform (lift_test vond het). `Interactable` voor knoppen en rails; E bedient eerst een knop, anders oppakken.
+  - Tests: `--scenario=lift_test` (10 controles: roepen, snelheid, speler en vondst rijden mee, ▼, te ver = geweigerd), nettest (lift op dezelfde hoogte bij host en client). Screenshot `logs/lift.png`.
 - [ ] **Stap 8: tuning-menu.** In het spel (F1) alle waarden uit `data/tuning/*.cfg` aanpassen en bewaren.
   Verificatie: waarde aanpassen werkt meteen en blijft na herstart.
 - [ ] **Stap 9: playtestbuild.** Build + korte handleiding om met twee instanties (of twee pc's in het LAN) te testen.

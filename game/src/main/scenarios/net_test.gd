@@ -99,11 +99,26 @@ func _run_client(p: Player) -> void:
 	print("[net_test] client: vondst gedragen: %s" % carried)
 	p.global_position = back
 	p.set_physics_process(true)
-	await get_tree().create_timer(4.0).timeout
+	# Lift: 12 m omlaag sturen (de spawn ligt binnen roepafstand van de schacht).
+	var lift: Lift = main.game.lift
+	await get_tree().create_timer(0.5).timeout # host ziet ons pas 100 ms later terug bij de schacht
+	lift.request(Lift.Command.DOWN, p)
+	await get_tree().create_timer(6.0).timeout
+	_rpc_lift_report.rpc_id(1, lift.y)
 	var sum := t.checksum()
 	print("[net_test] client: %d slagen, vondst vrij: %s, checksum %s" % [done, it.freed, sum])
 	_rpc_report.rpc_id(1, sum, p.global_position, done)
 	_rpc_find_report.rpc_id(1, it.find_id, it.freed, it.global_position)
+
+
+@rpc("any_peer", "reliable")
+func _rpc_lift_report(client_y: float) -> void:
+	if not multiplayer.is_server():
+		return
+	var lift: Lift = main.game.lift
+	var expect := lift.top_y - Tuning.get_f("lift", "step_down", 12.0)
+	_expect(absf(lift.y - expect) < 0.01 and absf(client_y - lift.y) < 0.05,
+			"lift 12 m omlaag, zelfde hoogte bij host en client (host %.2f, client %.2f)" % [lift.y, client_y])
 
 
 @rpc("any_peer", "reliable")

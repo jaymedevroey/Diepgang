@@ -7,3 +7,5 @@ const LOOT := 1 << 1
 const PLAYERS := 1 << 2
 const DEBRIS := 1 << 3
 const CRUST := 1 << 4
+const LIFT := 1 << 5
+const INTERACT := 1 << 6

@@ -20,7 +20,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		return
 	if event.is_action_pressed("interact"):
-		if item:
+		var button := player.aimed_interactable()
+		if button:
+			button.used.emit(player)
+		elif item:
 			drop(false)
 		else:
 			try_grab()

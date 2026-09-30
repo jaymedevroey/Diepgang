@@ -20,6 +20,7 @@ const COLORS: Array[Color] = [
 var terrain: TerrainAPI
 var terrain_sync: TerrainSync
 var finds: FindField
+var lift: Lift
 var fx: DigFx
 var players: Node3D
 var local_player: Player
@@ -76,6 +77,11 @@ func _build_terrain(ops: Array, finds_state: Array = []) -> void:
 	add_child(terrain)
 	finds.generate(pit_seed)
 	finds.apply_snapshot(finds_state)
+	lift = Lift.new()
+	lift.name = "Lift"
+	lift.game = self
+	add_child(lift)
+	lift.setup()
 	for op in ops:
 		terrain.apply_op(op)
 	terrain_sync.flush_pending()
@@ -133,6 +139,7 @@ func _accept(id: int) -> void:
 	for p: Player in players.get_children():
 		existing.append([p.peer_id, _color_of.get(p.peer_id, 0), p.global_position])
 	_rpc_world_init.rpc_id(id, pit_seed, terrain.op_log(), existing, finds.snapshot())
+	lift.send_state(id)
 	var idx := _free_color()
 	_color_of[id] = idx
 	var pos := _spawn_pos(idx)

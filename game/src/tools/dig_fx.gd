@@ -203,7 +203,7 @@ func _spawn_pebble(pos: Vector3, normal: Vector3, color: Color) -> void:
 			oldest.queue_free()
 	var body := RigidBody3D.new()
 	body.collision_layer = LAYER_DEBRIS
-	body.collision_mask = TerrainAPI.COLLISION_LAYER
+	body.collision_mask = Layers.TERRAIN | Layers.LIFT
 	body.mass = 0.15
 	body.continuous_cd = true
 	var s := _rng.randf_range(0.05, 0.11)

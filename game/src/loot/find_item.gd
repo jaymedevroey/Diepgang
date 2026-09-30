@@ -28,7 +28,7 @@ func setup(id: int, kind_value: FossilModel.Kind) -> void:
 	base_value = FossilModel.BASE_VALUES[kind]
 	mass = FossilModel.MASSES[kind]
 	collision_layer = Layers.LOOT
-	collision_mask = Layers.TERRAIN | Layers.LOOT | Layers.PLAYERS
+	collision_mask = Layers.TERRAIN | Layers.LOOT | Layers.PLAYERS | Layers.LIFT
 	continuous_cd = true
 	freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
 	freeze = true

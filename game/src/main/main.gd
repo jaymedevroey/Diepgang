@@ -12,6 +12,7 @@ extends Node3D
 ##   net_test          host + client: beweging en terrein-sync (tools/net_test.py)
 ##   find_test         vondsten en korsten: uitbikken, boren, vrijkomen (headless)
 ##   carry_test        oppakken, dragen, gooien, botsschade (headless)
+##   lift_test         lift roepen, meerijden met speler en vondst (headless)
 ## Extra in play (voor controle door de agent):
 ##   --shot=naam --frames=90,140   screenshots N frames na het spawnen, dan afsluiten
 ##   --autodig                     gereedschap werkt vanzelf (houweel zwaait, boor boort)
@@ -28,9 +29,10 @@ const SCENARIOS := {
 	"find_preview": preload("res://src/main/scenarios/find_preview.gd"),
 	"carry_test": preload("res://src/main/scenarios/carry_test.gd"),
 	"carry_preview": preload("res://src/main/scenarios/carry_preview.gd"),
+	"lift_test": preload("res://src/main/scenarios/lift_test.gd"),
 }
 ## Scenario's waarin de host ook een eigen speler krijgt.
-const SCENARIOS_WITH_PLAYER := ["play", "net_test", "find_test", "carry_test", "carry_preview"]
+const SCENARIOS_WITH_PLAYER := ["play", "net_test", "find_test", "carry_test", "carry_preview", "lift_test"]
 const AIM_COLORS := {
 	Pickaxe.Aim.NONE: Color(1, 1, 1, 0.35),
 	Pickaxe.Aim.DIGGABLE: Color(1, 1, 1, 0.95),
@@ -198,6 +200,9 @@ func _aim_info() -> String:
 		return "Je draagt: %s · €%d · gaaf %d%%%s   E neerzetten · linkermuis gooien" % [
 			c.display_name(), c.value(), int(round(c.condition * 100)),
 			"  (samen)" if others > 0 else ("  (zwaar: samen dragen gaat sneller)" if c.mass >= 10.0 else "")]
+	var button := player.aimed_interactable()
+	if button:
+		return button.hint
 	var cam := player.camera
 	var hit := terrain.raycast(cam.global_position, cam.global_position - cam.global_basis.z * 3.5,
 			Layers.TERRAIN | Layers.CRUST | Layers.LOOT)
