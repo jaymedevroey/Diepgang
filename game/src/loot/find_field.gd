@@ -9,6 +9,8 @@ extends Node3D
 
 signal find_freed(item: FindItem)
 signal crust_hit(item: FindItem, tool: Strata.Tool)
+signal carriers_changed(item: FindItem)
+signal condition_changed(item: FindItem, hard: bool)
 
 const SEND_INTERVAL := 0.05
 
@@ -17,6 +19,7 @@ var items: Array[FindItem] = []
 var crusts: Dictionary = {} # find_id -> Crust
 
 var _last_hit: Dictionary = {} # host: peer_id -> tijd (s)
+var _prev_velocity: Dictionary = {} # host: find_id -> Vector3
 var _send_timer := 0.0
 
 
@@ -97,11 +100,13 @@ func _apply_hit(sender: int, find_id: int, tool: int, pos: Vector3) -> void:
 		return
 	var player: Node3D = game.player_node(sender)
 	if player == null or player.global_position.distance_to(pos) > 4.5:
+		print("[finds] treffer op %d geweigerd: te ver of geen speler" % find_id)
 		return
 	var drill := tool != Strata.Tool.HOUWEEL
 	var now := Time.get_ticks_msec() / 1000.0
 	var min_gap := Tuning.get_f("finds", "drill_min_interval" if drill else "pickaxe_min_interval", 0.1)
 	if now - float(_last_hit.get(sender, -100.0)) < min_gap:
+		print("[finds] treffer op %d geweigerd: te snel (%.3f s)" % [find_id, now - float(_last_hit.get(sender, -100.0))])
 		return
 	_last_hit[sender] = now
 	var hp := crust.hp - Tuning.get_f("finds", "drill_damage" if drill else "pickaxe_damage", 1.0)
@@ -138,6 +143,7 @@ func _rpc_freed(find_id: int) -> void:
 	if it == null or it.freed:
 		return
 	it.freed = true
+	it.last_safe = it.global_position
 	var crust: Crust = crusts.get(find_id)
 	if crust:
 		game.fx.crust_break(crust.global_position, it.half_extents.length())
@@ -151,11 +157,110 @@ func _rpc_freed(find_id: int) -> void:
 	find_freed.emit(it)
 
 
+# --- Dragen ------------------------------------------------------------------
+
+func request_grab(find_id: int) -> void:
+	if Net.is_host():
+		_grab(Net.my_id(), find_id)
+	else:
+		_rpc_grab.rpc_id(1, find_id)
+
+
+func request_release(find_id: int, xf: Transform3D, velocity: Vector3) -> void:
+	if Net.is_host():
+		_release(Net.my_id(), find_id, xf, velocity)
+	else:
+		_rpc_release.rpc_id(1, find_id, xf, velocity)
+
+
+@rpc("any_peer", "reliable")
+func _rpc_grab(find_id: int) -> void:
+	if multiplayer.is_server():
+		_grab(multiplayer.get_remote_sender_id(), find_id)
+
+
+@rpc("any_peer", "reliable")
+func _rpc_release(find_id: int, xf: Transform3D, velocity: Vector3) -> void:
+	if multiplayer.is_server():
+		_release(multiplayer.get_remote_sender_id(), find_id, xf, velocity)
+
+
+func _grab(sender: int, find_id: int) -> void:
+	var it := item(find_id)
+	var player: Player = game.player_node(sender)
+	if it == null or player == null or not it.freed or it.carriers.size() >= 2 or it.carriers.has(sender):
+		return
+	if player.global_position.distance_to(it.global_position) > Tuning.get_f("carry", "grab_reach", 3.0) + 1.5:
+		return
+	# Wie al iets draagt, laat dat eerst los.
+	for other in items:
+		if other.carriers.has(sender):
+			_release(sender, other.find_id, other.global_transform, Vector3.ZERO)
+	var carriers := it.carriers.duplicate()
+	carriers.append(sender)
+	it.freeze = true
+	_rpc_carriers.rpc(find_id, carriers)
+
+
+func _release(sender: int, find_id: int, xf: Transform3D, velocity: Vector3) -> void:
+	var it := item(find_id)
+	if it == null or not it.carriers.has(sender):
+		return
+	var carriers := it.carriers.duplicate()
+	carriers.remove_at(carriers.find(sender))
+	if carriers.is_empty():
+		# Fysica neemt over waar de laatste drager hem losliet: niet verder dan 3 m van de
+		# host-positie en niet in de rots.
+		if xf.origin.distance_to(it.global_position) < 3.0 and not _inside_rock(xf.origin):
+			it.global_transform = xf
+		it.freeze = false
+		it.linear_velocity = velocity.limit_length(12.0)
+		it.sleeping = false
+		_prev_velocity[find_id] = it.linear_velocity
+	_rpc_carriers.rpc(find_id, carriers)
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_carriers(find_id: int, carriers: PackedInt32Array) -> void:
+	var it := item(find_id)
+	if it == null:
+		return
+	it.carriers = carriers
+	carriers_changed.emit(it)
+
+
+## Waar een gedragen vondst hoort: tussen de handen van zijn dragers, niet door een muur.
+func carry_target(it: FindItem) -> Vector3:
+	var sum := Vector3.ZERO
+	var n := 0
+	for peer in it.carriers:
+		var p: Player = game.player_node(peer)
+		if p:
+			sum += p.hold_point(it.half_extents.length())
+			n += 1
+	return sum / n if n > 0 else it.global_position
+
+
+## Host: iemand is weg; wat hij droeg, valt.
+func drop_all_of(peer: int) -> void:
+	for it in items:
+		if it.carriers.has(peer):
+			_release(peer, it.find_id, it.global_transform, Vector3.ZERO)
+
+
 # --- Posities van losse vondsten ----------------------------------------------
 
 func _physics_process(delta: float) -> void:
 	if not multiplayer.is_server() or game == null:
 		return
+	for it in items:
+		if not it.freed:
+			continue
+		if it.carriers.size() > 0:
+			it.global_position = carry_target(it)
+		else:
+			_check_impact(it)
+			_rescue_if_stuck(it, delta)
 	_send_timer += delta
 	if _send_timer < SEND_INTERVAL:
 		return
@@ -163,7 +268,7 @@ func _physics_process(delta: float) -> void:
 	var ids := PackedInt32Array()
 	var poses: Array = []
 	for it in items:
-		if it.freed and not it.sleeping:
+		if it.freed and (not it.sleeping or it.carriers.size() > 0):
 			ids.append(it.find_id)
 			poses.append(it.global_transform)
 	if ids.is_empty():
@@ -181,13 +286,63 @@ func _rpc_poses(ids: PackedInt32Array, poses: Array) -> void:
 			it.push_snapshot(poses[i])
 
 
+## Minstens een halve meter diep in de rots (dichtstbijzijnde voxel, dus met marge).
+func _inside_rock(pos: Vector3) -> bool:
+	return game.terrain.debug_sdf(pos) < -1.0
+
+
+## Host: vangnet. Zit een losse vondst in de rots of valt hij onder de put, dan terug naar
+## zijn laatste veilige plek. Anders valt hij door de binnenkant van het terrein weg.
+func _rescue_if_stuck(it: FindItem, delta: float) -> void:
+	var pos := it.global_position
+	if _inside_rock(pos) or pos.y < -2.0:
+		it.stuck_time += delta
+		if it.stuck_time > 0.25:
+			it.global_position = it.last_safe + Vector3(0, 0.3, 0)
+			it.linear_velocity = Vector3.ZERO
+			it.angular_velocity = Vector3.ZERO
+			it.stuck_time = 0.0
+			print("[finds] vondst %d zat vast in de rots: teruggezet" % it.find_id)
+	else:
+		it.stuck_time = 0.0
+		if it.linear_velocity.length() < 3.0:
+			it.last_safe = pos
+
+
+## Host: harde klap (vallen, gooien, botsen) kost gaafheid (GDD §3: botst, breekt).
+func _check_impact(it: FindItem) -> void:
+	var v := it.linear_velocity
+	var prev: Vector3 = _prev_velocity.get(it.find_id, v)
+	_prev_velocity[it.find_id] = v
+	var dv := (v - prev).length()
+	var threshold := Tuning.get_f("carry", "impact_threshold", 5.0)
+	if dv <= threshold:
+		return
+	var loss := (dv - threshold) * Tuning.get_f("carry", "impact_damage", 0.05)
+	var cond := maxf(Tuning.get_f("finds", "min_condition", 0.25), it.condition - loss)
+	_rpc_condition.rpc(it.find_id, cond)
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_condition(find_id: int, cond: float) -> void:
+	var it := item(find_id)
+	if it == null:
+		return
+	var hard := cond < it.condition - 0.001
+	it.condition = cond
+	if hard:
+		game.fx.crust_hit(it.global_position, Vector3.UP, false)
+		game.fx.play("tok", it.global_position, 0.0)
+	condition_changed.emit(it, hard)
+
+
 # --- Late joiners ------------------------------------------------------------
 
 func snapshot() -> Array:
 	var out: Array = []
 	for it in items:
 		var crust: Crust = crusts.get(it.find_id)
-		out.append([it.find_id, crust.hp if crust else 0.0, it.condition, it.freed, it.global_transform])
+		out.append([it.find_id, crust.hp if crust else 0.0, it.condition, it.freed, it.global_transform, it.carriers])
 	return out
 
 
@@ -200,6 +355,7 @@ func apply_snapshot(state: Array) -> void:
 		var crust: Crust = crusts.get(it.find_id)
 		if s[3]:
 			it.freed = true
+			it.carriers = s[5]
 			it.global_transform = s[4]
 			it.push_snapshot(s[4])
 			if crust:

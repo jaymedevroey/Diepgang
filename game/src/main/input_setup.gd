@@ -14,6 +14,7 @@ const KEYS := {
 	"toggle_stats": KEY_F3,
 	"tool_1": KEY_1,
 	"tool_2": KEY_2,
+	"interact": KEY_E,
 }
 
 

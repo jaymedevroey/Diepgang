@@ -11,6 +11,7 @@ extends Node3D
 ##   render            vaste camera in een tunnel, screenshot naar logs/
 ##   net_test          host + client: beweging en terrein-sync (tools/net_test.py)
 ##   find_test         vondsten en korsten: uitbikken, boren, vrijkomen (headless)
+##   carry_test        oppakken, dragen, gooien, botsschade (headless)
 ## Extra in play (voor controle door de agent):
 ##   --shot=naam --frames=90,140   screenshots N frames na het spawnen, dan afsluiten
 ##   --autodig                     gereedschap werkt vanzelf (houweel zwaait, boor boort)
@@ -25,9 +26,11 @@ const SCENARIOS := {
 	"robot_preview": preload("res://src/main/scenarios/robot_preview.gd"),
 	"find_test": preload("res://src/main/scenarios/find_test.gd"),
 	"find_preview": preload("res://src/main/scenarios/find_preview.gd"),
+	"carry_test": preload("res://src/main/scenarios/carry_test.gd"),
+	"carry_preview": preload("res://src/main/scenarios/carry_preview.gd"),
 }
 ## Scenario's waarin de host ook een eigen speler krijgt.
-const SCENARIOS_WITH_PLAYER := ["play", "net_test", "find_test"]
+const SCENARIOS_WITH_PLAYER := ["play", "net_test", "find_test", "carry_test", "carry_preview"]
 const AIM_COLORS := {
 	Pickaxe.Aim.NONE: Color(1, 1, 1, 0.35),
 	Pickaxe.Aim.DIGGABLE: Color(1, 1, 1, 0.95),
@@ -183,12 +186,18 @@ func _process(_delta: float) -> void:
 			var frac := d.heat / Tuning.get_f("drill", "heat_max", 5.5)
 			var bar := "█".repeat(int(frac * 12)) + "░".repeat(12 - int(frac * 12))
 			lines.append("Hitte %s%s" % [bar, "  OVERVERHIT" if d.overheated else ""])
-		lines.append("Linkermuis: graven (vasthouden) · V vliegen · Esc muis los · F3 paneel")
+		lines.append("Linkermuis: graven (vasthouden) · E: oppakken · V vliegen · Esc muis los · F3 paneel")
 	_hud_label.text = "\n".join(lines)
 
 
 ## Wat je bekijkt: een korst (levens, uitleg) of een losse vondst (naam, waarde, gaafheid).
 func _aim_info() -> String:
+	if player.carry.item:
+		var c := player.carry.item
+		var others := c.carriers.size() - 1
+		return "Je draagt: %s · €%d · gaaf %d%%%s   E neerzetten · linkermuis gooien" % [
+			c.display_name(), c.value(), int(round(c.condition * 100)),
+			"  (samen)" if others > 0 else ("  (zwaar: samen dragen gaat sneller)" if c.mass >= 10.0 else "")]
 	var cam := player.camera
 	var hit := terrain.raycast(cam.global_position, cam.global_position - cam.global_basis.z * 3.5,
 			Layers.TERRAIN | Layers.CRUST | Layers.LOOT)
@@ -201,7 +210,8 @@ func _aim_info() -> String:
 		return "Korst %s   houweel: veilig · boor: sneller, maar schaadt de vondst" % bar
 	if hit.collider is FindItem:
 		var f: FindItem = hit.collider
-		return "%s · €%d · gaaf %d%%" % [f.display_name(), f.value(), int(round(f.condition * 100))]
+		var prefix := "E: oppakken · " if f.freed and f.carriers.size() < 2 else ""
+		return "%s%s · €%d · gaaf %d%%" % [prefix, f.display_name(), f.value(), int(round(f.condition * 100))]
 	return ""
 
 

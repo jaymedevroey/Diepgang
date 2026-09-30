@@ -10,6 +10,11 @@ var base_value := 0
 var condition := 1.0
 var freed := false
 var half_extents := Vector3.ONE * 0.1
+## Peers die deze vondst dragen (0, 1 of 2). De host beslist.
+var carriers := PackedInt32Array()
+## Host: laatste plek buiten de rots, en hoe lang hij al in de rots zit (vangnet).
+var last_safe := Vector3.ZERO
+var stuck_time := 0.0
 
 # Clients: posities van de host, geïnterpoleerd (100 ms achter).
 var _snapshots: Array = [] # [ontvangsttijd ms, Transform3D]
@@ -64,6 +69,8 @@ func push_snapshot(xf: Transform3D) -> void:
 func _process(_delta: float) -> void:
 	if not freed or multiplayer.is_server() or _snapshots.is_empty():
 		return
+	if carriers.has(multiplayer.get_unique_id()):
+		return # zelf drager: Carry zet de positie (voorspelling)
 	var render_t := float(Time.get_ticks_msec()) - 100.0
 	while _snapshots.size() > 2 and _snapshots[1][0] <= render_t:
 		_snapshots.pop_front()

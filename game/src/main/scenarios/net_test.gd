@@ -85,9 +85,21 @@ func _run_client(p: Player) -> void:
 	for i in 4:
 		finds.hit_crust(it.find_id, Strata.Tool.HOUWEEL, it.global_position)
 		await get_tree().create_timer(0.35).timeout
+	# Oppakken, 2 m verder neerzetten.
+	await get_tree().create_timer(1.0).timeout
+	p.global_position = it.global_position + Vector3(0, -0.2, 1.3)
+	p.look_at(it.global_position)
+	await get_tree().create_timer(0.3).timeout
+	finds.request_grab(it.find_id)
+	await get_tree().create_timer(0.5).timeout
+	var carried := p.carry.item == it
+	p.global_position += Vector3(2.0, 0, 0)
+	await get_tree().create_timer(0.6).timeout
+	p.carry.drop(false)
+	print("[net_test] client: vondst gedragen: %s" % carried)
 	p.global_position = back
 	p.set_physics_process(true)
-	await get_tree().create_timer(2.5).timeout
+	await get_tree().create_timer(4.0).timeout
 	var sum := t.checksum()
 	print("[net_test] client: %d slagen, vondst vrij: %s, checksum %s" % [done, it.freed, sum])
 	_rpc_report.rpc_id(1, sum, p.global_position, done)

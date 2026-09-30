@@ -168,6 +168,7 @@ func _on_peer_left(id: int) -> void:
 		return
 	_color_of.erase(id)
 	ready_peers.erase(id)
+	finds.drop_all_of(id)
 	_despawn(id)
 	for peer in multiplayer.get_peers():
 		_rpc_despawn.rpc_id(peer, id)

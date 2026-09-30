@@ -102,7 +102,7 @@ func _physics_process(delta: float) -> void:
 		touching = true
 		_set_contact(true, false, hit.position, hit.normal, DigFx.CRUST_COLOR)
 		if _crust_timer <= 0.0:
-			_crust_timer = Tuning.get_f("finds", "drill_min_interval", 0.09) + 0.01
+			_crust_timer = 0.1
 			finds.hit_crust(hit.collider.find_id, TOOL, hit.position)
 			fx.crust_hit(hit.position, hit.normal, false)
 	elif running and not hit.is_empty():

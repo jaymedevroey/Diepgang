@@ -25,6 +25,7 @@ var _color := Color.WHITE
 var _held: Node3D
 var _held_bit: Node3D
 var _drilling := false
+var _carrying := false
 var _motor: AudioStreamPlayer3D
 var _rest := {} # node -> rust-transform
 
@@ -80,6 +81,12 @@ func set_tool(tool: HeldTool) -> void:
 		_held.rotation_degrees = Vector3(-90, 0, 0) # bit langs de arm; arm staat vooruit
 		_held_bit = _held.get_node("Bit")
 	_arm_r.add_child(_held)
+
+
+func set_carrying(on: bool) -> void:
+	_carrying = on
+	if _held:
+		_held.visible = not on
 
 
 func set_drilling(on: bool) -> void:
@@ -158,9 +165,14 @@ func _process(delta: float) -> void:
 
 	# Armen: tegengesteld aan de benen, de rechter doet de slag.
 	var arm_swing := deg_to_rad(28.0) * moving
-	_arm_l.transform = _rest[_arm_l] * Transform3D(Basis(Vector3.RIGHT, -s * arm_swing), Vector3.ZERO)
+	var left := -s * arm_swing
+	if _carrying:
+		left = deg_to_rad(75.0) + s * 0.05 * moving
+	_arm_l.transform = _rest[_arm_l] * Transform3D(Basis(Vector3.RIGHT, left), Vector3.ZERO)
 	var right := -s * arm_swing * -1.0
-	if _held_bit:
+	if _carrying:
+		right = deg_to_rad(75.0) - s * 0.05 * moving
+	elif _held_bit:
 		# Boor: arm vooruit, trillend als hij draait.
 		right = deg_to_rad(80.0) + (_rng.randf_range(-0.03, 0.03) if _drilling else 0.0)
 		if _drilling:

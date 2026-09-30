@@ -12,7 +12,7 @@ const MASK := 1 | (1 << 1) # terrein + buit
 const SEND_INTERVAL := 0.05
 const INTERP_DELAY_MS := 100.0
 
-enum Action { SWING, TOOL_PICKAXE, TOOL_DRILL, DRILL_ON, DRILL_OFF }
+enum Action { SWING, TOOL_PICKAXE, TOOL_DRILL, DRILL_ON, DRILL_OFF, CARRY_ON, CARRY_OFF }
 
 signal tool_changed(tool: Node3D)
 
@@ -28,6 +28,7 @@ var pickaxe: Pickaxe
 var drill: Drill
 var tools: Array[Node3D] = []
 var active_tool: Node3D
+var carry: Carry
 var rig: RobotRig
 var flying := false
 
@@ -115,10 +116,33 @@ func _setup_local() -> void:
 
 	tools = [pickaxe, drill]
 	select_tool(0)
+
+	carry = Carry.new()
+	carry.name = "Carry"
+	carry.player = self
+	carry.finds = game.finds
+	add_child(carry)
+	carry.changed.connect(func(it: FindItem) -> void:
+		# Handen vol: gereedschap weg zolang je draagt.
+		active_tool.set_active(it == null)
+		_send_action(Action.CARRY_ON if it else Action.CARRY_OFF))
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
+## Waar je iets vasthoudt: voor je, op ooghoogte, niet door een muur.
+func hold_point(item_radius: float) -> Vector3:
+	var fwd := -head.global_basis.z
+	var from := head.global_position
+	var dist := Tuning.get_f("carry", "hold_distance", 1.25)
+	var hit: Dictionary = game.terrain.raycast(from, from + fwd * (dist + item_radius))
+	if not hit.is_empty():
+		dist = maxf(0.4, from.distance_to(hit.position) - item_radius)
+	return from + fwd * dist + Vector3(0, -0.15, 0)
+
+
 func select_tool(index: int) -> void:
+	if carry and carry.item:
+		return
 	index = wrapi(index, 0, tools.size())
 	if active_tool == tools[index]:
 		return
@@ -176,7 +200,7 @@ func _physics_process(delta: float) -> void:
 			v.y -= fly_speed
 		velocity = v
 	else:
-		var speed: float = Tuning.get_f("player", "move_speed", 4.5) * active_tool.move_multiplier()
+		var speed: float = Tuning.get_f("player", "move_speed", 4.5) * active_tool.move_multiplier() * (carry.move_multiplier() if carry else 1.0)
 		var dir := (global_basis * Vector3(input.x, 0.0, input.y)).normalized()
 		velocity.x = dir.x * speed
 		velocity.z = dir.z * speed
@@ -261,3 +285,7 @@ func _rpc_action(action: int) -> void:
 			rig.set_drilling(true)
 		Action.DRILL_OFF:
 			rig.set_drilling(false)
+		Action.CARRY_ON:
+			rig.set_carrying(true)
+		Action.CARRY_OFF:
+			rig.set_carrying(false)

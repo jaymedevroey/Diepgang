@@ -80,8 +80,12 @@ Netwerkmodel (GDD §9): host-autoritatief voor terrein en buit; elke speler bepa
   - 2026-10-01: `FossilModel` (dijbeen, wervel, rib, schedel, klauw; procedureel), `Crust` (bleke gespikkelde schil, barsten groeien met de schade, oplichten bij een raak), `FindItem`, `FindField` (36 vondsten uit de seed, 5 ondiep rond de spawn, min. 2 m uit elkaar). Houweel: 4 slagen, 100% gaaf. Boor: 8 happen in 0,8 s, ±67% gaaf. Vrij: korst springt, "ding", vondst licht op, host graaft ruimte en simuleert; clients interpoleren (20 Hz). Late joiners krijgen de toestand mee.
   - Tests: `--scenario=find_test` (15 controles) en de nettest (vondst vrij bij client en host, zelfde plek, checksum gelijk). Screenshots: `logs/find_2.png` (korst met barsten), `logs/find_3.png` (vrijkomen).
   - Gevonden en opgelost: vondsten konden overlappen (korsten 0,58 m uit elkaar).
-- [ ] **Stap 6: dragen.** Grijphandschoen: oppakken, dragen (volgt de hand kinematisch, lokaal voorspeld), loslaten/gooien (fysica neemt over). Host simuleert buit, clients interpoleren. Zware stukken met twee dragen.
+- [x] **Stap 6: dragen.** Grijphandschoen: oppakken, dragen (volgt de hand kinematisch, lokaal voorspeld), loslaten/gooien (fysica neemt over). Host simuleert buit, clients interpoleren. Zware stukken met twee dragen.
   Verificatie: nettest: client draagt vondst, host ziet dezelfde positie; screenshot.
+  - 2026-10-01: `Carry` (E oppakken/neerzetten, linkermuis gooien). Host beslist wie draagt (max. 2), de drager ziet de vondst meteen in zijn hand; loslaten = laatste positie + snelheid naar de host. Gewicht vertraagt (1 − massa / (30 × dragers), min. 0,4). Harde klap kost gaafheid. Handen vol = gereedschap weg; anderen zien je robot met de armen vooruit.
+  - Vangnet: een losse vondst die in de rots belandt of onder de put valt, gaat terug naar zijn laatste veilige plek (de nettest vond dit).
+  - Tests: `--scenario=carry_test` (10 controles), nettest (client draagt, positie gelijk bij host). Screenshot `logs/carry.png`.
+  - Onstabiele test gevonden en opgelost: host valideert treffers in echte tijd, gereedschap telt in speltijd; die kunnen 20% verschillen. Grenzen nu ruim onder het echte tempo.
 - [ ] **Stap 7: lift.** Platform in de centrale schacht, terminal per niveau om de lift te roepen, hendel om naar boven te gaan. Buit op het platform gaat mee.
   Verificatie: test: lift roepen, buit meenemen naar boven.
 - [ ] **Stap 8: tuning-menu.** In het spel (F1) alle waarden uit `data/tuning/*.cfg` aanpassen en bewaren.

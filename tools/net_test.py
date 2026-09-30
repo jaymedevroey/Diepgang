@@ -26,7 +26,7 @@ def launch(cmd: list[str], tag: str, lines: list[str]) -> subprocess.Popen:
         for line in proc.stdout:
             line = line.rstrip()
             lines.append(line)
-            if line.startswith(("[net", "[game", "[terrain_sync", "SCRIPT ERROR", "ERROR")) and "material\" is null" not in line:
+            if line.startswith(("[finds", "[net", "[game", "[terrain_sync", "SCRIPT ERROR", "ERROR")) and "material\" is null" not in line:
                 print(f"{tag} {line}", flush=True)
 
     threading.Thread(target=pump, daemon=True).start()
