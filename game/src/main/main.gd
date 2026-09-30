@@ -13,13 +13,14 @@ extends Node3D
 ## Extra in play (voor controle door de agent):
 ##   --shot=naam --frames=90,140   screenshots N frames na het spawnen, dan afsluiten
 ##   --autodig                     houweel zwaait vanzelf
-##   --pitch=-40                   kijkhoek in graden bij het spawnen
+##   --pitch=-40 --yaw=45          kijkhoek en draai in graden bij het spawnen
 
 const SCENARIOS := {
 	"dig_test": preload("res://src/main/scenarios/dig_test.gd"),
 	"stress": preload("res://src/main/scenarios/stress_test.gd"),
 	"render": preload("res://src/main/scenarios/render_showcase.gd"),
 	"net_test": preload("res://src/main/scenarios/net_test.gd"),
+	"robot_preview": preload("res://src/main/scenarios/robot_preview.gd"),
 }
 ## Scenario's waarin de host ook een eigen speler krijgt.
 const SCENARIOS_WITH_PLAYER := ["play", "net_test"]
@@ -120,6 +121,7 @@ func _on_player_spawned(p: Player) -> void:
 		return
 	player = p
 	p.head.rotation.x = deg_to_rad(float(CmdArgs.value("pitch", 0.0)))
+	p.rotate_y(deg_to_rad(float(CmdArgs.value("yaw", 0.0))))
 	p.pickaxe.auto_swing = CmdArgs.has("autodig")
 	p.pickaxe.aim_changed.connect(_on_aim_changed)
 	_on_aim_changed(p.pickaxe.aim)

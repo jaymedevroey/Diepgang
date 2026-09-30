@@ -11,6 +11,8 @@ const MASK := 1 | (1 << 1) # terrein + buit
 const SEND_INTERVAL := 0.05
 const INTERP_DELAY_MS := 100.0
 
+enum Action { SWING }
+
 var peer_id := 1
 var color := Color(0.95, 0.55, 0.12)
 var game: Node # Game
@@ -20,7 +22,7 @@ var head: Node3D
 var camera: Camera3D
 var camera_fx: CameraFx
 var pickaxe: Pickaxe
-var body_visual: Node3D
+var rig: RobotRig
 var flying := false
 
 var _send_timer := 0.0
@@ -86,36 +88,16 @@ func _setup_local() -> void:
 	pickaxe.fx = game.fx
 	pickaxe.camera_fx = camera_fx
 	pickaxe.color = color
+	pickaxe.swung.connect(_send_action.bind(Action.SWING))
 	camera.add_child(pickaxe)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
 func _setup_remote() -> void:
-	# Tijdelijk lijf; de echte robot komt in stap 3.
-	var mesh := MeshInstance3D.new()
-	var capsule := CapsuleMesh.new()
-	capsule.radius = 0.35
-	capsule.height = 1.4
-	mesh.mesh = capsule
-	mesh.position.y = 0.7
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	mat.roughness = 0.5
-	mesh.material_override = mat
-	body_visual = mesh
-	add_child(mesh)
-	var visor := MeshInstance3D.new()
-	var box := BoxMesh.new()
-	box.size = Vector3(0.4, 0.2, 0.1)
-	visor.mesh = box
-	var vmat := StandardMaterial3D.new()
-	vmat.albedo_color = Color(0.05, 0.08, 0.1)
-	vmat.emission_enabled = true
-	vmat.emission = Color(0.3, 0.9, 1.0)
-	vmat.emission_energy_multiplier = 0.6
-	visor.material_override = vmat
-	visor.position = Vector3(0, 0, -0.33)
-	head.add_child(visor)
+	rig = RobotRig.new()
+	rig.name = "Rig"
+	add_child(rig)
+	rig.setup(color)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -198,6 +180,28 @@ func _interpolate() -> void:
 	var a: Array = _snapshots[0]
 	var b: Array = _snapshots[1] if _snapshots.size() > 1 else a
 	var k := 0.0 if b[0] == a[0] else clampf((render_t - a[0]) / (b[0] - a[0]), 0.0, 1.0)
+	var prev := global_position
 	global_position = (a[1] as Vector3).lerp(b[1], k)
 	rotation.y = lerp_angle(a[2], b[2], k)
 	head.rotation.x = lerpf(a[3], b[3], k)
+	if rig:
+		var dt := get_process_delta_time()
+		var v := (global_position - prev) / maxf(dt, 0.0001)
+		rig.velocity = rig.velocity.lerp(v, minf(1.0, dt * 12.0))
+		rig.on_floor = absf(rig.velocity.y) < 0.8
+		rig.look_pitch = head.rotation.x
+
+
+func _send_action(action: Action) -> void:
+	var me := multiplayer.get_unique_id()
+	for peer: int in game.ready_peers:
+		if peer != me:
+			_rpc_action.rpc_id(peer, action)
+
+
+## Zichtbare acties (zwaai) naar de anderen. Onbetrouwbaar: een gemiste zwaai is geen ramp,
+## het terrein zelf komt via TerrainSync.
+@rpc("authority", "unreliable_ordered", "call_remote")
+func _rpc_action(action: int) -> void:
+	if rig and action == Action.SWING:
+		rig.swing()

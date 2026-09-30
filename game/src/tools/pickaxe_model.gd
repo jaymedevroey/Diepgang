@@ -9,8 +9,13 @@ const GLOVE := Color(0.95, 0.55, 0.12) # robotkleur van speler 1
 ## Renderlaag voor gereedschap in beeld (laag 2), zodat een vullicht enkel dat raakt.
 const VIEWMODEL_LAYER := 1 << 1
 
+static var _viewmodel := true
 
-static func build(viewmodel_fov: float, glove_color := GLOVE) -> Node3D:
+
+## `viewmodel` = in first-person voor de eigen camera (eigen FOV, z-clip, renderlaag 2).
+## Zonder: gewoon in de wereld, in de hand van een robot.
+static func build(viewmodel_fov: float, glove_color := GLOVE, viewmodel := true) -> Node3D:
+	_viewmodel = viewmodel
 	var root := Node3D.new()
 	root.name = "PickaxeModel"
 
@@ -53,6 +58,8 @@ static func build(viewmodel_fov: float, glove_color := GLOVE) -> Node3D:
 	ring.height = 0.03
 	_add(head, ring, metal, Vector3(0, -0.045, 0))
 
+	if not viewmodel:
+		return root # de robot heeft zijn eigen hand
 	# Robothandschoen rond de greep.
 	var glove := CapsuleMesh.new()
 	glove.radius = 0.045
@@ -69,8 +76,9 @@ static func _add(parent: Node3D, mesh: Mesh, mat: Material, pos: Vector3) -> Mes
 	mi.mesh = mesh
 	mi.material_override = mat
 	mi.position = pos
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	mi.layers = 1 | VIEWMODEL_LAYER
+	if _viewmodel:
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.layers = 1 | VIEWMODEL_LAYER
 	parent.add_child(mi)
 	return mi
 
@@ -81,8 +89,9 @@ static func _mat(color: Color, roughness: float, metallic: float, fov: float) ->
 	m.albedo_color = color
 	m.roughness = roughness
 	m.metallic = metallic
-	m.use_z_clip_scale = true
-	m.z_clip_scale = 0.3
-	m.use_fov_override = true
-	m.fov_override = fov
+	if _viewmodel:
+		m.use_z_clip_scale = true
+		m.z_clip_scale = 0.3
+		m.use_fov_override = true
+		m.fov_override = fov
 	return m

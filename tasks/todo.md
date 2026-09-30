@@ -67,8 +67,9 @@ Netwerkmodel (GDD §9): host-autoritatief voor terrein en buit; elke speler bepa
 - [x] **Stap 2: terrein-sync.** Graafacties via de host (validatie: snelheid, afstand, gereedschap/laag), lokale voorspelling voor je eigen slagen, broadcast naar de rest.
   Verificatie: nettest vergelijkt een checksum van het terrein op host en client na dezelfde reeks slagen.
   - 2026-10-01: `TerrainSync`. Nettest: 4 slagen van de host voor de join (via logboek), 3 tijdens het laden van de client (gebufferd), 6 van de client (voorspeld + gevalideerd). MD5 van het volledige SDF-kanaal is identiek op host en client, 0 geweigerde ops.
-- [ ] **Stap 3: de robot.** Procedureel robotlijf (rond lijf, schermgezicht, antenne die meeveert) voor andere spelers; eigen handen/gereedschap in first-person.
+- [x] **Stap 3: de robot.** Procedureel robotlijf (rond lijf, schermgezicht, antenne die meeveert) voor andere spelers; eigen handen/gereedschap in first-person.
   Verificatie: screenshot van de andere speler.
+  - 2026-10-01: model uit `tools/blender/robot.py` (Blender 5.2 headless → `assets/models/robot.glb`). `RobotRig`: lopen, hoofd volgt kijkhoek, verende antenne, squash & stretch, zwaai met houweel. Schermgezicht-shader met pixelogen (knipperen, knijpen bij een slag, "blij" klaar voor later). Zwaai gaat als actie over het netwerk. Screenshots: `logs/robots_2.png` (4 kleuren) en `logs/coop_2.png` (andere speler via het netwerk). Preview: `--scenario=robot_preview`.
 - [ ] **Stap 4: boor T1.** Continu, kegelvormig, aanloop, trager lopen, hittemeter, gruisstraal, motorgeluid onder belasting; graaft zandsteen. Gesynchroniseerd als "streep" per netwerktick.
   Verificatie: dig_test + nettest met boor; screenshot.
 - [ ] **Stap 5: vondsten met korst.** Een eerste vondstfamilie (fossielstukken) in het terrein, elk in een korst. Houweel bikt de korst weg zonder schade; boor is sneller maar verlaagt de waarde. Vrij = fysica-object.

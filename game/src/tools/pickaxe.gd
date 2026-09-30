@@ -8,6 +8,8 @@ extends Node3D
 ## Hang dit onder de camera. Verwacht: terrain, sync (TerrainSync), camera, body, fx, camera_fx, color.
 
 signal aim_changed(state: Aim)
+## Begin van een zwaai (voor de robot die anderen zien).
+signal swung
 
 enum State { IDLE, WINDUP, STRIKE, HITSTOP, RECOVER }
 enum Aim { NONE, DIGGABLE, TOO_HARD }
@@ -114,6 +116,7 @@ func _process(delta: float) -> void:
 
 func _start_swing() -> void:
 	_buffered = false
+	swung.emit()
 	_enter(State.WINDUP, _current_pose(), POSE_RAISED)
 
 
