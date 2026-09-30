@@ -20,14 +20,15 @@ func terrain() -> TerrainAPI:
 	return game.terrain
 
 
-## Houweelslag van de lokale speler. False als de lokale snelheidslimiet weigert.
+## Houweelslag van de lokale speler. False als het gereedschap te zwak is of de
+## snelheidslimiet weigert (dan wordt er ook niets voorspeld).
 func submit_chip(world_hit: Vector3, normal: Vector3, radius_m: float, depth_m: float,
 		rough_m: float, tool: Strata.Tool) -> bool:
 	var t := terrain()
-	if not t.take_token(Net.my_id()):
-		return false
 	var op := t.make_chip_op(Net.my_id(), world_hit, normal, radius_m, depth_m, rough_m)
 	op["tool"] = tool
+	if not tool_allows(op) or not t.take_token(Net.my_id()):
+		return false
 	t.apply_op(op)
 	if Net.is_host():
 		_broadcast(op, Net.my_id())
@@ -39,16 +40,26 @@ func submit_chip(world_hit: Vector3, normal: Vector3, radius_m: float, depth_m: 
 ## Boorstreep of andere bol-op van de lokale speler.
 func submit_sphere(world_center: Vector3, radius_m: float, tool: Strata.Tool) -> bool:
 	var t := terrain()
-	if not t.take_token(Net.my_id()):
-		return false
 	var op := t.make_sphere_op(Net.my_id(), world_center, radius_m)
 	op["tool"] = tool
+	if not tool_allows(op) or not t.take_token(Net.my_id()):
+		return false
 	t.apply_op(op)
 	if Net.is_host():
 		_broadcast(op, Net.my_id())
 	else:
 		_rpc_submit.rpc_id(1, op)
 	return true
+
+
+## Zelfde controle op client (voor de voorspelling) en host (validatie). Verschillen ze,
+## dan lopen de werelden uiteen: terrein wegnemen kan niet teruggedraaid worden.
+func tool_allows(op: Dictionary) -> bool:
+	var t := terrain()
+	var probe: Vector3 = op.get("h", t.op_world_center(op))
+	if op.op == TerrainAPI.Op.CHIP:
+		probe -= (op.n as Vector3) * 0.2
+	return Strata.can_dig(t.layer_at(probe), op.tool)
 
 
 ## Wordt door Game aangeroepen zodra het terrein bestaat.
@@ -103,9 +114,6 @@ func _validate(sender: int, op: Dictionary) -> String:
 	var center := t.op_world_center(op)
 	if center.distance_to(player.global_position) > MAX_OP_DISTANCE:
 		return "te ver (%.1f m)" % center.distance_to(player.global_position)
-	var probe: Vector3 = op.get("h", center)
-	if op.op == TerrainAPI.Op.CHIP:
-		probe -= (op.n as Vector3) * 0.2
-	if not Strata.can_dig(t.layer_at(probe), op.tool):
-		return "gereedschap te zwak voor %s" % Strata.NAMES[t.layer_at(probe)]
+	if not tool_allows(op):
+		return "gereedschap te zwak"
 	return ""

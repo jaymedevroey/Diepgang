@@ -12,7 +12,8 @@ extends Node3D
 ##   net_test          host + client: beweging en terrein-sync (tools/net_test.py)
 ## Extra in play (voor controle door de agent):
 ##   --shot=naam --frames=90,140   screenshots N frames na het spawnen, dan afsluiten
-##   --autodig                     houweel zwaait vanzelf
+##   --autodig                     gereedschap werkt vanzelf (houweel zwaait, boor boort)
+##   --tool=drill                  met de boor beginnen
 ##   --pitch=-40 --yaw=45          kijkhoek en draai in graden bij het spawnen
 
 const SCENARIOS := {
@@ -123,14 +124,25 @@ func _on_player_spawned(p: Player) -> void:
 	p.head.rotation.x = deg_to_rad(float(CmdArgs.value("pitch", 0.0)))
 	p.rotate_y(deg_to_rad(float(CmdArgs.value("yaw", 0.0))))
 	p.pickaxe.auto_swing = CmdArgs.has("autodig")
-	p.pickaxe.aim_changed.connect(_on_aim_changed)
-	_on_aim_changed(p.pickaxe.aim)
+	p.drill.auto_use = CmdArgs.has("autodig")
+	p.tool_changed.connect(_on_tool_changed)
+	if CmdArgs.value("tool", "") == "drill":
+		p.select_tool(1)
+	_on_tool_changed(p.active_tool)
 	_frame_since_spawn = 0
+
+
+func _on_tool_changed(tool: Node3D) -> void:
+	for t in player.tools:
+		if t.aim_changed.is_connected(_on_aim_changed):
+			t.aim_changed.disconnect(_on_aim_changed)
+	tool.aim_changed.connect(_on_aim_changed)
+	_on_aim_changed(tool.aim)
 
 
 func _on_aim_changed(aim: Pickaxe.Aim) -> void:
 	_crosshair.modulate = AIM_COLORS[aim]
-	_hint.text = "Te hard voor het houweel: hier heb je een boor nodig" if aim == Pickaxe.Aim.TOO_HARD else ""
+	_hint.text = player.active_tool.hint_too_hard() if aim == Pickaxe.Aim.TOO_HARD else ""
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -156,7 +168,14 @@ func _process(_delta: float) -> void:
 		lines.append("Laag: %s  ·  diepte %.0f m%s" % [
 			Strata.NAMES[terrain.layer_at(p)], maxf(0.0, terrain.surface_height_at(p.x, p.z) - p.y),
 			"  ·  VLIEGEN" if player.flying else ""])
-		lines.append("Linkermuis: houweel (vasthouden = doorhakken) · V vliegen · Esc muis los · F3 paneel")
+		var tool_name := "houweel" if player.active_tool == player.pickaxe else "boor T1"
+		lines.append("Gereedschap: %s  (1 houweel · 2 boor · wieltje)" % tool_name)
+		if player.active_tool == player.drill:
+			var d := player.drill
+			var frac := d.heat / Tuning.get_f("drill", "heat_max", 5.5)
+			var bar := "█".repeat(int(frac * 12)) + "░".repeat(12 - int(frac * 12))
+			lines.append("Hitte %s%s" % [bar, "  OVERVERHIT" if d.overheated else ""])
+		lines.append("Linkermuis: graven (vasthouden) · V vliegen · Esc muis los · F3 paneel")
 	_hud_label.text = "\n".join(lines)
 
 

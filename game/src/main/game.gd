@@ -216,4 +216,7 @@ func _on_remote_op(op: Dictionary) -> void:
 	var pos: Vector3 = op.h
 	var normal: Vector3 = op.get("n", Vector3.UP)
 	var layer := terrain.layer_at(pos - normal * 0.2)
-	fx.impact(pos, normal, Strata.DEBRIS_COLORS[layer], 2)
+	if op.op == TerrainAPI.Op.CHIP:
+		fx.impact(pos, normal, Strata.DEBRIS_COLORS[layer], 2)
+	else:
+		fx.grit_puff(pos, normal, Strata.DEBRIS_COLORS[layer])

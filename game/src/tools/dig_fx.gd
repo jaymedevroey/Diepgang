@@ -3,6 +3,8 @@ extends Node3D
 ## Lokale, cosmetische effecten van graven: stof, steentjes, vonken en geluid.
 ## Niets hiervan gaat over het netwerk; enkel terreinbewerkingen worden gesynchroniseerd.
 
+enum Stream { GRIT, SPARKS, DUST }
+
 const LAYER_DEBRIS := 1 << 3
 const MAX_PEBBLES := 48
 const PEBBLE_LIFETIME := 5.0
@@ -45,6 +47,52 @@ func impact(pos: Vector3, normal: Vector3, color: Color, pebbles: int) -> void:
 		_spawn_pebble(pos + normal * 0.15, normal, color)
 	play("clay", pos, 0.0)
 	play("crumble", pos, -9.0, 0.12)
+
+
+## Boorhap van een andere speler: kleine gruiswolk, geen steentjes of geluid
+## (zijn motorgeluid komt van zijn robot).
+func grit_puff(pos: Vector3, normal: Vector3, color: Color) -> void:
+	_burst_grit(pos, normal, color, 5)
+	_burst_dust(pos, normal, color, 3, 0.8)
+
+
+## Doorlopende stroom (boor). De eigenaar zet emitting, positie en kleur, en ruimt op.
+func make_stream(kind: Stream) -> GPUParticles3D:
+	var p := GPUParticles3D.new()
+	p.local_coords = false
+	p.emitting = false
+	match kind:
+		Stream.GRIT:
+			p.process_material = _grit_material
+			p.draw_pass_1 = _grit_draw
+			p.amount = 70
+			p.lifetime = 0.8
+			var m := StandardMaterial3D.new()
+			m.roughness = 1.0
+			p.material_override = m
+		Stream.SPARKS:
+			p.process_material = _spark_material
+			p.draw_pass_1 = _spark_draw
+			p.amount = 50
+			p.lifetime = 0.3
+		Stream.DUST:
+			p.process_material = _dust_material
+			p.draw_pass_1 = _dust_draw
+			p.amount = 26
+			p.lifetime = 1.4
+			p.material_override = _dust_draw.material.duplicate()
+	add_child(p)
+	return p
+
+
+func tint_stream(p: GPUParticles3D, color: Color) -> void:
+	var m := p.material_override as StandardMaterial3D
+	if m == null:
+		return
+	if m.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA:
+		m.albedo_color = Color(color, 0.45)
+	else:
+		m.albedo_color = color
 
 
 ## Houweel ketst af op te harde rots.

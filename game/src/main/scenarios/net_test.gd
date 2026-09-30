@@ -6,6 +6,7 @@ extends Node
 
 const TIMEOUT_S := 90.0
 const CHIPS := 6
+const DRILL_BITES := 4
 
 var main: Node
 var _checks := 0
@@ -59,6 +60,21 @@ func _run_client(p: Player) -> void:
 		while not main.game.terrain_sync.submit_chip(hit.position, hit.normal, 0.75, 0.45, 0.14, Strata.Tool.HOUWEEL):
 			await get_tree().physics_frame
 		done += 1
+	# Boor T1: 4 happen schuin in de vloer.
+	var drilled := 0
+	for i in 4:
+		var probe := p.global_position + Vector3(1.0, 1.2, 0.2 * i)
+		var hit := t.raycast(probe, probe - Vector3(0, 4, 0))
+		if hit.is_empty():
+			continue
+		while not main.game.terrain_sync.submit_sphere(hit.position + Vector3(0, 0.65, 0), 0.8, Strata.Tool.BOOR_T1):
+			await get_tree().physics_frame
+		drilled += 1
+	# Houweel in zandsteen: moet lokaal al geweigerd worden (geen voorspelling, geen desync).
+	var sand := Vector3(p.global_position.x, 100.0, p.global_position.z)
+	var refused: bool = not main.game.terrain_sync.submit_chip(sand, Vector3.UP, 0.75, 0.45, 0.14, Strata.Tool.HOUWEEL)
+	print("[net_test] client: %d boorhappen, houweel in zandsteen geweigerd: %s" % [drilled, refused])
+	done += drilled if refused else -100
 	await get_tree().create_timer(2.0).timeout
 	var sum := t.checksum()
 	print("[net_test] client: %d slagen, checksum %s" % [done, sum])
@@ -75,7 +91,7 @@ func _rpc_report(client_sum: String, client_pos: Vector3, chips: int) -> void:
 	var host_sum := t.checksum()
 	var remote: Player = main.game.player_node(sender)
 	var from_sender := t.op_log().filter(func(op: Dictionary) -> bool: return op.p == sender).size()
-	_expect(chips == CHIPS, "client deed %d/%d slagen" % [chips, CHIPS])
+	_expect(chips == CHIPS + DRILL_BITES, "client deed %d/%d slagen + boorhappen (en weigerde houweel in zandsteen)" % [chips, CHIPS + DRILL_BITES])
 	_expect(from_sender == chips, "host paste %d ops van de client toe" % from_sender)
 	_expect(main.game.terrain_sync.rejected_ops == 0, "geen geweigerde ops (%d)" % main.game.terrain_sync.rejected_ops)
 	_expect(host_sum == client_sum, "terrein-checksum gelijk (host %s, client %s)" % [host_sum.left(8), client_sum.left(8)])
@@ -85,6 +101,8 @@ func _rpc_report(client_sum: String, client_pos: Vector3, chips: int) -> void:
 		_expect(d < 0.3, "positie van de client klopt bij de host (%.2f m verschil)" % d)
 	_expect(main.game.players.get_child_count() == 2, "2 spelers bij de host")
 	_expect(t.op_log().size() == chips + 7, "host-logboek: 4 slagen voor, 3 tijdens het laden, %d van de client (%d)" % [chips, t.op_log().size()])
+	var drill_ops := t.op_log().filter(func(op: Dictionary) -> bool: return op.get("tool", -1) == Strata.Tool.BOOR_T1).size()
+	_expect(drill_ops == DRILL_BITES, "host paste %d boorhappen toe" % drill_ops)
 	var ok := _failures.is_empty()
 	print("[net_test] host: %d controles, %d mislukt → %s" % [_checks, _failures.size(), "GESLAAGD" if ok else "GEFAALD"])
 	_rpc_finish.rpc(ok)

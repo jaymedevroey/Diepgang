@@ -3,7 +3,8 @@ extends CharacterBody3D
 ## Een robot. Op de peer die hem bestuurt (authority) is hij lokaal: invoer, camera,
 ## houweel, en hij stuurt zijn toestand ±20× per seconde. Op de andere peers is hij een
 ## kopie die geïnterpoleerd wordt (GDD §9: de client bepaalt de eigen beweging).
-## Opbouw lokaal: Player (yaw) > Head (pitch) > Camera3D (CameraFx) > Pickaxe
+## Opbouw lokaal: Player (yaw) > Head (pitch) > Camera3D (CameraFx) > Pickaxe, Drill
+## Gereedschap: 1 = houweel, 2 = boor (of het muiswieltje).
 ## Naam van de node = peer-id, onder Game/Players, zodat RPC-paden overal gelijk zijn.
 
 const LAYER_PLAYERS := 1 << 2
@@ -11,7 +12,9 @@ const MASK := 1 | (1 << 1) # terrein + buit
 const SEND_INTERVAL := 0.05
 const INTERP_DELAY_MS := 100.0
 
-enum Action { SWING }
+enum Action { SWING, TOOL_PICKAXE, TOOL_DRILL, DRILL_ON, DRILL_OFF }
+
+signal tool_changed(tool: Node3D)
 
 var peer_id := 1
 var color := Color(0.95, 0.55, 0.12)
@@ -22,6 +25,9 @@ var head: Node3D
 var camera: Camera3D
 var camera_fx: CameraFx
 var pickaxe: Pickaxe
+var drill: Drill
+var tools: Array[Node3D] = []
+var active_tool: Node3D
 var rig: RobotRig
 var flying := false
 
@@ -61,6 +67,8 @@ func _ready() -> void:
 	lamp.position = Vector3(0.18, 0.22, 0.05)
 	# Helmlampen van anderen zonder schaduw: GDD §9 budget van 4-8 schaduwlampen.
 	lamp.shadow_enabled = is_local or Tuning.value("player", "remote_lamp_shadows", true)
+	# Gereedschap in beeld (laag 2) niet: van zo dichtbij brandt het uit. Het heeft een eigen vullicht.
+	lamp.light_cull_mask = ~PickaxeModel.VIEWMODEL_LAYER
 	head.add_child(lamp)
 
 	if is_local:
@@ -90,7 +98,33 @@ func _setup_local() -> void:
 	pickaxe.color = color
 	pickaxe.swung.connect(_send_action.bind(Action.SWING))
 	camera.add_child(pickaxe)
+
+	drill = Drill.new()
+	drill.terrain = game.terrain
+	drill.sync = game.terrain_sync
+	drill.camera = camera
+	drill.body = self
+	drill.fx = game.fx
+	drill.camera_fx = camera_fx
+	drill.color = color
+	drill.running_changed.connect(func(on: bool) -> void:
+		_send_action(Action.DRILL_ON if on else Action.DRILL_OFF))
+	camera.add_child(drill)
+
+	tools = [pickaxe, drill]
+	select_tool(0)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+func select_tool(index: int) -> void:
+	index = wrapi(index, 0, tools.size())
+	if active_tool == tools[index]:
+		return
+	active_tool = tools[index]
+	for t in tools:
+		t.set_active(t == active_tool)
+	_send_action(Action.TOOL_PICKAXE if active_tool == pickaxe else Action.TOOL_DRILL)
+	tool_changed.emit(active_tool)
 
 
 func _setup_remote() -> void:
@@ -115,6 +149,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("toggle_fly"):
 		flying = not flying
+	elif event.is_action_pressed("tool_1"):
+		select_tool(0)
+	elif event.is_action_pressed("tool_2"):
+		select_tool(1)
+	elif event.is_action_pressed("tool_next") and captured:
+		select_tool(tools.find(active_tool) + 1)
+	elif event.is_action_pressed("tool_prev") and captured:
+		select_tool(tools.find(active_tool) - 1)
 
 
 func _physics_process(delta: float) -> void:
@@ -132,7 +174,7 @@ func _physics_process(delta: float) -> void:
 			v.y -= fly_speed
 		velocity = v
 	else:
-		var speed := Tuning.get_f("player", "move_speed", 4.5)
+		var speed: float = Tuning.get_f("player", "move_speed", 4.5) * active_tool.move_multiplier()
 		var dir := (global_basis * Vector3(input.x, 0.0, input.y)).normalized()
 		velocity.x = dir.x * speed
 		velocity.z = dir.z * speed
@@ -199,9 +241,21 @@ func _send_action(action: Action) -> void:
 			_rpc_action.rpc_id(peer, action)
 
 
-## Zichtbare acties (zwaai) naar de anderen. Onbetrouwbaar: een gemiste zwaai is geen ramp,
-## het terrein zelf komt via TerrainSync.
-@rpc("authority", "unreliable_ordered", "call_remote")
+## Zichtbare acties (zwaai, gereedschap, boor) naar de anderen. Het terrein zelf komt via
+## TerrainSync; dit is enkel wat je van de robot ziet en hoort.
+## Wissel en boor aan/uit gaan betrouwbaar: die toestand moet kloppen.
+@rpc("authority", "reliable", "call_remote")
 func _rpc_action(action: int) -> void:
-	if rig and action == Action.SWING:
-		rig.swing()
+	if rig == null:
+		return
+	match action:
+		Action.SWING:
+			rig.swing()
+		Action.TOOL_PICKAXE:
+			rig.set_tool(RobotRig.HeldTool.PICKAXE)
+		Action.TOOL_DRILL:
+			rig.set_tool(RobotRig.HeldTool.DRILL)
+		Action.DRILL_ON:
+			rig.set_drilling(true)
+		Action.DRILL_OFF:
+			rig.set_drilling(false)

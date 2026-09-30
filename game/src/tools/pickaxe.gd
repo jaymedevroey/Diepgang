@@ -53,7 +53,7 @@ func _ready() -> void:
 	# anders valt het buiten de helmlamp en is het zwart.
 	var fill := OmniLight3D.new()
 	fill.light_color = Color(1.0, 0.85, 0.65)
-	fill.light_energy = 0.45
+	fill.light_energy = 1.3
 	fill.omni_range = 1.5
 	fill.light_cull_mask = PickaxeModel.VIEWMODEL_LAYER
 	fill.shadow_enabled = false
@@ -112,6 +112,23 @@ func _process(delta: float) -> void:
 					_start_swing()
 
 	_sway = _sway.lerp(Vector2.ZERO, minf(1.0, delta * 8.0))
+
+
+## Aan/uit bij het wisselen van gereedschap.
+func set_active(on: bool) -> void:
+	visible = on
+	set_process(on)
+	if not on:
+		_state = State.IDLE
+		_buffered = false
+
+
+func move_multiplier() -> float:
+	return 1.0
+
+
+func hint_too_hard() -> String:
+	return "Te hard voor het houweel: hier heb je een boor nodig"
 
 
 func _start_swing() -> void:

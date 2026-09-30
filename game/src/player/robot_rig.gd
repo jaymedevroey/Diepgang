@@ -4,6 +4,8 @@ extends Node3D
 ## veren). Model: assets/models/robot.glb (tools/blender/robot.py).
 ## Zet elke frame `velocity`, `on_floor` en `look_pitch`; roep swing() aan bij een slag.
 
+enum HeldTool { PICKAXE, DRILL }
+
 const MODEL := preload("res://assets/models/robot.glb")
 const FACE_SHADER := preload("res://src/player/robot_face.gdshader")
 
@@ -19,6 +21,11 @@ var _arm_r: Node3D
 var _leg_l: Node3D
 var _leg_r: Node3D
 var _face: ShaderMaterial
+var _color := Color.WHITE
+var _held: Node3D
+var _held_bit: Node3D
+var _drilling := false
+var _motor: AudioStreamPlayer3D
 var _rest := {} # node -> rust-transform
 
 var _phase := 0.0
@@ -49,14 +56,46 @@ func setup(color: Color, with_pickaxe := true) -> void:
 	for n in [_torso, _head, _antenna, _arm_l, _arm_r, _leg_l, _leg_r]:
 		_rest[n] = n.transform
 	_recolor(model, color)
+	_color = color
 	if with_pickaxe:
-		var pick := PickaxeModel.build(0.0, color, false)
-		pick.scale = Vector3.ONE * 1.1
-		# In de hand: steel schuin omhoog-voor, punt naar voren.
-		pick.position = Vector3(0.0, -0.3, -0.02)
-		pick.rotation_degrees = Vector3(-22, 0, 0)
-		_arm_r.add_child(pick)
+		set_tool(HeldTool.PICKAXE)
 	_rng.randomize()
+
+
+func set_tool(tool: HeldTool) -> void:
+	if _held:
+		_held.queue_free()
+	_held_bit = null
+	set_drilling(false)
+	if tool == HeldTool.PICKAXE:
+		_held = PickaxeModel.build(0.0, _color, false)
+		_held.scale = Vector3.ONE * 1.1
+		# In de hand: steel schuin omhoog-voor, punt naar voren.
+		_held.position = Vector3(0.0, -0.3, -0.02)
+		_held.rotation_degrees = Vector3(-22, 0, 0)
+	else:
+		_held = DrillModel.build(0.0, _color, false)
+		_held.scale = Vector3.ONE * 1.3
+		_held.position = Vector3(0.0, -0.33, 0.0)
+		_held.rotation_degrees = Vector3(-90, 0, 0) # bit langs de arm; arm staat vooruit
+		_held_bit = _held.get_node("Bit")
+	_arm_r.add_child(_held)
+
+
+func set_drilling(on: bool) -> void:
+	_drilling = on
+	if on and _motor == null:
+		_motor = AudioStreamPlayer3D.new()
+		_motor.stream = load("res://assets/audio/sfx/drill_motor.wav")
+		_motor.unit_size = 5.0
+		_motor.max_distance = 45.0 # luid: de boor hoor je ver (GDD §5)
+		_motor.volume_db = -4.0
+		add_child(_motor)
+	if _motor:
+		if on and not _motor.playing:
+			_motor.play()
+		elif not on:
+			_motor.stop()
 
 
 func swing() -> void:
@@ -121,7 +160,12 @@ func _process(delta: float) -> void:
 	var arm_swing := deg_to_rad(28.0) * moving
 	_arm_l.transform = _rest[_arm_l] * Transform3D(Basis(Vector3.RIGHT, -s * arm_swing), Vector3.ZERO)
 	var right := -s * arm_swing * -1.0
-	if _swing_t >= 0.0:
+	if _held_bit:
+		# Boor: arm vooruit, trillend als hij draait.
+		right = deg_to_rad(80.0) + (_rng.randf_range(-0.03, 0.03) if _drilling else 0.0)
+		if _drilling:
+			_held_bit.rotate_object_local(Vector3.FORWARD, delta * 55.0)
+	elif _swing_t >= 0.0:
 		_swing_t += delta
 		var k := _swing_t / 0.55
 		# Omhoog (aanzet), snel naar beneden (slag), terug.

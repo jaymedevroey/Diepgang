@@ -78,7 +78,7 @@ static func _add(parent: Node3D, mesh: Mesh, mat: Material, pos: Vector3) -> Mes
 	mi.position = pos
 	if _viewmodel:
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		mi.layers = 1 | VIEWMODEL_LAYER
+		mi.layers = VIEWMODEL_LAYER
 	parent.add_child(mi)
 	return mi
 

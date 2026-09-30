@@ -70,8 +70,11 @@ Netwerkmodel (GDD §9): host-autoritatief voor terrein en buit; elke speler bepa
 - [x] **Stap 3: de robot.** Procedureel robotlijf (rond lijf, schermgezicht, antenne die meeveert) voor andere spelers; eigen handen/gereedschap in first-person.
   Verificatie: screenshot van de andere speler.
   - 2026-10-01: model uit `tools/blender/robot.py` (Blender 5.2 headless → `assets/models/robot.glb`). `RobotRig`: lopen, hoofd volgt kijkhoek, verende antenne, squash & stretch, zwaai met houweel. Schermgezicht-shader met pixelogen (knipperen, knijpen bij een slag, "blij" klaar voor later). Zwaai gaat als actie over het netwerk. Screenshots: `logs/robots_2.png` (4 kleuren) en `logs/coop_2.png` (andere speler via het netwerk). Preview: `--scenario=robot_preview`.
-- [ ] **Stap 4: boor T1.** Continu, kegelvormig, aanloop, trager lopen, hittemeter, gruisstraal, motorgeluid onder belasting; graaft zandsteen. Gesynchroniseerd als "streep" per netwerktick.
+- [x] **Stap 4: boor T1.** Continu, kegelvormig, aanloop, trager lopen, hittemeter, gruisstraal, motorgeluid onder belasting; graaft zandsteen. Gesynchroniseerd als "streep" per netwerktick.
   Verificatie: dig_test + nettest met boor; screenshot.
+  - 2026-10-01: `Drill`: aanloop 0,22 s, dunne happen (bol r 0,8 m, 0,15 m voorbij het raakpunt langs de kijkrichting) 8×/s = 1,2 m/s, slipt met vonken en gekrijs op graniet. Hitte (oververhit na 5,5 s, 4 s stil), 50% trager lopen, gruisstraal + stof, trillende camera. Naadloze motor-/gegrom-/gekrijsloops (`tools/audio/synth_drill.py`, loop-vlag via `set_loops.py`). Wisselen met 1/2/wieltje; anderen zien je boor en horen hem (luid, tot 45 m).
+  - Keuze: happen gaan als losse bol-ops (8/s) i.p.v. een "streep"; volstaat qua bandbreedte en blijft max-semantiek.
+  - Client en host doen dezelfde gereedschapscontrole (`TerrainSync.tool_allows`), anders kan een voorspelde op later geweigerd worden en lopen de werelden uiteen. Nettest: 4 boorhappen + houweel-in-zandsteen lokaal geweigerd, checksum gelijk.
 - [ ] **Stap 5: vondsten met korst.** Een eerste vondstfamilie (fossielstukken) in het terrein, elk in een korst. Houweel bikt de korst weg zonder schade; boor is sneller maar verlaagt de waarde. Vrij = fysica-object.
   Verificatie: test: korst weg → vondst los, waarde klopt per gereedschap.
 - [ ] **Stap 6: dragen.** Grijphandschoen: oppakken, dragen (volgt de hand kinematisch, lokaal voorspeld), loslaten/gooien (fysica neemt over). Host simuleert buit, clients interpoleren. Zware stukken met twee dragen.

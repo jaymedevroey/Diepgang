@@ -18,6 +18,10 @@ func _ready() -> void:
 	_noise.frequency = 1.0
 
 
+func trauma() -> float:
+	return _trauma
+
+
 func add_trauma(amount: float) -> void:
 	_trauma = clampf(_trauma + amount, 0.0, 1.0)
 
