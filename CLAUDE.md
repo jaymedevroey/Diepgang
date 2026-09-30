@@ -1,0 +1,17 @@
+# Diepgang — werkafspraken voor de agent
+
+Co-op opgravingsgame in Godot. Het ontwerp staat in [docs/GDD.md](docs/GDD.md), de taken in [tasks/todo.md](tasks/todo.md), en de lessen in [tasks/lessons.md](tasks/lessons.md). Lees lessons.md voor je aan een nieuwe stap begint.
+
+## Vaste keuzes
+- Godot **4.7.2** standaard (geen .NET), GDScript, Forward+, Jolt. Niet upgraden zonder akkoord van Jayme.
+- Godot starten via `tools\godot.cmd` (console-variant, output zichtbaar). Headless controle: `tools\godot.cmd --headless --path game --quit-after 30`.
+- Terrein enkel via de `TerrainAPI`-laag (`game/src/terrain`). Terrein kan enkel weggenomen worden.
+- Alle "gevoel"-waarden in `game/data/tuning/`, niet hardcoded.
+- Python-scripts met `py -3.11`, niet de `python` in PATH.
+
+## Werkwijze
+- Elke taak heeft een verificatie. Vink pas af in `tasks/todo.md` als die gelukt is, met datum en wat je zag.
+- Wat je leert of wat het GDD bijstuurt: in `tasks/lessons.md`.
+- Nieuwe externe assets of bibliotheken: meteen in `CREDITS.md` met licentie.
+- Performancecijfers van deze pc (RTX 4090) zijn geen bewijs voor mid-range.
+- Taal van de docs: Nederlands. Code en identifiers: Engels.

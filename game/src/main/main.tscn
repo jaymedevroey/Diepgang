@@ -1,0 +1,40 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://src/main/main.gd" id="1_main"]
+
+[sub_resource type="Environment" id="Env_dark"]
+background_mode = 1
+background_color = Color(0.03, 0.025, 0.02, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.2, 0.17, 0.14, 1)
+ambient_light_energy = 0.3
+
+[sub_resource type="BoxMesh" id="Mesh_box"]
+
+[node name="Main" type="Node3D"]
+script = ExtResource("1_main")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Env_dark")
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.966, 0.259, 0, -0.259, 0.966, 0, 1.2, 3)
+
+[node name="HelmLamp" type="SpotLight3D" parent="Camera3D"]
+light_color = Color(1, 0.75, 0.45, 1)
+light_energy = 3.0
+spot_range = 12.0
+spot_angle = 35.0
+shadow_enabled = true
+
+[node name="Box" type="MeshInstance3D" parent="."]
+mesh = SubResource("Mesh_box")
+
+[node name="HUD" type="CanvasLayer" parent="."]
+
+[node name="Label" type="Label" parent="HUD"]
+offset_left = 16.0
+offset_top = 16.0
+offset_right = 600.0
+offset_bottom = 80.0
+text = "DIEPGANG — M0"

@@ -1,0 +1,20 @@
+; Engine configuration file.
+; Godot 4.7.2 (vastgepind, zie docs/GDD.md §9).
+
+config_version=5
+
+[application]
+
+config/name="Diepgang"
+config/description="Co-op opgravingsgame. Werktitel."
+run/main_scene="res://src/main/main.tscn"
+config/features=PackedStringArray("4.7", "Forward Plus")
+config/icon="res://icon.svg"
+
+[physics]
+
+3d/physics_engine="Jolt Physics"
+
+[rendering]
+
+renderer/rendering_method="forward_plus"
