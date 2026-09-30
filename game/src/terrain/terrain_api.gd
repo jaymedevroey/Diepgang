@@ -1,0 +1,230 @@
+class_name TerrainAPI
+extends Node3D
+## De enige toegang tot het terrein (GDD §9). Buiten src/terrain/ gebruikt niemand
+## VoxelTerrain of VoxelTool rechtstreeks, zodat de voxel-extensie vervangbaar blijft.
+##
+## Terrein kan enkel weggenomen worden, dus de volgorde van graafacties maakt niet uit.
+## Elke actie is een op {op, c, r, tick, p} in voxelruimte. Ops gaan door een wachtrij
+## die één keer per physics-tick wordt toegepast, en belanden daarna in het op-logboek
+## (voor late joiners en replays).
+
+signal loaded(stats: Dictionary)
+signal dug(world_center: Vector3, radius_m: float)
+
+enum Op { SPHERE_REMOVE }
+
+const VOXEL_SIZE := 0.5
+const COLLISION_LAYER := 1
+const LOAD_TIMEOUT_MS := 120000.0
+
+@export var pit_seed := 1
+@export var dims := Vector3i(128, 320, 128)
+
+var is_loaded := false
+var ops_applied_total := 0
+var ops_applied_last_tick := 0
+
+var _terrain: VoxelTerrain
+var _tool: VoxelToolTerrain
+var _generator: PitGenerator
+var _queue: Array[Dictionary] = []
+var _op_log: Array[Dictionary] = []
+var _buckets: Dictionary = {} # player_id -> Vector2(tokens, laatste tijd in s)
+var _tick := 0
+var _load_start_us := 0
+var _wake_shape := SphereShape3D.new()
+
+
+func _ready() -> void:
+	_generator = PitGenerator.new()
+	_generator.setup(pit_seed, dims)
+
+	_terrain = VoxelTerrain.new()
+	_terrain.name = "VoxelTerrain"
+	_terrain.scale = Vector3.ONE * VOXEL_SIZE
+	_terrain.generator = _generator
+	_terrain.mesher = VoxelMesherTransvoxel.new()
+	_terrain.bounds = AABB(Vector3.ZERO, Vector3(dims))
+	_terrain.mesh_block_size = 16
+	_terrain.max_view_distance = 512
+	_terrain.generate_collisions = true
+	_terrain.collision_layer = COLLISION_LAYER
+	_terrain.collision_mask = 0
+	_terrain.material_override = _make_material()
+	add_child(_terrain)
+
+	# De put is klein genoeg om volledig geladen te blijven: één viewer in het midden.
+	var viewer := VoxelViewer.new()
+	viewer.view_distance = 512
+	viewer.position = world_size() * 0.5
+	add_child(viewer)
+
+	_tool = _terrain.get_voxel_tool() as VoxelToolTerrain
+	_tool.channel = VoxelBuffer.CHANNEL_SDF
+	_tool.mode = VoxelTool.MODE_REMOVE
+	_load_start_us = Time.get_ticks_usec()
+
+
+func _process(_delta: float) -> void:
+	if is_loaded:
+		return
+	var elapsed_ms := (Time.get_ticks_usec() - _load_start_us) / 1000.0
+	var meshed := _terrain.is_area_meshed(AABB(Vector3.ZERO, Vector3(dims)))
+	if meshed or elapsed_ms > LOAD_TIMEOUT_MS:
+		is_loaded = true
+		var stats := get_stats()
+		stats["load_ms"] = elapsed_ms
+		stats["load_timed_out"] = not meshed
+		loaded.emit(stats)
+
+
+func _physics_process(_delta: float) -> void:
+	_tick += 1
+	ops_applied_last_tick = 0
+	if _queue.is_empty():
+		return
+	var pending: Array[Dictionary] = []
+	for op in _queue:
+		var c: Vector3 = op.c
+		var r: float = op.r
+		if not _tool.is_area_editable(AABB(c - Vector3.ONE * (r + 1.0), Vector3.ONE * (2.0 * r + 2.0))):
+			pending.append(op)
+			continue
+		_tool.do_sphere(c, r)
+		_op_log.append(op)
+		ops_applied_last_tick += 1
+		var world := _terrain.to_global(c)
+		_wake_bodies(world, r * VOXEL_SIZE)
+		dug.emit(world, r * VOXEL_SIZE)
+	ops_applied_total += ops_applied_last_tick
+	_queue = pending
+
+
+# --- Graven -------------------------------------------------------------------
+
+## Graafactie van een speler. Beperkt tot dig.max_ops_per_second per speler.
+## Geeft false als de speler te snel graaft.
+func request_dig(player_id: int, world_center: Vector3, radius_m: float) -> bool:
+	if not _take_token(player_id):
+		return false
+	_enqueue(world_center, radius_m, player_id)
+	return true
+
+
+## Past een op toe die al elders gevalideerd is (netwerk, replay). Geen snelheidslimiet.
+func apply_op(op: Dictionary) -> void:
+	_queue.append(op)
+
+
+## Graven zonder snelheidslimiet, voor tests en scenario's.
+func debug_dig(world_center: Vector3, radius_m: float) -> void:
+	_enqueue(world_center, radius_m, 0)
+
+
+func op_log() -> Array[Dictionary]:
+	return _op_log
+
+
+func queued_ops() -> int:
+	return _queue.size()
+
+
+# --- Vragen -------------------------------------------------------------------
+
+func is_solid(world: Vector3) -> bool:
+	var p := _terrain.to_local(world)
+	return _tool.get_voxel_f(Vector3i(p.round())) < 0.0
+
+
+func layer_at(world: Vector3) -> Strata.Layer:
+	return Strata.layer_at(world, pit_seed)
+
+
+func surface_height_at(world_x: float, world_z: float) -> float:
+	return _generator.surface_at(world_x / VOXEL_SIZE, world_z / VOXEL_SIZE) * VOXEL_SIZE
+
+
+func world_size() -> Vector3:
+	return Vector3(dims) * VOXEL_SIZE
+
+
+func shaft_center_world() -> Vector3:
+	return Vector3(_generator.shaft_center.x, 0.0, _generator.shaft_center.y) * VOXEL_SIZE
+
+
+## Plek op het oppervlak naast de liftschacht.
+func spawn_point() -> Vector3:
+	var p := shaft_center_world() + Vector3(-(_generator.shaft_radius * VOXEL_SIZE + 4.0), 0.0, 0.0)
+	p.y = surface_height_at(p.x, p.z) + 1.0
+	return p
+
+
+## Straal tegen het terrein. Zelfde resultaat als PhysicsDirectSpaceState3D.intersect_ray.
+func raycast(from: Vector3, to: Vector3) -> Dictionary:
+	var query := PhysicsRayQueryParameters3D.create(from, to, COLLISION_LAYER)
+	return get_world_3d().direct_space_state.intersect_ray(query)
+
+
+func get_stats() -> Dictionary:
+	return {
+		"terrain": _terrain.get_statistics(),
+		"engine": VoxelEngine.get_stats(),
+		"ops_applied": ops_applied_total,
+		"mem_static_mb": OS.get_static_memory_usage() / 1048576.0,
+		"video_mem_mb": Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED) / 1048576.0,
+	}
+
+
+# --- Intern -------------------------------------------------------------------
+
+func _enqueue(world_center: Vector3, radius_m: float, player_id: int) -> void:
+	var r := radius_m / VOXEL_SIZE
+	var c := _clamp_center(_terrain.to_local(world_center), r)
+	_queue.append({"op": Op.SPHERE_REMOVE, "c": c, "r": r, "tick": _tick, "p": player_id})
+
+
+## Houdt de bol weg van de buitenmuur en de bodem, zodat niemand uit de put graaft.
+func _clamp_center(c: Vector3, r: float) -> Vector3:
+	var m := _generator.wall + 0.5 + r
+	c.x = clampf(c.x, m, dims.x - 1 - m)
+	c.z = clampf(c.z, m, dims.z - 1 - m)
+	c.y = maxf(c.y, m)
+	return c
+
+
+func _take_token(player_id: int) -> bool:
+	var rate: float = Tuning.get_f("dig", "max_ops_per_second", 8.0)
+	var burst: float = Tuning.get_f("dig", "burst", 3.0)
+	var now := Time.get_ticks_msec() / 1000.0
+	var bucket: Vector2 = _buckets.get(player_id, Vector2(burst, now))
+	var tokens := minf(burst, bucket.x + (now - bucket.y) * rate)
+	if tokens < 1.0:
+		_buckets[player_id] = Vector2(tokens, now)
+		return false
+	_buckets[player_id] = Vector2(tokens - 1.0, now)
+	return true
+
+
+## Buit in de buurt van een graafactie wakker maken, anders zweeft ze boven een gat.
+func _wake_bodies(world_center: Vector3, radius_m: float) -> void:
+	_wake_shape.radius = radius_m + Tuning.get_f("dig", "wake_radius_extra", 1.0)
+	var query := PhysicsShapeQueryParameters3D.new()
+	query.shape = _wake_shape
+	query.transform = Transform3D(Basis(), world_center)
+	query.collision_mask = ~COLLISION_LAYER
+	var impulse := Tuning.get_f("dig", "wake_impulse", 0.15)
+	for hit in get_world_3d().direct_space_state.intersect_shape(query, 32):
+		var body := hit.collider as RigidBody3D
+		if body and body.sleeping:
+			body.sleeping = false
+			body.apply_central_impulse(Vector3.UP * impulse * body.mass)
+
+
+func _make_material() -> ShaderMaterial:
+	var mat := ShaderMaterial.new()
+	mat.shader = preload("res://src/terrain/terrain.gdshader")
+	mat.set_shader_parameter("seed_f", float(pit_seed))
+	mat.set_shader_parameter("top_kristal", Strata.TOPS_M[0])
+	mat.set_shader_parameter("top_graniet", Strata.TOPS_M[1])
+	mat.set_shader_parameter("top_zandsteen", Strata.TOPS_M[2])
+	return mat

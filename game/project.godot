@@ -11,6 +11,11 @@ run/main_scene="res://src/main/main.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"
 
+[autoload]
+
+Tuning="*res://src/main/tuning.gd"
+SteamService="*res://src/net/steam_service.gd"
+
 [physics]
 
 3d/physics_engine="Jolt Physics"
