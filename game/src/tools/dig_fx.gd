@@ -14,7 +14,11 @@ const SFX := {
 	"clink": ["pick_clink_1", "pick_clink_2", "pick_clink_3", "pick_clink_4"],
 	"whoosh": ["pick_whoosh_1", "pick_whoosh_2", "pick_whoosh_3"],
 	"crumble": ["crumble_1", "crumble_2", "crumble_3"],
+	"tok": ["crust_tok_1", "crust_tok_2", "crust_tok_3", "crust_tok_4"],
+	"break": ["crust_break_1", "crust_break_2"],
+	"ding": ["find_ding"],
 }
+const CRUST_COLOR := Color(0.72, 0.64, 0.5)
 
 var _streams: Dictionary = {}
 var _pebbles: Array[RigidBody3D] = []
@@ -47,6 +51,25 @@ func impact(pos: Vector3, normal: Vector3, color: Color, pebbles: int) -> void:
 		_spawn_pebble(pos + normal * 0.15, normal, color)
 	play("clay", pos, 0.0)
 	play("crumble", pos, -9.0, 0.12)
+
+
+## Houweel of boor raakt een korst: droge tok, bleek stof, geen steentjes.
+func crust_hit(pos: Vector3, normal: Vector3, with_sound := true) -> void:
+	_burst_dust(pos, normal, CRUST_COLOR, 8, 0.7)
+	_burst_grit(pos, normal, CRUST_COLOR, 10)
+	if with_sound:
+		play("tok", pos, -1.0)
+
+
+## Korst springt open: brokken in alle richtingen.
+func crust_break(pos: Vector3, size: float) -> void:
+	for n in [Vector3.UP, Vector3.LEFT, Vector3.RIGHT, Vector3.FORWARD, Vector3.BACK]:
+		_burst_dust(pos, n, CRUST_COLOR, 6, 1.0 + size)
+		_burst_grit(pos, n, CRUST_COLOR, 10)
+	for i in 6:
+		_spawn_pebble(pos + Vector3(_rng.randf_range(-1, 1), _rng.randf_range(-0.5, 1), _rng.randf_range(-1, 1)) * size * 0.6,
+				Vector3.UP, CRUST_COLOR)
+	play("break", pos, 0.0)
 
 
 ## Boorhap van een andere speler: kleine gruiswolk, geen steentjes of geluid

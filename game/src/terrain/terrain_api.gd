@@ -214,6 +214,12 @@ func debug_sdf(world: Vector3) -> float:
 	return _tool.get_voxel_f(Vector3i(_terrain.to_local(world).round()))
 
 
+## Hoe diep een punt in de rots zat bij het genereren (meter; negatief = lucht).
+## Puur uit de seed, dus op elke peer gelijk; bewerkingen tellen niet mee.
+func generated_rock_depth(world: Vector3) -> float:
+	return -_generator.sdf_at(world / VOXEL_SIZE) * VOXEL_SIZE
+
+
 func layer_at(world: Vector3) -> Strata.Layer:
 	return Strata.layer_at(world, pit_seed)
 
@@ -237,9 +243,10 @@ func spawn_point() -> Vector3:
 	return p
 
 
-## Straal tegen het terrein. Zelfde resultaat als PhysicsDirectSpaceState3D.intersect_ray.
-func raycast(from: Vector3, to: Vector3) -> Dictionary:
-	var query := PhysicsRayQueryParameters3D.create(from, to, COLLISION_LAYER)
+## Straal tegen het terrein (en optioneel andere lagen, zie Layers).
+## Zelfde resultaat als PhysicsDirectSpaceState3D.intersect_ray.
+func raycast(from: Vector3, to: Vector3, mask := COLLISION_LAYER) -> Dictionary:
+	var query := PhysicsRayQueryParameters3D.create(from, to, mask)
 	return get_world_3d().direct_space_state.intersect_ray(query)
 
 

@@ -75,10 +75,33 @@ func _run_client(p: Player) -> void:
 	var refused: bool = not main.game.terrain_sync.submit_chip(sand, Vector3.UP, 0.75, 0.45, 0.14, Strata.Tool.HOUWEEL)
 	print("[net_test] client: %d boorhappen, houweel in zandsteen geweigerd: %s" % [drilled, refused])
 	done += drilled if refused else -100
-	await get_tree().create_timer(2.0).timeout
+	# Vondst 3 uitbikken (client meldt, host beslist, iedereen ziet hem vrijkomen).
+	var finds: FindField = main.game.finds
+	var it := finds.items[3]
+	var back := p.global_position
+	p.set_physics_process(false)
+	p.global_position = it.global_position + Vector3(0, 0.3, 1.2)
+	await get_tree().create_timer(0.6).timeout
+	for i in 4:
+		finds.hit_crust(it.find_id, Strata.Tool.HOUWEEL, it.global_position)
+		await get_tree().create_timer(0.35).timeout
+	p.global_position = back
+	p.set_physics_process(true)
+	await get_tree().create_timer(2.5).timeout
 	var sum := t.checksum()
-	print("[net_test] client: %d slagen, checksum %s" % [done, sum])
+	print("[net_test] client: %d slagen, vondst vrij: %s, checksum %s" % [done, it.freed, sum])
 	_rpc_report.rpc_id(1, sum, p.global_position, done)
+	_rpc_find_report.rpc_id(1, it.find_id, it.freed, it.global_position)
+
+
+@rpc("any_peer", "reliable")
+func _rpc_find_report(id: int, freed: bool, pos: Vector3) -> void:
+	if not multiplayer.is_server():
+		return
+	var it: FindItem = main.game.finds.items[id]
+	_expect(freed and it.freed, "vondst %d vrij bij client en host" % id)
+	var d := it.global_position.distance_to(pos)
+	_expect(d < 0.3, "vondst ligt bij client en host op dezelfde plek (%.2f m verschil)" % d)
 
 
 @rpc("any_peer", "reliable")
@@ -100,9 +123,10 @@ func _rpc_report(client_sum: String, client_pos: Vector3, chips: int) -> void:
 		var d: float = remote.global_position.distance_to(client_pos)
 		_expect(d < 0.3, "positie van de client klopt bij de host (%.2f m verschil)" % d)
 	_expect(main.game.players.get_child_count() == 2, "2 spelers bij de host")
-	_expect(t.op_log().size() == chips + 7, "host-logboek: 4 slagen voor, 3 tijdens het laden, %d van de client (%d)" % [chips, t.op_log().size()])
+	_expect(t.op_log().size() == chips + 8, "host-logboek: 4 + 3 van de host, %d van de client, 1 om de vondst vrij te maken (%d)" % [chips, t.op_log().size()])
 	var drill_ops := t.op_log().filter(func(op: Dictionary) -> bool: return op.get("tool", -1) == Strata.Tool.BOOR_T1).size()
 	_expect(drill_ops == DRILL_BITES, "host paste %d boorhappen toe" % drill_ops)
+	await _frames(20) # vondstrapport komt vlak na het terreinrapport
 	var ok := _failures.is_empty()
 	print("[net_test] host: %d controles, %d mislukt → %s" % [_checks, _failures.size(), "GESLAAGD" if ok else "GEFAALD"])
 	_rpc_finish.rpc(ok)

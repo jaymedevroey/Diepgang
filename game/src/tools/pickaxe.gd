@@ -12,7 +12,7 @@ signal aim_changed(state: Aim)
 signal swung
 
 enum State { IDLE, WINDUP, STRIKE, HITSTOP, RECOVER }
-enum Aim { NONE, DIGGABLE, TOO_HARD }
+enum Aim { NONE, DIGGABLE, TOO_HARD, CRUST }
 
 const TOOL := Strata.Tool.HOUWEEL
 const VIEWMODEL_FOV := 68.0
@@ -25,6 +25,7 @@ const POSE_STRUCK := [Vector3(0.12, -0.34, -0.7), Vector3(-80, -4, 2)]
 
 var terrain: TerrainAPI
 var sync: TerrainSync
+var finds: FindField
 var camera: Camera3D
 var body: CharacterBody3D
 var fx: DigFx
@@ -149,11 +150,18 @@ func _impact() -> bool:
 	var reach := Tuning.get_f("pickaxe", "reach", 2.6)
 	var from := camera.global_position
 	var dir := -camera.global_basis.z
-	var hit := terrain.raycast(from, from + dir * reach)
+	var hit := terrain.raycast(from, from + dir * reach, Layers.TERRAIN | Layers.CRUST)
 	if hit.is_empty():
 		return false
 	var pos: Vector3 = hit.position
 	var normal: Vector3 = hit.normal
+	if hit.collider is Crust:
+		# Uitbikken: veilig voor de vondst, levens telt de host.
+		finds.hit_crust(hit.collider.find_id, TOOL, pos)
+		fx.crust_hit(pos, normal)
+		camera_fx.kick(Tuning.get_f("pickaxe", "kick_pitch_deg", 1.6) * 0.7, _rng.randf_range(-1, 1) * 0.4)
+		camera_fx.add_trauma(Tuning.get_f("pickaxe", "shake_trauma", 0.28) * 0.7)
+		return true
 	var layer := terrain.layer_at(pos - normal * 0.2)
 	var color := Strata.DEBRIS_COLORS[layer]
 	if Strata.can_dig(layer, TOOL):
@@ -176,9 +184,11 @@ func _impact() -> bool:
 func _update_aim() -> void:
 	var reach := Tuning.get_f("pickaxe", "reach", 2.6)
 	var from := camera.global_position
-	var hit := terrain.raycast(from, from - camera.global_basis.z * reach)
+	var hit := terrain.raycast(from, from - camera.global_basis.z * reach, Layers.TERRAIN | Layers.CRUST)
 	var new_aim := Aim.NONE
-	if not hit.is_empty():
+	if not hit.is_empty() and hit.collider is Crust:
+		new_aim = Aim.CRUST
+	elif not hit.is_empty():
 		var layer := terrain.layer_at(hit.position - hit.normal * 0.2)
 		new_aim = Aim.DIGGABLE if Strata.can_dig(layer, TOOL) else Aim.TOO_HARD
 	if new_aim != aim:

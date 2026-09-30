@@ -19,6 +19,7 @@ const COLORS: Array[Color] = [
 
 var terrain: TerrainAPI
 var terrain_sync: TerrainSync
+var finds: FindField
 var fx: DigFx
 var players: Node3D
 var local_player: Player
@@ -46,6 +47,10 @@ func _ready() -> void:
 	terrain_sync.game = self
 	add_child(terrain_sync)
 	terrain_sync.remote_op_applied.connect(_on_remote_op)
+	finds = FindField.new()
+	finds.name = "Finds"
+	finds.game = self
+	add_child(finds)
 	Net.peer_left.connect(_on_peer_left)
 
 
@@ -64,11 +69,13 @@ func player_node(peer_id: int) -> Player:
 
 # --- Wereld -------------------------------------------------------------------
 
-func _build_terrain(ops: Array) -> void:
+func _build_terrain(ops: Array, finds_state: Array = []) -> void:
 	terrain = TerrainAPI.new()
 	terrain.name = "Terrain"
 	terrain.pit_seed = pit_seed
 	add_child(terrain)
+	finds.generate(pit_seed)
+	finds.apply_snapshot(finds_state)
 	for op in ops:
 		terrain.apply_op(op)
 	terrain_sync.flush_pending()
@@ -125,7 +132,7 @@ func _accept(id: int) -> void:
 	var existing: Array = []
 	for p: Player in players.get_children():
 		existing.append([p.peer_id, _color_of.get(p.peer_id, 0), p.global_position])
-	_rpc_world_init.rpc_id(id, pit_seed, terrain.op_log(), existing)
+	_rpc_world_init.rpc_id(id, pit_seed, terrain.op_log(), existing, finds.snapshot())
 	var idx := _free_color()
 	_color_of[id] = idx
 	var pos := _spawn_pos(idx)
@@ -136,10 +143,10 @@ func _accept(id: int) -> void:
 
 
 @rpc("authority", "reliable")
-func _rpc_world_init(seed_value: int, ops: Array, existing: Array) -> void:
+func _rpc_world_init(seed_value: int, ops: Array, existing: Array, finds_state: Array) -> void:
 	pit_seed = seed_value
 	_pending_spawns.append_array(existing)
-	_build_terrain(ops)
+	_build_terrain(ops, finds_state)
 	print("[game] wereld ontvangen: seed %d, %d ops, %d spelers" % [seed_value, ops.size(), existing.size()])
 
 

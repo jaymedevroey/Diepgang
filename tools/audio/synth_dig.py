@@ -110,8 +110,49 @@ def crumble(seed: int) -> np.ndarray:
     return fine + body
 
 
+def crust_tok(seed: int) -> np.ndarray:
+    """Houweel op een korst: droge, hoge stenen tok (anders dan klei, zodat je hoort: vondst!)."""
+    rng = np.random.default_rng(seed)
+    n = int(0.35 * SR)
+    t = np.arange(n) / SR
+    f = rng.uniform(520, 640)
+    body = np.sin(2 * np.pi * f * t) * env_exp(n, 0.035) + 0.5 * np.sin(2 * np.pi * f * 2.3 * t) * env_exp(n, 0.02)
+    click = bandpass(rng.standard_normal(n), 1500, 6000) * env_exp(n, 0.008, 0.0003)
+    chips = grains(rng, n, 500, 0.06, 2000, 7000) * 0.5
+    return body + 0.9 * click + chips
+
+
+def crust_break(seed: int) -> np.ndarray:
+    """Korst springt: krak + brokken die neervallen."""
+    rng = np.random.default_rng(seed)
+    n = int(1.1 * SR)
+    crack = bandpass(rng.standard_normal(n), 400, 5000) * env_exp(n, 0.05, 0.001)
+    thud = lowpass(rng.standard_normal(n), 250) * env_exp(n, 0.12) * 2.0
+    fall = grains(rng, n, 120, 0.35, 600, 5000) * 1.2
+    return crack + thud + fall
+
+
+def find_ding(seed: int) -> np.ndarray:
+    """Vondst vrij: heldere, warme 'ding' (twee tonen, kwint erboven)."""
+    rng = np.random.default_rng(seed)
+    n = int(1.4 * SR)
+    t = np.arange(n) / SR
+    x = np.zeros(n)
+    for f, a, d, delay in [(880, 1.0, 0.5, 0.0), (1318.5, 0.8, 0.45, 0.09), (2637, 0.25, 0.2, 0.09)]:
+        start = int(delay * SR)
+        e = np.zeros(n)
+        e[start:] = env_exp(n - start, d, 0.002)
+        x += a * np.sin(2 * np.pi * f * t + rng.uniform(0, 1)) * e
+    return x
+
+
 def main() -> None:
     print(f"Schrijven naar {OUT}")
+    for i in range(4):
+        write(f"crust_tok_{i + 1}", crust_tok(600 + i))
+    for i in range(2):
+        write(f"crust_break_{i + 1}", crust_break(700 + i))
+    write("find_ding", find_ding(800))
     for i in range(5):
         write(f"pick_clay_{i + 1}", pick_clay(100 + i))
     for i in range(4):

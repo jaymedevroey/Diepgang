@@ -91,6 +91,7 @@ func _setup_local() -> void:
 	pickaxe = Pickaxe.new()
 	pickaxe.terrain = game.terrain
 	pickaxe.sync = game.terrain_sync
+	pickaxe.finds = game.finds
 	pickaxe.camera = camera
 	pickaxe.body = self
 	pickaxe.fx = game.fx
@@ -102,6 +103,7 @@ func _setup_local() -> void:
 	drill = Drill.new()
 	drill.terrain = game.terrain
 	drill.sync = game.terrain_sync
+	drill.finds = game.finds
 	drill.camera = camera
 	drill.body = self
 	drill.fx = game.fx

@@ -52,6 +52,14 @@ func submit_sphere(world_center: Vector3, radius_m: float, tool: Strata.Tool) ->
 	return true
 
 
+## Host: een op van het spel zelf (geen speler), bv. ruimte rond een vrijgekomen vondst.
+func host_apply(op: Dictionary) -> void:
+	assert(multiplayer.is_server())
+	op["tool"] = -1
+	terrain().apply_op(op)
+	_broadcast(op, multiplayer.get_unique_id())
+
+
 ## Zelfde controle op client (voor de voorspelling) en host (validatie). Verschillen ze,
 ## dan lopen de werelden uiteen: terrein wegnemen kan niet teruggedraaid worden.
 func tool_allows(op: Dictionary) -> bool:

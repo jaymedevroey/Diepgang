@@ -17,6 +17,7 @@ const POSE := [Vector3(0.26, -0.27, -0.56), Vector3(8, 9, 0)]
 
 var terrain: TerrainAPI
 var sync: TerrainSync
+var finds: FindField
 var camera: Camera3D
 var body: CharacterBody3D
 var fx: DigFx
@@ -43,6 +44,7 @@ var _grit: GPUParticles3D
 var _sparks: GPUParticles3D
 var _dust: GPUParticles3D
 var _rng := RandomNumberGenerator.new()
+var _crust_timer := 0.0
 
 
 func _ready() -> void:
@@ -94,7 +96,16 @@ func _physics_process(delta: float) -> void:
 	var hit := _aim_hit()
 	_update_aim(hit)
 	var touching := false
-	if running and not hit.is_empty():
+	_crust_timer -= delta
+	if running and not hit.is_empty() and hit.collider is Crust:
+		# Door de korst boren: snel, maar de vondst lijdt eronder (host beslist).
+		touching = true
+		_set_contact(true, false, hit.position, hit.normal, DigFx.CRUST_COLOR)
+		if _crust_timer <= 0.0:
+			_crust_timer = Tuning.get_f("finds", "drill_min_interval", 0.09) + 0.01
+			finds.hit_crust(hit.collider.find_id, TOOL, hit.position)
+			fx.crust_hit(hit.position, hit.normal, false)
+	elif running and not hit.is_empty():
 		var pos: Vector3 = hit.position
 		var normal: Vector3 = hit.normal
 		var layer := terrain.layer_at(pos - normal * 0.2)
@@ -150,12 +161,15 @@ func _process(delta: float) -> void:
 
 func _aim_hit() -> Dictionary:
 	var from := camera.global_position
-	return terrain.raycast(from, from - camera.global_basis.z * Tuning.get_f("drill", "reach", 2.8))
+	return terrain.raycast(from, from - camera.global_basis.z * Tuning.get_f("drill", "reach", 2.8),
+			Layers.TERRAIN | Layers.CRUST)
 
 
 func _update_aim(hit: Dictionary) -> void:
 	var new_aim := Pickaxe.Aim.NONE
-	if not hit.is_empty():
+	if not hit.is_empty() and hit.collider is Crust:
+		new_aim = Pickaxe.Aim.CRUST
+	elif not hit.is_empty():
 		var layer := terrain.layer_at(hit.position - hit.normal * 0.2)
 		new_aim = Pickaxe.Aim.DIGGABLE if Strata.can_dig(layer, TOOL) else Pickaxe.Aim.TOO_HARD
 	if new_aim != aim:

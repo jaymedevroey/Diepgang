@@ -10,6 +10,7 @@ extends Node3D
 ##   stress            4 gesimuleerde gravers + 30 fysica-objecten, frametijden naar logs/
 ##   render            vaste camera in een tunnel, screenshot naar logs/
 ##   net_test          host + client: beweging en terrein-sync (tools/net_test.py)
+##   find_test         vondsten en korsten: uitbikken, boren, vrijkomen (headless)
 ## Extra in play (voor controle door de agent):
 ##   --shot=naam --frames=90,140   screenshots N frames na het spawnen, dan afsluiten
 ##   --autodig                     gereedschap werkt vanzelf (houweel zwaait, boor boort)
@@ -22,13 +23,16 @@ const SCENARIOS := {
 	"render": preload("res://src/main/scenarios/render_showcase.gd"),
 	"net_test": preload("res://src/main/scenarios/net_test.gd"),
 	"robot_preview": preload("res://src/main/scenarios/robot_preview.gd"),
+	"find_test": preload("res://src/main/scenarios/find_test.gd"),
+	"find_preview": preload("res://src/main/scenarios/find_preview.gd"),
 }
 ## Scenario's waarin de host ook een eigen speler krijgt.
-const SCENARIOS_WITH_PLAYER := ["play", "net_test"]
+const SCENARIOS_WITH_PLAYER := ["play", "net_test", "find_test"]
 const AIM_COLORS := {
 	Pickaxe.Aim.NONE: Color(1, 1, 1, 0.35),
 	Pickaxe.Aim.DIGGABLE: Color(1, 1, 1, 0.95),
 	Pickaxe.Aim.TOO_HARD: Color(1.0, 0.45, 0.3, 0.95),
+	Pickaxe.Aim.CRUST: Color(1.0, 0.85, 0.35, 1.0),
 }
 
 var game: Game
@@ -44,6 +48,7 @@ var _crosshair: Label
 var _hint: Label
 var _banner: Label
 var _stats_visible := true
+var _aim := Pickaxe.Aim.NONE
 var _frame_since_spawn := -1
 var _shot_frames: PackedInt32Array = []
 
@@ -143,6 +148,7 @@ func _on_tool_changed(tool: Node3D) -> void:
 func _on_aim_changed(aim: Pickaxe.Aim) -> void:
 	_crosshair.modulate = AIM_COLORS[aim]
 	_hint.text = player.active_tool.hint_too_hard() if aim == Pickaxe.Aim.TOO_HARD else ""
+	_aim = aim
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -155,6 +161,8 @@ func _process(_delta: float) -> void:
 	if _frame_since_spawn >= 0:
 		_frame_since_spawn += 1
 		_take_shots()
+	if player and _aim != Pickaxe.Aim.TOO_HARD:
+		_hint.text = _aim_info()
 	if not _stats_visible:
 		return
 	var lines := PackedStringArray()
@@ -177,6 +185,24 @@ func _process(_delta: float) -> void:
 			lines.append("Hitte %s%s" % [bar, "  OVERVERHIT" if d.overheated else ""])
 		lines.append("Linkermuis: graven (vasthouden) · V vliegen · Esc muis los · F3 paneel")
 	_hud_label.text = "\n".join(lines)
+
+
+## Wat je bekijkt: een korst (levens, uitleg) of een losse vondst (naam, waarde, gaafheid).
+func _aim_info() -> String:
+	var cam := player.camera
+	var hit := terrain.raycast(cam.global_position, cam.global_position - cam.global_basis.z * 3.5,
+			Layers.TERRAIN | Layers.CRUST | Layers.LOOT)
+	if hit.is_empty():
+		return ""
+	if hit.collider is Crust:
+		var c: Crust = hit.collider
+		var full := int(ceil(c.hp))
+		var bar := "■".repeat(full) + "□".repeat(maxi(0, int(c.max_hp) - full))
+		return "Korst %s   houweel: veilig · boor: sneller, maar schaadt de vondst" % bar
+	if hit.collider is FindItem:
+		var f: FindItem = hit.collider
+		return "%s · €%d · gaaf %d%%" % [f.display_name(), f.value(), int(round(f.condition * 100))]
+	return ""
 
 
 func _take_shots() -> void:
