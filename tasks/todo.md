@@ -39,6 +39,20 @@ Logs, CSV's en screenshots komen in `logs/` (editor) of `builds\windows\logs\` (
   Verificatie: besluit genoteerd welke effecten verifieerbaar zijn.
   - 2026-10-01: besluit in lessons.md. Forward+ blijft de doelrenderer; de agent ziet hem zelf.
 
+## Graafgevoel (voor M1, na playtest M0)
+
+Aanleiding: "het is gewoon klikken en er gaat een bolletje weg". Onderzoek: [docs/research/graven.md](../docs/research/graven.md).
+
+- [x] **Houweel** — 2026-10-01
+  - Zichtbaar houweel met zwaai (aanzet → slag → hit-stop → terugveren), ±0,55 s. Vasthouden = doorhakken, klik tijdens terugveren wordt onthouden.
+  - Terrein breekt af op het inslagmoment als een platte, ruwe schilfer (`TerrainAPI.request_chip`, max-semantiek, ruis in wereldruimte). Test: vloer zakt 0,45 m per slag.
+  - Graaft enkel klei (GDD §4). Op zandsteen en dieper ketst het af: vonken, metalen klink, rood vizier + hint.
+  - Juice: camera-kick en schok, stofwolk, gruis, 3–5 echte steentjes (lokaal), geluid per slag (klei, klink, woesj, kruimels; `tools/audio/synth_dig.py`).
+  - Rotsshader met reliëf-normalen op 2 schalen en donkere holtes. Kost ±0,25 ms op de RTX 4090.
+  - Waarden in `data/tuning/pickaxe.cfg` en `camera.cfg`.
+- [ ] **Jayme test het houweel** in `builds\windows\Diepgang.exe`.
+- [ ] **Boor** (na akkoord op het houweel): continu, kegelvormig, aanloop, trager lopen, hittemeter, gruisstraal, motorgeluid onder belasting.
+
 ## Jayme (parallel)
 
 - [ ] Steamworks-account aanmaken ($100 app fee), W-8BEN en identiteitsgegevens.

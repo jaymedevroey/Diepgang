@@ -4,18 +4,23 @@ extends Node3D
 ## VoxelTerrain of VoxelTool rechtstreeks, zodat de voxel-extensie vervangbaar blijft.
 ##
 ## Terrein kan enkel weggenomen worden, dus de volgorde van graafacties maakt niet uit.
-## Elke actie is een op {op, c, r, tick, p} in voxelruimte. Ops gaan door een wachtrij
-## die één keer per physics-tick wordt toegepast, en belanden daarna in het op-logboek
-## (voor late joiners en replays).
+## Elke actie is een op (Dictionary) in voxelruimte. Ops gaan door een wachtrij die één
+## keer per physics-tick wordt toegepast, en belanden daarna in het op-logboek (voor late
+## joiners en replays).
+##   SPHERE_REMOVE {c, r}            bol (boor, stresstest)
+##   CHIP          {c, n, rt, rd, amp}  afgeplatte, ruwe schilfer langs normaal n (houweel)
+## Elke op doet nieuw = max(huidig, -kwast): commutatief en idempotent (docs/research/graven.md).
+## Ruis in de kwast zit in wereldruimte met een vaste seed, zodat elke peer hetzelfde uitkomt.
 
 signal loaded(stats: Dictionary)
 signal dug(world_center: Vector3, radius_m: float)
 
-enum Op { SPHERE_REMOVE }
+enum Op { SPHERE_REMOVE, CHIP }
 
 const VOXEL_SIZE := 0.5
 const COLLISION_LAYER := 1
 const LOAD_TIMEOUT_MS := 120000.0
+const SDF_BIT := 1 << VoxelBuffer.CHANNEL_SDF
 
 @export var pit_seed := 1
 @export var dims := Vector3i(128, 320, 128)
@@ -33,9 +38,16 @@ var _buckets: Dictionary = {} # player_id -> [tokens, laatste tijd in s]
 var _tick := 0
 var _load_start_us := 0
 var _wake_shape := SphereShape3D.new()
+var _brush_noise := FastNoiseLite.new()
 
 
 func _ready() -> void:
+	_brush_noise.seed = 1337
+	_brush_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	_brush_noise.frequency = 0.45 # per voxel: bulten van ±1 m
+	_brush_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
+	_brush_noise.fractal_octaves = 2
+
 	_generator = PitGenerator.new()
 	_generator.setup(pit_seed, dims)
 
@@ -86,16 +98,20 @@ func _physics_process(_delta: float) -> void:
 	var pending: Array[Dictionary] = []
 	for op in _queue:
 		var c: Vector3 = op.c
-		var r: float = op.r
-		if not _tool.is_area_editable(AABB(c - Vector3.ONE * (r + 1.0), Vector3.ONE * (2.0 * r + 2.0))):
+		var reach := _op_reach(op)
+		if not _tool.is_area_editable(AABB(c - Vector3.ONE * (reach + 1.0), Vector3.ONE * (2.0 * reach + 2.0))):
 			pending.append(op)
 			continue
-		_tool.do_sphere(c, r)
+		match op.op:
+			Op.SPHERE_REMOVE:
+				_tool.do_sphere(c, op.r)
+			Op.CHIP:
+				_apply_chip(op)
 		_op_log.append(op)
 		ops_applied_last_tick += 1
 		var world := _terrain.to_global(c)
-		_wake_bodies(world, r * VOXEL_SIZE)
-		dug.emit(world, r * VOXEL_SIZE)
+		_wake_bodies(world, reach * VOXEL_SIZE)
+		dug.emit(world, reach * VOXEL_SIZE)
 	ops_applied_total += ops_applied_last_tick
 	_queue = pending
 
@@ -108,6 +124,24 @@ func request_dig(player_id: int, world_center: Vector3, radius_m: float) -> bool
 	if not _take_token(player_id):
 		return false
 	_enqueue(world_center, radius_m, player_id)
+	return true
+
+
+## Houweelslag: een afgeplatte, ruwe schilfer van `depth_m` diep en ±`radius_m` breed,
+## ingebed in de wand op het raakpunt. `world_normal` wijst uit de rots naar buiten.
+func request_chip(player_id: int, world_hit: Vector3, world_normal: Vector3,
+		radius_m: float, depth_m: float, rough_m: float) -> bool:
+	if not _take_token(player_id):
+		return false
+	var n := world_normal.normalized()
+	var rt := radius_m / VOXEL_SIZE
+	var rd := maxf(depth_m * 1.6, rt * 0.55) / VOXEL_SIZE
+	var depth := depth_m / VOXEL_SIZE
+	# De ellipsoïde steekt precies `depth` voorbij het raakpunt de rots in.
+	var c := _terrain.to_local(world_hit) + n * (rd - depth)
+	c = _clamp_center(c, maxf(rt, rd))
+	_queue.append({"op": Op.CHIP, "c": c, "n": n, "rt": rt, "rd": rd,
+			"amp": rough_m / VOXEL_SIZE, "tick": _tick, "p": player_id})
 	return true
 
 
@@ -134,6 +168,11 @@ func queued_ops() -> int:
 func is_solid(world: Vector3) -> bool:
 	var p := _terrain.to_local(world)
 	return _tool.get_voxel_f(Vector3i(p.round())) < 0.0
+
+
+## Ruwe SDF-waarde (voxels; negatief = rots) van de dichtstbijzijnde voxel. Voor tests.
+func debug_sdf(world: Vector3) -> float:
+	return _tool.get_voxel_f(Vector3i(_terrain.to_local(world).round()))
 
 
 func layer_at(world: Vector3) -> Strata.Layer:
@@ -181,6 +220,43 @@ func _enqueue(world_center: Vector3, radius_m: float, player_id: int) -> void:
 	var r := radius_m / VOXEL_SIZE
 	var c := _clamp_center(_terrain.to_local(world_center), r)
 	_queue.append({"op": Op.SPHERE_REMOVE, "c": c, "r": r, "tick": _tick, "p": player_id})
+
+
+func _op_reach(op: Dictionary) -> float:
+	match op.op:
+		Op.CHIP:
+			return maxf(op.rt, op.rd) + op.amp
+	return op.r
+
+
+## Schilfer: max(huidig, -kwast) met een eigen kwast via copy/paste van het SDF-kanaal.
+func _apply_chip(op: Dictionary) -> void:
+	var c: Vector3 = op.c
+	var n: Vector3 = op.n
+	var rt: float = op.rt
+	var rd: float = op.rd
+	var amp: float = op.amp
+	var ext := maxf(rt, rd) + amp + 2.0
+	var origin := Vector3i((c - Vector3.ONE * ext).floor())
+	var size := int(ceil(ext * 2.0)) + 1
+	var buf := VoxelBuffer.new()
+	buf.create(size, size, size)
+	_tool.copy(origin, buf, SDF_BIT, false)
+	var t1 := n.cross(Vector3.UP if absf(n.y) < 0.9 else Vector3.RIGHT).normalized()
+	var t2 := n.cross(t1)
+	var k := minf(rt, rd)
+	var sdf := VoxelBuffer.CHANNEL_SDF
+	for z in size:
+		for y in size:
+			for x in size:
+				var p := Vector3(origin.x + x, origin.y + y, origin.z + z)
+				var d := p - c
+				var q := Vector3(d.dot(t1) / rt, d.dot(t2) / rt, d.dot(n) / rd)
+				var brush := (q.length() - 1.0) * k + amp * _brush_noise.get_noise_3dv(p)
+				var cur := buf.get_voxel_f(x, y, z, sdf)
+				if -brush > cur:
+					buf.set_voxel_f(-brush, x, y, z, sdf)
+	_tool.paste(origin, buf, SDF_BIT)
 
 
 ## Houdt de bol weg van de buitenmuur en de bodem, zodat niemand uit de put graaft.

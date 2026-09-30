@@ -1,16 +1,20 @@
 class_name DebugPlayer
 extends CharacterBody3D
-## Tijdelijke first-person speler voor M0: lopen, springen, graven, vliegen (V).
+## Tijdelijke first-person speler voor M0/M1: lopen, springen, vliegen (V), houweel.
 ## De echte robot komt in M1.
+## Opbouw: DebugPlayer (yaw) > Head (pitch) > Camera3D (schok/kick via CameraFx) > Pickaxe
 
 const LAYER_PLAYERS := 1 << 2
 const MASK := 1 | (1 << 1) # terrein + buit
 
 var terrain: TerrainAPI
+var fx: DigFx
 var player_id := 1
+var head: Node3D
 var camera: Camera3D
+var camera_fx: CameraFx
+var pickaxe: Pickaxe
 var flying := false
-var _pitch := 0.0
 
 
 func _ready() -> void:
@@ -25,21 +29,40 @@ func _ready() -> void:
 	shape.position.y = 0.7
 	add_child(shape)
 
+	head = Node3D.new()
+	head.name = "Head"
+	head.position.y = 1.2
+	add_child(head)
+
 	camera = Camera3D.new()
-	camera.position.y = 1.2
 	camera.fov = Tuning.get_f("player", "fov", 80.0)
 	camera.near = 0.05
-	add_child(camera)
+	head.add_child(camera)
 	camera.make_current()
+
+	camera_fx = CameraFx.new()
+	camera_fx.camera = camera
+	add_child(camera_fx)
 
 	var lamp := SpotLight3D.new()
 	lamp.light_color = Color(1.0, 0.78, 0.5)
-	lamp.light_energy = 4.0
-	lamp.spot_range = 18.0
-	lamp.spot_angle = 38.0
+	lamp.light_energy = 5.0
+	lamp.spot_range = 20.0
+	lamp.spot_angle = 52.0
+	lamp.spot_angle_attenuation = 0.6
 	lamp.shadow_enabled = true
-	lamp.position = Vector3(0.15, -0.1, 0.0)
-	camera.add_child(lamp)
+	# Boven en naast het oog, zoals op een helm: zo werpen putjes en richels schaduw.
+	lamp.position = Vector3(0.18, 0.22, 0.05)
+	head.add_child(lamp)
+
+	pickaxe = Pickaxe.new()
+	pickaxe.terrain = terrain
+	pickaxe.camera = camera
+	pickaxe.body = self
+	pickaxe.fx = fx
+	pickaxe.camera_fx = camera_fx
+	pickaxe.player_id = player_id
+	camera.add_child(pickaxe)
 
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -49,8 +72,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and captured:
 		var sens := Tuning.get_f("player", "mouse_sensitivity", 0.0025)
 		rotate_y(-event.relative.x * sens)
-		_pitch = clampf(_pitch - event.relative.y * sens, -1.55, 1.55)
-		camera.rotation.x = _pitch
+		head.rotation.x = clampf(head.rotation.x - event.relative.y * sens, -1.55, 1.55)
 	elif event.is_action_pressed("ui_cancel"):
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	elif event is InputEventMouseButton and event.pressed and not captured:
@@ -64,7 +86,7 @@ func _physics_process(delta: float) -> void:
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	if flying:
 		var fly_speed := Tuning.get_f("player", "fly_speed", 12.0)
-		var v := camera.global_basis * Vector3(input.x, 0.0, input.y) * fly_speed
+		var v := head.global_basis * Vector3(input.x, 0.0, input.y) * fly_speed
 		if Input.is_action_pressed("jump"):
 			v.y += fly_speed
 		if Input.is_action_pressed("crouch"):
@@ -80,16 +102,3 @@ func _physics_process(delta: float) -> void:
 		elif Input.is_action_just_pressed("jump"):
 			velocity.y = Tuning.get_f("player", "jump_velocity", 4.5)
 	move_and_slide()
-
-	if Input.is_action_pressed("dig") and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		_try_dig()
-
-
-func _try_dig() -> void:
-	var forward := -camera.global_basis.z
-	var from := camera.global_position
-	var hit := terrain.raycast(from, from + forward * Tuning.get_f("player", "dig_reach", 3.5))
-	if hit.is_empty():
-		return
-	var center: Vector3 = hit.position + forward * 0.2
-	terrain.request_dig(player_id, center, Tuning.get_f("player", "dig_radius", 0.9))
