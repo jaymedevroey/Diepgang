@@ -9,4 +9,5 @@ if errorlevel 1 (
   echo Export mislukt 1>&2
   exit /b 1
 )
+copy /y docs\playtest-m1.md builds\windows\LEESMIJ.txt >nul
 echo Klaar: builds\windows\Diepgang.exe

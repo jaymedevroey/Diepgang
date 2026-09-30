@@ -9,6 +9,11 @@ Co-op opgravingsgame in Godot. Het ontwerp staat in [docs/GDD.md](docs/GDD.md), 
 - Alle "gevoel"-waarden in `game/data/tuning/`, niet hardcoded.
 - Python-scripts met `py -3.11`, niet de `python` in PATH.
 
+## Testen
+- Alle testcommando's staan bovenaan `tasks/todo.md`. Voor elke commit: `dig_test`, `find_test`, `carry_test`, `lift_test`, `tuning_test` (headless) en `py -3.11 tools/net_test.py`.
+- Visuele wijzigingen: zelf een screenshot nemen en bekijken vóór je iets aan Jayme geeft.
+- Netwerk: wat de client voorspelt, moet de host aanvaarden (zelfde controles aan beide kanten).
+
 ## Werkwijze
 - Elke taak heeft een verificatie. Vink pas af in `tasks/todo.md` als die gelukt is, met datum en wat je zag.
 - Wat je leert of wat het GDD bijstuurt: in `tasks/lessons.md`.

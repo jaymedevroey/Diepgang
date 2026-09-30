@@ -12,6 +12,8 @@ Afvinkbare taken per mijlpaal. Bron: [docs/GDD.md](../docs/GDD.md) §10 en §13.
 | Rendertest | `tools\godot.cmd --path game -- --scenario=render --no-steam` (+ `--rendering-method gl_compatibility` vóór `--`) |
 | Windows-build | `tools\export_windows.cmd` → `builds\windows\Diepgang.exe` |
 | Nettest (host + client, headless) | `py -3.11 tools/net_test.py` (of `--exe builds/windows/Diepgang.console.exe`) |
+| Vondsten, dragen, lift, tuning (headless) | `tools\godot.cmd --headless --path game -- --scenario=find_test --no-steam` (ook `carry_test`, `lift_test`, `tuning_test`) |
+| Screenshots | `-- --autodig --pitch=-30 --shot=naam --frames=60,300` · `--scenario=robot_preview` · `find_preview` · `carry_preview` · `--menu-shot` |
 | Twee instanties met de hand | `tools\godot.cmd --path game -- --host` en `tools\godot.cmd --path game -- --join=127.0.0.1` |
 
 Logs, CSV's en screenshots komen in `logs/` (editor) of `builds\windows\logs\` (build).
@@ -94,8 +96,9 @@ Netwerkmodel (GDD §9): host-autoritatief voor terrein en buit; elke speler bepa
   Verificatie: waarde aanpassen werkt meteen en blijft na herstart.
   - 2026-10-01: `TuningMenu` (F1): tab per bestand, veld per waarde, uitleg uit het bestand als tooltip. Wijzigingen werken meteen. Bewaren: in de editor naar `data/tuning/` (commentaar blijft staan), in een build naar `user://tuning/`. De host stuurt zijn waarden naar alle clients (bij binnenkomen en bij elke wijziging), anders lopen de werelden uiteen.
   - Tests: `--scenario=tuning_test` (9 controles), nettest (waarde van de host komt aan bij de client). Screenshot `logs/tuning.png`.
-- [ ] **Stap 9: playtestbuild.** Build + korte handleiding om met twee instanties (of twee pc's in het LAN) te testen.
-  Verificatie: **Poort 1** met Jayme (en Ian/Anir): voelen graven en slepen goed?
+- [x] **Stap 9: playtestbuild.** Build + korte handleiding om met twee instanties (of twee pc's in het LAN) te testen.
+  - 2026-10-01: startmenu (solo, hosten met IP in beeld, meedoen via IP), handleiding `docs/playtest-m1.md` (ook als `LEESMIJ.txt` in de build). Build getest: dig/find/carry/lift-test en de nettest met twee exe's slagen; stresstest gem. 0,95 ms, max. 9,5 ms.
+- [ ] **Poort 1** met Jayme (en Ian/Anir): voelen graven en slepen goed? Vragenlijst in `docs/playtest-m1.md`.
 
 ## Jayme (parallel)
 

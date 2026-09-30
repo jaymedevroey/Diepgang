@@ -1,7 +1,7 @@
 extends Node3D
 ## Opstartscene. Start de netwerksessie en de Game, plus HUD en scenario's.
 ## Sessie (argumenten na `--`):
-##   (niets)                 solo
+##   (niets)                 startmenu (solo, hosten, meedoen); met --solo meteen solo
 ##   --host [--port=N]       host op poort N (standaard 24565)
 ##   --join=ADRES [--port=N] verbinden met een host
 ## Scenario's (--scenario=…):
@@ -55,6 +55,7 @@ var _crosshair: Label
 var _hint: Label
 var _banner: Label
 var _tuning_menu: TuningMenu
+var _start_menu: StartMenu
 var _stats_visible := true
 var _aim := Pickaxe.Aim.NONE
 var _frame_since_spawn := -1
@@ -96,16 +97,41 @@ func _ready() -> void:
 		add_child(scenario_node)
 
 	Net.started.connect(_on_net_started)
-	Net.failed.connect(func(reason: String) -> void: _show_banner("Netwerk: " + reason))
+	Net.failed.connect(func(reason: String) -> void:
+		_show_banner("")
+		if _start_menu:
+			_start_menu.show_error("Netwerk: " + reason)
+		else:
+			_show_banner("Netwerk: " + reason))
 	Net.ended.connect(func(reason: String) -> void: _show_banner("Sessie voorbij: " + reason))
 	var port := int(CmdArgs.value("port", Net.DEFAULT_PORT))
 	if CmdArgs.has("host"):
 		Net.start_host(port)
 	elif CmdArgs.has("join"):
-		_show_banner("Verbinden met %s…" % CmdArgs.value("join"))
-		Net.join(str(CmdArgs.value("join")), port)
-	else:
+		_join(str(CmdArgs.value("join")), port)
+	elif scenario != "play" or CmdArgs.has("solo") or CmdArgs.has("shot"):
 		Net.start_solo()
+	else:
+		_open_start_menu(port)
+
+
+func _open_start_menu(port: int) -> void:
+	_start_menu = StartMenu.new()
+	$HUD.add_child(_start_menu)
+	_start_menu.solo_chosen.connect(func() -> void:
+		_start_menu.visible = false
+		Net.start_solo())
+	_start_menu.host_chosen.connect(func() -> void:
+		_start_menu.visible = false
+		Net.start_host(port))
+	_start_menu.join_chosen.connect(func(address: String) -> void:
+		_start_menu.visible = false
+		_join(address, port))
+
+
+func _join(address: String, port: int) -> void:
+	_show_banner("Verbinden met %s…" % address)
+	Net.join(address, port)
 
 
 func _on_net_started() -> void:
@@ -176,10 +202,15 @@ func _process(_delta: float) -> void:
 		_take_shots()
 	if player and _aim != Pickaxe.Aim.TOO_HARD:
 		_hint.text = _aim_info()
+	if _start_menu and _start_menu.visible:
+		_hud_label.text = ""
+		return
 	if not _stats_visible:
 		return
 	var lines := PackedStringArray()
 	var net: String = ["solo", "host", "client"][Net.mode]
+	if Net.mode == Net.Mode.HOST:
+		net = "host · IP %s · poort %d" % [", ".join(StartMenu.local_ips()), int(CmdArgs.value("port", Net.DEFAULT_PORT))]
 	lines.append("DIEPGANG M1-proto  ·  %d fps  ·  %s  ·  %d speler(s)" % [
 		Engine.get_frames_per_second(), net, game.players.get_child_count()])
 	if terrain == null or not terrain.is_loaded:
@@ -251,6 +282,7 @@ func _show_banner(text: String) -> void:
 
 func _build_hud() -> void:
 	var hud := CanvasLayer.new()
+	hud.name = "HUD"
 	add_child(hud)
 	_hud_label = Label.new()
 	_hud_label.position = Vector2(16, 12)
