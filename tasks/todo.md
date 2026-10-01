@@ -13,6 +13,7 @@ Afvinkbare taken per mijlpaal. Bron: [docs/GDD.md](../docs/GDD.md) §10 en §13.
 | Windows-build | `tools\export_windows.cmd` → `builds\windows\Diepgang.exe` |
 | Nettest (host + client, headless) | `py -3.11 tools/net_test.py` (of `--exe builds/windows/Diepgang.console.exe`) |
 | Vondsten, dragen, de Mol, tuning, menu's (headless) | `tools\godot.cmd --headless --path game -- --scenario=find_test --no-steam` (ook `carry_test`, `mol_test`, `tuning_test`, `ui_test`) |
+| Rots per laag (voor/na) | `--scenario=terrain_preview --shot=naam` (tunnel en bekapte wand per laag, met GPU-tijd; `--only=klei,kristal`) |
 | HUD en menu (screenshots) | `--scenario=hud_preview` (korst, vondst, dragen, ver, piloot, vertrek, resultaat, pauze) · `--scenario=ui_preview` · `-- --menu-shot --menu-settings --menu-join` |
 | Screenshots | `-- --autodig --pitch=-30 --shot=naam --frames=60,300` · `--scenario=robot_preview` · `find_preview` · `carry_preview` · `mol_preview` (`--only=buiten,zij,rups,achter,binnen,cabine,afdalen`) · `--menu-shot` |
 | Model van de Mol bouwen | `"C:\Program Files\Blender Foundation\Blender 5.2lender.exe" -b --factory-startup --python tools/blender/mol.py -- game/assets/models/mol.glb`, daarna `tools\godot.cmd --headless --path game --import` |
@@ -122,6 +123,12 @@ Stijl: Deep Rock Galactic + PEAK + Astroneer. Alle modellen in Blender (geen AI-
     - HUD: vizier met ring per toestand en hitteboog, kompas met diepte/laag en richting naar de Mol, gereedschap, draagkaartje, meldingen, vertrekbanner, eindoverzicht, ploeg, besturing van de Mol; toetsblokjes volgen de eigen toetsen. UI schaalt mee met de resolutie (basis 1080p).
     - Verificatie: `ui_test` 14 controles (Esc sluit menu's, toets omzetten werkt in het spel, bewaren, pauze); `hud_preview`-screenshots bekeken; zelf gespeeld in de build (menu, instellingen, toets omzetten, laadscherm, spel).
     - Open: Jayme speelt het. Nog niet: Steam-uitnodigingen (M4), ondertitels en de stem van de firma (komt met geluid), ping (M3).
+  - [x] **Rots en licht in de put**, 2026-10-01. Research: [docs/research/rots-en-licht.md](../docs/research/rots-en-licht.md).
+    - Rots-shader: low-poly-facetten (gekwantiseerde normaal) met een tint per vlak, bolle randen licht en holtes donker, stof op vloeren, koele plafonds, een naad met lip op elke laaggrens. Per laag: klei met droge modderbarsten, zandsteen met banden, graniet met spikkels, kristal met spaarzame gloeiende aders.
+    - Sfeer (`Atmosphere`): misttint en omgevingslicht per laag, nachtlucht met maan boven de put, kleurgrading, stofjes in het licht, nep-terugkaatsing van de helmlamp, helmlamp met brede gloed, helderheid uit de instellingen.
+    - De Mol boort ruwe tunnels (happen uit wand en plafond, vloer glad).
+    - Verificatie: voor/na-beelden per laag met dezelfde camera (`terrain_preview`, logs/rots_voor_na.png); GPU-tijd gelijk of lager dan de oude shader (1080p); alle tests en de nettest groen.
+    - Open: Jayme speelt het. Later: echte kristallen en stalactieten als modellen (M3: Kristalgrotten), de oppervlakte rond de put.
 - [ ] **M3 Inhoud** (eind oktober): de Mol werkend (afdalen, rijden en boren, laadruim, extractie; vervangt de lift), Fossielbed, Kristalgrotten, Graafworm, gas, ±8 items, depot met kas en museum, cosmetica.
 - [ ] **M4 Samen** (begin november): Steam-lobby's en uitnodigingen, voice, test met 150 ms vertraging. Poort 2.
 - [ ] **M5 Kernlus** (half november): opdrachten, quota, boete, lava, onrust, opslaan, host-vertrek, Oude Kolenmijn met tutorial.

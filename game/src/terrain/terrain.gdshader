@@ -159,8 +159,8 @@ void fragment() {
 
 	if (layer == 3) {
 		// Klei: kleine lichte kiezels.
-		float peb = smoothstep(0.85, 0.88, vnoise(wpos * 7.5 + vec3(9.0)));
-		col = mix(col, mix(light, vec3(dot(light, vec3(0.333))), 0.4) * 1.1, peb * 0.4 * near);
+		float peb = smoothstep(0.86, 0.89, vnoise(wpos * 15.0 + vec3(9.0))) * step(0.5, vnoise(wpos * 1.3 + vec3(2.0)));
+		col = mix(col, mix(light, vec3(dot(light, vec3(0.333))), 0.4) * 1.1, peb * 0.35 * near * (1.0 - smoothstep(4.0, 12.0, dist)));
 	} else if (layer == 2) {
 		// Zandsteen: horizontale banden van wisselende dikte en tint, licht golvend.
 		float yb = y * 2.6 + 0.6 * sin(wpos.x * 0.17 + wpos.z * 0.12 + seed_f);

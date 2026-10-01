@@ -2,6 +2,17 @@
 
 Wat we onderweg leerden en wat het GDD bijstuurt. Nieuwste bovenaan.
 
+## 2026-10-01 — Rots en licht
+
+- **Willekeurig gekantelde voronoi-facetten lezen als tegels of glas-in-lood**, zeker met lijnen op de randen. Wat wél werkt voor de DRG-look: de normaal afronden op een rooster van richtingen (gekwantiseerde normaal). Een gebogen wand valt dan uiteen in vlakken die zijn vorm volgen, en buurvlakken lijken op elkaar, zoals een grof gemodelleerde rots.
+- **Een helmlamp vlak naast de camera belicht alles frontaal**: vlakken verschillen dan nauwelijks. Contrast moet ook uit de kleur komen (tint per vlak, bolle randen licht, holtes donker). Test met een tunnel en een scherende kijkhoek, niet met een close-up van een wand.
+- **Gladde geometrie verraadt alles.** De boorkop van de Mol maakte perfecte buizen. Een paar extra boldeuken per boorbol (door de host berekend en in de op meegestuurd) maakt ruwe wanden, deterministisch en met de snelle native `do_sphere`.
+- **Afstand tot de voronoi-grens**: F2−F1 is geen afstand en geeft ongelijke, dikke lijnen. Exact: (d2² − d1²) / (2·|c2 − c1|).
+- **`AO` met `AO_LIGHT_AFFECT` tekent alles wat je in AO steekt ook in het licht**: celranden in AO werden donkere veelhoeken. Enkel echte holtes erin.
+- **Afschuining die de kanteling naar nul brengt aan een celrand tekent een omtrek** (het licht springt terug). Liever harde grenzen tussen vlakken.
+- Glow met bloom > 0 laat alles gloeien; bloom 0 en enkel emissie boven de HDR-drempel. SSAO werkt enkel op ambient tenzij `ssao_light_affect`.
+- Een eerlijke voor/na: een tijdelijke `git worktree` op de vorige commit, met dezelfde preview erin gekopieerd.
+
 ## 2026-10-01 — HUD en menu's
 
 - **UI-maten zonder stretch-modus zijn pixels**: op 1440p werd alles klein. `display/window/stretch/mode = canvas_items`, basis 1920×1080, aspect `expand`.
