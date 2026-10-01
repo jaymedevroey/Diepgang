@@ -39,7 +39,7 @@ Logs, CSV's en screenshots komen in `logs/` (editor) of `builds\windows\logs\` (
   - 2026-10-01, release-build, 1600×900, vsync uit, RTX 4090: 60 s, 32 graafacties/s. Frametijd gem. **0,63 ms**, p99 **1,44 ms**, max **8,7 ms**, 0 frames boven 16,7 ms. Frames met graafactie gem. 1,20 ms (max 2,5) tegenover 0,63 ms zonder. Ops worden gebundeld (±4 per tick). **Geldt niet voor mid-range**, zie lessons.md.
 - [x] **Stap 6:** een Windows-export (release) bouwen.
   Verificatie: Jayme start de .exe en kan graven.
-  - 2026-10-01: build staat in `builds\windows\`, met gebakken shaders. `dig_test` slaagt 3× op de build (met Steam). **Wacht op Jayme.**
+  - 2026-10-01: build staat in `builds\windows\`, met gebakken shaders. `dig_test` slaagt 3× op de build (met Steam). Jayme speelt de builds sindsdien.
 - [x] **Stap 7:** de renderertest, Forward+ tegenover Compatibility.
   Verificatie: besluit genoteerd welke effecten verifieerbaar zijn.
   - 2026-10-01: besluit in lessons.md. Forward+ blijft de doelrenderer; de agent ziet hem zelf.
