@@ -16,7 +16,7 @@ Afvinkbare taken per mijlpaal. Bron: [docs/GDD.md](../docs/GDD.md) §10 en §13.
 | Rots per laag (voor/na) | `--scenario=terrain_preview --shot=naam` (tunnel en bekapte wand per laag, met GPU-tijd; `--only=klei,kristal`) |
 | HUD en menu (screenshots) | `--scenario=hud_preview` (korst, vondst, dragen, ver, piloot, vertrek, resultaat, pauze) · `--scenario=ui_preview` · `-- --menu-shot --menu-settings --menu-join` |
 | Screenshots | `-- --autodig --pitch=-30 --shot=naam --frames=60,300` · `--scenario=robot_preview` · `find_preview` · `carry_preview` · `mol_preview` (`--only=buiten,zij,rups,achter,binnen,cabine,afdalen`, of `--only=sonar`) · `--menu-shot` |
-| Model van de Mol bouwen | `"C:\Program Files\Blender Foundation\Blender 5.2lender.exe" -b --factory-startup --python tools/blender/mol.py -- game/assets/models/mol.glb`, daarna `tools\godot.cmd --headless --path game --import` |
+| Model van de Mol bouwen | `"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" -b --factory-startup --python tools/blender/mol.py -- game/assets/models/mol.glb`, daarna `tools\godot.cmd --headless --path game --import` |
 | Twee instanties met de hand | `tools\godot.cmd --path game -- --host` en `tools\godot.cmd --path game -- --join=127.0.0.1` |
 
 Logs, CSV's en screenshots komen in `logs/` (editor) of `builds\windows\logs\` (build).
