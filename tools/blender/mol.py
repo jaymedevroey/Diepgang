@@ -454,29 +454,88 @@ def build_interior():
     build_cargo(g)
 
 
+# Bedieningsconsole: een paneel dat DESK_TILT graden naar de bestuurder kantelt, van wand tot wand.
+DESK_TILT = 35.0
+DESK_C = (0.0, -0.5, -3.06)  # midden van het paneel
+DESK_DEPTH = 0.82
+_ta = math.radians(DESK_TILT)
+DESK_N = (0.0, math.cos(_ta), math.sin(_ta))  # normaal: omhoog en naar de bestuurder
+DESK_A = (0.0, math.sin(_ta), -math.cos(_ta))  # langs het paneel omhoog, weg van de bestuurder
+DESK_ROT = (DESK_TILT, 0, 0)  # onderdeel evenwijdig met het paneel (lokale y = normaal)
+DESK_TEXT = (DESK_TILT - 90.0, 0, 0)  # tekst die op het paneel ligt en naar de bestuurder leest
+GAUGES = (-0.4, 0.0, 0.4)
+BTN_AUTO = (-1.38, -1.1, -0.82)
+BTN_RAMP_U, BTN_LIGHTS_U, BTN_HORN_U, LEVER_U = 0.64, 0.9, 1.16, 1.44
+
+
+def desk(u, v, h=0.0):
+    """Punt op het paneel: u = opzij, v = langs de helling (+ = verder weg), h = boven het paneel."""
+    return (DESK_C[0] + u, DESK_C[1] + v * DESK_A[1] + h * DESK_N[1], DESK_C[2] + v * DESK_A[2] + h * DESK_N[2])
+
+
+def desk_label(body, u, v, size=0.05, material="DecalLight", g="Interior"):
+    text(body, size, desk(u, v, 0.036), DESK_TEXT, material, g, extrude=0.003)
+
+
 def build_cockpit(g):
-    # Dashboard: schuin bureau over de hele breedte + frontpaneel.
-    box((3.5, 0.95, 0.14), (0, -1.0, -3.5), "Anthracite", g, bevel=0.03)
-    box((3.4, 0.1, 0.75), (0, -0.52, -3.18), "Anthracite", g, bevel=0.03, rot=(-18, 0, 0))
+    w = IN_W - 0.04
+    # Console: schuin paneel, voorschort en achterwand, van wand tot wand.
+    box((w, 0.07, DESK_DEPTH), DESK_C, "Anthracite", g, bevel=0.025, rot=DESK_ROT)
+    front = desk(0, -DESK_DEPTH / 2)
+    box((w, front[1] - IN_Y0, 0.06), (0, (front[1] + IN_Y0) / 2, front[2] - 0.03), "Anthracite", g, bevel=0.02)
+    back = desk(0, DESK_DEPTH / 2)
+    box((w, back[1] - IN_Y0 + 0.02, 0.14), (0, (back[1] + IN_Y0) / 2, back[2] - 0.07), "Anthracite", g, bevel=0.03)
+    # Rand en schroeven op het paneel.
+    for v in (-DESK_DEPTH / 2 + 0.02, DESK_DEPTH / 2 - 0.02):
+        box((w - 0.04, 0.02, 0.025), desk(0, v, 0.04), "Steel", g, bevel=0.005, rot=DESK_ROT)
+    for u in (-1.95, -0.62, 0.62, 1.95):
+        for v in (-0.33, 0.33):
+            cyl(0.014, 0.012, desk(u, v, 0.04), "Steel", g, verts=8, bevel=0.0, rot=DESK_ROT)
+    # Hazardstrook langs de voorrand.
+    box((w - 0.1, 0.012, 0.05), desk(0, -DESK_DEPTH / 2 + 0.06, 0.036), "Hazard", g, bevel=0.0, rot=DESK_ROT)
+
     # Groot camerascherm (het scherm zelf is het object Monitor).
     box((2.0, 1.15, 0.12), (0, 0.55, -3.52), "Anthracite", g, bevel=0.04, segments=3)
     for s in (-1, 1):  # zijschermen
         box((0.75, 0.5, 0.08), (s * 1.45, 0.35, -3.38), "Anthracite", g, bevel=0.03, rot=(0, -22 * s, 0))
         box((0.65, 0.4, 0.02), (s * 1.44, 0.35, -3.33), "Screen", g, bevel=0.0, rot=(0, -22 * s, 0))
-    # Meters (rond, crème wijzerplaat met naald).
-    for x in (-0.55, 0.0, 0.55):
-        cyl(0.12, 0.06, (x, -0.45, -3.02), "Anthracite", g, verts=20, bevel=0.01, rot=(72, 0, 0))
-        cyl(0.1, 0.07, (x, -0.44, -3.02), "Cream", g, verts=20, bevel=0.0, rot=(72, 0, 0))
-        box((0.012, 0.004, 0.08), (x + 0.02, -0.405, -3.02), "Red", g, bevel=0.0, rot=(72, 0, -35))
-    # Knoppen: autopiloot links (3 grote gele), toeter rechts (rode paddenstoel), lichten, laadklep.
-    for i in range(3):
-        x = -1.35 + i * 0.27
-        cyl(0.08, 0.05, (x, -0.47, -3.05), "Anthracite", g, verts=16, bevel=0.01, rot=(72, 0, 0))
-        cyl(0.065, 0.06, (x, -0.44, -3.06), "Yellow", g, verts=16, bevel=0.01, rot=(72, 0, 0))
-    cyl(0.07, 0.04, (1.3, -0.47, -3.05), "Anthracite", g, verts=16, bevel=0.01, rot=(72, 0, 0))
-    sphere(0.075, (1.3, -0.42, -3.07), "Red", g, scale=(1, 0.6, 1), segments=12, rings=6)
-    for x in (0.95, 1.05):
-        box((0.06, 0.03, 0.12), (x, -0.45, -3.05), "Steel", g, bevel=0.01, rot=(-18, 0, 0))
+
+    # Meters: diepte, snelheid, brandstof. De naalden zijn aparte objecten (Needle_i) die in de game draaien.
+    for u, name in zip(GAUGES, ("DIEPTE", "SNELHEID", "BRANDSTOF")):
+        v = 0.1
+        cyl(0.135, 0.05, desk(u, v, 0.05), "Anthracite", g, verts=28, bevel=0.012, rot=DESK_ROT)
+        cyl(0.115, 0.012, desk(u, v, 0.072), "Cream", g, verts=28, bevel=0.0, rot=DESK_ROT)
+        for t in range(9):  # schaalstipjes over 270 graden
+            a = math.radians(135 - t * 270 / 8)
+            du, dv = -math.sin(a) * 0.094, math.cos(a) * 0.094
+            cyl(0.008, 0.006, desk(u + du, v + dv, 0.079), "DecalDark" if t < 7 else "Red", g, verts=8,
+                bevel=0.0, rot=DESK_ROT)
+        desk_label(name, u, -0.11, size=0.04)
+    # Autopiloot: drie gele knoppen met de diepte eronder.
+    desk_label("AUTOPILOOT", BTN_AUTO[1], 0.2, size=0.05)
+    for u, d in zip(BTN_AUTO, (20, 40, 60)):
+        cyl(0.075, 0.03, desk(u, 0.02, 0.045), "Anthracite", g, verts=18, bevel=0.008, rot=DESK_ROT)
+        cyl(0.06, 0.05, desk(u, 0.02, 0.07), "Yellow", g, verts=18, bevel=0.012, rot=DESK_ROT)
+        desk_label(f"{d} M", u, -0.14, size=0.05)
+    # Klep (blauwe knop), lichten (tuimelschakelaars), toeter (rode paddenstoel).
+    cyl(0.07, 0.03, desk(BTN_RAMP_U, 0.02, 0.045), "Anthracite", g, verts=16, bevel=0.008, rot=DESK_ROT)
+    cyl(0.055, 0.05, desk(BTN_RAMP_U, 0.02, 0.07), "Blue", g, verts=16, bevel=0.012, rot=DESK_ROT)
+    desk_label("KLEP", BTN_RAMP_U, -0.14)
+    box((0.16, 0.03, 0.12), desk(BTN_LIGHTS_U, 0.02, 0.05), "Anthracite", g, bevel=0.01, rot=DESK_ROT)
+    for du in (-0.04, 0.04):
+        box((0.025, 0.07, 0.025), desk(BTN_LIGHTS_U + du, 0.03, 0.09), "Steel", g, bevel=0.006,
+            rot=(DESK_TILT - 20, 0, 0))
+    desk_label("LICHT", BTN_LIGHTS_U, -0.14)
+    cyl(0.07, 0.04, desk(BTN_HORN_U, 0.02, 0.05), "Anthracite", g, verts=16, bevel=0.008, rot=DESK_ROT)
+    sphere(0.075, desk(BTN_HORN_U, 0.02, 0.085), "Red", g, scale=(1, 0.55, 1), segments=14, rings=7)
+    desk_label("TOETER", BTN_HORN_U, -0.14)
+    # Vertrekhendel: geel-zwart voetplaatje; de hendel zelf is het object Lever.
+    box((0.2, 0.012, 0.26), desk(LEVER_U, 0.02, 0.037), "Hazard", g, bevel=0.0, rot=DESK_ROT)
+    desk_label("VERTREK", LEVER_U, -0.17, material="Red")
+    # Mok koffie op de hoek (het is vroeg, het is altijd vroeg).
+    cyl(0.045, 0.1, desk(-1.82, -0.18, 0.09), "Red", g, verts=16, bevel=0.005, rot=DESK_ROT)
+    cyl(0.038, 0.005, desk(-1.82, -0.18, 0.141), "Wood", g, verts=16, bevel=0.0, rot=DESK_ROT)
+
     # Stoel.
     sz = -1.85
     cyl(0.12, 0.45, (0, IN_Y0 + 0.23, sz), "Anthracite", g, verts=16, bevel=0.02)
@@ -578,11 +637,27 @@ def build_monitor():
 
 def build_lever():
     g = "Lever"
-    base = (0.78, -0.43, -3.0)
-    box((0.14, 0.06, 0.2), base, "Anthracite", g, bevel=0.02, rot=(-18, 0, 0))
-    tube([base, (base[0], base[1] + 0.32, base[2] + 0.12)], 0.025, "Steel", g, verts=8)
-    sphere(0.06, (base[0], base[1] + 0.34, base[2] + 0.13), "Red", g, segments=12, rings=6)
+    base = desk(LEVER_U, 0.02, 0.05)
+    n, a = DESK_N, DESK_A
+    box((0.11, 0.05, 0.15), base, "Anthracite", g, bevel=0.015, rot=DESK_ROT)
+    tip = (base[0], base[1] + n[1] * 0.3 + a[1] * 0.06, base[2] + n[2] * 0.3 + a[2] * 0.06)
+    tube([base, tip], 0.022, "Steel", g, verts=10)
+    sphere(0.055, tip, "Red", g, segments=14, rings=7)
     return base
+
+
+NEEDLES = []
+
+
+def build_needles():
+    """Naalden van de meters: elk een eigen object met het draaipunt in het midden van de wijzerplaat."""
+    for k, u in enumerate(GAUGES):
+        g = f"Needle_{k}"
+        c = desk(u, 0.1, 0.086)
+        length = 0.085
+        box((0.011, 0.005, length), desk(u, 0.1 + length * 0.42, 0.086), "Red", g, bevel=0.0, rot=DESK_ROT)
+        cyl(0.016, 0.012, c, "Anthracite", g, verts=10, bevel=0.0, rot=DESK_ROT)
+        NEEDLES.append((g, c))
 
 
 def build_glass():
@@ -608,6 +683,7 @@ def main():
     build_interior()
     build_monitor()
     lever_base = build_lever()
+    build_needles()
     build_glass()
 
     root = bpy.data.objects.new("Mol", None)
@@ -622,6 +698,8 @@ def main():
     objects["Monitor"] = join_group("Monitor", "Monitor")
     objects["Lever"] = join_group("Lever", "Lever", origin=lever_base)
     objects["Glass"] = join_group("Glass", "Glass")
+    for g, c in NEEDLES:
+        objects[g] = join_group(g, g, origin=c)
     objects["TrackLink"] = join_group("TrackLink", "TrackLink")
     for side in ("L", "R"):
         for i in range(7):
@@ -651,12 +729,12 @@ def main():
         "Cage_2": ((0, IN_Y1 - 0.26, 2.9), (0, 0, 0)),
         "Seat_Head": ((0, IN_Y0 + 1.58, -1.9), (-8, 0, 0)),
         "Seat_Exit": ((0, IN_Y0, -1.2), (0, 0, 0)),
-        "Btn_Auto_0": ((-1.35, -0.44, -3.06), (0, 0, 0)),
-        "Btn_Auto_1": ((-1.08, -0.44, -3.06), (0, 0, 0)),
-        "Btn_Auto_2": ((-0.81, -0.44, -3.06), (0, 0, 0)),
-        "Btn_Horn": ((1.3, -0.42, -3.07), (0, 0, 0)),
-        "Btn_Lights": ((1.0, -0.44, -3.05), (0, 0, 0)),
-        "Btn_Ramp_Cockpit": ((0.62, -0.47, -3.05), (0, 0, 0)),
+        "Btn_Auto_0": (desk(BTN_AUTO[0], 0.02, 0.07), DESK_ROT),
+        "Btn_Auto_1": (desk(BTN_AUTO[1], 0.02, 0.07), DESK_ROT),
+        "Btn_Auto_2": (desk(BTN_AUTO[2], 0.02, 0.07), DESK_ROT),
+        "Btn_Horn": (desk(BTN_HORN_U, 0.02, 0.08), DESK_ROT),
+        "Btn_Lights": (desk(BTN_LIGHTS_U, 0.02, 0.07), DESK_ROT),
+        "Btn_Ramp_Cockpit": (desk(BTN_RAMP_U, 0.02, 0.07), DESK_ROT),
         "Btn_Ramp_Back": ((IN_W / 2 - 0.09, -0.25, 3.7), (0, 0, 0)),
         "Workbench": ((-(IN_W / 2 - 0.38), -0.5, 1.05), (0, 0, 0)),
         "Exhaust_L": ((-0.55, 3.0, 1.85), (0, 0, 0)),

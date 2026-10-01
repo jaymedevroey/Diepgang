@@ -215,7 +215,8 @@ func _process(_delta: float) -> void:
 		_frame_since_spawn += 1
 		_take_shots()
 	if player and player.seated:
-		_hint.text = ""
+		var knob := player.aimed_interactable()
+		_hint.text = knob.hint if knob else ""
 	elif player and _aim != Pickaxe.Aim.TOO_HARD:
 		_hint.text = _aim_info()
 	_update_mol_banner()

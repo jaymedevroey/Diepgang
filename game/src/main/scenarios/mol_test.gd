@@ -70,6 +70,28 @@ func _run(p: Player) -> void:
 	await _wait(0.3)
 	_expect(mol.pilot == p.peer_id and p.seated and mol.mode == Mol.Mode.DRIVING, "speler zit aan het stuur")
 
+	# 3b. Vanuit de stoel naar de toeter kijken: de HUD toont de knop, en E (interactie) drukt hem in.
+	var horn: Node3D = mol.visual.anchors["Btn_Horn"]
+	var to_horn := p.camera.global_position.direction_to(horn.global_position)
+	var local_dir := mol.body.global_basis.inverse() * to_horn
+	p._look_yaw = atan2(-local_dir.x, -local_dir.z)
+	await _wait(0.1)
+	var head_dir := (p.head.global_basis.inverse() * to_horn)
+	p.head.rotation.x += atan2(head_dir.y, -head_dir.z)
+	await _wait(0.1)
+	var knob := p.aimed_interactable()
+	_expect(knob != null and knob.get_meta("mol_cmd", -1) == Mol.Cmd.HORN, "piloot mikt vanuit de stoel op de toeter (%s)" % (knob.hint if knob else "niets"))
+	var aim_auto: Node3D = mol.visual.anchors["Btn_Auto_0"]
+	_expect(aim_auto.global_position.distance_to(p.camera.global_position) < 2.2, "autopilootknoppen binnen bereik van de stoel (%.2f m)" % aim_auto.global_position.distance_to(p.camera.global_position))
+	var ev := InputEventAction.new()
+	ev.action = "interact"
+	ev.pressed = true
+	Input.parse_input_event(ev)
+	await _wait(0.2)
+	_expect(p.seated and mol.pilot == p.peer_id, "E op een knop laat de piloot zitten")
+	p._look_yaw = 0.0
+	p.head.rotation.x = 0.0
+
 	# 4. Zelf rijden en boren (W ingedrukt): klep gaat dicht, er wordt geboord.
 	var start := mol.body.global_position
 	var ops_before: int = t.op_log().size()
@@ -82,6 +104,7 @@ func _run(p: Player) -> void:
 	_expect(t.op_log().size() > ops_before, "de kop boort zich een weg (%d ops)" % (t.op_log().size() - ops_before))
 	_expect(not mol.ramp_open, "laadklep ging dicht tijdens het rijden")
 	_expect(absf(mol.speed) < 0.2, "staat weer stil na het loslaten")
+	_expect(mol.depth() < 0.8, "zakt niet weg bij rijden over het oppervlak (diepte %.2f m)" % mol.depth())
 
 	# 5. Autopiloot naar −20 m.
 	mol.press(Mol.Cmd.AUTO, 20.0)
@@ -120,7 +143,7 @@ func _run(p: Player) -> void:
 	_expect(mol.body.global_position.distance_to(start) < 4.0, "terug bij het vertrekpunt (%.1f m)" % mol.body.global_position.distance_to(start))
 	_expect(mol.contains_point(p.global_position), "speler reed mee naar boven")
 	_expect(_summary.x >= 1 and _summary.y > 0, "samenvatting: %d vondst(en), €%d" % [_summary.x, _summary.y])
-	_expect(mol.fuel <= fuel_before, "brandstof %d%%" % int(mol.fuel * 100.0))
+	_expect(fuel_before < 1.0 and is_equal_approx(mol.fuel, 1.0), "boven bijgetankt (%d%% → 100%%)" % int(fuel_before * 100.0))
 
 	# 8. Hard gesteente: in graniet weigert de T1-kop.
 	var c := t.shaft_center_world()

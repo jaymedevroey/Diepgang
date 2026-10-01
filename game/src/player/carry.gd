@@ -17,10 +17,15 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and DisplayServer.get_name() != "headless":
 		return
 	if event.is_action_pressed("interact") and player.seated:
-		player.game.mol.leave_seat() # E in de stoel = uitstappen
+		# In de stoel: een knop onder het vizier indrukken, anders uitstappen.
+		var knob := player.aimed_interactable()
+		if knob:
+			knob.used.emit(player)
+		else:
+			player.game.mol.leave_seat()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("interact"):
 		var button := player.aimed_interactable()

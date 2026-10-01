@@ -1,6 +1,6 @@
 # De Mol — ontwerp
 
-Versie 1, 1 oktober 2026. Uitwerking van GDD §5A. Stijl: [stijlgids](stijlgids.md) (DRG + PEAK + Astroneer, alles in Blender).
+Versie 2, 1 oktober 2026 (gebouwd en getest). Uitwerking van GDD §5A. Stijl: [stijlgids](stijlgids.md) (DRG + PEAK + Astroneer, alles in Blender).
 
 ## Waarom hij eruitziet zoals hij eruitziet
 
@@ -29,7 +29,7 @@ De Mol boort een tunnel en moet daar zelf doorheen. Dat bepaalt de vorm, net als
 
 | Zone | z | Wat staat er |
 |---|---|---|
-| Cabine | −3,6 tot −1,6 | stoel, stuurpaneel met groot camerascherm, meters (diepte, brandstof, helling), autopiloot-knoppen, toeter, vertrekhendel |
+| Cabine | −3,6 tot −1,6 | stoel, console van wand tot wand met een paneel dat 35° naar de piloot kantelt: autopilootknoppen (20/40/60 M), meters met bewegende naald (diepte, snelheid, brandstof), klep, licht, toeter, vertrekhendel; daarboven het grote camerascherm en twee kleine statusschermen |
 | Woonruimte | −1,6 tot +1,6 | werkbank (upgrades later), kastjes, bankjes, koffieapparaat, patrijspoort links en rechts, kooilampen |
 | Laadruim | +1,6 tot +4,2 | sjorrails, vrachtvloer met waarschuwingsstrepen, de laadklep |
 
@@ -44,7 +44,7 @@ De Mol boort een tunnel en moet daar zelf doorheen. Dat bepaalt de vorm, net als
 
 ## Werking in het spel
 
-**Besturen** (één piloot; iedereen mag): E op de stoel. W/S gas, A/D draaien, spatie/Ctrl neus omhoog/omlaag (max. ±25°), H toeter, E uitstappen. Je kijkt naar het camerascherm.
+**Besturen** (één piloot; iedereen mag): E op de stoel. W/S gas, A/D draaien, spatie/Ctrl neus omhoog/omlaag (max. ±25°), H toeter. In de stoel kijk je rond met de muis; E op een knop drukt hem in, E ergens anders = uitstappen. Je kijkt naar het camerascherm (bewakingsmonitor: CAM 1, REC, vizier, diepte en laag), of met **C naar buiten** (camera achter de Mol, kiest in een tunnel zelf de vrije richting terug langs de tunnel).
 
 **Boren:** vooruit rijden in rots boort grote bollen weg vooraan (Ø 6,4 m). Draaien schaaft ook langs de flanken. Achteruit kan enkel door een vrije tunnel.
 - Snelheid: 3 m/s door rots, 5 m/s door een vrije tunnel; autopiloot 6 m/s.
@@ -52,11 +52,11 @@ De Mol boort een tunnel en moet daar zelf doorheen. Dat bepaalt de vorm, net als
 - Brandstof per dienst beperkt (meter in de cabine).
 - Valt de grond onder hem weg (grot), dan zakt hij tot hij steun vindt.
 
-**Afdalen (autopiloot):** knoppen in de cabine (−20, −45, −65 m). De Mol boort een spiraal naar beneden op 25°, komt daarna waterpas en opent de laadklep.
+**Afdalen (autopiloot):** knoppen in de cabine (−20, −40, −60 m). De Mol boort een spiraal (straal 11 m) naar beneden op 22°, komt daarna waterpas en opent de laadklep. Stuit hij op te hard gesteente, dan stopt hij op die diepte.
 
-**Extractie:** de vertrekhendel start een aftelling van 10 s (claxon, zwaailichten). Daarna rijdt de Mol automatisch zijn eigen spoor terug naar boven (lussen in het spoor worden overgeslagen). Boven: overzicht van wat in het laadruim ligt.
+**Extractie:** de vertrekhendel start een aftelling van 10 s (claxon, zwaailichten). Daarna rijdt de Mol automatisch zijn eigen spoor terug naar boven (lussen in het spoor worden overgeslagen). Boven: overzicht van wat in het laadruim ligt, en er wordt bijgetankt. Wie niet aan boord was, klimt te voet naar boven (komt terug bij de spawn achter de Mol).
 
-**Laadruim:** wat erin ligt, telt. Vondsten schuiven mee als hij optrekt of helt; de dichte klep houdt ze binnen.
+**Laadruim:** wat erin ligt, telt. Zolang de Mol rijdt, zitten losse vondsten in de Mol vastgesjord en volgen ze hem exact (op wrijving alleen schoven ze bij 22° en 6 m/s weg); staat hij stil, dan neemt de fysica het weer over.
 
 **Netwerk:** de host simuleert de Mol, de piloot stuurt enkel zijn invoer. Wie in of op de Mol staat, stuurt zijn positie **ten opzichte van de Mol**, net zoals vondsten in het laadruim. Zo staat iedereen op elk scherm netjes binnen, ook als de Mol rijdt.
 

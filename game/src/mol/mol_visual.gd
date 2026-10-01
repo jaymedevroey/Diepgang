@@ -16,6 +16,8 @@ const TRACK_CENTER := Vector2(1.30, -2.25) # (x, y) voor de rechterkant; links g
 const TRACK_ROLL := 30.0
 const LINK_SPACING := 0.19
 const RAMP_OPEN_DEG := 118.0
+## Normaal van het consolepaneel (tools/blender/mol.py, DESK_TILT = 35°).
+const DESK_NORMAL := Vector3(0.0, 0.819152, 0.573576)
 
 ## Materiaal → instellingen voor de machine-shader.
 const MATS := {
@@ -65,6 +67,7 @@ var _head: Node3D
 var _wheels: Array = [] # [node, as, straal]
 var _lever: Node3D
 var _lever_rest: Transform3D
+var _needles: Array = [] # [node, rust-transform, huidige hoek, doelhoek]
 var _links: Array[MultiMeshInstance3D] = []
 var _track_scroll := 0.0
 var _head_spin := 0.0
@@ -101,6 +104,9 @@ func _ready() -> void:
 	_head = anchors["DrillHead"]
 	_lever = anchors["Lever"]
 	_lever_rest = _lever.transform
+	for k in 3:
+		var n: Node3D = anchors["Needle_%d" % k]
+		_needles.append([n, n.transform, 0.0, 0.0])
 	for side in ["L", "R"]:
 		var s := -1.0 if side == "L" else 1.0
 		var axis := Vector3(cos(deg_to_rad(TRACK_ROLL * s)), sin(deg_to_rad(TRACK_ROLL * s)), 0.0)
@@ -116,6 +122,12 @@ func _ready() -> void:
 	_build_feed()
 	_label_left = _screen_label("Label_Depth")
 	_label_right = _screen_label("Label_Status")
+
+
+## Meters op de console (0..1): diepte, snelheid, brandstof. De naalden lopen er traag naartoe.
+func set_gauges(values: Array) -> void:
+	for k in mini(values.size(), _needles.size()):
+		_needles[k][3] = deg_to_rad(135.0 - 270.0 * clampf(values[k], 0.0, 1.0))
 
 
 ## Tekst op de kleine schermen naast het camerascherm (amber, zoals een oud dotmatrixscherm).
@@ -560,7 +572,13 @@ func _process(delta: float) -> void:
 	ramp_hinge.rotation.x = _ramp_angle
 	if is_equal_approx(was, 0.0) and _ramp_angle > 0.0 or is_equal_approx(was, deg_to_rad(RAMP_OPEN_DEG)) and _ramp_angle < was:
 		play("mol_hydraulic", Vector3(0, -1.0, 4.0), -2.0)
-	_lever.transform = _lever_rest * Transform3D(Basis(Vector3.RIGHT, deg_to_rad(-40.0) if lever_pulled else 0.0), Vector3.ZERO)
+	_lever.transform = _lever_rest * Transform3D(Basis(Vector3.RIGHT, deg_to_rad(35.0) if lever_pulled else 0.0), Vector3.ZERO)
+
+	# Meternaalden: draaien rond de normaal van het schuine paneel (35° naar de bestuurder).
+	for nd in _needles:
+		nd[2] = lerp_angle(nd[2], nd[3], minf(1.0, delta * 4.0))
+		var rest: Transform3D = nd[1]
+		(nd[0] as Node3D).transform = Transform3D(Basis(DESK_NORMAL, nd[2]) * rest.basis, rest.origin)
 
 	# Licht en zwaailichten.
 	for l in _lights:

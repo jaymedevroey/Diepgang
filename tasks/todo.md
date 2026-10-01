@@ -12,8 +12,9 @@ Afvinkbare taken per mijlpaal. Bron: [docs/GDD.md](../docs/GDD.md) §10 en §13.
 | Rendertest | `tools\godot.cmd --path game -- --scenario=render --no-steam` (+ `--rendering-method gl_compatibility` vóór `--`) |
 | Windows-build | `tools\export_windows.cmd` → `builds\windows\Diepgang.exe` |
 | Nettest (host + client, headless) | `py -3.11 tools/net_test.py` (of `--exe builds/windows/Diepgang.console.exe`) |
-| Vondsten, dragen, lift, tuning (headless) | `tools\godot.cmd --headless --path game -- --scenario=find_test --no-steam` (ook `carry_test`, `lift_test`, `tuning_test`) |
-| Screenshots | `-- --autodig --pitch=-30 --shot=naam --frames=60,300` · `--scenario=robot_preview` · `find_preview` · `carry_preview` · `--menu-shot` |
+| Vondsten, dragen, de Mol, tuning (headless) | `tools\godot.cmd --headless --path game -- --scenario=find_test --no-steam` (ook `carry_test`, `mol_test`, `tuning_test`) |
+| Screenshots | `-- --autodig --pitch=-30 --shot=naam --frames=60,300` · `--scenario=robot_preview` · `find_preview` · `carry_preview` · `mol_preview` (`--only=buiten,zij,rups,achter,binnen,cabine,afdalen`) · `--menu-shot` |
+| Model van de Mol bouwen | `"C:\Program Files\Blender Foundation\Blender 5.2lender.exe" -b --factory-startup --python tools/blender/mol.py -- game/assets/models/mol.glb`, daarna `tools\godot.cmd --headless --path game --import` |
 | Twee instanties met de hand | `tools\godot.cmd --path game -- --host` en `tools\godot.cmd --path game -- --join=127.0.0.1` |
 
 Logs, CSV's en screenshots komen in `logs/` (editor) of `builds\windows\logs\` (build).
@@ -107,6 +108,11 @@ Volgorde op vraag van Jayme: eerst mooi, dan inhoud, dan Steam/voice, dan de ker
 Stijl: Deep Rock Galactic + PEAK + Astroneer. Alle modellen in Blender (geen AI-modellen).
 
 - [ ] **M2 Uiterlijk** (half oktober): stijlgids, rotstexturen, Blender-modellen (de Mol, gereedschap, fossielen, puin), sfeer en licht, ambient geluid en muziek, menu- en HUD-stijl, instellingen.
+  - [x] **De Mol** (model + volledige werking, vooruitgenomen uit M3), 2026-10-01. Ontwerp: [docs/de-mol.md](../docs/de-mol.md).
+    - Model in Blender ([mol.py](../tools/blender/mol.py), 94k driehoeken): boorkop met spiraalarmen, schild, romp, rupsen, motor, interieur (cabine met schuine console, woonruimte, laadruim), slijtage in vertexkleuren.
+    - Werking: rijden en boren, steun op het terrein, autopiloot (spiraal), laadruim, extractie met samenvatting, bijtanken, achterblijvers, buitenzicht (C), camerascherm, meters, knoppen vanuit de stoel.
+    - Verificatie: `mol_test` 34 controles (o.a. van de spawn de klep op lopen, afdalen tot −20, vondst rijdt mee, extractie, graniet blokkeert); nettest met een client als piloot (19 controles).
+    - Open: Jayme speelt het en zegt wat beter moet.
 - [ ] **M3 Inhoud** (eind oktober): de Mol werkend (afdalen, rijden en boren, laadruim, extractie; vervangt de lift), Fossielbed, Kristalgrotten, Graafworm, gas, ±8 items, depot met kas en museum, cosmetica.
 - [ ] **M4 Samen** (begin november): Steam-lobby's en uitnodigingen, voice, test met 150 ms vertraging. Poort 2.
 - [ ] **M5 Kernlus** (half november): opdrachten, quota, boete, lava, onrust, opslaan, host-vertrek, Oude Kolenmijn met tutorial.

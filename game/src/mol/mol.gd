@@ -515,6 +515,7 @@ func _extract(delta: float) -> void:
 		for it: FindItem in items:
 			value += it.value()
 		_path = [body.global_position]
+		fuel = 1.0 # boven wordt bijgetankt: brandstof is per dienst
 		_rpc_flags.rpc(true, lights_on)
 		_set_mode(Mode.PARKED, 0)
 		_rpc_event.rpc(Event.ARRIVED)
@@ -592,6 +593,7 @@ func _interpolate() -> void:
 
 func _update_visual() -> void:
 	_update_ramp_shape()
+	visual.set_gauges([depth() / 60.0, absf(speed) / 6.0, fuel])
 	visual.speed = speed
 	visual.throttle = clampf(absf(speed) / 3.0, 0.0, 1.0)
 	visual.drilling = drilling
@@ -649,7 +651,7 @@ func _build_collision() -> void:
 	cs.position = Vector3(0, 0, -5.9)
 	body.add_child(cs)
 	# Meubels binnen, zodat je er niet door loopt.
-	_box(Vector3(3.5, 1.05, 0.9), Vector3(0, -1.0, -3.3))
+	_box(Vector3(4.2, 1.0, 0.9), Vector3(0, -1.0, -3.16)) # console
 	_box(Vector3(0.75, 0.95, 0.95), Vector3(-1.72, -1.05, 1.05))
 	_box(Vector3(0.45, 1.95, 0.9), Vector3(1.85, -0.52, 1.0))
 	_box(Vector3(0.45, 0.6, 1.1), Vector3(-1.85, -1.2, 0.0))
@@ -704,5 +706,6 @@ func _button(anchor: Node3D, hint: String, button: Cmd, arg: float, size: float)
 	var shape := BoxShape3D.new()
 	shape.size = Vector3.ONE * size
 	var it := Interactable.make(hint, shape)
+	it.set_meta("mol_cmd", button)
 	anchor.add_child(it)
 	it.used.connect(func(_p: Player) -> void: press(button, arg))

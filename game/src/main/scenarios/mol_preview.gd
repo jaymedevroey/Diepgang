@@ -55,6 +55,9 @@ func _run(p: Player) -> void:
 		p.camera.make_current()
 		p.head.rotation.x = deg_to_rad(-4)
 		await _shot("mol_cabine", 0.8)
+		p.head.rotation.x = deg_to_rad(-38)
+		await _shot("mol_dashboard", 0.3)
+		p.head.rotation.x = deg_to_rad(-4)
 		mol.press(Mol.Cmd.AUTO, 40.0)
 		var side := mol.to_world_mol(Vector3(-15.0, 2.0, -14.0))
 		_cam.global_position = side

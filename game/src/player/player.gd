@@ -173,11 +173,15 @@ func _unseat() -> void:
 
 
 ## Knop, hendel of rail onder het vizier (niet door een muur heen), of null.
+## In de stoel telt de stoel zelf niet (E is daar uitstappen).
 func aimed_interactable() -> Interactable:
 	var from := camera.global_position
 	var hit: Dictionary = game.terrain.raycast(from, from - camera.global_basis.z * 3.0,
 			Layers.TERRAIN | Layers.INTERACT)
-	return hit.collider as Interactable if not hit.is_empty() else null
+	var it := hit.collider as Interactable if not hit.is_empty() else null
+	if it and seated and it.get_meta("mol_cmd", -1) == Mol.Cmd.SEAT:
+		return null
+	return it
 
 
 ## Waar je iets vasthoudt: voor je, op ooghoogte, niet door een muur.
