@@ -100,6 +100,16 @@ Netwerkmodel (GDD §9): host-autoritatief voor terrein en buit; elke speler bepa
   - 2026-10-01: startmenu (solo, hosten met IP in beeld, meedoen via IP), handleiding `docs/playtest-m1.md` (ook als `LEESMIJ.txt` in de build). Build getest: dig/find/carry/lift-test en de nettest met twee exe's slagen; stresstest gem. 0,95 ms, max. 9,5 ms.
 - [ ] **Poort 1** met Jayme (en Ian/Anir): voelen graven en slepen goed? Vragenlijst in `docs/playtest-m1.md`.
 
+## Planning (herzien 2026-10-01, zie GDD §10)
+
+Volgorde op vraag van Jayme: eerst mooi, dan inhoud, dan Steam/voice, dan de kernlus.
+
+- [ ] **M2 Uiterlijk** (half oktober): rotstexturen, modellen (gereedschap, fossielen, lift, puin), sfeer en licht, ambient geluid en muziek, menu- en HUD-stijl, instellingen.
+- [ ] **M3 Inhoud** (eind oktober): Fossielbed, Kristalgrotten, Graafworm, gas, ±8 items, depot met kas en museum, cosmetica.
+- [ ] **M4 Samen** (begin november): Steam-lobby's en uitnodigingen, voice, test met 150 ms vertraging. Poort 2.
+- [ ] **M5 Kernlus** (half november): opdrachten, quota, boete, lava, onrust, opslaan, host-vertrek, Oude Kolenmijn met tutorial.
+- [ ] **M6 Demo** (december): demo, capsules, trailer, Steam-pagina.
+
 ## Jayme (parallel)
 
 - [ ] Steamworks-account aanmaken ($100 app fee), W-8BEN en identiteitsgegevens.

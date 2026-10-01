@@ -275,17 +275,19 @@ Elke waardeklasse heeft zijn eigen geluid en glans.
 
 ## 10. Planning en poorten
 
-| Mijlpaal | Klaar tegen | Inhoud | Poort |
-|---|---|---|---|
-| **M0 Opzet** | half oktober 2026 | Repo, Godot 4.7.2, voxel- en GodotSteam-extensies samen, Windows-export, render- en performancetest (128×320×128 volume, graven met 4 "spelers") | Jayme start de build en kan graven |
-| **M1 Graafspeelgoed** | begin november | First-person robot, graven, korsten uitbikken, dragen, lift. **Al met netwerk** tussen twee lokale instanties. Tuning-menu | **Poort 1:** voelen graven en slepen goed? |
-| **M2 Samen** | eind november | 2–4 spelers via Steam, voice, getest met 150 ms vertraging | **Poort 2:** 30 min met drie vrienden zonder problemen, en is het leuk? |
-| **M3 Kernlus** | eind januari 2027 | Opdrachten, quota, boete, lava, onrust, depot, kas, **opslaan**, host die vertrekt, Oude Kolenmijn volledig met tutorial | De eerste versie die "een game" is |
-| **M4 Inhoud** | half maart | Fossielbed en Kristalgrotten, Graafworm, museum, gas, alle ±8 items, cosmetica | |
-| **M5 Afwerking** | half april | Art-, geluid- en muziekpass, instellingen, performance op een mid-range pc | Steam-pagina "Coming Soon" live, **inschrijven voor Next Fest voor 25 april 2027** |
-| **M6 Demo** | half mei | Demo (deadline persvoorvertoning 17 mei, definitief 31 mei), capsules, trailer | **Next Fest 14–21 juni 2027**, daarna Early Access |
+> Herzien op 1 oktober 2026 (v2.1). M0 en M1 waren in een dag klaar in plaats van in een maand. Op vraag van Jayme komt het uiterlijk eerst en Steam/voice en de kernlus daarna (oude M2/M3 en M4/M5 gewisseld). Het netwerk zelf zit er al in sinds M1.
 
-**Wat het tempo bepaalt:** hoe snel Jayme, Ian en Anir kunnen playtesten, niet het programmeren. De data kloppen als er per mijlpaal binnen een week getest wordt.
+| Mijlpaal | Doel | Inhoud | Poort |
+|---|---|---|---|
+| **M0 Opzet** | ✅ 1 oktober 2026 | Repo, Godot 4.7.2, voxel- en GodotSteam-extensies samen, Windows-export, render- en performancetest | Jayme start de build en kan graven |
+| **M1 Graafspeelgoed** | ✅ 1 oktober | First-person robot, graven, korsten uitbikken, dragen, lift. **Al met netwerk** (ENet, host/join). Tuning-menu | **Poort 1:** voelen graven en slepen goed? |
+| **M2 Uiterlijk** (was M5) | half oktober | Rotstexturen per laag, echte modellen (gereedschap, fossielen, lift, puin), sfeer en licht (stof in de lucht, kristallen, kleurgrading), ambient geluid en muziek, eigen stijl voor menu's en HUD, instellingen | "Ziet het eruit als een game?" |
+| **M3 Inhoud** (was M4) | eind oktober | Fossielbed en Kristalgrotten, Graafworm, gas, alle ±8 items, **depot met teamkas en museum** (vooruitgehaald uit de kernlus), cosmetica | |
+| **M4 Samen** (was M2) | begin november | Steam-lobby's en uitnodigingen, voice, getest met 150 ms vertraging | **Poort 2:** 30 min met drie vrienden zonder problemen, en is het leuk? |
+| **M5 Kernlus** (was M3) | half november | Opdrachten, quota, boete, lava, onrust, **opslaan**, host die vertrekt, Oude Kolenmijn volledig met tutorial | De eerste versie die "een game" is |
+| **M6 Demo** | december | Demo, capsules, trailer, Steam-pagina | Steam-pagina "Coming Soon" zodra het Steamworks-account er is. **Next Fest juni 2027** blijft de vaste datum (inschrijven voor 25 april); een eerdere Next Fest kan als de deadlines het toelaten |
+
+**Wat het tempo bepaalt:** hoe snel Jayme, Ian en Anir kunnen playtesten, en de wachttijden bij Steam. Niet het programmeren. De data kloppen als er per mijlpaal binnen enkele dagen getest wordt.
 
 ### Stopcriteria
 - **Poort 1 faalt** (graven en slepen voelen niet goed): bijsturen of stoppen, na enkele weken in plaats van maanden.
