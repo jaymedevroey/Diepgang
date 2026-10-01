@@ -143,6 +143,13 @@ func request_chip(player_id: int, world_hit: Vector3, world_normal: Vector3,
 	return true
 
 
+## Past een bol helemaal in het graafbare deel (binnen de buitenmuur, boven de bodem)?
+## Zo niet, dan schuift make_sphere_op hem naar binnen en blijft er rots staan aan de rand.
+func sphere_fits(world_center: Vector3, radius_m: float) -> bool:
+	var c := _terrain.to_local(world_center)
+	return c.is_equal_approx(_clamp_center(c, radius_m / VOXEL_SIZE))
+
+
 ## Bol wegnemen rond `world_center`. Maakt enkel de op; toepassen met apply_op.
 ## Bol, optioneel met kleinere happen uit de wand (`bites`: [[wereldcentrum, straal_m], ...]) voor een
 ## ruwe, brokkelige tunnelwand. De happen zitten in de op zelf, zodat elke peer exact hetzelfde toepast.

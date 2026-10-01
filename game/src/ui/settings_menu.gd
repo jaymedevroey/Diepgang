@@ -211,6 +211,7 @@ func _rebuild(tab: String) -> void:
 			_option(page, "hud/tools", "Gereedschap", modes)
 			_option(page, "hud/depth", "Diepte en richting naar de Mol", modes)
 			_option(page, "hud/team", "Ploeg", modes)
+			_option(page, "hud/sonar", "Sonar in buitenzicht (de Mol)", modes)
 			_option(page, "hud/stats", "Infopaneel (fps, netwerk) · F3", ["Uit", "Uit", "Aan"])
 
 

@@ -1,6 +1,6 @@
 # De Mol — ontwerp
 
-Versie 2, 1 oktober 2026 (gebouwd en getest). Uitwerking van GDD §5A. Stijl: [stijlgids](stijlgids.md) (DRG + PEAK + Astroneer, alles in Blender).
+Versie 3, 1 oktober 2026 (gebouwd en getest; sonar erbij). Uitwerking van GDD §5A. Stijl: [stijlgids](stijlgids.md) (DRG + PEAK + Astroneer, alles in Blender).
 
 ## Waarom hij eruitziet zoals hij eruitziet
 
@@ -29,7 +29,7 @@ De Mol boort een tunnel en moet daar zelf doorheen. Dat bepaalt de vorm, net als
 
 | Zone | z | Wat staat er |
 |---|---|---|
-| Cabine | −3,6 tot −1,6 | stoel, console van wand tot wand met een paneel dat 35° naar de piloot kantelt: autopilootknoppen (20/40/60 M), meters met bewegende naald (diepte, snelheid, brandstof), klep, licht, toeter, vertrekhendel; daarboven het grote camerascherm en twee kleine statusschermen |
+| Cabine | −3,6 tot −1,6 | stoel, console van wand tot wand met een paneel dat 35° naar de piloot kantelt: autopilootknoppen (20/40/60 M), meters met bewegende naald (diepte, snelheid, brandstof), klep, licht, toeter, vertrekhendel; daarboven het grote camerascherm, links een statusscherm (stand, diepte, helling, brandstof, laadruim) en rechts de sonarkast |
 | Woonruimte | −1,6 tot +1,6 | werkbank (upgrades later), kastjes, bankjes, koffieapparaat, patrijspoort links en rechts, kooilampen |
 | Laadruim | +1,6 tot +4,2 | sjorrails, vrachtvloer met waarschuwingsstrepen, de laadklep |
 
@@ -39,7 +39,7 @@ De Mol boort een tunnel en moet daar zelf doorheen. Dat bepaalt de vorm, net als
 - Geklonken platen met dikke bouten, panelen met naden, waarschuwingsstrepen rond het schild.
 - "DIEPGANG BV" en "DE MOL · M-01" op de flanken, een paar stickers, deuken.
 - Boorkop: drie spiraalarmen met snijtanden (±30), een rand met tanden, een middennaaf met camera en lichtring.
-- Licht: 4 koplampen in het schild (2 met schaduw), 2 oranje zwaailichten bovenop, warme kooilampen binnen, het blauwige camerascherm in de cabine.
+- Licht: 4 koplampen in het schild (2 met schaduw), 2 oranje zwaailichten bovenop, warme kooilampen binnen, het blauwige camerascherm en het groene sonarscherm in de cabine.
 - Randen lichter (geverfd metaal sleet eraf), holtes donkerder: gebakken in vertexkleuren in Blender, gebruikt door een eigen shader in Godot.
 
 ## Werking in het spel
@@ -49,10 +49,23 @@ De Mol boort een tunnel en moet daar zelf doorheen. Dat bepaalt de vorm, net als
 **Boren:** vooruit rijden in rots boort grote bollen weg vooraan (Ø 6,4 m). Draaien schaaft ook langs de flanken. Achteruit kan enkel door een vrije tunnel.
 - Snelheid: 3 m/s door rots, 5 m/s door een vrije tunnel; autopiloot 6 m/s.
 - De boorkop volgt de laagregels: **T1 = klei en zandsteen**. Op graniet blokkeert hij met vonken en gekrijs.
+- **De buitenmuur van de put** kan hij niet aan: hij stopt ervoor (op het statusscherm "! RAND PUT"), en draaien dat kop of staart in de muur zou zwaaien, gebeurt niet. Achteruit kan langs de eigen tunnel.
+- Rots herkent hij in een ring zo breed als de romp met de rupsen. Tilt de steun hem op (een grotvloer, een bult), dan maakt hij kopruimte vrij boven de rupsen. Bij draaien schaaft hij langs de echte omtrek van de romp.
 - Brandstof per dienst beperkt (meter in de cabine).
 - Valt de grond onder hem weg (grot), dan zakt hij tot hij steun vindt.
 
-**Afdalen (autopiloot):** knoppen in de cabine (−20, −40, −60 m). De Mol boort een spiraal (straal 11 m) naar beneden op 22°, komt daarna waterpas en opent de laadklep. Stuit hij op te hard gesteente, dan stopt hij op die diepte.
+**Sonar:** rechts naast het camerascherm staat een sonarkast met een ronde groene beeldbuis (GDD §4, scanner T1: vage blips, nooit "alles zichtbaar").
+- Kop boven: vooruit is boven op het scherm, rechts is rechts. Een veeg draait rond (2,4 s); waar hij een vondst raakt, licht een blip op die daarna uitdooft. Het echolampje op de kast flitst mee.
+- Bereik 24 m. Vaag: elke echo wijkt wat af (0,5 m + 5 cm per meter afstand), elke veeg anders.
+- Grootte van de blip = gewicht (klein, middel, groot). ▲ of ▼ naast een blip: meer dan 2,5 m boven of onder de Mol. Rechts een dieptestrook (±20 m) met alle echo's op hun hoogte.
+- Het doel (dichtstbijzijnde echo, met haakjes) staat in tekst: afstand, richting op de klok ("2 UUR"), hoogte ("6 M ONDER" of "GELIJK") en grootte. Dichter dan 8 m: "! DICHTBIJ · STOP HIER".
+- Lawaai: rijden en vooral boren geven ruis op het scherm (RUIS) en onzekerdere echo's. Stilstaan geeft een scherp beeld (STIL).
+- In buitenzicht (C) staat hetzelfde sonarbeeld rechtsonder in de HUD (instelling *Sonar in buitenzicht*).
+- Vondsten die gedragen worden of in het laadruim liggen, staan er niet op. Lokaal op elke peer: de vondsten staan overal (seed), er gaat niets over het netwerk.
+
+**Boorkop in een vondst:** raakt de boorkop (of het schaven bij draaien) een vondst die nog in de rots zit, dan schept hij hem op: de korst spat weg en de vondst ligt in het laadruim, maar met hoogstens **30% gaafheid** (melding voor de ploeg). Zo blijft er nooit een korst in de tunnel of in de Mol zweven, en loont het om op tijd te stoppen en zelf uit te bikken.
+
+**Afdalen (autopiloot):** knoppen in de cabine (−20, −40, −60 m). De Mol boort een spiraal (straal 11 m) naar beneden op 22°, komt daarna waterpas en opent de laadklep. Stuit hij op te hard gesteente, dan stopt hij op die diepte. Vondsten op zijn weg schept hij op (zie hierboven).
 
 **Extractie:** de vertrekhendel start een aftelling van 10 s (claxon, zwaailichten). Daarna rijdt de Mol automatisch zijn eigen spoor terug naar boven (lussen in het spoor worden overgeslagen). Boven: overzicht van wat in het laadruim ligt, en er wordt bijgetankt. Wie niet aan boord was, klimt te voet naar boven (komt terug bij de spawn achter de Mol).
 

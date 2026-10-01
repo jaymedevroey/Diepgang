@@ -45,6 +45,11 @@ func setup(id: int, kind_value: FindKinds.Kind) -> void:
 	half_extents = mesh.get_aabb().size * 0.5
 
 
+## Hoogte van de oorsprong boven de grond als hij rechtop ligt (onderkant van het model).
+func rest_height() -> float:
+	return -_mesh.mesh.get_aabb().position.y
+
+
 func display_name() -> String:
 	return FindKinds.NAMES[kind]
 

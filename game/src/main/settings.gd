@@ -36,6 +36,7 @@ const DEFAULTS := {
 	"hud/tools": 1,
 	"hud/depth": 1,
 	"hud/team": 1,
+	"hud/sonar": 2, # klein sonarbeeld in buitenzicht
 	"hud/stats": 0, # F3-infopaneel (0 uit, 2 aan)
 }
 const HUD_OFF := 0

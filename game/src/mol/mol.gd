@@ -30,6 +30,14 @@ const FALL_AT := 0.2
 const TRACK_POINTS := [Vector3(-1.5, -2.55, -2.8), Vector3(1.5, -2.55, -2.8), Vector3(-1.5, -2.55, 0.2),
 		Vector3(1.5, -2.55, 0.2), Vector3(-1.5, -2.55, 3.0), Vector3(1.5, -2.55, 3.0)]
 const TRACK_BOTTOM := -2.73 # onderkant van de rupsen (lokaal y) waar ze de grond raken
+## Straal (vanaf de as) waarbinnen de romp met de rupsen valt: daar mag geen rots zijn.
+const HULL_PROBE := 3.15 # rupsen liggen op ±3,11 m; boorbol 3,2 m
+## Kopruimte: bollen iets boven de as, die de romp vrijmaken maar nooit de grond onder de rupsen.
+const HEADROOM_LIFT := 0.5
+const HEADROOM_RADIUS := 3.0
+const HEADROOM_EVERY := 0.3 # meter optillen tussen twee keer vrijmaken
+## Dikte van buitenmuur + marge (TerrainAPI._clamp_center: 3,5 voxels) in meter.
+const EDGE_MARGIN := 2.25
 ## Binnenruimte (lokaal) voor "staat in de Mol".
 const INSIDE := AABB(Vector3(-2.2, -1.65, -3.75), Vector3(4.4, 3.6, 8.1))
 const SEND_INTERVAL := 0.05
@@ -38,6 +46,8 @@ const INTERP_DELAY_MS := 100.0
 var game: Node # Game
 var body: AnimatableBody3D
 var visual: MolVisual
+## Sonar (lokaal op elke peer, enkel bijgewerkt als iemand hier in de Mol kijkt).
+var sonar := Sonar.new()
 
 # Toestand (host bepaalt, iedereen kent).
 var mode := Mode.PARKED
@@ -47,6 +57,8 @@ var pitch := 0.0
 var speed := 0.0
 var drilling := false
 var blocked := false
+## Geblokkeerd door de buitenmuur van de put (niet door te hard gesteente).
+var at_edge := false
 var ramp_open := true
 var lights_on := true
 var fuel := 1.0
@@ -59,6 +71,7 @@ var _input_time := 0.0
 var _vy := 0.0
 var _since_bore := 0.0
 var _yaw_since_bore := 0.0
+var _lift_since_clear := 0.0
 var _path: Array[Vector3] = []
 var _path_index := 0
 var _auto_level_dist := 0.0
@@ -101,6 +114,11 @@ func setup() -> void:
 
 
 # --- Vragen ---------------------------------------------------------------------------
+
+## Host: een melding voor iedereen (ook van FindField, bv. een opgeschepte vondst).
+func announce(text: String) -> void:
+	_rpc_message.rpc(text)
+
 
 ## Host: de Mol ergens neerzetten (tests, later respawn). In de volgende physics-tick, want het
 ## lichaam (sync_to_physics) neemt een verplaatsing van buiten die tick niet over.
@@ -310,6 +328,18 @@ func _rpc_full(pos: Vector3, y: float, p: float, m: int, pl: int, ramp: bool, li
 
 # --- Simulatie (host) --------------------------------------------------------------------------
 
+## Sonar: elke frame (vloeiende veeg), enkel als de lokale speler in de Mol is.
+func _process(delta: float) -> void:
+	if body == null or not visual.feed_active:
+		return
+	var noise := clampf(absf(speed) / 3.0, 0.0, 1.0) * Tuning.get_f("mol", "sonar_noise_driving", 0.35)
+	if drilling:
+		noise += Tuning.get_f("mol", "sonar_noise_drilling", 0.7)
+	sonar.noise = clampf(noise, 0.0, 1.0)
+	sonar.update(delta, body.global_transform, game.finds.items, contains_point)
+	visual.sonar_screen.display(sonar, body.global_transform, delta)
+
+
 func _physics_process(delta: float) -> void:
 	if body == null:
 		return
@@ -362,16 +392,27 @@ func _drive(inp: Vector3, delta: float) -> void:
 	var max_pitch := deg_to_rad(Tuning.get_f("mol", "max_pitch_deg", 25.0))
 	var pitch_was := pitch
 	pitch = clampf(pitch + inp.z * deg_to_rad(Tuning.get_f("mol", "pitch_rate_deg", 12.0)) * delta, -max_pitch, max_pitch)
-	_yaw_since_bore += absf(pitch - pitch_was)
 	var turn := -inp.y * deg_to_rad(Tuning.get_f("mol", "yaw_rate_deg", 22.0)) * delta * (0.7 if drilling and not auto else 1.0)
+	var yaw_was := yaw
+	var overlap_was := _edge_overlap(body.global_position, forward())
 	yaw += turn
-	_yaw_since_bore += absf(turn)
 	_place(body.global_position, yaw, pitch)
+	# Draaien of kantelen dat kop of staart in de buitenmuur zwaait: niet doen.
+	if _edge_overlap(body.global_position, forward()) > overlap_was + 0.001:
+		turn = 0.0
+		yaw = yaw_was
+		pitch = pitch_was
+		_place(body.global_position, yaw, pitch)
+	_yaw_since_bore += absf(turn) + absf(pitch - pitch_was)
 
 	# Wat ligt er voor de kop?
 	var fwd := forward()
-	var probe := _probe_ring(body.global_position + fwd * (BORE_AHEAD + 1.9), fwd)
+	# Rots vooraan: een ring zo breed als de romp met de rupsen (anders rijdt hij door een grot
+	# "zonder rots" terwijl de flanken en rupsen door de grotwand gaan). Te hard: de smalle kern.
+	var ahead := body.global_position + fwd * (BORE_AHEAD + 1.9)
+	var probe := _probe_ring(ahead, fwd)
 	var rock: bool = probe[0]
+	var hull_rock: bool = rock or _probe_ring(ahead, fwd, HULL_PROBE, 12)[0]
 	var too_hard: bool = probe[1]
 	var rear_rock: bool = _probe_ring(body.global_position - fwd * 5.4, fwd)[0]
 	var bore_speed := Tuning.get_f("mol", "bore_speed", 3.0)
@@ -383,7 +424,9 @@ func _drive(inp: Vector3, delta: float) -> void:
 	elif throttle < 0.0:
 		target = throttle * Tuning.get_f("mol", "reverse_speed", 2.0)
 	var was_blocked := blocked
-	blocked = throttle > 0.0 and too_hard
+	# De buitenmuur van de put kan de boorkop niet aan: de volgende boorbol moet er helemaal in passen.
+	at_edge = throttle > 0.0 and not game.terrain.sphere_fits(body.global_position + fwd * (BORE_AHEAD + BORE_STEP), BORE_RADIUS)
+	blocked = throttle > 0.0 and (too_hard or at_edge)
 	if blocked:
 		target = minf(target, 0.0)
 	if throttle < 0.0 and rear_rock:
@@ -400,7 +443,7 @@ func _drive(inp: Vector3, delta: float) -> void:
 	var step := fwd * speed * delta
 	var pos := body.global_position + step
 	_since_bore += step.length()
-	if speed > 0.05 and (rock or _since_bore >= BORE_STEP * 3.0) and _since_bore >= BORE_STEP:
+	if speed > 0.05 and (hull_rock or _since_bore >= BORE_STEP * 3.0) and _since_bore >= BORE_STEP:
 		_since_bore = 0.0
 		_bore(pos + fwd * BORE_AHEAD)
 	if _yaw_since_bore > deg_to_rad(3.0):
@@ -412,8 +455,15 @@ func _drive(inp: Vector3, delta: float) -> void:
 		_rpc_event.rpc(Event.BLOCKED)
 	_blocked_sound -= delta
 
-	# Steun: de rupsen rusten op de grond, anders zakt hij.
+	# Steun: de rupsen rusten op de grond, anders zakt hij. Tilt de steun hem op (een grotvloer,
+	# een bult), dan komt de romp hoger dan de geboorde tunnel: kopruimte vrijmaken.
+	var before_y := pos.y
 	pos = _support(pos, delta)
+	if pos.y > before_y:
+		_lift_since_clear += pos.y - before_y
+		if _lift_since_clear > HEADROOM_EVERY:
+			_lift_since_clear = 0.0
+			_clear_headroom(pos, fwd)
 	pos = _clamp_bounds(pos)
 	_place(pos, yaw, pitch)
 	if absf(speed) > 0.3 and ramp_open:
@@ -421,8 +471,25 @@ func _drive(inp: Vector3, delta: float) -> void:
 	_record_path(pos)
 
 
+## Hoe ver kop en staart buiten het graafbare deel zouden boren (0 = past).
+func _edge_overlap(pos: Vector3, fwd: Vector3) -> float:
+	var out := 0.0
+	for off: float in [SHAVE_OFFSETS[0], SHAVE_OFFSETS[-1]]:
+		var c: Vector3 = pos + fwd * off
+		if not game.terrain.sphere_fits(c, BORE_RADIUS):
+			out += _edge_distance(c)
+	return out
+
+
+## Afstand die een boorbol in de buitenmuur zou zitten (x, z en de bodem).
+func _edge_distance(c: Vector3) -> float:
+	var size: Vector3 = game.terrain.world_size()
+	var m := EDGE_MARGIN + BORE_RADIUS
+	return maxf(0.0, m - c.x) + maxf(0.0, c.x - (size.x - m)) + maxf(0.0, m - c.z) + maxf(0.0, c.z - (size.z - m)) + maxf(0.0, m - c.y)
+
+
 ## Ring van proefpunten loodrecht op de rijrichting: [rots?, te hard?].
-func _probe_ring(center: Vector3, fwd: Vector3, radius := 2.4) -> Array:
+func _probe_ring(center: Vector3, fwd: Vector3, radius := 2.4, count := 8) -> Array:
 	var t: TerrainAPI = game.terrain
 	var right := fwd.cross(Vector3.UP)
 	if right.length() < 0.1:
@@ -432,8 +499,8 @@ func _probe_ring(center: Vector3, fwd: Vector3, radius := 2.4) -> Array:
 	var rock := false
 	var hard := false
 	var points: Array[Vector3] = [center]
-	for k in 8:
-		var a := k / 8.0 * TAU
+	for k in count:
+		var a := k / float(count) * TAU
 		points.append(center + (right * cos(a) + up * sin(a)) * radius)
 	for p in points:
 		if t.is_solid(p):
@@ -448,17 +515,35 @@ func _probe_ring(center: Vector3, fwd: Vector3, radius := 2.4) -> Array:
 const SHAVE_OFFSETS := [6.4, 4.8, 3.2, 1.6, 0.0, -1.6, -3.2, -4.4] # meter vóór het midden (+ = richting de kop)
 
 
+## Omtrek van de romp met de rupsen (lokaal x, y), iets ruimer genomen. Een ring van 8 punten
+## miste rots tussen de punten: dan bleef er bij het draaien een hoek rots in de cabine.
+const HULL_OUTLINE := [Vector2(0, 2.2), Vector2(-1.6, 2.2), Vector2(1.6, 2.2), Vector2(-2.5, 1.3), Vector2(2.5, 1.3),
+		Vector2(-2.5, 0.0), Vector2(2.5, 0.0), Vector2(-2.5, -1.3), Vector2(2.5, -1.3), Vector2(-2.05, -2.5),
+		Vector2(2.05, -2.5), Vector2(-1.2, -2.85), Vector2(1.2, -2.85), Vector2(0, -2.45)]
+const HEAD_FROM := 4.0 # vanaf zoveel meter voor het midden: de ronde boorkop (straal 3,0)
+
+
 func _shave_body(pos: Vector3, fwd: Vector3) -> void:
+	var basis := body.global_basis
 	for off: float in SHAVE_OFFSETS:
 		var c: Vector3 = pos + fwd * off
-		if _probe_ring(c, fwd, 2.95)[0]:
+		var touches: bool = _probe_ring(c, fwd, HULL_PROBE - 0.15, 16)[0] if off >= HEAD_FROM else _outline_touches(c, basis)
+		if touches:
 			_bore(c)
+
+
+func _outline_touches(c: Vector3, basis: Basis) -> bool:
+	for q: Vector2 in HULL_OUTLINE:
+		if game.terrain.is_solid(c + basis.x * q.x + basis.y * q.y):
+			return true
+	return false
 
 
 ## Boorbol plus een paar happen uit wand en plafond (nooit uit de vloer: de rupsen rijden glad),
 ## zodat de tunnel ruw en brokkelig wordt in plaats van een gladde buis.
 func _bore(center: Vector3) -> void:
 	center -= body.global_basis.y * BORE_DROP
+	_scoop_finds(center)
 	var bites: Array = []
 	var basis := body.global_basis
 	for k in BORE_BITES:
@@ -471,6 +556,27 @@ func _bore(center: Vector3) -> void:
 		var r := _rng.randf_range(0.45, 0.95)
 		bites.append([center + basis * d * (BORE_RADIUS - r * 0.4), r])
 	game.terrain_sync.host_apply(game.terrain.make_sphere_op(0, center, BORE_RADIUS, bites))
+
+
+## De steun tilde de Mol op: rots boven de rupsen wegnemen over de hele lengte, nooit eronder
+## (anders zakt hij meteen terug). Zonder dit reed hij in een grot met de cabine in de rots.
+func _clear_headroom(pos: Vector3, fwd: Vector3) -> void:
+	var up := body.global_basis.y
+	for off: float in SHAVE_OFFSETS:
+		var c: Vector3 = pos + fwd * off + up * HEADROOM_LIFT
+		if _probe_ring(c, fwd, 2.6, 12)[0] or game.terrain.is_solid(c + up * 2.2):
+			_scoop_finds(c)
+			game.terrain_sync.host_apply(game.terrain.make_sphere_op(0, c, HEADROOM_RADIUS))
+
+
+## Vondsten die nog in de rots zitten en binnen het bereik van deze boorbol liggen, schept de
+## boorkop op en legt hij in het laadruim, zwaar beschadigd (FindField.host_mol_scoop). Anders
+## bleef de korst in de tunnel of in de Mol zweven. Zelf uitbikken blijft zo de moeite waard.
+func _scoop_finds(center: Vector3) -> void:
+	var reach := BORE_RADIUS + 0.6 # boorbol plus de happen uit de wand
+	for it: FindItem in game.finds.items:
+		if not it.freed and it.global_position.distance_to(center) < reach + it.half_extents.length():
+			game.finds.host_mol_scoop(it, self)
 
 
 ## De rupsen rusten op de grond. Gemeten in de terreindata (SDF), niet met botsvormen:
@@ -519,7 +625,7 @@ func _autopilot_down(delta: float) -> Vector3:
 	var auto_speed := Tuning.get_f("mol", "auto_speed", 6.0)
 	if blocked and d < auto_depth - 1.0:
 		auto_depth = d
-		_rpc_message.rpc("Harde laag: de autopiloot stopt op %d m" % int(d))
+		_rpc_message.rpc(("Rand van de put" if at_edge else "Harde laag") + ": de autopiloot stopt op %d m" % int(d))
 	if d < auto_depth - 1.0:
 		var want := deg_to_rad(-Tuning.get_f("mol", "auto_pitch_deg", 22.0))
 		var p_in := clampf((want - pitch) * 4.0, -1.0, 1.0)
@@ -594,7 +700,7 @@ func _send_state(delta: float) -> void:
 	if _send_timer < SEND_INTERVAL:
 		return
 	_send_timer = 0.0
-	var flags := int(drilling) | (int(blocked) << 1)
+	var flags := int(drilling) | (int(blocked) << 1) | (int(at_edge) << 2)
 	for peer: int in game.ready_peers:
 		if peer != multiplayer.get_unique_id():
 			_rpc_state.rpc_id(peer, Time.get_ticks_msec(), body.global_position, yaw, pitch, speed, flags, fuel)
@@ -609,6 +715,7 @@ func _rpc_state(sent_ms: int, pos: Vector3, y: float, p: float, spd: float, flag
 		_snapshots.pop_front()
 	drilling = flags & 1 != 0
 	blocked = flags & 2 != 0
+	at_edge = flags & 4 != 0
 	fuel = f
 
 
@@ -650,22 +757,17 @@ func _update_visual() -> void:
 	if _readout_timer <= 0.0:
 		_readout_timer = 0.25
 		var front: Strata.Layer = game.terrain.layer_at(body.global_position + forward() * (BORE_AHEAD + 2.0))
-		var left := "DIEPTE   %4d M
-HELLING  %+4d°
-BRANDST. %4d%%
-LAAG     %s" % [
-			int(depth()), int(round(rad_to_deg(pitch))), int(fuel * 100.0), Strata.NAMES[front].to_upper()]
 		var cargo := cargo_contents()
 		var value := 0
 		for it: FindItem in cargo:
 			value += it.value()
 		var states := ["GEPARKEERD", "RIJDEN", "AUTOPILOOT", "VERTREK %d" % int(ceil(countdown)), "NAAR BOVEN"]
-		var right := "%s
-LAADRUIM %d
-WAARDE  €%d
-%s" % [states[mode], cargo.size(), value,
-			"! TE HARD" if blocked else ("BOREN" if drilling else "")]
-		visual.set_readouts(left, right)
+		var state: String = ("! RAND PUT" if at_edge else "! TE HARD") if blocked else ("BOREN" if drilling and mode == Mode.DRIVING else states[mode])
+		visual.set_readout("%s
+DIEPTE   %4d M
+HELLING  %+4d°
+BRANDST. %4d%%
+LAADRUIM %d · €%d" % [state, int(depth()), int(round(rad_to_deg(pitch))), int(fuel * 100.0), cargo.size(), value])
 		visual.feed_text = "%d M  ·  %s  ·  %.1f M/S" % [int(depth()), Strata.NAMES[front].to_upper(), absf(speed)]
 	# Camerascherm enkel renderen als de lokale speler in de Mol is.
 	var me: Player = game.player_node(Net.my_id())

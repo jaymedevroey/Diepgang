@@ -11,10 +11,15 @@ signal find_freed(item: FindItem)
 signal crust_hit(item: FindItem, tool: Strata.Tool)
 signal carriers_changed(item: FindItem)
 signal condition_changed(item: FindItem, hard: bool)
+## De boorkop van de Mol schepte een vondst op (in het laadruim, beschadigd).
+signal find_scooped(item: FindItem)
 
 const SEND_INTERVAL := 0.05
 
 var game: Node # Game
+## Vloer van het laadruim (Mol-ruimte, y).
+const CARGO_FLOOR := -1.47
+
 var items: Array[FindItem] = []
 var crusts: Dictionary = {} # find_id -> Crust
 
@@ -156,6 +161,64 @@ func _rpc_freed(find_id: int) -> void:
 		it.freeze = false
 		it.apply_central_impulse(Vector3.UP * Tuning.get_f("finds", "free_impulse", 1.2) * it.mass)
 	find_freed.emit(it)
+
+
+# --- De Mol schept op ------------------------------------------------------
+
+## Host: de boorkop van de Mol raakt een vondst die nog in de rots zit. Hij schept hem op en legt
+## hem in het laadruim, zwaar beschadigd: zelf uitbikken loont (GDD §5A: de Mol is traag, luid
+## en beperkt, met de hand graven blijft de kern).
+func host_mol_scoop(it: FindItem, mol: Mol) -> void:
+	if it.freed:
+		return
+	var cond := minf(it.condition, Tuning.get_f("finds", "mol_condition", 0.3))
+	var local := Transform3D(Basis(Vector3.UP, randf() * TAU), _cargo_spot(it, mol))
+	_rpc_scooped.rpc(it.find_id, cond, local)
+	mol.announce("De boorkop schepte een %s op: in het laadruim, maar beschadigd (%d%%)" % [
+			it.display_name().to_lower(), int(round(cond * 100.0))])
+
+
+## Plek op de vloer van het laadruim, zo ver mogelijk van wat er al ligt (Mol-ruimte).
+func _cargo_spot(it: FindItem, mol: Mol) -> Vector3:
+	var taken: Array[Vector3] = []
+	for other: FindItem in mol.cargo_contents():
+		taken.append(mol.to_local_mol(other.global_position))
+	var best := Vector3.ZERO
+	var best_gap := -1.0
+	for z in [2.3, 3.0, 3.7]:
+		for x in [-0.9, -0.3, 0.3, 0.9]:
+			var spot := Vector3(x, CARGO_FLOOR + it.rest_height() + 0.02, z)
+			var gap := INF
+			for q in taken:
+				gap = minf(gap, q.distance_to(spot))
+			if gap > best_gap + 0.01:
+				best_gap = gap
+				best = spot
+	return best
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_scooped(find_id: int, cond: float, local: Transform3D) -> void:
+	var it := item(find_id)
+	var mol: Mol = game.mol
+	if it == null or it.freed or mol == null:
+		return
+	it.condition = cond
+	it.freed = true
+	var crust: Crust = crusts.get(find_id)
+	if crust:
+		game.fx.crust_break(crust.global_position, it.half_extents.length())
+		crust.shatter()
+		crusts.erase(find_id)
+	it.global_transform = mol.body.global_transform * local
+	it.last_safe = it.global_position
+	it.push_snapshot(local, true)
+	game.fx.play("tok", it.global_position, -2.0)
+	if multiplayer.is_server():
+		it.freeze = false
+		it.linear_velocity = Vector3.ZERO
+		it.angular_velocity = Vector3.ZERO
+	find_scooped.emit(it)
 
 
 # --- Dragen ------------------------------------------------------------------

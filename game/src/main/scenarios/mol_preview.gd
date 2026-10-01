@@ -47,6 +47,44 @@ func _run(p: Player) -> void:
 		p.camera.make_current()
 		await _shot("mol_binnen", 0.6)
 		p.set_physics_process(true)
+	if "sonar" in only:
+		# Sonar: vanuit de stoel, naar de kast gekeken, van dichtbij, en na het afdalen.
+		p.global_transform = Transform3D(Basis(Vector3.UP, mol.yaw), mol.to_world_mol(Vector3(0, -1.45, -1.3)))
+		await _wait(0.3)
+		mol.press(Mol.Cmd.SEAT)
+		await _wait(0.5)
+		p.camera.make_current()
+		p.head.rotation.x = deg_to_rad(-4)
+		await _shot("sonar_cabine", 3.0)
+		p._look_yaw = deg_to_rad(-40)
+		p.head.rotation.x = deg_to_rad(-2)
+		await _shot("sonar_kijk", 0.6)
+		_look(mol, Vector3(0.95, 0.42, -2.45), Vector3(1.5, 0.37, -3.28))
+		await _shot("sonar_dichtbij", 0.3)
+		mol.press(Mol.Cmd.RAMP)
+		await _wait(0.5)
+		Input.action_press("move_forward")
+		await _wait(2.5)
+		_look(mol, Vector3(0.95, 0.42, -2.45), Vector3(1.5, 0.37, -3.28))
+		Tuning.set_value("mol", "sonar_warn", 40.0) # enkel om de waarschuwing in beeld te krijgen
+		await _shot("sonar_rijden", 0.3)
+		Tuning.set_value("mol", "sonar_warn", 8.0)
+		Input.action_release("move_forward")
+		await _wait(2.0)
+		p.camera.make_current()
+		p._look_yaw = 0.0
+		mol.press(Mol.Cmd.AUTO, float(CmdArgs.value("sonar-depth", 30.0)))
+		while mol.mode == Mol.Mode.AUTO_DOWN:
+			await get_tree().physics_frame
+		p._look_yaw = deg_to_rad(-40)
+		p.head.rotation.x = deg_to_rad(-2)
+		await _shot("sonar_diep", 3.0)
+		_look(mol, Vector3(0.95, 0.42, -2.45), Vector3(1.5, 0.37, -3.28))
+		await _shot("sonar_diep_dichtbij", 0.1)
+		p.camera.make_current()
+		p._look_yaw = 0.0
+		p.chase.activate()
+		await _shot("sonar_buitenzicht", 2.0)
 	if only.is_empty() or "cabine" in only or "afdalen" in only:
 		p.global_transform = Transform3D(Basis(Vector3.UP, mol.yaw), mol.to_world_mol(Vector3(0, -1.45, -1.3)))
 		await _wait(0.3)

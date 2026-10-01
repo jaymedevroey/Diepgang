@@ -12,10 +12,10 @@ Afvinkbare taken per mijlpaal. Bron: [docs/GDD.md](../docs/GDD.md) §10 en §13.
 | Rendertest | `tools\godot.cmd --path game -- --scenario=render --no-steam` (+ `--rendering-method gl_compatibility` vóór `--`) |
 | Windows-build | `tools\export_windows.cmd` → `builds\windows\Diepgang.exe` |
 | Nettest (host + client, headless) | `py -3.11 tools/net_test.py` (of `--exe builds/windows/Diepgang.console.exe`) |
-| Vondsten, dragen, de Mol, tuning, menu's (headless) | `tools\godot.cmd --headless --path game -- --scenario=find_test --no-steam` (ook `carry_test`, `mol_test`, `tuning_test`, `ui_test`) |
+| Vondsten, dragen, de Mol, sonar, tuning, menu's (headless) | `tools\godot.cmd --headless --path game -- --scenario=find_test --no-steam` (ook `carry_test`, `mol_test`, `sonar_test`, `mol_edge_test`, `tuning_test`, `ui_test`) |
 | Rots per laag (voor/na) | `--scenario=terrain_preview --shot=naam` (tunnel en bekapte wand per laag, met GPU-tijd; `--only=klei,kristal`) |
 | HUD en menu (screenshots) | `--scenario=hud_preview` (korst, vondst, dragen, ver, piloot, vertrek, resultaat, pauze) · `--scenario=ui_preview` · `-- --menu-shot --menu-settings --menu-join` |
-| Screenshots | `-- --autodig --pitch=-30 --shot=naam --frames=60,300` · `--scenario=robot_preview` · `find_preview` · `carry_preview` · `mol_preview` (`--only=buiten,zij,rups,achter,binnen,cabine,afdalen`) · `--menu-shot` |
+| Screenshots | `-- --autodig --pitch=-30 --shot=naam --frames=60,300` · `--scenario=robot_preview` · `find_preview` · `carry_preview` · `mol_preview` (`--only=buiten,zij,rups,achter,binnen,cabine,afdalen`, of `--only=sonar`) · `--menu-shot` |
 | Model van de Mol bouwen | `"C:\Program Files\Blender Foundation\Blender 5.2lender.exe" -b --factory-startup --python tools/blender/mol.py -- game/assets/models/mol.glb`, daarna `tools\godot.cmd --headless --path game --import` |
 | Twee instanties met de hand | `tools\godot.cmd --path game -- --host` en `tools\godot.cmd --path game -- --join=127.0.0.1` |
 
@@ -135,6 +135,12 @@ Stijl: Deep Rock Galactic + PEAK + Astroneer. Alle modellen in Blender (geen AI-
     - Puin: rotsbrokjes (3 vormen) in plaats van kubusjes, bij houweel, boor en de Mol.
     - Verificatie: `tool_preview` (studio + first person), `finds_gallery` (logs/vondsten.png, logs/puin.png), `find_preview` in de rots (korst → barst → vondst vrij met brokjes) bekeken. Alle tests en de nettest groen.
     - Open: Jayme speelt het. Bij afsluiten melden de tests nog "resources still in use": geluiden die nog spelen (crust_break, find_ding). Oplossen bij het geluid.
+  - [x] **Sonar in de Mol** (vraag van Jayme), 2026-10-01. Ontwerp: [docs/de-mol.md](../docs/de-mol.md) (Sonar).
+    - Sonarkast in Blender rechts naast het camerascherm (ronde beeldbuis met chromen ring, knoppen, echolampje). Beeld in een eigen shader: kop boven, draaiende veeg met naloop, vage blips (grootte = gewicht), ▲/▼ voor boven/onder, haakjes rond het doel, dieptestrook. Tekst: afstand, klok, hoogte, grootte, "! DICHTBIJ". Ruis bij rijden en boren. In buitenzicht rechtsonder in de HUD.
+    - Nieuwe regel: de boorkop schept een vondst die hij raakt op in het laadruim, met hoogstens 30% gaafheid. Zonder die regel bleef de korst in de Mol zweven (de test zag de vondst op Mol-hoogte 0,0 m).
+    - Verificatie: `sonar_test` 21 controles (klok/richting, echo's binnen bereik en enkel daar, vaag maar dichtbij, gedragen = weg, opscheppen: vrij, geen korst, in het laadruim, ≤ 30%, melding); de opschep-controles falen zonder de regel. Nettest: client ziet de opgeschepte vondst in het laadruim met dezelfde gaafheid (22 controles). Screenshots `logs/sonar_*.png` bekeken (stoel, dichtbij, diep, rijden met ruis en waarschuwing, buitenzicht). Alle tests groen.
+    - Open: Jayme speelt het. Later: ping-geluid (met het geluid), T2 (soort en waarde), de handscanner te voet.
+    - Zelf gespeeld in de build (toetsenbord en muis): aan het stuur, gedraaid tot het doel op 12 uur stond, erheen gereden (9 → 6 m, "! DICHTBIJ"). Daarbij een oude fout van de Mol gevonden: met de neus omlaag schuin de grond in tot tegen de **rand van de put** kwam er rots in de cabine (boorbollen werden aan de buitenmuur naar binnen geschoven) en zat hij vast. Opgelost: de buitenmuur blokkeert ("! RAND PUT"), draaien zwaait niet in de muur, rots-voeler zo breed als de romp met rupsen, kopruimte vrijmaken als de steun hem optilt, schaven langs de echte omtrek van de romp. `mol_edge_test` (10 controles) speelt de rit na; zonder de fix 7 fouten (8 rotspunten in de romp, vast tegen de muur), met de fix 3× op rij groen.
 - [ ] **M3 Inhoud** (eind oktober): de Mol werkend (afdalen, rijden en boren, laadruim, extractie; vervangt de lift), Fossielbed, Kristalgrotten, Graafworm, gas, ±8 items, depot met kas en museum, cosmetica.
 - [ ] **M4 Samen** (begin november): Steam-lobby's en uitnodigingen, voice, test met 150 ms vertraging. Poort 2.
 - [ ] **M5 Kernlus** (half november): opdrachten, quota, boete, lava, onrust, opslaan, host-vertrek, Oude Kolenmijn met tutorial.

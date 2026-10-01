@@ -144,7 +144,7 @@ Elke waardeklasse heeft zijn eigen geluid en glans.
 | **Houweel** (start) | sneller bikken, precisiemodus |
 | **Boor** T1 → T2 | zandsteen, daarna graniet en kristal. Snel en luid, beschadigt buit |
 | **Grijphandschoen** | zwaardere stukken solo, groter bereik, demper tegen botsschade |
-| **Scanner** | T1: blips. T2: waarde en type. **Nooit** "alles zichtbaar" |
+| **Scanner** | T1: blips. T2: waarde en type. **Nooit** "alles zichtbaar". De Mol heeft een vaste sonar (T1, 24 m) in de cabine; de handscanner is voor te voet |
 | **Takel en touw** | anker plaatsen en buit door schachten omhoog lieren |
 | **Ladders** | zelf verticale routes maken |
 | **Springlading** (verbruik) | grote kraters, maar een beving en kans op schade |
@@ -187,7 +187,7 @@ Een grote rupsvoertuig-drilboor (±10 m lang, ±6 m breed) van Diepgang BV: voor
 - **brandstof** per dienst is beperkt;
 - de **boorkop** volgt de laagregels (T1: klei en zandsteen; betere koppen zijn upgrades).
 
-**Binnenruimte (klein):** een cabine (stoel, stuur, dieptemeter, scannerscherm), een laadruim met laadklep, en een werkbank (upgrades, later). Warm licht en een gezellige thuis in het donker, zoals de drop pod in Deep Rock Galactic.
+**Binnenruimte (klein):** een cabine (stoel, stuur, dieptemeter, sonar: ronde beeldbuis met vage blips en hun hoogte, zie [de-mol.md](de-mol.md)), een laadruim met laadklep, en een werkbank (upgrades, later). Warm licht en een gezellige thuis in het donker, zoals de drop pod in Deep Rock Galactic.
 
 **Upgrades (later):** boorkop (graniet, kristal), snelheid, brandstoftank, laadruim, hitteschild tegen lava, lier/kraan, lampen, cosmetica (verf, stickers).
 

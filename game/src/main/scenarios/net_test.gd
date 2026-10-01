@@ -7,6 +7,8 @@ extends Node
 const TIMEOUT_S := 90.0
 const CHIPS := 6
 const DRILL_BITES := 4
+## Deze vondst schept de boorkop van de Mol op (bij de host), de client moet het zien.
+const SCOOP_ID := 10
 
 var main: Node
 var _checks := 0
@@ -48,6 +50,7 @@ func _host_chips(p: Player, count: int, offset: Vector3) -> void:
 func _run_client(p: Player) -> void:
 	var t: TerrainAPI = main.terrain
 	await _frames(30)
+	_rpc_please_scoop.rpc_id(1)
 	var target := p.global_position + Vector3(0, 0, 2.0)
 	target.y = t.surface_height_at(target.x, target.z) + 0.2
 	p.global_position = target
@@ -125,6 +128,27 @@ func _run_client(p: Player) -> void:
 	print("[net_test] client: %d slagen, vondst vrij: %s, checksum %s" % [done, it.freed, sum])
 	_rpc_report.rpc_id(1, sum, p.global_position, done)
 	_rpc_find_report.rpc_id(1, it.find_id, it.freed, it.global_position)
+	var sc := finds.items[SCOOP_ID]
+	_rpc_scoop_report.rpc_id(1, sc.freed, sc.condition, mol.contains_point(sc.global_position), finds.crusts.has(SCOOP_ID))
+
+
+## Client is geladen: de host laat de boorkop een vondst opscheppen (zoals bij het boren).
+@rpc("any_peer", "reliable")
+func _rpc_please_scoop() -> void:
+	if multiplayer.is_server():
+		main.game.finds.host_mol_scoop(main.game.finds.items[SCOOP_ID], main.game.mol)
+
+
+@rpc("any_peer", "reliable")
+func _rpc_scoop_report(freed: bool, cond: float, in_mol: bool, has_crust: bool) -> void:
+	if not multiplayer.is_server():
+		return
+	var it: FindItem = main.game.finds.items[SCOOP_ID]
+	var mol: Mol = main.game.mol
+	_expect(freed and it.freed and not has_crust and not main.game.finds.crusts.has(SCOOP_ID),
+			"opgeschepte vondst %d: vrij en zonder korst bij client en host" % SCOOP_ID)
+	_expect(is_equal_approx(cond, it.condition) and cond <= 0.31, "zelfde (lage) gaafheid bij client en host (%.2f)" % cond)
+	_expect(in_mol and mol.contains_point(it.global_position), "opgeschepte vondst ligt in het laadruim, bij client en host")
 
 
 @rpc("any_peer", "reliable")

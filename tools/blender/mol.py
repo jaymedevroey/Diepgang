@@ -14,6 +14,8 @@ Objecten (namen gebruikt door de game):
   Ramp       laadklep, scharnier onderaan achteraan
   Interior   alles binnen
   Monitor    camerascherm (UV 0..1)
+  Sonar      sonarscherm achter de frontplaat van de sonarkast (UV 0..1)
+  SonarLamp  echolampje op de sonarkast
   Lever      vertrekhendel (draait rond x)
   Glass      patrijspoorten en ramen
   Lege punten (Node3D): lampen, camera, stoel, knoppen, uitlaten.
@@ -29,7 +31,7 @@ from mathutils import Matrix, Vector
 
 sys.path.append(str(Path(__file__).resolve().parent))
 from kit import (G, PARTS, bake_wear, box, cyl, empty, export_glb, join_group, mat, octagon, parent_to,  # noqa: E402
-                 prism, rivets, sphere, sweep, text, torus, tube, tri_count, boolean, unregister)
+                 prism, rivets, sphere, sweep, text, torus, tube, tri_count, boolean, unregister, _godot_euler)
 
 ARGS = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 OUT = Path(ARGS[0]) if ARGS else Path("mol.glb")
@@ -498,9 +500,10 @@ def build_cockpit(g):
 
     # Groot camerascherm (het scherm zelf is het object Monitor).
     box((2.0, 1.15, 0.12), (0, 0.55, -3.52), "Anthracite", g, bevel=0.04, segments=3)
-    for s in (-1, 1):  # zijschermen
-        box((0.75, 0.5, 0.08), (s * 1.45, 0.35, -3.38), "Anthracite", g, bevel=0.03, rot=(0, -22 * s, 0))
-        box((0.65, 0.4, 0.02), (s * 1.44, 0.35, -3.33), "Screen", g, bevel=0.0, rot=(0, -22 * s, 0))
+    # Statusscherm links; rechts de sonar (build_sonar).
+    box((0.75, 0.5, 0.08), (-1.45, 0.35, -3.38), "Anthracite", g, bevel=0.03, rot=(0, 22, 0))
+    box((0.65, 0.4, 0.02), (-1.44, 0.35, -3.33), "Screen", g, bevel=0.0, rot=(0, 22, 0))
+    build_sonar(g)
 
     # Meters: diepte, snelheid, brandstof. De naalden zijn aparte objecten (Needle_i) die in de game draaien.
     for u, name in zip(GAUGES, ("DIEPTE", "SNELHEID", "BRANDSTOF")):
@@ -615,6 +618,77 @@ def build_cargo(g):
     cyl(0.05, 0.05, (hw - 0.09, -0.25, 3.7), "Yellow", g, axis="x", verts=12, bevel=0.0)
 
 
+# Sonar: een kast met een ronde beeldbuis, rechts naast het camerascherm en naar de piloot gedraaid.
+# Alles wordt eerst in kastruimte gebouwd (u opzij, v omhoog, w naar de piloot) en daarna geplaatst.
+SONAR_C = (1.50, 0.37, -3.28)
+SONAR_ROT = (6.0, -32.0, 0.0)  # licht voorover (de piloot zit lager) en naar de stoel gedraaid
+SONAR_BOX = (0.92, 0.74, -0.06)  # breedte, hoogte, midden v van kast en frontplaat
+SONAR_SCREEN = (0.86, 0.56)  # scherm achter de frontplaat; 1 mm = 1 pixel in de game (860×560)
+SONAR_SCOPE = ((-0.17, 0.0), 0.245)  # ronde opening: midden (u, v) en straal
+SONAR_SLOT = ((0.11, -0.26), (0.415, 0.26))  # rechthoekige opening voor de dieptestrook en de tekst
+
+
+def sonar_matrix():
+    return Matrix.Translation(G(*SONAR_C)) @ _godot_euler(SONAR_ROT).to_matrix().to_4x4()
+
+
+def build_sonar(g):
+    """Sonarkast (groep g), het scherm zelf als object Sonar (UV 0..1) en het echolampje als SonarLamp."""
+    before = {k: len(v) for k, v in PARTS.items()}
+    bw, bh, bv = SONAR_BOX
+    knob_v = bv - bh / 2 + 0.095
+    # Kast, beeldbuishals erachter, frontplaat met een ronde en een rechthoekige opening.
+    box((bw, bh, 0.18), (0, bv, -0.09), "Anthracite", g, bevel=0.03, segments=3)
+    box((0.56, 0.46, 0.15), (-0.08, -0.02, -0.25), "Anthracite", g, bevel=0.06, segments=3)
+    plate = box((bw - 0.01, bh - 0.01, 0.02), (0, bv, 0.025), "DarkSteel", g, bevel=0.0)
+    (su, sv), sr = SONAR_SCOPE
+    hole = cyl(sr, 0.1, (su, sv, 0.025), "DarkSteel", "_cut", axis="z", verts=56, bevel=0.0)
+    unregister(hole)
+    boolean(plate, hole)
+    (u0, v0), (u1, v1) = SONAR_SLOT
+    slot = box((u1 - u0, v1 - v0, 0.1), ((u0 + u1) / 2, (v0 + v1) / 2, 0.025), "DarkSteel", "_cut", bevel=0.0)
+    unregister(slot)
+    boolean(plate, slot)
+    # Chromen ring rond de beeldbuis, schroefjes, knoppen, opschrift, echolampje.
+    torus(sr + 0.007, 0.012, (su, sv, 0.037), "Steel", g, axis="z", major_seg=56, minor_seg=8)
+    for du in (-bw / 2 + 0.025, bw / 2 - 0.025):
+        for dv in (bv + bh / 2 - 0.025, bv - bh / 2 + 0.025):
+            cyl(0.009, 0.01, (du, dv, 0.038), "Steel", g, axis="z", verts=8, bevel=0.0)
+    for ku, label in ((-0.33, "BEREIK"), (-0.12, "HELDER")):
+        cyl(0.036, 0.02, (ku, knob_v, 0.045), "Anthracite", g, axis="z", verts=20, bevel=0.006)
+        cyl(0.029, 0.03, (ku, knob_v, 0.06), "DarkSteel", g, axis="z", verts=20, bevel=0.006)
+        box((0.007, 0.025, 0.006), (ku, knob_v + 0.016, 0.077), "DecalLight", g, bevel=0.0)
+        text(label, 0.024, (ku, knob_v - 0.07, 0.036), (0, 0, 0), "DecalLight", g, extrude=0.002)
+    text("SONAR", 0.058, (0.14, knob_v - 0.02, 0.036), (0, 0, 0), "DecalLight", g, extrude=0.003)
+    cyl(0.027, 0.012, (0.36, knob_v, 0.04), "Anthracite", g, axis="z", verts=16, bevel=0.0)
+    sphere(0.019, (0.36, knob_v, 0.047), "LensRed", "SonarLamp", scale=(1, 1, 0.6), segments=12, rings=6)
+    text("ECHO", 0.02, (0.36, knob_v - 0.07, 0.036), (0, 0, 0), "DecalLight", g, extrude=0.002)
+    # Het scherm: een vlak net achter de frontplaat, UV zoals het camerascherm.
+    w, h = SONAR_SCREEN
+    bm = bmesh.new()
+    uv = bm.loops.layers.uv.new("UVMap")
+    corners = [(-w / 2, -h / 2, (0, 1)), (w / 2, -h / 2, (1, 1)), (w / 2, h / 2, (1, 0)), (-w / 2, h / 2, (0, 0))]
+    f = bm.faces.new([bm.verts.new(G(x, y, 0.008)) for x, y, _ in corners])
+    for loop, (_, _, t) in zip(f.loops, corners):
+        loop[uv].uv = t
+    f.normal_update()
+    if f.normal.dot(G(0, 0, 1)) < 0:
+        f.normal_flip()
+    me = bpy.data.meshes.new("Sonar")
+    bm.to_mesh(me)
+    bm.free()
+    o = bpy.data.objects.new("Sonar", me)
+    bpy.context.collection.objects.link(o)
+    o.data.materials.append(mat("Screen"))
+    PARTS.setdefault("Sonar", []).append(o)
+    # Alles wat hier gemaakt is naar zijn plek in de cabine.
+    m = sonar_matrix()
+    for k, objs in PARTS.items():
+        for obj in objs[before.get(k, 0):]:
+            obj.matrix_world = m @ obj.matrix_world
+    bpy.context.view_layer.update()
+
+
 def build_monitor():
     """Camerascherm met UV 0..1 (u naar rechts, v naar beneden, gezien vanuit de cabine)."""
     w, h = 1.78, 0.98
@@ -718,6 +792,8 @@ def main():
     objects["Ramp"] = join_group("Ramp", "Ramp", origin=RAMP_HINGE)
     objects["Interior"] = join_group("Interior", "Interior")
     objects["Monitor"] = join_group("Monitor", "Monitor")
+    objects["Sonar"] = join_group("Sonar", "Sonar")
+    objects["SonarLamp"] = join_group("SonarLamp", "SonarLamp")
     objects["Lever"] = join_group("Lever", "Lever", origin=lever_base)
     objects["Glass"] = join_group("Glass", "Glass")
     for g, c in NEEDLES:
@@ -734,7 +810,7 @@ def main():
     for name, o in objects.items():
         if o is None:
             continue
-        if name not in ("Monitor", "Glass"):
+        if name not in ("Monitor", "Sonar", "Glass"):
             bake_wear(o, strength=5.0, seed=hash(name) % 1000)
         parent_to(o, root)
 
@@ -764,7 +840,6 @@ def main():
         "Exhaust_L": ((-0.55, 3.0, 1.85), (0, 0, 0)),
         "Exhaust_R": ((0.55, 3.0, 1.85), (0, 0, 0)),
         "Label_Depth": ((-1.44, 0.35, -3.31), (0, 22, 0)),
-        "Label_Status": ((1.44, 0.35, -3.31), (0, -22, 0)),
     }
     for name, (pos, rot) in anchors.items():
         empty(name, pos, rot, parent=root)

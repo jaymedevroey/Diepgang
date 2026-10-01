@@ -13,6 +13,8 @@ extends Node3D
 ##   find_test         vondsten en korsten: uitbikken, boren, vrijkomen (headless)
 ##   carry_test        oppakken, dragen, gooien, botsschade (headless)
 ##   mol_test          de Mol: besturen, boren, autopiloot, meerijden, extractie (headless)
+##   sonar_test        sonar in de Mol (richting, echo's, bereik) en opscheppen door de boorkop (headless)
+##   mol_edge_test     de Mol schuin de grond in tot tegen de buitenmuur: geen rots in de romp (headless)
 ##   mol_preview       screenshots van de Mol (buiten, binnen, cabine, afdalen)
 ##   hud_preview       screenshots van de HUD in alle toestanden
 ##   ui_preview        thema en instellingenmenu
@@ -37,6 +39,8 @@ const SCENARIOS := {
 	"carry_test": preload("res://src/main/scenarios/carry_test.gd"),
 	"carry_preview": preload("res://src/main/scenarios/carry_preview.gd"),
 	"mol_test": preload("res://src/main/scenarios/mol_test.gd"),
+	"sonar_test": preload("res://src/main/scenarios/sonar_test.gd"),
+	"mol_edge_test": preload("res://src/main/scenarios/mol_edge_test.gd"),
 	"mol_preview": preload("res://src/main/scenarios/mol_preview.gd"),
 	"tuning_test": preload("res://src/main/scenarios/tuning_test.gd"),
 	"terrain_preview": preload("res://src/main/scenarios/terrain_preview.gd"),
@@ -47,7 +51,7 @@ const SCENARIOS := {
 	"finds_gallery": preload("res://src/main/scenarios/finds_gallery.gd"),
 }
 ## Scenario's waarin de host ook een eigen speler krijgt.
-const SCENARIOS_WITH_PLAYER := ["play", "net_test", "find_test", "carry_test", "carry_preview", "mol_test", "mol_preview", "hud_preview", "ui_test", "tool_preview"]
+const SCENARIOS_WITH_PLAYER := ["play", "net_test", "find_test", "carry_test", "carry_preview", "mol_test", "sonar_test", "mol_edge_test", "mol_preview", "hud_preview", "ui_test", "tool_preview"]
 
 var game: Game
 var player: Player
@@ -167,7 +171,7 @@ func _on_world_loaded(stats: Dictionary) -> void:
 	if not _mol_connected:
 		_mol_connected = true
 		game.mol.message.connect(func(t: String) -> void:
-			hud.toast(t, "warn" if t.begins_with("Harde laag") else "mol"))
+			hud.toast(t, "warn" if t.begins_with("Harde laag") or t.begins_with("Rand van de put") or t.begins_with("De boorkop") else "mol"))
 		game.mol.summary.connect(func(count: int, value: int, left_behind: int) -> void:
 			hud.show_result(count, value, left_behind))
 	print("[diepgang] terrein geladen in %.0f ms (time-out: %s), statisch geheugen %.1f MB, videogeheugen %.1f MB" % [

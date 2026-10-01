@@ -103,7 +103,8 @@ var _feed_viewport: SubViewport
 var _feed_camera: Camera3D
 var _rng := RandomNumberGenerator.new()
 var _label_left: Label3D
-var _label_right: Label3D
+## Sonarscherm rechts in de cabine (Mol zet de toestand via sonar_screen.display).
+var sonar_screen: SonarScreen
 
 
 func _ready() -> void:
@@ -135,7 +136,10 @@ func _ready() -> void:
 	_build_audio()
 	_build_feed()
 	_label_left = _screen_label("Label_Depth")
-	_label_right = _screen_label("Label_Status")
+	sonar_screen = SonarScreen.new()
+	sonar_screen.name = "SonarScreen"
+	add_child(sonar_screen)
+	sonar_screen.setup(anchors["Sonar"], anchors["SonarLamp"])
 
 
 ## Meters op de console (0..1): diepte, snelheid, brandstof. De naalden lopen er traag naartoe.
@@ -144,15 +148,16 @@ func set_gauges(values: Array) -> void:
 		_needles[k][3] = deg_to_rad(135.0 - 270.0 * clampf(values[k], 0.0, 1.0))
 
 
-## Tekst op de kleine schermen naast het camerascherm (amber, zoals een oud dotmatrixscherm).
-func set_readouts(left: String, right: String) -> void:
-	_label_left.text = left
-	_label_right.text = right
+## Tekst op het statusscherm links van het camerascherm (amber, zoals een oud dotmatrixscherm).
+func set_readout(text: String) -> void:
+	_label_left.text = text
 
 
 func _screen_label(anchor: String) -> Label3D:
 	var l := Label3D.new()
-	l.font_size = 30
+	l.font = UiTheme.screen()
+	l.font_size = 44
+	l.line_spacing = -6.0
 	l.pixel_size = 0.0016
 	l.modulate = Color(1.0, 0.72, 0.3)
 	l.outline_size = 0
@@ -664,6 +669,8 @@ func _process(delta: float) -> void:
 
 	# Camerascherm.
 	_feed_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS if feed_active else SubViewport.UPDATE_DISABLED
+	if sonar_screen.active != feed_active:
+		sonar_screen.active = feed_active
 	if feed_active:
 		_feed_camera.global_transform = (anchors["Cam_Feed"] as Node3D).global_transform
 		_feed_label.text = feed_text

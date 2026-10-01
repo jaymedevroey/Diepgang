@@ -2,6 +2,18 @@
 
 Wat we onderweg leerden en wat het GDD bijstuurt. Nieuwste bovenaan.
 
+## 2026-10-01 — Sonar in de Mol
+
+- **Een hulpmiddel dat je naar iets toe leidt, verandert wat spelers ermee doen.** Met de sonar rijd je recht op vondsten af, en de boorkop boorde er dwars doorheen: de korst bleef in de Mol zweven (de test zag de vondst op Mol-hoogte). Bij elke nieuwe "kijk"-functie nagaan wat er gebeurt als spelers hem volgen tot het einde. Hier: de boorkop schept op, beschadigd (zelf uitbikken blijft lonen).
+- **Een scherm in de wereld is vanuit de stoel klein.** Eerst de hoek uitrekenen (afstand, FOV, pixels per graad) en dan pas het ontwerp: 1 mm = 1 pixel op het scherm, tekst ≥ 40 px, blips ≥ 7 px. De kast werd daarvoor 15% groter.
+- **Vage echo's laten het doel verspringen** tussen twee vondsten op bijna dezelfde afstand. Hysterese: een ander wordt pas doel als hij duidelijk dichterbij is.
+- **GDScript: geen eigen methode `_set` noemen**: dat is de virtuele `Object._set(property, value)`.
+- **Een nieuw `class_name`-script** is headless pas bekend na `--import` (klassencache); anders "Could not find type".
+- Echo's in wereldruimte bewaren en elke frame in kop-boven omrekenen: draait de Mol, dan draaien de blips mee, zonder te wachten op de volgende veeg.
+- **Zelf spelen vond een oude fout die geen test zag:** met de neus omlaag tot tegen de buitenmuur van de put kwam rots in de cabine. `make_sphere_op` schuift een bol die niet in het graafbare deel past naar binnen; de Mol boorde dus "raak" maar de romp bleef in de rots. De buitenmuur moet voor de Mol tellen als ondoorboorbaar (`TerrainAPI.sphere_fits`), net als graniet. En buiten de wereld is `is_solid` false: "geen rots", dus gaf hij zelfs gas.
+- **Een proefring moet zo breed zijn als wat erdoor moet**: de rupsen liggen op 3,11 m van de as, de ring op 2,4 m. Rots daartussen zag hij niet, de steun tilde hem op en de cabine schoof in onbeboorde rots.
+- **`is_solid` (dichtste voxel) en `sdf_at` (geïnterpoleerd) zijn het oneens op de rand.** Een rompunt met sdf +0,15 telde als rots: zo'n "1 punt" in een test is echt (de rots raakt de wand), maar wisselvallig. Een wisselvallige test eerst 3-4 keer draaien en de punten loggen.
+
 ## 2026-10-01 — Gereedschap, vondsten en puin
 
 - **Een eigen `vertex()` in een shader moet `POSITION` in elke tak schrijven.** Enkel in de viewmodel-tak schrijven liet alle andere meshes met die shader verdwijnen (de Mol was onzichtbaar).

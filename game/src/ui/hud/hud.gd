@@ -7,6 +7,7 @@ extends Control
 ##   linksonder    wat je draagt
 ##   links         de ploeg (bij meerdere spelers)
 ##   in de Mol     besturing voor de piloot; bij vertrek een grote banner met aftelling
+##   rechtsonder   in buitenzicht: het sonarbeeld uit de cabine
 ## main.gd roept elke frame update() aan.
 
 const TOOLS := [["pickaxe", "HOUWEEL", "tool_1"], ["drill", "BOOR T1", "tool_2"]]
@@ -39,6 +40,8 @@ var _result_rows: VBoxContainer
 var _team: HudFader
 var _team_rows: VBoxContainer
 var _pilot: HudFader
+var _sonar: HudFader
+var _sonar_view: TextureRect
 var _stats: Label
 var _host_chip: HudFader
 var _host_label: Label
@@ -292,6 +295,33 @@ func _build_bottom() -> void:
 		prow.add_child(_small(part[1]))
 
 
+	# Sonar in buitenzicht: hetzelfde beeld als op de kast in de cabine, rechtsonder.
+	_sonar = HudFader.new()
+	_sonar.mode_key = "hud/sonar"
+	_sonar.needs_content = true
+	_sonar.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	_sonar.position = Vector2(-440, -338)
+	_sonar.size = Vector2(416, 314)
+	add_child(_sonar)
+	var schip := PanelContainer.new()
+	schip.theme_type_variation = &"HudChip"
+	_sonar.add_child(schip)
+	var scol := VBoxContainer.new()
+	scol.add_theme_constant_override("separation", 4)
+	schip.add_child(scol)
+	var sh := Label.new()
+	sh.text = "SONAR"
+	sh.add_theme_font_override("font", UiTheme.heading())
+	sh.add_theme_font_size_override("font_size", 15)
+	sh.add_theme_color_override("font_color", UiTheme.YELLOW)
+	scol.add_child(sh)
+	_sonar_view = TextureRect.new()
+	_sonar_view.custom_minimum_size = Vector2(394, 257)
+	_sonar_view.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_sonar_view.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	scol.add_child(_sonar_view)
+
+
 func _build_left() -> void:
 	_team = HudFader.new()
 	_team.mode_key = "hud/team"
@@ -457,6 +487,7 @@ func update(player: Player, game: Game, terrain: TerrainAPI) -> void:
 	_update_carry(player)
 	_update_prompt(player, game, terrain)
 	_update_pilot(player)
+	_update_sonar(player, mol)
 	_update_banner(mol)
 	_update_team(player, game)
 	_update_host()
@@ -603,6 +634,14 @@ func _update_pilot(player: Player) -> void:
 	_was_seated = player.seated
 	_pilot.blocked = not player.seated
 	_pilot.active = player.seated and int(Settings.get_value("hud/prompts")) == Settings.HUD_ALWAYS
+
+
+func _update_sonar(player: Player, mol: Mol) -> void:
+	var show := mol != null and player.seated and player.chase.current
+	_sonar.active = show
+	_sonar.blocked = not show
+	if show and _sonar_view.texture == null:
+		_sonar_view.texture = mol.visual.sonar_screen.texture()
 
 
 func _update_banner(mol: Mol) -> void:

@@ -1,0 +1,132 @@
+shader_type canvas_item;
+render_mode unshaded;
+
+// Sonarbeeld (SonarScreen): ronde scoop met kop boven, draaiende veeg met naloop, blips met een
+// gloed, ▲/▼ voor boven/onder de Mol, haakjes rond het doel, en rechts een dieptestrook.
+// Groen fosfor zoals een oude beeldbuis. Pixels = millimeters op het scherm in de Mol.
+
+uniform vec2 size = vec2(860.0, 560.0);
+uniform vec2 scope_c = vec2(260.0, 280.0);
+uniform float scope_r = 245.0;
+uniform vec4 strip = vec4(548.0, 60.0, 570.0, 500.0); // x0, y0, x1, y1
+uniform float strip_range = 20.0; // meter boven en onder
+uniform float sweep = 0.0; // radialen, met de klok mee, 0 = vooruit (boven)
+uniform float noise = 0.0; // 0..1
+uniform int count = 0;
+uniform vec4 blips[24]; // xy: -1..1 (x rechts, y vooruit), z: helderheid, w: grootte 0..2
+uniform float heights[24]; // meter t.o.v. de Mol (+ = boven)
+uniform int target = -1;
+uniform float level = 2.5; // binnen ±level meter: "gelijk", geen pijltje
+uniform vec3 phosphor : source_color = vec3(0.42, 1.0, 0.52);
+
+float rnd(vec2 p) {
+	return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+float line_aa(float d, float w) {
+	return 1.0 - smoothstep(w * 0.5, w * 0.5 + 1.0, d);
+}
+
+// Driehoekje met de punt naar boven (dir = 1) of beneden (dir = -1), halve breedte s.
+float tri(vec2 q, float s, float dir) {
+	q.y *= dir; // punt bij q.y = -s (boven op het scherm), omgekeerd voor dir = -1
+	float t = (q.y + s) / (1.8 * s); // 0 aan de punt, 1 aan de basis
+	float inside = step(0.0, t) * step(t, 1.0);
+	return inside * (1.0 - smoothstep(t * s - 0.8, t * s + 0.8, abs(q.x)));
+}
+
+vec2 blip_pos(int i) {
+	return scope_c + vec2(blips[i].x, -blips[i].y) * scope_r;
+}
+
+float blip_size(int i) {
+	return 7.0 + 4.5 * blips[i].w;
+}
+
+void fragment() {
+	vec2 p = UV * size;
+	float g = 0.0; // fosforhelderheid
+
+	// --- Scoop ---------------------------------------------------------------------------------
+	vec2 d = p - scope_c;
+	float r = length(d);
+	float in_scope = 1.0 - smoothstep(scope_r - 1.0, scope_r + 1.0, r);
+	if (r < scope_r + 6.0) {
+		float a = mod(atan(d.x, -d.y), TAU); // met de klok mee vanaf boven
+		g += 0.045 * (1.0 - 0.6 * r / scope_r) * in_scope;
+		for (int i = 1; i <= 3; i++) {
+			g += 0.2 * line_aa(abs(r - scope_r * float(i) / 3.0), 1.4) * in_scope;
+		}
+		g += 0.55 * line_aa(abs(r - scope_r + 1.5), 2.0);
+		g += 0.09 * (line_aa(abs(d.x), 1.2) + line_aa(abs(d.y), 1.2)) * in_scope;
+		// Streepjes langs de rand: om de 10°, om de 30° langer.
+		float step10 = abs(mod(a + PI / 36.0, PI / 18.0) - PI / 36.0) * r;
+		float step30 = abs(mod(a + PI / 12.0, PI / 6.0) - PI / 12.0) * r;
+		g += 0.35 * line_aa(step10, 1.3) * step(scope_r - 9.0, r) * in_scope;
+		g += 0.45 * line_aa(step30, 2.0) * step(scope_r - 18.0, r) * in_scope;
+		// Veeg: felle lijn met een naloop erachter.
+		float behind = mod(sweep - a, TAU);
+		g += 0.26 * exp(-behind * 2.4) * in_scope;
+		vec2 dir = vec2(sin(sweep), -cos(sweep));
+		float along = dot(d, dir);
+		float perp = abs(d.x * dir.y - d.y * dir.x);
+		g += 0.75 * line_aa(perp, 2.0) * step(0.0, along) * in_scope;
+		// Ruis van het eigen lawaai: korrels en vlekjes die meedraaien met de tijd.
+		float speck = rnd(floor(p / 3.0) + floor(TIME * 14.0));
+		g += step(1.0 - noise * 0.022, speck) * 0.6 * in_scope;
+		g += (rnd(p + fract(TIME * 7.0)) - 0.5) * (0.03 + 0.06 * noise) * in_scope;
+		// De Mol in het midden: een pijltje naar voren.
+		g += 0.95 * tri(d + vec2(0.0, 1.0), 8.0, 1.0);
+	}
+	// Blips.
+	for (int i = 0; i < count; i++) {
+		vec2 q = p - blip_pos(i);
+		float s = blip_size(i);
+		float b = blips[i].z;
+		float dd = dot(q, q);
+		g += b * (1.3 * exp(-dd / (s * s)) + 0.4 * exp(-dd / (9.0 * s * s)));
+		// Boven of onder de Mol.
+		float h = heights[i];
+		if (h > level) {
+			g += max(b, 0.25) * 1.2 * tri(q + vec2(0.0, s + 13.0), 8.0, 1.0);
+		} else if (h < -level) {
+			g += max(b, 0.25) * 1.2 * tri(q - vec2(0.0, s + 13.0), 8.0, -1.0);
+		}
+		if (i == target) {
+			// Haakjes rond het doel (vier bogen op de diagonalen), licht pulserend.
+			float rr = s + 17.0 + sin(TIME * 4.0) * 1.5;
+			float ang = atan(q.y, q.x);
+			float arc = step(0.55, abs(sin(2.0 * ang)));
+			g += 0.9 * line_aa(abs(length(q) - rr), 2.2) * arc * max(b, 0.35);
+		}
+	}
+	g *= max(in_scope, step(scope_r + 6.0, r)); // blips buiten de scoop vallen weg
+
+	// --- Dieptestrook ------------------------------------------------------------------------
+	if (p.x > strip.x - 6.0 && p.x < strip.z + 6.0 && p.y > strip.y - 6.0 && p.y < strip.w + 6.0) {
+		float in_strip = step(strip.x, p.x) * step(p.x, strip.z) * step(strip.y, p.y) * step(p.y, strip.w);
+		float yc = (strip.y + strip.w) * 0.5;
+		float px_m = (strip.w - strip.y) * 0.5 / strip_range;
+		g += 0.05 * in_strip;
+		// Rand.
+		g += 0.4 * (line_aa(abs(p.x - strip.x), 1.5) + line_aa(abs(p.x - strip.z), 1.5)) * step(strip.y, p.y) * step(p.y, strip.w);
+		// Streepjes om de 5 m (om de 10 m langer), de Mol op de middellijn.
+		float m = (yc - p.y) / px_m;
+		float t5 = abs(mod(m + 2.5, 5.0) - 2.5) * px_m;
+		float t10 = abs(mod(m + 5.0, 10.0) - 5.0) * px_m;
+		g += 0.35 * line_aa(t5, 1.3) * step(strip.z - 7.0, p.x) * in_strip;
+		g += 0.5 * line_aa(t10, 1.6) * step(strip.z - 13.0, p.x) * in_strip;
+		g += 0.9 * line_aa(abs(p.y - yc), 2.5) * in_strip;
+		for (int i = 0; i < count; i++) {
+			float h = clamp(heights[i], -strip_range * 0.97, strip_range * 0.97);
+			float y = yc - h * px_m;
+			float w = (i == target) ? 3.5 : 2.2;
+			g += blips[i].z * 1.1 * line_aa(abs(p.y - y), w) * in_strip;
+		}
+	}
+
+	vec3 col = vec3(0.01, 0.028, 0.016) + phosphor * g;
+	// Overbelicht naar wit, zoals fosfor.
+	col += vec3(max(g - 0.9, 0.0) * 0.5);
+	COLOR = vec4(col, 1.0);
+}
