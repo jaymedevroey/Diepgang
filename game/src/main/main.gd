@@ -179,6 +179,7 @@ func _on_player_spawned(p: Player) -> void:
 	p.pickaxe.auto_swing = CmdArgs.has("autodig")
 	p.drill.auto_use = CmdArgs.has("autodig")
 	p.tool_changed.connect(_on_tool_changed)
+	p.rescued.connect(func() -> void: _flash("Je viel door de wereld: teruggezet in de Mol", 4.0))
 	if CmdArgs.value("tool", "") == "drill":
 		p.select_tool(1)
 	_on_tool_changed(p.active_tool)

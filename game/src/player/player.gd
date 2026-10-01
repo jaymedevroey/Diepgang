@@ -14,6 +14,8 @@ const INTERP_DELAY_MS := 100.0
 
 enum Action { SWING, TOOL_PICKAXE, TOOL_DRILL, DRILL_ON, DRILL_OFF, CARRY_ON, CARRY_OFF }
 
+## Na een val onder de wereld teruggezet (HUD toont een melding).
+signal rescued
 signal tool_changed(tool: Node3D)
 
 var peer_id := 1
@@ -158,6 +160,7 @@ func _on_pilot_changed(peer: int) -> void:
 
 func _sit() -> void:
 	seated = true
+	_riding = false # meerijden opnieuw beginnen na het uitstappen (anders een oude Mol-positie)
 	flying = false
 	_shape.disabled = true
 	_look_yaw = 0.0
@@ -168,11 +171,12 @@ func _sit() -> void:
 
 func _unseat() -> void:
 	seated = false
+	_riding = false # zie _ride_mol: de Mol-positie van vóór het zitten is ongeldig
 	if chase.current:
 		camera.make_current()
 	_shape.disabled = false
 	var mol: Mol = game.mol
-	global_transform = Transform3D(Basis(Vector3.UP, mol.yaw), mol.to_world_mol(Vector3(0.0, -1.45, -1.1)))
+	global_transform = Transform3D(Basis(Vector3.UP, mol.yaw), mol.to_world_mol(Vector3(0.0, -1.45, -0.65)))
 	head.rotation.x = 0.0
 	if carry == null or carry.item == null:
 		active_tool.set_active(true)
@@ -269,6 +273,7 @@ func _physics_process(delta: float) -> void:
 		_drive_mol(delta)
 		return
 	_ride_mol()
+	_rescue_if_fallen()
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and DisplayServer.get_name() != "headless":
 		input = Vector2.ZERO
@@ -301,7 +306,7 @@ func _ride_mol() -> void:
 		_riding = false
 		return
 	var now := mol.body.global_transform
-	if _riding:
+	if _riding and now.origin.distance_to(_mol_ref.origin) < 3.0: # meer in één tick kan niet: oude waarde
 		var d := now * _mol_ref.affine_inverse()
 		global_position = d * global_position
 		var fwd := d.basis * -global_basis.z
@@ -312,6 +317,16 @@ func _ride_mol() -> void:
 			velocity.y = minf(velocity.y, 0.0)
 	_mol_ref = now
 	_riding = true
+
+
+## Vangnet: wie onder de wereld valt (door een fout of door het terrein), komt terug in de Mol.
+func _rescue_if_fallen() -> void:
+	if global_position.y > -10.0:
+		return
+	var mol: Mol = game.mol
+	print("[player] onder de wereld gevallen: terug in de Mol")
+	_teleport(mol.to_world_mol(Vector3(0.0, -1.2, 0.8)) if mol and mol.body else game.terrain.spawn_point())
+	rescued.emit()
 
 
 ## Piloot: zit vast in de stoel en stuurt de Mol (W/S gas, A/D draaien, spatie/Ctrl neus).
@@ -431,6 +446,7 @@ func _teleport(pos: Vector3) -> void:
 	flying = false
 	velocity = Vector3.ZERO
 	global_position = pos
+	_riding = false
 
 
 ## Zichtbare acties (zwaai, gereedschap, boor) naar de anderen. Het terrein zelf komt via

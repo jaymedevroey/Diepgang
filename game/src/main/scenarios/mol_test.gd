@@ -144,12 +144,18 @@ func _run(p: Player) -> void:
 	var ray := t.tool_raycast(p.camera.global_position, p.camera.global_position - p.camera.global_basis.z * 2.6)
 	_expect(ray.is_empty(), "gereedschap gaat niet door de wand van de Mol (rots erachter: %s)" % t.is_solid(behind))
 
+	# Vangnet: onder de wereld gevallen = terug in de Mol.
+	p.global_position = Vector3(p.global_position.x, -30.0, p.global_position.z)
+	await _wait(0.2)
+	_expect(mol.contains_point(p.global_position), "wie onder de wereld valt, komt terug in de Mol")
+
 	# 6. In de tunnel zelf draaien en de neus heffen: er mag geen rots in de romp komen.
 	p.global_transform = Transform3D(Basis(Vector3.UP, mol.yaw), mol.to_world_mol(Vector3(0, -1.45, -1.0)))
 	await _wait(0.4)
 	mol.press(Mol.Cmd.SEAT)
 	await _wait(0.3)
 	var yaw0 := mol.yaw
+	p.chase.activate() # zoals Jayme: in buitenzicht rijden en dan uitstappen
 	Input.action_press("move_right")
 	await _wait(4.0)
 	Input.action_release("move_right")
@@ -169,10 +175,18 @@ func _run(p: Player) -> void:
 	Input.action_release("crouch")
 	_expect(mol.contains_point(p.global_position) and p.seated, "piloot zit nog in de Mol")
 
-	# Uitstappen en de tunnel in lopen.
-	mol.leave_seat()
+	# Uitstappen met E vanuit het buitenzicht (echte invoer): je staat in de cabine, niet ergens anders.
+	var ev_leave := InputEventAction.new()
+	ev_leave.action = "interact"
+	ev_leave.pressed = true
+	Input.parse_input_event(ev_leave)
 	await _wait(0.3)
 	_expect(not p.seated and mol.pilot == 0 and mol.mode == Mol.Mode.PARKED, "uitgestapt, de Mol staat geparkeerd")
+	_expect(p.camera.current, "na het uitstappen weer de eigen camera (niet het buitenzicht)")
+	var out_local := mol.to_local_mol(p.global_position)
+	_expect(mol.contains_point(p.global_position) and out_local.z < -0.5, "na het uitstappen sta je in de cabine (lokaal %s)" % out_local)
+	await _wait(1.5)
+	_expect(mol.contains_point(p.global_position), "en je blijft in de Mol staan (niet weggezet, niet gevallen; %.1f m van de Mol)" % p.global_position.distance_to(mol.body.global_position))
 	p.global_transform = Transform3D(Basis(Vector3.UP, mol.yaw), mol.to_world_mol(Vector3(0, -1.4, 1.0)))
 	await _wait(0.5)
 
@@ -197,6 +211,7 @@ func _run(p: Player) -> void:
 	var deep := Vector3(c.x + 20.0, 60.0, c.z)
 	_expect(t.layer_at(deep + Vector3(0, 0, -8.0)) == Strata.Layer.GRANIET, "testplek ligt in graniet")
 	mol.leave_seat()
+	p.set_physics_process(false) # in massief graniet zou hij door de rots vallen
 	p.global_position = deep # de speler is de kijker: eerst moet het terrein daar geladen zijn
 	await _wait(3.0)
 	for dz in [-4.0, 0.0, 4.0]:
@@ -206,6 +221,7 @@ func _run(p: Player) -> void:
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	p.global_transform = Transform3D(Basis(Vector3.UP, mol.yaw), mol.to_world_mol(Vector3(0, -1.45, -1.0)))
+	p.set_physics_process(true)
 	await _wait(1.0)
 	mol.press(Mol.Cmd.SEAT)
 	await _wait(0.3)
