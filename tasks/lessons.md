@@ -75,6 +75,8 @@ Wat we onderweg leerden en wat het GDD bijstuurt. Nieuwste bovenaan.
 - Godot-RPC: getypeerde arrays als parameter vermijden; `Array` of `Packed*Array` gebruiken.
 - GDScript: `:=` faalt op waarden uit een ongetypeerde node (`game.terrain.…`): expliciet typeren.
 - Lange Python-edits niet als Bash-heredoc (breekt op quotes): als bestand in de scratchpad zetten en uitvoeren.
+- **`Path.write_text` schrijft op Windows CRLF** (tekstmodus). Git zet het in de index om naar LF (`.gitattributes`), maar de werkbestanden blijven CRLF. Altijd `write_text(..., newline="
+")`.
 - Windows-console (cp1252): geen `→` of andere niet-ASCII-tekens in `print` van hulpscripts, of `sys.stdout.reconfigure(encoding="utf-8")`.
 
 ## 2026-10-01 — Houweel (graafgevoel)
