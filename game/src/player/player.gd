@@ -24,6 +24,8 @@ var is_local := false
 var head: Node3D
 var camera: Camera3D
 var camera_fx: CameraFx
+## Buitenzicht als piloot (C). Enkel bij de lokale speler.
+var chase: MolChaseCam
 var pickaxe: Pickaxe
 var drill: Drill
 var tools: Array[Node3D] = []
@@ -134,6 +136,10 @@ func _setup_local() -> void:
 		active_tool.set_active(it == null)
 		_send_action(Action.CARRY_ON if it else Action.CARRY_OFF))
 	game.mol.pilot_changed.connect(_on_pilot_changed)
+	chase = MolChaseCam.new()
+	chase.name = "ChaseCam"
+	chase.mol = game.mol
+	add_child(chase)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
@@ -156,6 +162,8 @@ func _sit() -> void:
 
 func _unseat() -> void:
 	seated = false
+	if chase.current:
+		camera.make_current()
 	_shape.disabled = false
 	var mol: Mol = game.mol
 	global_transform = Transform3D(Basis(Vector3.UP, mol.yaw), mol.to_world_mol(Vector3(0.0, -1.45, -1.1)))
@@ -207,7 +215,14 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not is_local:
 		return
 	var captured := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
-	if event is InputEventMouseMotion and captured and seated:
+	if event is InputEventMouseMotion and captured and seated and chase.current:
+		chase.look(event.relative, Tuning.get_f("player", "mouse_sensitivity", 0.0025))
+	elif event.is_action_pressed("mol_view") and seated:
+		if chase.current:
+			camera.make_current()
+		else:
+			chase.activate()
+	elif event is InputEventMouseMotion and captured and seated:
 		# In de stoel: rondkijken binnen de cabine.
 		var sens_s := Tuning.get_f("player", "mouse_sensitivity", 0.0025)
 		_look_yaw = clampf(_look_yaw - event.relative.x * sens_s, -1.5, 1.5)
@@ -244,7 +259,7 @@ func _physics_process(delta: float) -> void:
 		_drive_mol(delta)
 		return
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
-	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and DisplayServer.get_name() != "headless":
 		input = Vector2.ZERO
 	if flying:
 		var fly_speed := Tuning.get_f("player", "fly_speed", 12.0)
@@ -360,6 +375,29 @@ func _send_action(action: Action) -> void:
 	for peer: int in game.ready_peers:
 		if peer != me:
 			_rpc_action.rpc_id(peer, action)
+
+
+## Host: deze speler ergens neerzetten (bv. achtergebleven bij de extractie). De eigenaar
+## beweegt zijn eigen robot, dus de host vraagt het hem.
+func host_teleport(pos: Vector3) -> void:
+	if is_local:
+		_teleport(pos)
+	else:
+		_rpc_teleport.rpc_id(peer_id, pos)
+
+
+@rpc("any_peer", "reliable")
+func _rpc_teleport(pos: Vector3) -> void:
+	if multiplayer.get_remote_sender_id() == 1 and is_local:
+		_teleport(pos)
+
+
+func _teleport(pos: Vector3) -> void:
+	if carry and carry.item:
+		carry.drop(false)
+	flying = false
+	velocity = Vector3.ZERO
+	global_position = pos
 
 
 ## Zichtbare acties (zwaai, gereedschap, boor) naar de anderen. Het terrein zelf komt via

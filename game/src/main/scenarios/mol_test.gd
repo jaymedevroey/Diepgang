@@ -6,7 +6,7 @@ extends Node
 var main: Node
 var _checks := 0
 var _failures := PackedStringArray()
-var _summary := Vector2i(-1, -1)
+var _summary := Vector3i(-1, -1, -1)
 
 
 func _ready() -> void:
@@ -22,7 +22,7 @@ func _run(p: Player) -> void:
 	var mol: Mol = main.game.mol
 	var t: TerrainAPI = main.terrain
 	var finds: FindField = main.game.finds
-	mol.summary.connect(func(count: int, value: int) -> void: _summary = Vector2i(count, value))
+	mol.summary.connect(func(count: int, value: int, left: int) -> void: _summary = Vector3i(count, value, left))
 	while not t.is_loaded:
 		await get_tree().physics_frame
 	await _wait(1.5)
@@ -33,6 +33,18 @@ func _run(p: Player) -> void:
 	_expect(absf(mol.body.global_position.y - y0) < 0.05 and mol.depth() < 0.5,
 			"de Mol staat stil op het oppervlak (diepte %.2f m)" % mol.depth())
 	_expect(mol.ramp_open, "laadklep staat open bij de start")
+
+	# 1b. Van de spawn de laadklep op lopen (echte beweging, botsvormen van klep en vloer).
+	p.rotation = Vector3(0, mol.yaw, 0)
+	p.head.rotation.x = 0.0
+	Input.action_press("move_forward")
+	await _wait(3.5)
+	Input.action_release("move_forward")
+	await _wait(0.4)
+	var feet := mol.to_local_mol(p.global_position)
+	_expect(mol.contains_point(p.global_position) and feet.z < 3.8, # (tot tegen de kisten in het laadruim)
+			"van de spawn de klep op gelopen, tot in de Mol (z %.1f)" % feet.z)
+	_expect(feet.y > -1.75 and feet.y < -1.2, "staat op de vloer van de Mol (y %.2f)" % feet.y)
 
 	# 2. Een vondst vrijmaken en in het laadruim leggen.
 	var it: FindItem = finds.items[0]

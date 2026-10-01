@@ -33,6 +33,9 @@ func _run(p: Player) -> void:
 	if only.is_empty() or "zij" in only:
 		_look(mol, Vector3(-13.0, 2.5, 1.0), Vector3(0, -0.3, 0.0))
 		await _shot("mol_zij")
+	if only.is_empty() or "rups" in only:
+		_look(mol, Vector3(-5.8, -1.6, -1.5), Vector3(-1.4, -2.3, 0.6))
+		await _shot("mol_rups")
 	if only.is_empty() or "achter" in only:
 		p.camera.make_current()
 		p.head.rotation.x = deg_to_rad(-8)
@@ -53,15 +56,26 @@ func _run(p: Player) -> void:
 		p.head.rotation.x = deg_to_rad(-4)
 		await _shot("mol_cabine", 0.8)
 		mol.press(Mol.Cmd.AUTO, 40.0)
-		await _wait(7.0)
-		await _shot("mol_scherm", 0.0)
+		var side := mol.to_world_mol(Vector3(-15.0, 2.0, -14.0))
+		_cam.global_position = side
+		_cam.look_at(mol.to_world_mol(Vector3(0, -1.0, -8.0)))
+		_cam.make_current()
+		await _shot("mol_boren", 1.6)
+		p.camera.make_current()
+		await _shot("mol_scherm", 5.0)
 		p._look_yaw = deg_to_rad(80)
 		p.head.rotation.x = deg_to_rad(-5)
 		await _shot("mol_patrijspoort", 0.3)
 		p._look_yaw = 0.0
+		p.chase.activate()
+		await _shot("mol_buitenzicht", 3.0)
+		p.chase.orbit_yaw = deg_to_rad(35.0)
+		p.chase.orbit_pitch = deg_to_rad(-25.0)
 		while mol.mode == Mol.Mode.AUTO_DOWN:
 			await get_tree().physics_frame
-		await _wait(2.5)
+		await _shot("mol_buitenzicht_onder", 2.0)
+		p.camera.make_current()
+		await _wait(0.5)
 		mol.leave_seat()
 		await _wait(0.4)
 		_look(mol, Vector3(2.0, 0.4, 14.5), Vector3(0, -1.0, 3.0))

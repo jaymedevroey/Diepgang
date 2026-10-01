@@ -153,8 +153,12 @@ func _on_world_loaded(stats: Dictionary) -> void:
 	if not _mol_connected:
 		_mol_connected = true
 		game.mol.message.connect(func(t: String) -> void: _flash(t, 4.0))
-		game.mol.summary.connect(func(count: int, value: int) -> void:
-			_flash("De Mol is boven  ·  laadruim: %d vondst%s  ·  €%d" % [count, "" if count == 1 else "en", value], 8.0))
+		game.mol.summary.connect(func(count: int, value: int, left_behind: int) -> void:
+			var text := "De Mol is boven  ·  laadruim: %d vondst%s  ·  €%d" % [count, "" if count == 1 else "en", value]
+			if left_behind > 0:
+				text += "
+%d achterblijver%s klom%s te voet naar boven" % [left_behind, "" if left_behind == 1 else "s", "" if left_behind == 1 else "men"]
+			_flash(text, 8.0))
 	print("[diepgang] terrein geladen in %.0f ms (time-out: %s), statisch geheugen %.1f MB, videogeheugen %.1f MB" % [
 		stats.load_ms, stats.load_timed_out, stats.mem_static_mb, stats.video_mem_mb])
 	print("[diepgang] terrein-statistieken: ", JSON.stringify(stats))
@@ -287,7 +291,7 @@ func _pilot_lines(lines: PackedStringArray) -> PackedStringArray:
 		lines.append("! Boorkop T1 te zwak voor deze laag: neus omhoog (spatie) of draai bij")
 	elif m.fuel <= 0.0:
 		lines.append("! Brandstof op: trek aan de vertrekhendel om naar boven te gaan")
-	lines.append("W/S gas · A/D sturen · spatie/Ctrl neus omhoog/omlaag · H toeter · E uitstappen")
+	lines.append("W/S gas · A/D sturen · spatie/Ctrl neus omhoog/omlaag · C buitenzicht · H toeter · E uitstappen")
 	return lines
 
 

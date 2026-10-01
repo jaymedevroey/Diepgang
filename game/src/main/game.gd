@@ -221,9 +221,15 @@ func _free_color() -> int:
 
 
 ## Achter de Mol, bij de laadklep, naast elkaar.
+## Host: vaste spawnplek van een speler (achter de Mol aan de oppervlakte).
+func spawn_pos_of(peer_id: int) -> Vector3:
+	return _spawn_pos(_color_of.get(peer_id, 0))
+
+
 func _spawn_pos(idx: int) -> Vector3:
 	var sc := terrain.shaft_center_world()
-	var p := sc + Vector3(-2.4 + idx * 1.6, 0.0, 9.5)
+	# Achter de Mol, in een rij die binnen de breedte van de laadklep (±2,1 m) blijft.
+	var p := sc + Vector3(-1.8 + idx * 1.2, 0.0, 9.5)
 	p.y = terrain.surface_height_at(p.x, p.z) + 1.0
 	return p
 

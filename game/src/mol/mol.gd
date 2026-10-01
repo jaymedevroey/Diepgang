@@ -9,7 +9,7 @@ extends Node3D
 
 signal mode_changed(mode: Mode)
 signal pilot_changed(peer: int)
-signal summary(count: int, value: int)
+signal summary(count: int, value: int, left_behind: int)
 signal message(text: String)
 
 enum Mode { PARKED, DRIVING, AUTO_DOWN, COUNTDOWN, EXTRACTING }
@@ -66,6 +66,7 @@ var _blocked_sound := 0.0
 var _beep_timer := 0.0
 var _start_pos := Vector3.ZERO
 var _readout_timer := 0.0
+var _ramp_shape: CollisionShape3D
 var _teleport: Variant = null # [pos, yaw, pitch], toegepast in de volgende physics-tick
 
 # Clients.
@@ -278,8 +279,8 @@ func _rpc_message(text: String) -> void:
 
 
 @rpc("authority", "call_local", "reliable")
-func _rpc_summary(count: int, value: int) -> void:
-	summary.emit(count, value)
+func _rpc_summary(count: int, value: int, left_behind: int) -> void:
+	summary.emit(count, value, left_behind)
 
 
 ## Late joiner: alles wat hij moet weten.
@@ -517,7 +518,13 @@ func _extract(delta: float) -> void:
 		_rpc_flags.rpc(true, lights_on)
 		_set_mode(Mode.PARKED, 0)
 		_rpc_event.rpc(Event.ARRIVED)
-		_rpc_summary.rpc(items.size(), value)
+		# Wie niet aan boord was, klom te voet door de tunnel naar boven.
+		var left := 0
+		for pl: Player in game.players.get_children():
+			if not pl.seated and not contains_point(pl.global_position):
+				pl.host_teleport(game.spawn_pos_of(pl.peer_id))
+				left += 1
+		_rpc_summary.rpc(items.size(), value, left)
 		return
 	var target := _path[_path_index]
 	var pos := body.global_position
@@ -584,6 +591,7 @@ func _interpolate() -> void:
 
 
 func _update_visual() -> void:
+	_update_ramp_shape()
 	visual.speed = speed
 	visual.throttle = clampf(absf(speed) / 3.0, 0.0, 1.0)
 	visual.drilling = drilling
@@ -648,19 +656,21 @@ func _build_collision() -> void:
 	_box(Vector3(0.45, 0.6, 1.1), Vector3(1.85, -1.2, 0.0))
 	_box(Vector3(0.75, 1.3, 0.75), Vector3(-1.57, -0.85, 1.97))
 	_box(Vector3(0.6, 0.95, 0.6), Vector3(0, -1.03, -1.85))
-	# Laadklep: eigen lichaam op het scharnier, draait mee met de visuele klep.
-	var ramp_body := AnimatableBody3D.new()
-	ramp_body.name = "RampBody"
-	ramp_body.sync_to_physics = true
-	ramp_body.collision_layer = Layers.LIFT
-	ramp_body.collision_mask = 0
-	visual.ramp_hinge.add_child(ramp_body)
-	var rs := CollisionShape3D.new()
+	# Laadklep: een vorm van het Mol-lichaam zelf die elke tick de scharnierhoek volgt
+	# (een apart lichaam onder de visuele klep belandde op een verkeerde plek).
 	var rb := BoxShape3D.new()
 	rb.size = Vector3(4.1, 3.3, 0.16)
-	rs.shape = rb
-	rs.position = Vector3(0, 1.65, 0.0)
-	ramp_body.add_child(rs)
+	_ramp_shape = CollisionShape3D.new()
+	_ramp_shape.name = "RampShape"
+	_ramp_shape.shape = rb
+	body.add_child(_ramp_shape)
+	_update_ramp_shape()
+
+
+func _update_ramp_shape() -> void:
+	var xf: Transform3D = visual.ramp_hinge.transform * Transform3D(Basis(), Vector3(0, 1.65, 0))
+	if not _ramp_shape.transform.is_equal_approx(xf):
+		_ramp_shape.transform = xf
 
 
 func _box(size: Vector3, pos: Vector3) -> void:

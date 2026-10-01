@@ -57,14 +57,21 @@ void fragment() {
 
 	// Randslijtage: enkel waar de rand bol is én de ruis het toelaat (geen perfecte lijnen).
 	float chip = smoothstep(0.55, 0.8, vnoise(opos * 7.0) * 0.55 + vnoise(opos * 19.0) * 0.45);
-	float edge = smoothstep(0.45, 0.95, wear.r) * mix(0.35, 1.0, chip) * edge_wear;
+	// Kromming per pixel (hoe snel de normaal draait per meter): vlak = 0, afgeronde rand = hoog.
+	// De vertexkleur alleen volstaat niet: op een vlak met enkel hoekpunten loopt die over het
+	// hele vlak door, en dan krijgen dunne platen overal schilfers.
+	float curv = length(fwidth(NORMAL)) / max(length(fwidth(VERTEX)), 1e-4);
+	float rim = smoothstep(3.0, 12.0, curv) * smoothstep(0.35, 0.8, wear.r);
+	float edge = rim * mix(0.45, 1.0, chip) * edge_wear;
 	vec3 col = mix(base, bare_metal, edge);
 	float met = mix(metallic, 0.85, edge);
 	float rough = mix(roughness, 0.32, edge);
 
 	// Vuil in holtes en wat meer onderaan (stof van de tunnel).
 	float low = smoothstep(-0.8, -2.8, opos.y);
-	float dirt = clamp(smoothstep(0.3, 0.9, wear.g) + low * 0.6 * low_grime * vnoise(opos * 1.7), 0.0, 1.0) * grime;
+	// Stof onderaan: zacht en grootschalig (een waas, geen vlekken).
+	float dust = low * low_grime * (0.25 + 0.2 * smoothstep(0.2, 0.8, vnoise(opos * 0.8)));
+	float dirt = clamp(smoothstep(0.3, 0.9, wear.g) + dust, 0.0, 1.0) * grime;
 	col = mix(col, grime_color, dirt * 0.45);
 	rough = mix(rough, 0.92, dirt * 0.6);
 

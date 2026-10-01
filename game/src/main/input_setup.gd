@@ -17,6 +17,7 @@ const KEYS := {
 	"interact": KEY_E,
 	"toggle_tuning": KEY_F1,
 	"horn": KEY_H,
+	"mol_view": KEY_C,
 }
 
 
