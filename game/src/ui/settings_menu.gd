@@ -189,11 +189,31 @@ func _rebuild(tab: String) -> void:
 			for pair: Array in Settings.BINDABLE:
 				_key_row(page, pair[0], pair[1])
 		"interface":
-			_slider(page, "interface/ui_scale", "Grootte van de interface", 0.75, 1.5, 0.05, "%d%%", 100.0)
+			_slider(page, "interface/ui_scale", "Grootte van de interface", 0.75, 2.0, 0.05, "%d%%", 100.0)
 			_slider(page, "interface/camera_shake", "Schudden van de camera", 0.0, 1.0, 0.05, "%d%%", 100.0, "Minder schudden helpt tegen misselijkheid.")
-			_toggle(page, "interface/show_hints", "Hulpteksten (welke toets doet wat)")
-			_toggle(page, "interface/crosshair", "Vizier")
-			_toggle(page, "interface/stats", "Infopaneel (fps, netwerk) · F3")
+			_toggle(page, "interface/hide_ip", "IP-adres verbergen", "Voor wie streamt: je IP verschijnt nergens in beeld.")
+			var head := Label.new()
+			head.text = "HUD"
+			head.theme_type_variation = &"SubHeading"
+			page.add_child(_pad(head))
+			var note := Label.new()
+			note.text = "Dynamisch: komt in beeld als er iets verandert, en verdwijnt daarna weer."
+			note.theme_type_variation = &"Caption"
+			page.add_child(note)
+			var modes := ["Uit", "Dynamisch", "Altijd"]
+			_option(page, "hud/crosshair", "Vizier", modes)
+			_option(page, "hud/prompts", "Toetsprompts (E: oppakken …)", modes)
+			_option(page, "hud/tools", "Gereedschap", modes)
+			_option(page, "hud/depth", "Diepte en richting naar de Mol", modes)
+			_option(page, "hud/team", "Ploeg", modes)
+			_option(page, "hud/stats", "Infopaneel (fps, netwerk) · F3", ["Uit", "Uit", "Aan"])
+
+
+func _pad(c: Control) -> MarginContainer:
+	var m := MarginContainer.new()
+	m.add_theme_constant_override("margin_top", 18)
+	m.add_child(c)
+	return m
 
 
 func _row(page: Control, label_text: String, help := "") -> HBoxContainer:

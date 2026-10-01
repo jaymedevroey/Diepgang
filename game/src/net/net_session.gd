@@ -68,6 +68,16 @@ func join(address: String, port := DEFAULT_PORT) -> Error:
 	return OK
 
 
+## De sessie verlaten (terug naar het hoofdmenu). Een host sluit daarmee de sessie voor iedereen.
+func leave() -> void:
+	if multiplayer.multiplayer_peer:
+		multiplayer.multiplayer_peer.close()
+	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
+	mode = Mode.SOLO
+	active = false
+	print("[net] sessie verlaten")
+
+
 func is_host() -> bool:
 	return mode != Mode.CLIENT
 

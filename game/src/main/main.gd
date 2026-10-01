@@ -14,6 +14,8 @@ extends Node3D
 ##   carry_test        oppakken, dragen, gooien, botsschade (headless)
 ##   mol_test          de Mol: besturen, boren, autopiloot, meerijden, extractie (headless)
 ##   mol_preview       screenshots van de Mol (buiten, binnen, cabine, afdalen)
+##   hud_preview       screenshots van de HUD in alle toestanden
+##   ui_preview        thema en instellingenmenu
 ##   tuning_test       tuning-waarden aanpassen en bewaren (headless)
 ## Extra in play (voor controle door de agent):
 ##   --shot=naam --frames=90,140   screenshots N frames na het spawnen, dan afsluiten
@@ -36,15 +38,10 @@ const SCENARIOS := {
 	"tuning_test": preload("res://src/main/scenarios/tuning_test.gd"),
 	"terrain_preview": preload("res://src/main/scenarios/terrain_preview.gd"),
 	"ui_preview": preload("res://src/main/scenarios/ui_preview.gd"),
+	"hud_preview": preload("res://src/main/scenarios/hud_preview.gd"),
 }
 ## Scenario's waarin de host ook een eigen speler krijgt.
-const SCENARIOS_WITH_PLAYER := ["play", "net_test", "find_test", "carry_test", "carry_preview", "mol_test", "mol_preview"]
-const AIM_COLORS := {
-	Pickaxe.Aim.NONE: Color(1, 1, 1, 0.35),
-	Pickaxe.Aim.DIGGABLE: Color(1, 1, 1, 0.95),
-	Pickaxe.Aim.TOO_HARD: Color(1.0, 0.45, 0.3, 0.95),
-	Pickaxe.Aim.CRUST: Color(1.0, 0.85, 0.35, 1.0),
-}
+const SCENARIOS_WITH_PLAYER := ["play", "net_test", "find_test", "carry_test", "carry_preview", "mol_test", "mol_preview", "hud_preview"]
 
 var game: Game
 var player: Player
@@ -54,16 +51,12 @@ var terrain: TerrainAPI:
 	get:
 		return game.terrain if game else null
 
-var _hud_label: Label
-var _crosshair: Label
-var _hint: Label
-var _banner: Label
+var hud: Hud
+var _loading: LoadingScreen
+var _pause: PauseMenu
 var _tuning_menu: TuningMenu
 var _start_menu: StartMenu
 var _backdrop: MenuBackdrop
-var _stats_visible := true
-var _aim := Pickaxe.Aim.NONE
-var _banner_until := 0.0
 var _mol_connected := false
 var _frame_since_spawn := -1
 var _shot_frames: PackedInt32Array = []
@@ -106,12 +99,12 @@ func _ready() -> void:
 
 	Net.started.connect(_on_net_started)
 	Net.failed.connect(func(reason: String) -> void:
-		_show_banner("")
+		_loading.finish()
 		if _start_menu:
 			_start_menu.show_error("Netwerk: " + reason)
 		else:
-			_show_banner("Netwerk: " + reason))
-	Net.ended.connect(func(reason: String) -> void: _show_banner("Sessie voorbij: " + reason))
+			hud.toast("Netwerk: " + reason, "warn", 8.0))
+	Net.ended.connect(func(reason: String) -> void: hud.toast("Sessie voorbij: " + reason, "warn", 10.0))
 	var port := int(CmdArgs.value("port", Net.DEFAULT_PORT))
 	if CmdArgs.has("host"):
 		Net.start_host(port)
@@ -142,30 +135,27 @@ func _open_start_menu(port: int) -> void:
 
 
 func _join(address: String, port: int) -> void:
-	_show_banner("Verbinden met %s…" % address)
+	_loading.show_status("VERBINDEN MET %s" % ("DE HOST" if Settings.get_b("interface/hide_ip") else address))
 	Net.join(address, port)
 
 
 func _on_net_started() -> void:
-	_show_banner("")
 	if Net.is_host():
+		if scenario == "play":
+			_loading.show_status("DE PUT WORDT KLAARGEMAAKT")
 		game.start_host(int(CmdArgs.value("seed", 1)))
 	else:
-		_show_banner("Wereld ophalen bij de host…")
+		_loading.show_status("WERELD OPHALEN BIJ DE HOST")
 		game.start_client()
 
 
 func _on_world_loaded(stats: Dictionary) -> void:
-	_show_banner("")
 	if not _mol_connected:
 		_mol_connected = true
-		game.mol.message.connect(func(t: String) -> void: _flash(t, 4.0))
+		game.mol.message.connect(func(t: String) -> void:
+			hud.toast(t, "warn" if t.begins_with("Harde laag") else "mol"))
 		game.mol.summary.connect(func(count: int, value: int, left_behind: int) -> void:
-			var text := "De Mol is boven  ·  laadruim: %d vondst%s  ·  €%d" % [count, "" if count == 1 else "en", value]
-			if left_behind > 0:
-				text += "
-%d achterblijver%s klom%s te voet naar boven" % [left_behind, "" if left_behind == 1 else "s", "" if left_behind == 1 else "men"]
-			_flash(text, 8.0))
+			hud.show_result(count, value, left_behind))
 	print("[diepgang] terrein geladen in %.0f ms (time-out: %s), statisch geheugen %.1f MB, videogeheugen %.1f MB" % [
 		stats.load_ms, stats.load_timed_out, stats.mem_static_mb, stats.video_mem_mb])
 	print("[diepgang] terrein-statistieken: ", JSON.stringify(stats))
@@ -188,28 +178,15 @@ func _on_player_spawned(p: Player) -> void:
 	p.rotate_y(deg_to_rad(float(CmdArgs.value("yaw", 0.0))))
 	p.pickaxe.auto_swing = CmdArgs.has("autodig")
 	p.drill.auto_use = CmdArgs.has("autodig")
-	p.tool_changed.connect(_on_tool_changed)
-	p.rescued.connect(func() -> void: _flash("Je viel door de wereld: teruggezet in de Mol", 4.0))
+	p.rescued.connect(func() -> void: hud.toast("Je viel door de wereld: teruggezet in de Mol", "warn"))
 	if CmdArgs.value("tool", "") == "drill":
 		p.select_tool(1)
-	_on_tool_changed(p.active_tool)
+	_loading.finish()
+	if Net.mode == Net.Mode.HOST:
+		hud.toast("Je host. Vrienden doen mee via Esc > Vrienden uitnodigen.", "info", 7.0)
 	_frame_since_spawn = 0
 	if CmdArgs.has("tuning-open"):
 		_tuning_menu.toggle()
-
-
-func _on_tool_changed(tool: Node3D) -> void:
-	for t in player.tools:
-		if t.aim_changed.is_connected(_on_aim_changed):
-			t.aim_changed.disconnect(_on_aim_changed)
-	tool.aim_changed.connect(_on_aim_changed)
-	_on_aim_changed(tool.aim)
-
-
-func _on_aim_changed(aim: Pickaxe.Aim) -> void:
-	_crosshair.modulate = AIM_COLORS[aim]
-	_hint.text = player.active_tool.hint_too_hard() if aim == Pickaxe.Aim.TOO_HARD else ""
-	_aim = aim
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -217,118 +194,17 @@ func _unhandled_input(event: InputEvent) -> void:
 		_tuning_menu.toggle()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("toggle_stats"):
-		_stats_visible = not _stats_visible
-		_hud_label.visible = _stats_visible
+		Settings.set_value("hud/stats", Settings.HUD_OFF if int(Settings.get_value("hud/stats")) == Settings.HUD_ALWAYS else Settings.HUD_ALWAYS)
+	elif event.is_action_pressed("ui_cancel") and player and not (_start_menu and _start_menu.visible) and not _tuning_menu.visible:
+		_pause.open()
+		get_viewport().set_input_as_handled()
 
 
 func _process(_delta: float) -> void:
 	if _frame_since_spawn >= 0:
 		_frame_since_spawn += 1
 		_take_shots()
-	if player and player.seated:
-		var knob := player.aimed_interactable()
-		_hint.text = knob.hint if knob else ""
-	elif player and _aim != Pickaxe.Aim.TOO_HARD:
-		_hint.text = _aim_info()
-	_update_mol_banner()
-	_crosshair.visible = not (_start_menu and _start_menu.visible)
-	if _start_menu and _start_menu.visible:
-		_hud_label.text = ""
-		return
-	if not _stats_visible:
-		return
-	var lines := PackedStringArray()
-	var net: String = ["solo", "host", "client"][Net.mode]
-	if Net.mode == Net.Mode.HOST:
-		net = "host · IP %s · poort %d" % [", ".join(StartMenu.local_ips()), int(CmdArgs.value("port", Net.DEFAULT_PORT))]
-	lines.append("DIEPGANG M1-proto  ·  %d fps  ·  %s  ·  %d speler(s)" % [
-		Engine.get_frames_per_second(), net, game.players.get_child_count()])
-	if terrain == null or not terrain.is_loaded:
-		lines.append("Put laden…")
-	if player:
-		var p := player.global_position
-		lines.append("Laag: %s  ·  diepte %.0f m%s" % [
-			Strata.NAMES[terrain.layer_at(p)], maxf(0.0, terrain.surface_height_at(p.x, p.z) - p.y),
-			"  ·  VLIEGEN" if player.flying else ""])
-		var tool_name := "houweel" if player.active_tool == player.pickaxe else "boor T1"
-		lines.append("Gereedschap: %s  (1 houweel · 2 boor · wieltje)" % tool_name)
-		if player.active_tool == player.drill:
-			var d := player.drill
-			var frac := d.heat / Tuning.get_f("drill", "heat_max", 5.5)
-			var bar := "█".repeat(int(frac * 12)) + "░".repeat(12 - int(frac * 12))
-			lines.append("Hitte %s%s" % [bar, "  OVERVERHIT" if d.overheated else ""])
-		if player.seated:
-			lines = _pilot_lines(lines)
-		else:
-			lines.append("Linkermuis: graven (vasthouden) · E: oppakken · V vliegen · F1 tuning · F3 paneel")
-	_hud_label.text = "\n".join(lines)
-
-
-## Wat je bekijkt: een korst (levens, uitleg) of een losse vondst (naam, waarde, gaafheid).
-func _aim_info() -> String:
-	if player.carry.item:
-		var c := player.carry.item
-		var others := c.carriers.size() - 1
-		return "Je draagt: %s · €%d · gaaf %d%%%s   E neerzetten · linkermuis gooien" % [
-			c.display_name(), c.value(), int(round(c.condition * 100)),
-			"  (samen)" if others > 0 else ("  (zwaar: samen dragen gaat sneller)" if c.mass >= 10.0 else "")]
-	var button := player.aimed_interactable()
-	if button:
-		return button.hint
-	if game.mol.in_cockpit(player.global_position) and game.mol.pilot == 0:
-		return "E: de Mol besturen"
-	var cam := player.camera
-	var hit := terrain.raycast(cam.global_position, cam.global_position - cam.global_basis.z * 3.5,
-			Layers.TERRAIN | Layers.CRUST | Layers.LOOT | Layers.LIFT)
-	if hit.is_empty() or not (hit.collider is Crust or hit.collider is FindItem):
-		return ""
-	if hit.collider is Crust:
-		var c: Crust = hit.collider
-		var full := int(ceil(c.hp))
-		var bar := "■".repeat(full) + "□".repeat(maxi(0, int(c.max_hp) - full))
-		return "Korst %s   houweel: veilig · boor: sneller, maar schaadt de vondst" % bar
-	if hit.collider is FindItem:
-		var f: FindItem = hit.collider
-		var prefix := "E: oppakken · " if f.freed and f.carriers.size() < 2 else ""
-		return "%s%s · €%d · gaaf %d%%" % [prefix, f.display_name(), f.value(), int(round(f.condition * 100))]
-	return ""
-
-
-const MOL_MODES := ["geparkeerd", "rijden", "autopiloot: afdalen", "vertrek", "naar boven"]
-
-
-func _pilot_lines(lines: PackedStringArray) -> PackedStringArray:
-	var m := game.mol
-	lines.append("DE MOL  ·  %s" % MOL_MODES[m.mode])
-	lines.append("Snelheid %.1f m/s  ·  diepte %d m  ·  helling %d°  ·  brandstof %d%%" % [
-		absf(m.speed), int(m.depth()), int(round(rad_to_deg(m.pitch))), int(m.fuel * 100.0)])
-	if m.blocked:
-		lines.append("! Boorkop T1 te zwak voor deze laag: neus omhoog (spatie) of draai bij")
-	elif m.fuel <= 0.0:
-		lines.append("! Brandstof op: trek aan de vertrekhendel om naar boven te gaan")
-	lines.append("W/S gas · A/D sturen · spatie/Ctrl neus omhoog/omlaag · C buitenzicht · H toeter · E uitstappen")
-	return lines
-
-
-## Aftelling en meldingen van de Mol, voor iedereen.
-func _update_mol_banner() -> void:
-	if game == null or game.mol == null or game.mol.body == null:
-		return
-	var now := Time.get_ticks_msec() / 1000.0
-	if game.mol.mode == Mol.Mode.COUNTDOWN:
-		_show_banner("De Mol vertrekt over %d s  ·  iedereen aan boord!" % int(ceil(game.mol.countdown)))
-	elif game.mol.mode == Mol.Mode.EXTRACTING:
-		_show_banner("De Mol rijdt naar boven…")
-	elif _banner_until > 0.0 and now > _banner_until:
-		_banner_until = 0.0
-		_show_banner("")
-	elif _banner_until == 0.0 and _banner.text.begins_with("De Mol"):
-		_show_banner("")
-
-
-func _flash(text: String, seconds: float) -> void:
-	_show_banner(text)
-	_banner_until = Time.get_ticks_msec() / 1000.0 + seconds
+	hud.update(player if not (_start_menu and _start_menu.visible) else null, game, terrain)
 
 
 func _take_shots() -> void:
@@ -347,46 +223,26 @@ func _take_shots() -> void:
 		get_tree().quit(0)
 
 
-func _show_banner(text: String) -> void:
-	_banner.text = text
-	_banner.visible = text != ""
-
-
 func _build_hud() -> void:
-	var hud := CanvasLayer.new()
-	hud.name = "HUD"
-	add_child(hud)
-	_hud_label = Label.new()
-	_hud_label.position = Vector2(16, 12)
-	_hud_label.add_theme_color_override("font_shadow_color", Color.BLACK)
-	hud.add_child(_hud_label)
-
-	_crosshair = Label.new()
-	_crosshair.text = "+"
-	_crosshair.add_theme_font_size_override("font_size", 22)
-	_crosshair.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	_crosshair.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_crosshair.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	hud.add_child(_crosshair)
-
-	_hint = Label.new()
-	_hint.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	_hint.position.y += 36
-	_hint.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_hint.add_theme_color_override("font_color", Color(1.0, 0.6, 0.45))
-	_hint.add_theme_color_override("font_shadow_color", Color.BLACK)
-	hud.add_child(_hint)
-
-	_banner = Label.new()
-	_banner.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
-	_banner.position.y += 80
-	_banner.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_banner.add_theme_font_size_override("font_size", 24)
-	_banner.add_theme_color_override("font_shadow_color", Color.BLACK)
-	_banner.visible = false
-	hud.add_child(_banner)
+	var layer := CanvasLayer.new()
+	layer.name = "HUD"
+	add_child(layer)
+	hud = Hud.new()
+	hud.main = self
+	layer.add_child(hud)
+	_pause = PauseMenu.new()
+	_pause.leave_requested.connect(_leave_to_menu)
+	layer.add_child(_pause)
+	_loading = LoadingScreen.new()
+	layer.add_child(_loading)
 
 	_tuning_menu = TuningMenu.new()
-	hud.add_child(_tuning_menu)
+	_tuning_menu.theme = UiTheme.get_theme()
+	layer.add_child(_tuning_menu)
+
+
+## Terug naar het hoofdmenu: sessie verlaten en de hoofdscène opnieuw laden.
+func _leave_to_menu() -> void:
+	get_tree().paused = false
+	Net.leave()
+	get_tree().reload_current_scene()

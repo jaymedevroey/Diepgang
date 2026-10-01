@@ -29,10 +29,18 @@ const DEFAULTS := {
 	"controls/invert_y": false,
 	"interface/ui_scale": 1.0,
 	"interface/camera_shake": 1.0,
-	"interface/show_hints": true,
-	"interface/crosshair": true,
-	"interface/stats": false, # F3-infopaneel
+	"interface/hide_ip": false, # voor streamers: IP-adres nergens tonen
+	# HUD per onderdeel (zoals DRG): 0 uit · 1 dynamisch (verschijnt bij een verandering) · 2 altijd.
+	"hud/crosshair": 2,
+	"hud/prompts": 2,
+	"hud/tools": 1,
+	"hud/depth": 1,
+	"hud/team": 1,
+	"hud/stats": 0, # F3-infopaneel (0 uit, 2 aan)
 }
+const HUD_OFF := 0
+const HUD_DYNAMIC := 1
+const HUD_ALWAYS := 2
 
 var _cfg := ConfigFile.new()
 var _ready_done := false
@@ -121,7 +129,7 @@ func _apply(key: String) -> void:
 			root.scaling_3d_scale = s
 			root.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if s < 0.99 else Viewport.SCALING_3D_MODE_BILINEAR
 		"interface/ui_scale":
-			root.content_scale_factor = clampf(get_f(key), 0.75, 1.5)
+			root.content_scale_factor = clampf(get_f(key), 0.75, 2.0)
 		"audio/master", "audio/sfx", "audio/music", "audio/voice", "audio/ui":
 			var bus: String = "Master" if key == "audio/master" else BUSES[["audio/sfx", "audio/music", "audio/voice", "audio/ui"].find(key)]
 			var i := AudioServer.get_bus_index(bus)
