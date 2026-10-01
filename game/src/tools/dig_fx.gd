@@ -27,7 +27,7 @@ var _dust_draw: QuadMesh
 var _spark_material: ParticleProcessMaterial
 var _spark_draw: QuadMesh
 var _grit_material: ParticleProcessMaterial
-var _grit_draw: BoxMesh
+var _grit_draw: Mesh
 var _rng := RandomNumberGenerator.new()
 
 
@@ -152,6 +152,14 @@ func _burst_dust(pos: Vector3, normal: Vector3, color: Color, amount: int, scale
 	p.material_override = m
 
 
+## Kopie van een mesh, verkleind (deeltjes schalen hun mesh niet zelf naar een maat).
+static func _scaled(src: Mesh, size: float) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	st.append_from(src, 0, Transform3D(Basis().scaled(Vector3.ONE * size), Vector3.ZERO))
+	return st.commit()
+
+
 func _burst_grit(pos: Vector3, normal: Vector3, color: Color, amount: int) -> void:
 	var p := _one_shot(_grit_material, _grit_draw, amount, 0.9, pos, normal)
 	var m := StandardMaterial3D.new()
@@ -208,14 +216,15 @@ func _spawn_pebble(pos: Vector3, normal: Vector3, color: Color) -> void:
 	body.mass = 0.15
 	body.continuous_cd = true
 	var s := _rng.randf_range(0.05, 0.11)
-	var box := BoxMesh.new()
-	box.size = Vector3(s, s * _rng.randf_range(0.6, 1.0), s * _rng.randf_range(0.7, 1.3))
+	# Een echt rotsbrokje (finds.glb: Chunk_0..2), geen kubusje. Botsen gaat met een doosje.
+	var dims := Vector3(s, s * _rng.randf_range(0.6, 1.0), s * _rng.randf_range(0.7, 1.3))
 	var shape := BoxShape3D.new()
-	shape.size = box.size
+	shape.size = dims * 0.85
 	var cs := CollisionShape3D.new()
 	cs.shape = shape
 	var mesh := MeshInstance3D.new()
-	mesh.mesh = box
+	mesh.mesh = FindKinds.chunk(_rng.randi_range(0, 2))
+	mesh.scale = dims
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = color.darkened(_rng.randf_range(0.1, 0.35))
 	mat.roughness = 1.0
@@ -288,8 +297,7 @@ func _build_materials() -> void:
 	_grit_material.scale_max = 1.2
 	_grit_material.angular_velocity_min = -400.0
 	_grit_material.angular_velocity_max = 400.0
-	_grit_draw = BoxMesh.new()
-	_grit_draw.size = Vector3.ONE * 0.03
+	_grit_draw = _scaled(FindKinds.chunk(1), 0.032)
 
 	# Vonken: fel, kort, uitgerekt in de bewegingsrichting.
 	_spark_material = ParticleProcessMaterial.new()

@@ -16,6 +16,7 @@ extends Node3D
 ##   mol_preview       screenshots van de Mol (buiten, binnen, cabine, afdalen)
 ##   hud_preview       screenshots van de HUD in alle toestanden
 ##   ui_preview        thema en instellingenmenu
+##   finds_gallery     alle vondsten en het puin naast elkaar (screenshots)
 ##   tool_preview      screenshots van het gereedschap (studio en first person)
 ##   ui_test           menu's met echte invoer: Esc, toetsen omzetten, bewaren, pauze (headless)
 ##   tuning_test       tuning-waarden aanpassen en bewaren (headless)
@@ -43,6 +44,7 @@ const SCENARIOS := {
 	"hud_preview": preload("res://src/main/scenarios/hud_preview.gd"),
 	"ui_test": preload("res://src/main/scenarios/ui_test.gd"),
 	"tool_preview": preload("res://src/main/scenarios/tool_preview.gd"),
+	"finds_gallery": preload("res://src/main/scenarios/finds_gallery.gd"),
 }
 ## Scenario's waarin de host ook een eigen speler krijgt.
 const SCENARIOS_WITH_PLAYER := ["play", "net_test", "find_test", "carry_test", "carry_preview", "mol_test", "mol_preview", "hud_preview", "ui_test", "tool_preview"]

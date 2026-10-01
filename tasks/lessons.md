@@ -2,6 +2,14 @@
 
 Wat we onderweg leerden en wat het GDD bijstuurt. Nieuwste bovenaan.
 
+## 2026-10-01 — Gereedschap, vondsten en puin
+
+- **Een eigen `vertex()` in een shader moet `POSITION` in elke tak schrijven.** Enkel in de viewmodel-tak schrijven liet alle andere meshes met die shader verdwijnen (de Mol was onzichtbaar).
+- **Een GLB statisch instantiëren om er meshes uit te halen lekt** als je de scène niet vrijgeeft: mesh + transform bewaren en `root.free()`.
+- **Kleine voorwerpen op de machine-shader**: de ruis voor slijtage en vuil is op Mol-schaal gemaakt. Op een houweel werd het vlekkerig: `detail_scale` (×7) en minder slijtage (0,35 voor gereedschap, 0,7 voor vondsten).
+- **Soort per vondst uit de seed en de laag** (`FindKinds.pick_kind`): elke peer kiest dezelfde, zonder netwerkverkeer.
+- Puin als echte rotsbrokjes (lage ico-bollen met ruis) leest meteen als rots; kubusjes leken op Minecraft.
+
 ## 2026-10-01 — Rots en licht
 
 - **Willekeurig gekantelde voronoi-facetten lezen als tegels of glas-in-lood**, zeker met lijnen op de randen. Wat wél werkt voor de DRG-look: de normaal afronden op een rooster van richtingen (gekwantiseerde normaal). Een gebogen wand valt dan uiteen in vlakken die zijn vorm volgen, en buurvlakken lijken op elkaar, zoals een grof gemodelleerde rots.

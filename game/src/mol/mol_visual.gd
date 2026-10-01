@@ -38,6 +38,15 @@ const MATS := {
 	"Blue": {"albedo": Color(0.15, 0.35, 0.6), "metallic": 0.2, "roughness": 0.5, "edge": 0.5, "grime": 0.4},
 	"DecalDark": {"albedo": Color(0.05, 0.05, 0.055), "metallic": 0.0, "roughness": 0.6, "edge": 0.0, "grime": 0.3},
 	"DecalLight": {"albedo": Color(0.95, 0.93, 0.88), "metallic": 0.0, "roughness": 0.6, "edge": 0.0, "grime": 0.3},
+	# Vondsten (tools/blender/finds.py).
+	"Bone": {"albedo": Color(0.88, 0.82, 0.67), "metallic": 0.0, "roughness": 0.65, "edge": 0.5, "grime": 0.9, "bare": Color(0.97, 0.94, 0.86), "grime_col": Color(0.42, 0.28, 0.12)},
+	"BoneDark": {"albedo": Color(0.3, 0.22, 0.14), "metallic": 0.0, "roughness": 0.85, "edge": 0.0, "grime": 0.3},
+	"Gold": {"albedo": Color(1.0, 0.76, 0.26), "metallic": 1.0, "roughness": 0.28, "edge": 0.4, "grime": 0.5, "bare": Color(1.0, 0.9, 0.55)},
+	"Brass": {"albedo": Color(0.74, 0.54, 0.26), "metallic": 0.85, "roughness": 0.4, "edge": 0.6, "grime": 0.85, "bare": Color(0.92, 0.78, 0.48), "grime_col": Color(0.22, 0.34, 0.24)},
+	"Skin": {"albedo": Color(0.95, 0.72, 0.6), "metallic": 0.0, "roughness": 0.55, "edge": 0.5, "grime": 0.6, "bare": Color(0.92, 0.9, 0.85)},
+	"Rock": {"albedo": Color(0.42, 0.37, 0.33), "metallic": 0.0, "roughness": 0.92, "edge": 0.3, "grime": 0.5, "bare": Color(0.6, 0.55, 0.5)},
+	"Quartz": {"albedo": Color(0.92, 0.9, 0.86), "metallic": 0.0, "roughness": 0.35, "edge": 0.0, "grime": 0.3},
+	"Green": {"albedo": Color(0.3, 0.55, 0.22), "metallic": 0.0, "roughness": 0.7, "edge": 0.5, "grime": 0.6, "bare": Color(0.92, 0.9, 0.85)},
 }
 const EMISSIVE := {
 	"Lens": [Color(1.0, 0.85, 0.6), 3.0],
@@ -199,6 +208,8 @@ static func machine_material(name: String, inside := false, detail := 1.0, viewm
 	m.set_shader_parameter("grime", p.grime * (0.45 if inside else 1.0) * wear)
 	m.set_shader_parameter("low_grime", 0.0 if inside else 1.0)
 	m.set_shader_parameter("bare_metal", p.get("bare", Color(0.62, 0.62, 0.6)))
+	if p.has("grime_col"):
+		m.set_shader_parameter("grime_color", p.grime_col)
 	m.set_shader_parameter("hazard", p.get("hazard", false))
 	return m
 
@@ -402,12 +413,11 @@ func _build_particles() -> void:
 	(_dust.process_material as ParticleProcessMaterial).scale_min = 1.4
 	(_dust.process_material as ParticleProcessMaterial).scale_max = 3.0
 	(_dust.process_material as ParticleProcessMaterial).scale_curve = _curve_tex([Vector2(0, 0.5), Vector2(1, 1.6)])
-	var grit_mesh := BoxMesh.new()
-	grit_mesh.size = Vector3.ONE * 0.07
+	var grit_mesh := DigFx._scaled(FindKinds.chunk(2), 0.09) # rotsbrokjes, geen kubusjes
 	var gm := StandardMaterial3D.new()
 	gm.vertex_color_use_as_albedo = true
 	gm.roughness = 0.9
-	grit_mesh.material = gm
+	grit_mesh.surface_set_material(0, gm)
 	# Weinig zwaartekracht: anders valt gruis van de bovenkant van de ring voor de kopcamera.
 	_grit = _burst_emitter(head_front, 140, 0.7, grit_mesh, 3.0, 7.0, 75.0, Vector3(0, -1.5, 0))
 	var spark := QuadMesh.new()

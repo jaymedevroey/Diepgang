@@ -4,7 +4,7 @@ extends RigidBody3D
 ## van de korst simuleert de host hem (Jolt), clients volgen de host (GDD §9).
 
 var find_id := -1
-var kind: FossilModel.Kind
+var kind: FindKinds.Kind
 var base_value := 0
 ## 1 = gaaf. Boren door de korst verlaagt dit (GDD §3).
 var condition := 1.0
@@ -21,21 +21,23 @@ var _snapshots: Array = [] # [ontvangsttijd ms, Transform3D]
 var _mesh: MeshInstance3D
 
 
-func setup(id: int, kind_value: FossilModel.Kind) -> void:
+func setup(id: int, kind_value: FindKinds.Kind) -> void:
 	find_id = id
 	kind = kind_value
 	name = "Find%d" % id
-	base_value = FossilModel.BASE_VALUES[kind]
-	mass = FossilModel.MASSES[kind]
+	base_value = FindKinds.BASE_VALUES[kind]
+	mass = FindKinds.MASSES[kind]
 	collision_layer = Layers.LOOT
 	collision_mask = Layers.TERRAIN | Layers.LOOT | Layers.PLAYERS | Layers.LIFT
 	continuous_cd = true
 	freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
 	freeze = true
-	var mesh := FossilModel.build_mesh(kind)
+	var mesh := FindKinds.mesh(kind)
 	_mesh = MeshInstance3D.new()
 	_mesh.mesh = mesh
-	_mesh.material_override = FossilModel.bone_material().duplicate()
+	var mats := FindKinds.materials(kind)
+	for i in mats.size():
+		_mesh.set_surface_override_material(i, mats[i])
 	add_child(_mesh)
 	var cs := CollisionShape3D.new()
 	cs.shape = mesh.create_convex_shape(true, true)
@@ -44,7 +46,7 @@ func setup(id: int, kind_value: FossilModel.Kind) -> void:
 
 
 func display_name() -> String:
-	return FossilModel.NAMES[kind]
+	return FindKinds.NAMES[kind]
 
 
 func value() -> int:
@@ -52,11 +54,23 @@ func value() -> int:
 
 
 ## Korte gloed bij het vrijkomen (de "ding"-beloning, docs/research/graven.md).
+## Kostbare vondsten gloeien goud en langer.
 func celebrate() -> void:
-	var mat := _mesh.material_override as StandardMaterial3D
+	var precious := base_value >= FindKinds.PRECIOUS
+	var peak := 2.2 if precious else 1.0
 	var tw := create_tween()
-	tw.tween_property(mat, "emission_energy_multiplier", 1.2, 0.08)
-	tw.tween_property(mat, "emission_energy_multiplier", 0.0, 0.9)
+	tw.tween_method(_set_flash, 0.0, peak, 0.08)
+	tw.tween_method(_set_flash, peak, 0.0, 1.6 if precious else 0.9)
+
+
+func _set_flash(v: float) -> void:
+	for i in _mesh.mesh.get_surface_count():
+		var m := _mesh.get_surface_override_material(i)
+		if m is ShaderMaterial:
+			(m as ShaderMaterial).set_shader_parameter("flash", v)
+			(m as ShaderMaterial).set_shader_parameter("flash_color", Color(1.0, 0.78, 0.3) if base_value >= FindKinds.PRECIOUS else Color(1.0, 0.9, 0.7))
+		elif m is StandardMaterial3D and (m as StandardMaterial3D).emission_enabled and (m as StandardMaterial3D).albedo_color.a < 1.0:
+			(m as StandardMaterial3D).emission_energy_multiplier = v
 
 
 ## Client: toestand van de host binnen. `in_mol`: transform is relatief tot de Mol.

@@ -18,7 +18,9 @@ uniform vec3 grime_color : source_color = vec3(0.16, 0.12, 0.09);
 uniform float variation = 0.06;
 uniform bool hazard = false;        // geel-zwarte strepen
 uniform float hazard_scale = 2.2;   // strepen per meter
-uniform float detail_scale = 1.0;   // >1 voor kleine voorwerpen (gereedschap): fijnere vlekken en strepen
+uniform float detail_scale = 1.0;
+uniform float flash = 0.0;          // korte gloed (bv. een vondst die vrijkomt)
+uniform vec3 flash_color : source_color = vec3(1.0, 0.9, 0.7);   // >1 voor kleine voorwerpen (gereedschap): fijnere vlekken en strepen
 // Gereedschap in beeld (first person): eigen gezichtsveld en niet door muren steken (zoals
 // fov_override en z_clip_scale van StandardMaterial3D).
 uniform bool viewmodel = false;
@@ -98,4 +100,5 @@ void fragment() {
 	ALBEDO = col;
 	METALLIC = met;
 	ROUGHNESS = rough;
+	EMISSION = flash_color * flash;
 }

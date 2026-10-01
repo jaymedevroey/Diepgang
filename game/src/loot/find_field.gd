@@ -52,7 +52,7 @@ func generate(pit_seed: int) -> void:
 		if not ok:
 			continue
 		var item := FindItem.new()
-		item.setup(items.size(), FossilModel.pick_kind(rng))
+		item.setup(items.size(), FindKinds.pick_kind(rng, pos.y, t.layer_at(pos)))
 		add_child(item)
 		item.global_position = pos
 		item.rotation = Vector3(rng.randf() * TAU, rng.randf() * TAU, rng.randf() * TAU)

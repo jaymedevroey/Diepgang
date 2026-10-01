@@ -129,6 +129,12 @@ Stijl: Deep Rock Galactic + PEAK + Astroneer. Alle modellen in Blender (geen AI-
     - De Mol boort ruwe tunnels (happen uit wand en plafond, vloer glad).
     - Verificatie: voor/na-beelden per laag met dezelfde camera (`terrain_preview`, logs/rots_voor_na.png); GPU-tijd gelijk of lager dan de oude shader (1080p); alle tests en de nettest groen.
     - Open: Jayme speelt het. Later: echte kristallen en stalactieten als modellen (M3: Kristalgrotten), de oppervlakte rond de put.
+  - [x] **Gereedschap, vondsten en puin in Blender**, 2026-10-01.
+    - Gereedschap ([tools.py](../tools/blender/tools.py)): houweel (rubberen greep, tape, stalen kop), boor met accu, lampje en draaiende spiraal, robothandschoen in de spelerskleur. In first person met een eigen FOV en z-clip in de machine-shader (niet door de wand).
+    - Vondsten ([finds.py](../tools/blender/finds.py), `FindKinds`): 12 soorten in families per laag. Klei: muntenbuidel, oude fles, tuinkabouter, oude tv. Zandsteen: dijbeen, wervel, rib, schedel, klauw, mijnwerkerslamp. Diep zandsteen (14 m boven het graniet): ook geode en goudklomp. Elke soort heeft een naam, waarde en gewicht; kostbare vondsten (≥ €200) gloeien goud bij het vrijkomen.
+    - Puin: rotsbrokjes (3 vormen) in plaats van kubusjes, bij houweel, boor en de Mol.
+    - Verificatie: `tool_preview` (studio + first person), `finds_gallery` (logs/vondsten.png, logs/puin.png), `find_preview` in de rots (korst → barst → vondst vrij met brokjes) bekeken. Alle tests en de nettest groen.
+    - Open: Jayme speelt het. Bij afsluiten melden de tests nog "resources still in use": geluiden die nog spelen (crust_break, find_ding). Oplossen bij het geluid.
 - [ ] **M3 Inhoud** (eind oktober): de Mol werkend (afdalen, rijden en boren, laadruim, extractie; vervangt de lift), Fossielbed, Kristalgrotten, Graafworm, gas, ±8 items, depot met kas en museum, cosmetica.
 - [ ] **M4 Samen** (begin november): Steam-lobby's en uitnodigingen, voice, test met 150 ms vertraging. Poort 2.
 - [ ] **M5 Kernlus** (half november): opdrachten, quota, boete, lava, onrust, opslaan, host-vertrek, Oude Kolenmijn met tutorial.
