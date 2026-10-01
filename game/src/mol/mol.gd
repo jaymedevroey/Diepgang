@@ -23,6 +23,7 @@ const BORE_STEP := 0.9 # meter tussen twee boorbollen
 ## Boorbol iets onder de as: de tunnelvloer ligt dan net onder de rupsen (anders tilt de steun de Mol
 ## telkens een paar cm op en komt hij nooit vooruit naar beneden).
 const BORE_DROP := 0.12
+const BORE_BITES := 6 # happen uit de wand per boorbol (ruwe tunnel)
 ## Steun met dode zone: binnen [-LIFT_AT, FALL_AT] blijft de hoogte staan (voxelruis is ±5 cm).
 const LIFT_AT := 0.12
 const FALL_AT := 0.2
@@ -66,6 +67,7 @@ var _blocked_sound := 0.0
 var _beep_timer := 0.0
 var _start_pos := Vector3.ZERO
 var _readout_timer := 0.0
+var _rng := RandomNumberGenerator.new()
 var _ramp_shape: CollisionShape3D
 var _visual_yaw := 0.0
 var _teleport: Variant = null # [pos, yaw, pitch], toegepast in de volgende physics-tick
@@ -80,6 +82,7 @@ var _pilot_send := 0.0
 
 func setup() -> void:
 	var t: TerrainAPI = game.terrain
+	_rng.seed = t.pit_seed * 7919 + 13
 	var c := t.shaft_center_world()
 	_start_pos = Vector3(c.x, t.surface_height_at(c.x, c.z) - TRACK_BOTTOM, c.z)
 	body = AnimatableBody3D.new()
@@ -452,9 +455,22 @@ func _shave_body(pos: Vector3, fwd: Vector3) -> void:
 			_bore(c)
 
 
+## Boorbol plus een paar happen uit wand en plafond (nooit uit de vloer: de rupsen rijden glad),
+## zodat de tunnel ruw en brokkelig wordt in plaats van een gladde buis.
 func _bore(center: Vector3) -> void:
 	center -= body.global_basis.y * BORE_DROP
-	game.terrain_sync.host_apply(game.terrain.make_sphere_op(0, center, BORE_RADIUS))
+	var bites: Array = []
+	var basis := body.global_basis
+	for k in BORE_BITES:
+		var d := Vector3(_rng.randf_range(-1.0, 1.0), _rng.randf_range(-0.2, 1.0), _rng.randf_range(-1.0, 1.0))
+		if d.length() < 0.2:
+			continue
+		d = d.normalized()
+		if d.y < -0.2: # niet in de vloer
+			continue
+		var r := _rng.randf_range(0.45, 0.95)
+		bites.append([center + basis * d * (BORE_RADIUS - r * 0.4), r])
+	game.terrain_sync.host_apply(game.terrain.make_sphere_op(0, center, BORE_RADIUS, bites))
 
 
 ## De rupsen rusten op de grond. Gemeten in de terreindata (SDF), niet met botsvormen:

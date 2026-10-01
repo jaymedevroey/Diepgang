@@ -83,6 +83,7 @@ func _rpc_submit(op: Dictionary) -> void:
 		return
 	var sender := multiplayer.get_remote_sender_id()
 	op["p"] = sender
+	op.erase("b") # wandhappen enkel van de host (de Mol), nooit van een client
 	var reason := _validate(sender, op)
 	if reason != "":
 		rejected_ops += 1

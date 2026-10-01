@@ -107,6 +107,10 @@ func _physics_process(_delta: float) -> void:
 		match op.op:
 			Op.SPHERE_REMOVE:
 				_tool.do_sphere(c, op.r)
+				if op.has("b"):
+					var b: PackedFloat32Array = op.b
+					for i in range(0, b.size() - 3, 4):
+						_tool.do_sphere(Vector3(b[i], b[i + 1], b[i + 2]), b[i + 3])
 			Op.CHIP:
 				_apply_chip(op)
 		_op_log.append(op)
@@ -140,10 +144,20 @@ func request_chip(player_id: int, world_hit: Vector3, world_normal: Vector3,
 
 
 ## Bol wegnemen rond `world_center`. Maakt enkel de op; toepassen met apply_op.
-func make_sphere_op(player_id: int, world_center: Vector3, radius_m: float) -> Dictionary:
+## Bol, optioneel met kleinere happen uit de wand (`bites`: [[wereldcentrum, straal_m], ...]) voor een
+## ruwe, brokkelige tunnelwand. De happen zitten in de op zelf, zodat elke peer exact hetzelfde toepast.
+func make_sphere_op(player_id: int, world_center: Vector3, radius_m: float, bites: Array = []) -> Dictionary:
 	var r := radius_m / VOXEL_SIZE
 	var c := _clamp_center(_terrain.to_local(world_center), r)
-	return {"op": Op.SPHERE_REMOVE, "c": c, "r": r, "h": world_center, "tick": _tick, "p": player_id}
+	var op := {"op": Op.SPHERE_REMOVE, "c": c, "r": r, "h": world_center, "tick": _tick, "p": player_id}
+	if not bites.is_empty():
+		var b := PackedFloat32Array()
+		for bite: Array in bites:
+			var br: float = float(bite[1]) / VOXEL_SIZE
+			var bc := _clamp_center(_terrain.to_local(bite[0]), br)
+			b.append_array([bc.x, bc.y, bc.z, br])
+		op["b"] = b
+	return op
 
 
 ## Houweelslag: een afgeplatte, ruwe schilfer van `depth_m` diep en ±`radius_m` breed,
@@ -290,6 +304,8 @@ func _op_reach(op: Dictionary) -> float:
 	match op.op:
 		Op.CHIP:
 			return maxf(op.rt, op.rd) + op.amp
+	if op.has("b"):
+		return op.r + 2.5 # happen op de wand steken tot ±1 m (2 voxels) verder
 	return op.r
 
 

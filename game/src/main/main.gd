@@ -59,6 +59,7 @@ var _pause: PauseMenu
 var _tuning_menu: TuningMenu
 var _start_menu: StartMenu
 var _backdrop: MenuBackdrop
+var _atmosphere: Atmosphere
 var _mol_connected := false
 var _frame_since_spawn := -1
 var _shot_frames: PackedInt32Array = []
@@ -154,6 +155,11 @@ func _on_net_started() -> void:
 
 
 func _on_world_loaded(stats: Dictionary) -> void:
+	if _atmosphere == null:
+		_atmosphere = Atmosphere.new()
+		_atmosphere.name = "Atmosphere"
+		add_child(_atmosphere)
+		_atmosphere.setup(($WorldEnvironment as WorldEnvironment).environment, terrain)
 	if not _mol_connected:
 		_mol_connected = true
 		game.mol.message.connect(func(t: String) -> void:

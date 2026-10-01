@@ -81,6 +81,7 @@ func _ready() -> void:
 	lamp.spot_range = 20.0
 	lamp.spot_angle = 52.0
 	lamp.spot_angle_attenuation = 0.6
+	lamp.light_volumetric_fog_energy = 1.6 # de bundel leest in het stof
 	# Boven en naast het oog, zoals op een helm: zo werpen putjes en richels schaduw.
 	lamp.position = Vector3(0.18, 0.22, 0.05)
 	# Helmlampen van anderen zonder schaduw: GDD §9 budget van 4-8 schaduwlampen.
@@ -88,6 +89,20 @@ func _ready() -> void:
 	# Gereedschap in beeld (laag 2) niet: van zo dichtbij brandt het uit. Het heeft een eigen vullicht.
 	lamp.light_cull_mask = ~PickaxeModel.VIEWMODEL_LAYER
 	head.add_child(lamp)
+	# Brede, zwakke gloed rond de bundel: geen harde lichtcirkel (zaklamp-in-een-kelder-gevoel),
+	# zoals een echte helmlamp met een hete kern en een zachte rand.
+	var fill := SpotLight3D.new()
+	fill.name = "LampFill"
+	fill.light_color = Color(1.0, 0.8, 0.58)
+	fill.light_energy = Tuning.get_f("player", "lamp_fill_energy", 0.9)
+	fill.spot_range = 13.0
+	fill.spot_angle = 80.0
+	fill.spot_angle_attenuation = 1.6
+	fill.shadow_enabled = false
+	fill.light_volumetric_fog_energy = 0.3
+	fill.light_cull_mask = ~PickaxeModel.VIEWMODEL_LAYER
+	fill.position = lamp.position
+	head.add_child(fill)
 
 	if is_local:
 		_setup_local()
