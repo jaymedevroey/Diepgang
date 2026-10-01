@@ -442,7 +442,7 @@ func _probe_ring(center: Vector3, fwd: Vector3, radius := 2.4) -> Array:
 
 ## Draaien of kantelen: voor- en achterkant zwaaien opzij. Over de hele lengte vrijmaken waar
 ## rots tegen de romp zit (bollen om de 1,6 m: daartussen blijft de tunnel breder dan de romp).
-const SHAVE_OFFSETS := [-6.4, -4.8, -3.2, -1.6, 0.0, 1.6, 3.2, 4.4]
+const SHAVE_OFFSETS := [6.4, 4.8, 3.2, 1.6, 0.0, -1.6, -3.2, -4.4] # meter vóór het midden (+ = richting de kop)
 
 
 func _shave_body(pos: Vector3, fwd: Vector3) -> void:

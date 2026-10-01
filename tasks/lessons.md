@@ -5,7 +5,8 @@ Wat we onderweg leerden en wat het GDD bijstuurt. Nieuwste bovenaan.
 ## 2026-10-01 — De Mol
 
 - **Een test die enkel zittend meerijdt, bewijst niets over staand meerijden.** Jayme stond in de rijdende Mol: hij gleed 4 m weg en zijn blik draaide 180° mee. De vloer van een AnimatableBody neemt een CharacterBody niet mee in draaiing. Oplossing: wie in de Mol staat, krijgt elke tick de verplaatsing en draaiing van de Mol erbij (`Player._ride_mol`), platformsnelheid uit, en de Mol simuleert vóór de spelers (`process_physics_priority`). Elke fix nu eerst met een test die zonder de fix faalt.
-- **Een lang voertuig dat rond zijn midden draait, zwaait met kop en staart door de tunnelwand.** Over de hele lengte vrijschaven bij elke 3° draaien of kantelen.
+- **Een lang voertuig dat rond zijn midden draait, zwaait met kop en staart door de tunnelwand.** Over de hele lengte vrijschaven bij elke 3° draaien of kantelen. Let op het teken: offsets langs `forward()` zijn + naar de kop, lokale z is − naar de kop (eerst gespiegeld: de kop werd niet vrijgeschaafd en de camera zat in de rots). Tests moeten tot het uiterste puntje meten.
+- De eerste `net_test` meteen na een scriptwijziging faalde één keer en slaagde daarna 5× op rij; vermoedelijk bouwen host en client tegelijk de scriptcache. Bij een fout: eerst opnieuw draaien en de uitvoer lezen.
 - **Geen anti-aliasing + elk frame het model 1 cm verschuiven (trillen) = zinderende "glitch".** MSAA 4× aan, trillen enkel met de camera.
 - **Coplanaire vlakken flikkeren** (vloerplaat op exact de hoogte van de uitgesneden romp). Altijd een paar mm afstand.
 - **Een lamp in het voorvlak van zijn eigen behuizing, met schaduw, verlicht niets** (camerascherm bleef zwart). In de preview leek het te werken door stof voor de camera.

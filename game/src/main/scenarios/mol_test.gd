@@ -156,6 +156,8 @@ func _run(p: Player) -> void:
 	_expect(absf(rad_to_deg(angle_difference(yaw0, mol.yaw))) > 60.0, "piloot draait ter plaatse (%.0f°)" % rad_to_deg(absf(angle_difference(yaw0, mol.yaw))))
 	await _wait(0.5)
 	_expect(_hull_clear(mol, t), "na het draaien zit er geen rots in de romp")
+	var cam_node: Node3D = mol.visual.anchors["Cam_Feed"]
+	_expect(not t.is_solid(cam_node.global_position), "kopcamera zit na het draaien niet in de rots (sdf %.2f)" % t.sdf_at(cam_node.global_position))
 	Input.action_press("jump")
 	await _wait(1.5)
 	Input.action_release("jump")
@@ -224,7 +226,7 @@ func _run(p: Player) -> void:
 ## Geen rots binnen de romp: punten op 2,3 m van de as, over de hele lengte.
 func _hull_clear(mol: Mol, t: TerrainAPI) -> bool:
 	var bad := 0
-	for z in [-6.0, -4.0, -2.0, 0.0, 2.0, 4.0]:
+	for z in [-7.6, -6.0, -4.0, -2.0, 0.0, 2.0, 4.0]:
 		for k in 8:
 			var a := k / 8.0 * TAU
 			var local := Vector3(cos(a) * 2.3, sin(a) * 2.0, z)
