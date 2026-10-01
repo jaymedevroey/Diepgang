@@ -104,8 +104,10 @@ Netwerkmodel (GDD §9): host-autoritatief voor terrein en buit; elke speler bepa
 
 Volgorde op vraag van Jayme: eerst mooi, dan inhoud, dan Steam/voice, dan de kernlus.
 
-- [ ] **M2 Uiterlijk** (half oktober): rotstexturen, modellen (gereedschap, fossielen, lift, puin), sfeer en licht, ambient geluid en muziek, menu- en HUD-stijl, instellingen.
-- [ ] **M3 Inhoud** (eind oktober): Fossielbed, Kristalgrotten, Graafworm, gas, ±8 items, depot met kas en museum, cosmetica.
+Stijl: Deep Rock Galactic + PEAK + Astroneer. Alle modellen in Blender (geen AI-modellen).
+
+- [ ] **M2 Uiterlijk** (half oktober): stijlgids, rotstexturen, Blender-modellen (de Mol, gereedschap, fossielen, puin), sfeer en licht, ambient geluid en muziek, menu- en HUD-stijl, instellingen.
+- [ ] **M3 Inhoud** (eind oktober): de Mol werkend (afdalen, rijden en boren, laadruim, extractie; vervangt de lift), Fossielbed, Kristalgrotten, Graafworm, gas, ±8 items, depot met kas en museum, cosmetica.
 - [ ] **M4 Samen** (begin november): Steam-lobby's en uitnodigingen, voice, test met 150 ms vertraging. Poort 2.
 - [ ] **M5 Kernlus** (half november): opdrachten, quota, boete, lava, onrust, opslaan, host-vertrek, Oude Kolenmijn met tutorial.
 - [ ] **M6 Demo** (december): demo, capsules, trailer, Steam-pagina.

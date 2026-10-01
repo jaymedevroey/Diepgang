@@ -1,13 +1,13 @@
 # DIEPGANG — Game Design Document
 
-> Werktitel. Versie 2, 30 september 2026.
+> Werktitel. Versie 2.1, 1 oktober 2026 (v2: 30 september). Wijzigingen in v2.1: zie §14.
 > 3D online co-op opgravingsgame voor Steam, volledig te bouwen door een AI-codeeragent op Jayme's pc thuis.
 
 ---
 
 ## 1. Samenvatting
 
-**Pitch:** Online co-op voor 1–4 spelers in first-person 3D. Jullie zijn robotjes van **Diepgang BV**, een louche opgravingsfirma. In een afgesloten opgravingsput graaf je door volledig vervormbare aarde naar fossielen, relieken en schatten, en sleep je ze naar de lift voor de lava van onderen alles opslokt. In het depot verkoop je de buit, zet je de mooiste vondsten in je **museum** en upgrade je gereedschap, uitrusting en lift.
+**Pitch:** Online co-op voor 1–4 spelers in first-person 3D. Jullie zijn robotjes van **Diepgang BV**, een louche opgravingsfirma. Met **de Mol**, jullie grote rijdende drilboor, boor je je een weg naar beneden in een afgesloten opgravingsput. Daar graaf je door volledig vervormbare aarde naar fossielen, relieken en schatten, en sleep je ze naar het laadruim van de Mol voor de lava van onderen alles opslokt. In het depot verkoop je de buit, zet je de mooiste vondsten in je **museum** en upgrade je gereedschap, uitrusting en de Mol.
 
 **Hoofdhaak: archeologie in plaats van mijnbouw.** Een skelet komt in 3–8 losse stukken uit de grond. Elk stuk moet apart uitgebikt en heel naar boven gebracht worden. In het depot bouw je het weer in elkaar. Het museum groeit zichtbaar tussen runs, met gaten waar een bot ontbreekt. Dat geeft een verzameldoel, een trofee om aan vrienden te tonen, en iets wat GONE DIGGING, Deep Rock Galactic en R.E.P.O. niet hebben.
 
@@ -56,27 +56,27 @@ Het spel speelt zich volledig ondergronds af:
 - De duisternis beperkt wat je ziet, wat zowel art-werk als performance scheelt.
 - Licht doet het zware werk: gloeiende kristallen en lava.
 
-Het depot is een **ondergrondse hal** bij de liftschacht, geen gebouw aan de oppervlakte.
+Het depot is een **ondergrondse hal** bovenaan de put, waar de Mol tussen diensten staat, geen gebouw aan de oppervlakte.
 
 ---
 
 ## 3. Kernlus
 
 ```
-Depot → opdracht kiezen → lift naar beneden → scannen → graven → korst uitbikken
-→ buit naar de liftschacht slepen → onrust/lava stijgt → extractie → verkopen
-→ museum aanvullen → upgraden → volgende opdracht
+Depot → opdracht kiezen → met de Mol naar beneden boren → scannen → graven → korst uitbikken
+→ buit naar het laadruim van de Mol slepen (of de Mol dichterbij rijden) → onrust/lava stijgt
+→ extractie: de Mol rijdt terug omhoog → verkopen → museum aanvullen → upgraden → volgende opdracht
 ```
 
 ### Een dienst (15–20 minuten)
 1. **Opdracht kiezen**, bijvoorbeeld: "Haal €2.500 aan vondsten boven. Bonus voor een compleet skelet."
-2. **Afdalen.** Midden in de put loopt een verticale liftschacht van boven tot beneden. Via een terminal op elk niveau roep je de lift naar die diepte. Buit sleep je dus vooral **horizontaal** naar de schacht.
+2. **Afdalen.** De Mol boort zich vanuit het depot door de lagen naar beneden, met de hele bemanning aan boord. Door de ramen zie je de lagen voorbijschuiven. Hij stopt op een diepte die de piloot kiest (zolang zijn boorkop die laag aankan).
 3. **Scannen.** Een ping toont vage blips: "iets groots, 12 m, schuin onder".
 4. **Graven.** Je boort tunnels naar de vondst toe.
 5. **Uitbikken.** Elke vondst zit in een **korst**. Met het houweel bik je die weg zonder schade, maar traag. Boren door de korst gaat sneller, maar verlaagt de waarde.
 6. **Slepen.** Met de grijphandschoen draag je buit voor je uit. Zware stukken draag je met twee, maar dan ga je trager. Laat je iets vallen, dan telt de fysica: het botst, breekt of rolt weg.
 7. **Onrust en lava.** Een onrustmeter loopt op met de tijd en met lawaai (boren, explosies). Bij elke drempel beeft de put: rotsblokken vallen in onstabiele zones en de lava stijgt een stuk. Tussen de drempels stijgt de lava ook traag.
-8. **Extractie.** Iemand trekt aan de hendel, en na een aftelling vertrekt de lift. Wie achterblijft, verliest wat hij droeg.
+8. **Extractie.** De piloot trekt aan de hendel. Na een aftelling met claxon rijdt de Mol terug omhoog door zijn eigen tunnel. Wie niet aan boord is, blijft achter en verliest wat hij droeg. Wat in het laadruim ligt, telt.
 9. **Uitbetaling.** De waarde hangt af van hoe gaaf de vondst is, plus een eventuele bonus. Wie de opdracht niet haalt, betaalt een **boete** en verliest reputatie. **Upgrades blijven altijd behouden.** Reputatie bepaalt welke sites je mag doen.
 
 ### Waarom deze lus werkt
@@ -84,6 +84,7 @@ Depot → opdracht kiezen → lift naar beneden → scannen → graven → korst
 - De lava stijgt van onderen, terwijl de beste vondsten diep zitten. Dat is de hebzucht-tegen-veiligheid-afweging.
 - Uitbikken tegenover boren is een voortdurende afweging tussen tijd en waarde.
 - Samen dragen en fysica-ongelukken leveren de clips.
+- De Mol is de veilige thuis in het donker, maar elke meter die hij rijdt maakt lawaai: dichter bij de vondsten rijden of de onrust laag houden?
 
 ---
 
@@ -150,7 +151,7 @@ Elke waardeklasse heeft zijn eigen geluid en glans.
 | **Lichtbakens** (verbruik) | route markeren, de Graafworm afschrikken |
 | **Walkietalkie** | praten buiten het bereik van proximity voice |
 | **Helmlamp** | bereik en helderheid |
-| **Lift** | sneller en grotere laadvloer. **Geen** diepere start: dat zou een lagen-skip zijn |
+| **De Mol** | zie §5A. Upgrades komen later |
 
 **Economie:**
 - Een **gedeelde teamkas** per savegame (de host bewaart).
@@ -161,7 +162,36 @@ Elke waardeklasse heeft zijn eigen geluid en glans.
 - Jetpack: maakt alle andere verticale oplossingen overbodig.
 - Verzekering: maakt voorzichtig uitbikken zinloos.
 - Stutten: instortingen voegen geen terrein toe, dus er valt niets te stutten.
-- Diepere liftstart: zou een lagen-skip zijn.
+- Een Mol die zonder betere boorkop dieper kan: zou een lagen-skip zijn. De boorkop van de Mol volgt dezelfde laagregels als de handboor.
+
+---
+
+## 5A. De Mol (rijdende drilboor en basis)
+
+> Toegevoegd in v2.1 op vraag van Jayme. Werknaam. Vervangt de lift uit M1.
+
+Een grote rupsvoertuig-drilboor (±10 m lang, ±6 m breed) van Diepgang BV: vooraan een draaiende boorkop met snijtanden, daarachter een cabine met ramen en koplampen, een laadruim en een motor met uitlaat. De Mol is jullie **basis**, jullie **transport** en jullie **extractie** in één.
+
+**Rol in een dienst**
+- **Afdalen:** de Mol boort vanuit het depot naar beneden tot de diepte die de piloot kiest.
+- **Rijden:** tijdens de dienst kan hij verder rijden en grote tunnels boren (±6 m breed), ook schuin omhoog of omlaag (begrensde helling).
+- **Laadruim:** buit die erin ligt bij vertrek, telt. De capaciteit is beperkt (gewicht).
+- **Extractie:** terug omhoog door zijn eigen tunnel (zie §3).
+- **Neergegane robots** sleep je naar de Mol om ze te repareren (§6).
+
+**Besturing:** één piloot in de cabine; iedereen mag piloot worden. De anderen rijden mee, binnen of op het dek.
+
+**Traag, luid en beperkt** (zodat met de hand graven en uitbikken de kern blijven):
+- traag (±1,5 m/s rijden, trager tijdens het boren);
+- **luid**: rijden en boren doen de onrust sterk stijgen, en de Graafworm komt erop af;
+- **brandstof** per dienst is beperkt;
+- de **boorkop** volgt de laagregels (T1: klei en zandsteen; betere koppen zijn upgrades).
+
+**Binnenruimte (klein):** een cabine (stoel, stuur, dieptemeter, scannerscherm), een laadruim met laadklep, en een werkbank (upgrades, later). Warm licht en een gezellige thuis in het donker, zoals de drop pod in Deep Rock Galactic.
+
+**Upgrades (later):** boorkop (graniet, kristal), snelheid, brandstoftank, laadruim, hitteschild tegen lava, lier/kraan, lampen, cosmetica (verf, stickers).
+
+**Techniek:** de host simuleert de Mol (de piloot stuurt invoer), kinematisch (AnimatableBody3D), met grote terreinbewerkingen vooraan. Wie meerijdt, staat op een bewegend platform; clients interpoleren. Het lift-platform uit M1 is hiervoor de basis.
 
 ---
 
@@ -180,7 +210,7 @@ Elke waardeklasse heeft zijn eigen geluid en glans.
 
 ### Neergaan: je wordt zelf buit
 - Een neergegane robot wordt een **draagbaar object**.
-- Je team moet je naar de lift slepen om je te repareren. Dat hergebruikt het draagsysteem en levert gegarandeerd grappige momenten op.
+- Je team moet je naar de Mol slepen om je te repareren. Dat hergebruikt het draagsysteem en levert gegarandeerd grappige momenten op.
 - Ben je volledig kapot, dan kijk je mee als spookdrone. Je kan niet praten met de levenden, en dat is de grap.
 - Je progressie verlies je nooit, enkel wat je droeg.
 
@@ -211,6 +241,8 @@ Elke waardeklasse heeft zijn eigen geluid en glans.
 ---
 
 ## 8. Stijl
+
+**Richting (v2.1, Jayme):** de vibe van **Deep Rock Galactic** (gestileerd, chunky, licht in het donker) met de warmte en speelsheid van **PEAK** en de zachte vormen en voertuigen van **Astroneer**. Gestileerd, niet fotorealistisch. **Alle modellen in Blender** (headless scripts), geen AI-gegenereerde modellen.
 
 - **Beeld:** donker als bewuste stijlkeuze. Enkel wat verlicht is, heeft detail.
   - Palet: 6–8 kleuren plus 2 emissieve accenten.
@@ -281,8 +313,8 @@ Elke waardeklasse heeft zijn eigen geluid en glans.
 |---|---|---|---|
 | **M0 Opzet** | ✅ 1 oktober 2026 | Repo, Godot 4.7.2, voxel- en GodotSteam-extensies samen, Windows-export, render- en performancetest | Jayme start de build en kan graven |
 | **M1 Graafspeelgoed** | ✅ 1 oktober | First-person robot, graven, korsten uitbikken, dragen, lift. **Al met netwerk** (ENet, host/join). Tuning-menu | **Poort 1:** voelen graven en slepen goed? |
-| **M2 Uiterlijk** (was M5) | half oktober | Rotstexturen per laag, echte modellen (gereedschap, fossielen, lift, puin), sfeer en licht (stof in de lucht, kristallen, kleurgrading), ambient geluid en muziek, eigen stijl voor menu's en HUD, instellingen | "Ziet het eruit als een game?" |
-| **M3 Inhoud** (was M4) | eind oktober | Fossielbed en Kristalgrotten, Graafworm, gas, alle ±8 items, **depot met teamkas en museum** (vooruitgehaald uit de kernlus), cosmetica | |
+| **M2 Uiterlijk** (was M5) | half oktober | Stijlgids, rotstexturen per laag, Blender-modellen (**de Mol**, gereedschap, fossielen, puin), sfeer en licht (stof in de lucht, kristallen, kleurgrading), ambient geluid en muziek, eigen stijl voor menu's en HUD, instellingen | "Ziet het eruit als een game?" |
+| **M3 Inhoud** (was M4) | eind oktober | **De Mol** werkend (afdalen, rijden en boren, laadruim, extractie; vervangt de lift), Fossielbed en Kristalgrotten, Graafworm, gas, alle ±8 items, **depot met teamkas en museum** (vooruitgehaald uit de kernlus), cosmetica | |
 | **M4 Samen** (was M2) | begin november | Steam-lobby's en uitnodigingen, voice, getest met 150 ms vertraging | **Poort 2:** 30 min met drie vrienden zonder problemen, en is het leuk? |
 | **M5 Kernlus** (was M3) | half november | Opdrachten, quota, boete, lava, onrust, **opslaan**, host die vertrekt, Oude Kolenmijn volledig met tutorial | De eerste versie die "een game" is |
 | **M6 Demo** | december | Demo, capsules, trailer, Steam-pagina | Steam-pagina "Coming Soon" zodra het Steamworks-account er is. **Next Fest juni 2027** blijft de vaste datum (inschrijven voor 25 april); een eerdere Next Fest kan als de deadlines het toelaten |
@@ -367,7 +399,14 @@ diepgang/
 
 ---
 
-## 14. Wat de onafhankelijke review veranderde (v1 → v2)
+## 14. Wijzigingen
+
+### v2 → v2.1 (1 oktober 2026, met Jayme)
+1. **De Mol** toegevoegd (§5A): een rijdende drilboor als basis, transport en extractie. Vervangt de lift en de vaste liftschacht.
+2. **Planning herzien** (§10): uiterlijk eerst, dan inhoud, dan Steam/voice, dan de kernlus. Data ingekort: M0 en M1 waren in een dag klaar.
+3. **Stijl vastgelegd** (§8): Deep Rock Galactic + PEAK + Astroneer. Alle modellen in Blender.
+
+### v1 → v2 (onafhankelijke review)
 
 1. Een quota met boete toegevoegd, omdat er zonder faalconditie geen spanning is.
 2. Een centrale liftschacht die je naar elke diepte roept, in plaats van eindeloos verticaal slepen. De jetpack is geschrapt.
