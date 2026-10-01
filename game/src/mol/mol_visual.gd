@@ -176,20 +176,27 @@ func _apply_materials() -> void:
 			mi.visible = false
 
 
+## Machine-materiaal uit de paletnaam van Blender (ook voor ander decor, bv. het menu).
+static func machine_material(name: String, inside := false) -> ShaderMaterial:
+	if not MATS.has(name):
+		return null
+	var p: Dictionary = MATS[name]
+	var m := ShaderMaterial.new()
+	m.shader = MACHINE
+	m.set_shader_parameter("albedo", p.albedo)
+	m.set_shader_parameter("metallic", p.metallic)
+	m.set_shader_parameter("roughness", p.roughness)
+	m.set_shader_parameter("edge_wear", p.edge * (0.3 if inside else 1.0))
+	m.set_shader_parameter("grime", p.grime * (0.45 if inside else 1.0))
+	m.set_shader_parameter("low_grime", 0.0 if inside else 1.0)
+	m.set_shader_parameter("bare_metal", p.get("bare", Color(0.62, 0.62, 0.6)))
+	m.set_shader_parameter("hazard", p.get("hazard", false))
+	return m
+
+
 func _make_material(name: String, src: Material, inside := false) -> Material:
 	if MATS.has(name):
-		var p: Dictionary = MATS[name]
-		var m := ShaderMaterial.new()
-		m.shader = MACHINE
-		m.set_shader_parameter("albedo", p.albedo)
-		m.set_shader_parameter("metallic", p.metallic)
-		m.set_shader_parameter("roughness", p.roughness)
-		m.set_shader_parameter("edge_wear", p.edge * (0.3 if inside else 1.0))
-		m.set_shader_parameter("grime", p.grime * (0.45 if inside else 1.0))
-		m.set_shader_parameter("low_grime", 0.0 if inside else 1.0)
-		m.set_shader_parameter("bare_metal", p.get("bare", Color(0.62, 0.62, 0.6)))
-		m.set_shader_parameter("hazard", p.get("hazard", false))
-		return m
+		return machine_material(name, inside)
 	if EMISSIVE.has(name):
 		var e := StandardMaterial3D.new()
 		e.albedo_color = EMISSIVE[name][0]
@@ -483,6 +490,7 @@ func _build_audio() -> void:
 
 func _loop(name: String, pos: Vector3, unit: float, max_d: float, db: float) -> AudioStreamPlayer3D:
 	var p := AudioStreamPlayer3D.new()
+	p.bus = &"SFX"
 	p.stream = load("res://assets/audio/sfx/%s.wav" % name)
 	p.unit_size = unit
 	p.max_distance = max_d
@@ -495,6 +503,7 @@ func _loop(name: String, pos: Vector3, unit: float, max_d: float, db: float) -> 
 
 func play(name: String, pos := Vector3.ZERO, db := 0.0) -> void:
 	var p := AudioStreamPlayer3D.new()
+	p.bus = &"SFX"
 	p.stream = load("res://assets/audio/sfx/%s.wav" % name)
 	p.unit_size = 10.0
 	p.max_distance = 80.0

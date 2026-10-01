@@ -209,6 +209,7 @@ func _set_contact(on: bool, skid: bool, pos: Vector3, normal: Vector3, col: Colo
 
 func _loop(name: String, db: float) -> AudioStreamPlayer:
 	var p := AudioStreamPlayer.new()
+	p.bus = &"SFX"
 	p.stream = load("res://assets/audio/sfx/%s.wav" % name)
 	p.volume_db = db
 	add_child(p)

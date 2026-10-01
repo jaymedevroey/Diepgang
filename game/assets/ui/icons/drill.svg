@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Boor: motorblok met handgreep, boorkop naar rechts. -->
+  <g fill="#ffffff">
+    <rect x="6" y="18" width="30" height="20" rx="6"/>
+    <path d="M12 36 h12 l-3 22 h-11 z" />
+    <rect x="35" y="22" width="7" height="12" rx="2"/>
+    <path d="M42 22 L60 28 L42 34 Z"/>
+    <rect x="9" y="12" width="20" height="5" rx="2.5"/>
+  </g>
+</svg>

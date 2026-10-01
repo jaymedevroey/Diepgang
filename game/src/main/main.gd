@@ -35,6 +35,7 @@ const SCENARIOS := {
 	"mol_preview": preload("res://src/main/scenarios/mol_preview.gd"),
 	"tuning_test": preload("res://src/main/scenarios/tuning_test.gd"),
 	"terrain_preview": preload("res://src/main/scenarios/terrain_preview.gd"),
+	"ui_preview": preload("res://src/main/scenarios/ui_preview.gd"),
 }
 ## Scenario's waarin de host ook een eigen speler krijgt.
 const SCENARIOS_WITH_PLAYER := ["play", "net_test", "find_test", "carry_test", "carry_preview", "mol_test", "mol_preview"]
@@ -59,6 +60,7 @@ var _hint: Label
 var _banner: Label
 var _tuning_menu: TuningMenu
 var _start_menu: StartMenu
+var _backdrop: MenuBackdrop
 var _stats_visible := true
 var _aim := Pickaxe.Aim.NONE
 var _banner_until := 0.0
@@ -69,6 +71,7 @@ var _shot_frames: PackedInt32Array = []
 
 func _ready() -> void:
 	InputSetup.ensure()
+	get_tree().root.theme = UiTheme.get_theme() # huisstijl voor alle menu's en de HUD
 	scenario = str(CmdArgs.value("scenario", "play"))
 	var info := Engine.get_version_info()
 	print("[diepgang] godot=%s physics=%s renderer=%s adapter=%s scenario=%s" % [
@@ -121,7 +124,11 @@ func _ready() -> void:
 
 
 func _open_start_menu(port: int) -> void:
+	_backdrop = MenuBackdrop.new()
+	_backdrop.name = "MenuBackdrop"
+	add_child(_backdrop)
 	_start_menu = StartMenu.new()
+	_start_menu.backdrop = _backdrop
 	$HUD.add_child(_start_menu)
 	_start_menu.solo_chosen.connect(func() -> void:
 		_start_menu.visible = false
@@ -174,6 +181,9 @@ func _on_player_spawned(p: Player) -> void:
 	if not p.is_local:
 		return
 	player = p
+	if _backdrop:
+		_backdrop.queue_free() # het menu-decor is niet meer nodig zodra je in de put staat
+		_backdrop = null
 	p.head.rotation.x = deg_to_rad(float(CmdArgs.value("pitch", 0.0)))
 	p.rotate_y(deg_to_rad(float(CmdArgs.value("yaw", 0.0))))
 	p.pickaxe.auto_swing = CmdArgs.has("autodig")
@@ -221,6 +231,7 @@ func _process(_delta: float) -> void:
 	elif player and _aim != Pickaxe.Aim.TOO_HARD:
 		_hint.text = _aim_info()
 	_update_mol_banner()
+	_crosshair.visible = not (_start_menu and _start_menu.visible)
 	if _start_menu and _start_menu.visible:
 		_hud_label.text = ""
 		return

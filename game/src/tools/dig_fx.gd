@@ -130,6 +130,7 @@ func play(key: String, pos: Vector3, volume_db := 0.0, delay := 0.0) -> void:
 	if delay > 0.0:
 		await get_tree().create_timer(delay).timeout
 	var p := AudioStreamPlayer3D.new()
+	p.bus = &"SFX"
 	p.stream = _streams[key]
 	p.volume_db = volume_db
 	p.unit_size = 6.0

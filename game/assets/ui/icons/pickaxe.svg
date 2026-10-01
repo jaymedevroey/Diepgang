@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Houweel: gebogen kop en een dikke steel, schuin van linksonder naar rechtsboven. -->
+  <g fill="#ffffff">
+    <rect x="28" y="16" width="9" height="46" rx="4" transform="rotate(38 32 38)"/>
+    <path d="M6 22 C16 10 34 4 52 8 L54 14 C40 12 28 16 18 26 Z"/>
+    <path d="M38 6 C48 8 56 14 60 24 L54 26 C50 18 44 14 36 12 Z"/>
+    <rect x="31" y="9" width="12" height="11" rx="3" transform="rotate(38 37 14)"/>
+  </g>
+</svg>

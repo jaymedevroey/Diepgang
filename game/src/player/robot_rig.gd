@@ -93,6 +93,7 @@ func set_drilling(on: bool) -> void:
 	_drilling = on
 	if on and _motor == null:
 		_motor = AudioStreamPlayer3D.new()
+		_motor.bus = &"SFX"
 		_motor.stream = load("res://assets/audio/sfx/drill_motor.wav")
 		_motor.unit_size = 5.0
 		_motor.max_distance = 45.0 # luid: de boor hoor je ver (GDD §5)

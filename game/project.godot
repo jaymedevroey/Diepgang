@@ -19,6 +19,8 @@ config/icon="res://icon.svg"
 [autoload]
 
 Tuning="*res://src/main/tuning.gd"
+Settings="*res://src/main/settings.gd"
+Sfx="*res://src/audio/sfx.gd"
 SteamService="*res://src/net/steam_service.gd"
 Net="*res://src/net/net_session.gd"
 

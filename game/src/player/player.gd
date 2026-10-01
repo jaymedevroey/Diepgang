@@ -97,7 +97,10 @@ func _ready() -> void:
 
 func _setup_local() -> void:
 	camera = Camera3D.new()
-	camera.fov = Tuning.get_f("player", "fov", 80.0)
+	camera.fov = Settings.get_f("video/fov")
+	Settings.changed.connect(func(key: String) -> void:
+		if key == "video/fov":
+			camera.fov = Settings.get_f("video/fov"))
 	camera.near = 0.05
 	head.add_child(camera)
 	camera.make_current()
@@ -225,12 +228,22 @@ func _setup_remote() -> void:
 	rig.setup(color)
 
 
+## Muisgevoeligheid: spelgevoel (Tuning) × eigen voorkeur (Settings).
+func _sensitivity() -> float:
+	return Tuning.get_f("player", "mouse_sensitivity", 0.0025) * Settings.get_f("controls/sensitivity")
+
+
+## Muisbeweging met de eigen voorkeur (verticaal omgekeerd of niet).
+func _mouse(relative: Vector2) -> Vector2:
+	return Vector2(relative.x, -relative.y if Settings.get_b("controls/invert_y") else relative.y)
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if not is_local:
 		return
 	var captured := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 	if event is InputEventMouseMotion and captured and seated and chase.current:
-		chase.look(event.relative, Tuning.get_f("player", "mouse_sensitivity", 0.0025))
+		chase.look(_mouse(event.relative), _sensitivity())
 	elif event.is_action_pressed("mol_view") and seated:
 		if chase.current:
 			camera.make_current()
@@ -238,13 +251,15 @@ func _unhandled_input(event: InputEvent) -> void:
 			chase.activate()
 	elif event is InputEventMouseMotion and captured and seated:
 		# In de stoel: rondkijken binnen de cabine.
-		var sens_s := Tuning.get_f("player", "mouse_sensitivity", 0.0025)
-		_look_yaw = clampf(_look_yaw - event.relative.x * sens_s, -1.5, 1.5)
-		head.rotation.x = clampf(head.rotation.x - event.relative.y * sens_s, -0.9, 0.7)
+		var sens_s := _sensitivity()
+		var rel_s := _mouse(event.relative)
+		_look_yaw = clampf(_look_yaw - rel_s.x * sens_s, -1.5, 1.5)
+		head.rotation.x = clampf(head.rotation.x - rel_s.y * sens_s, -0.9, 0.7)
 	elif event is InputEventMouseMotion and captured:
-		var sens := Tuning.get_f("player", "mouse_sensitivity", 0.0025)
-		rotate_y(-event.relative.x * sens)
-		head.rotation.x = clampf(head.rotation.x - event.relative.y * sens, -1.55, 1.55)
+		var sens := _sensitivity()
+		var rel := _mouse(event.relative)
+		rotate_y(-rel.x * sens)
+		head.rotation.x = clampf(head.rotation.x - rel.y * sens, -1.55, 1.55)
 	elif event.is_action_pressed("ui_cancel"):
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	elif event is InputEventMouseButton and event.pressed and not captured:

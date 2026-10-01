@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Muis met de linkerknop ingekleurd. -->
+  <path fill="#ffffff" fill-opacity="0.35" d="M32 4 C45 4 52 13 52 26 V40 C52 52 43 60 32 60 C21 60 12 52 12 40 V26 C12 13 19 4 32 4 Z"/>
+  <path fill="#ffffff" d="M30 4.2 C18.5 5.2 12 14 12 26 V29 H30 Z"/>
+  <rect x="30.5" y="12" width="3" height="12" rx="1.5" fill="#ffffff"/>
+</svg>
