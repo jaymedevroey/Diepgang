@@ -101,12 +101,25 @@ func _run_client(p: Player) -> void:
 	print("[net_test] client: vondst gedragen: %s" % carried)
 	p.global_position = back
 	p.set_physics_process(true)
-	# Lift: 12 m omlaag sturen (de spawn ligt binnen roepafstand van de schacht).
-	var lift: Lift = main.game.lift
-	await get_tree().create_timer(0.5).timeout # host ziet ons pas 100 ms later terug bij de schacht
-	lift.request(Lift.Command.DOWN, p)
-	await get_tree().create_timer(6.0).timeout
-	_rpc_lift_report.rpc_id(1, lift.y)
+	# De Mol: instappen, plaatsnemen, klep dicht, 3 s vooruit rijden (de host simuleert).
+	var mol: Mol = main.game.mol
+	await get_tree().create_timer(0.5).timeout
+	p.global_transform = Transform3D(Basis(Vector3.UP, mol.yaw), mol.to_world_mol(Vector3(0, -1.45, -1.0)))
+	await get_tree().create_timer(0.6).timeout # host moet ons eerst in de Mol zien
+	mol.press(Mol.Cmd.SEAT)
+	await get_tree().create_timer(0.6).timeout
+	mol.press(Mol.Cmd.RAMP)
+	await get_tree().create_timer(1.0).timeout
+	var mol_start := mol.body.global_position
+	Input.action_press("move_forward")
+	await get_tree().create_timer(3.0).timeout
+	Input.action_release("move_forward")
+	await get_tree().create_timer(3.0).timeout
+	_rpc_mol_report.rpc_id(1, mol.body.global_position, mol_start, p.global_position, p.seated, mol.ramp_open, mol.pilot)
+	mol.leave_seat()
+	await get_tree().create_timer(0.5).timeout
+	p.global_position = back
+	await get_tree().create_timer(0.8).timeout
 	_rpc_tuning_report.rpc_id(1, Tuning.get_f("carry", "throw_speed", 0.0))
 	var sum := t.checksum()
 	print("[net_test] client: %d slagen, vondst vrij: %s, checksum %s" % [done, it.freed, sum])
@@ -121,13 +134,23 @@ func _rpc_tuning_report(client_value: float) -> void:
 
 
 @rpc("any_peer", "reliable")
-func _rpc_lift_report(client_y: float) -> void:
+func _rpc_mol_report(client_mol: Vector3, client_start: Vector3, client_player: Vector3, seated: bool,
+		client_ramp: bool, client_pilot: int) -> void:
 	if not multiplayer.is_server():
 		return
-	var lift: Lift = main.game.lift
-	var expect := lift.top_y - Tuning.get_f("lift", "step_down", 12.0)
-	_expect(absf(lift.y - expect) < 0.01 and absf(client_y - lift.y) < 0.05,
-			"lift 12 m omlaag, zelfde hoogte bij host en client (host %.2f, client %.2f)" % [lift.y, client_y])
+	var sender := multiplayer.get_remote_sender_id()
+	var mol: Mol = main.game.mol
+	var moved := (client_mol - client_start).length()
+	_expect(client_pilot == sender and seated, "client zat aan het stuur (piloot %d)" % client_pilot)
+	_expect(not mol.ramp_open and not client_ramp, "laadklep dicht op vraag van de client, bij host en client")
+	_expect(moved > 4.0, "de client reed de Mol %.1f m vooruit" % moved)
+	var d := mol.body.global_position.distance_to(client_mol)
+	_expect(d < 0.3, "de Mol staat bij host en client op dezelfde plek (%.2f m verschil)" % d)
+	var remote: Player = main.game.player_node(sender)
+	_expect(remote != null and mol.contains_point(remote.global_position), "host ziet de piloot in de Mol zitten")
+	if remote:
+		var dp := remote.global_position.distance_to(client_player)
+		_expect(dp < 0.4, "piloot bij host en client op dezelfde plek (%.2f m verschil)" % dp)
 
 
 @rpc("any_peer", "reliable")
@@ -159,7 +182,9 @@ func _rpc_report(client_sum: String, client_pos: Vector3, chips: int) -> void:
 		var d: float = remote.global_position.distance_to(client_pos)
 		_expect(d < 0.3, "positie van de client klopt bij de host (%.2f m verschil)" % d)
 	_expect(main.game.players.get_child_count() == 2, "2 spelers bij de host")
-	_expect(t.op_log().size() == chips + 8, "host-logboek: 4 + 3 van de host, %d van de client, 1 om de vondst vrij te maken (%d)" % [chips, t.op_log().size()])
+	var system_ops := t.op_log().filter(func(op: Dictionary) -> bool: return op.p == 0).size()
+	_expect(t.op_log().size() - system_ops == chips + 7, "host-logboek: 4 + 3 van de host, %d van de client (%d)" % [chips, t.op_log().size() - system_ops])
+	_expect(system_ops > 1, "systeem-ops: vondst vrijmaken en de boorkop van de Mol (%d)" % system_ops)
 	var drill_ops := t.op_log().filter(func(op: Dictionary) -> bool: return op.get("tool", -1) == Strata.Tool.BOOR_T1).size()
 	_expect(drill_ops == DRILL_BITES, "host paste %d boorhappen toe" % drill_ops)
 	await _frames(20) # vondstrapport komt vlak na het terreinrapport

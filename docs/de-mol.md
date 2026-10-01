@@ -1,0 +1,67 @@
+# De Mol — ontwerp
+
+Versie 1, 1 oktober 2026. Uitwerking van GDD §5A. Stijl: [stijlgids](stijlgids.md) (DRG + PEAK + Astroneer, alles in Blender).
+
+## Waarom hij eruitziet zoals hij eruitziet
+
+De Mol boort een tunnel en moet daar zelf doorheen. Dat bepaalt de vorm, net als bij een echte tunnelboormachine:
+
+1. **De boorkop is het breedste deel** (Ø 6,0 m). Alles erachter past in de geboorde tunnel (Ø ±6,4 m).
+2. **De romp is een afgeschuinde doos** (4,8 × 4,2 m doorsnede) die net binnen de ronde tunnel valt.
+3. **De rupsbanden staan schuin onder de romp** (30°), zodat ze op een ronde tunnelvloer rusten in plaats van op een vlakke weg.
+4. **Vooruit kijken kan niet**: de boorkop zit ervoor. De piloot stuurt via een **camera in de naaf van de boorkop**, op een groot scherm in de cabine. Opzij kijk je door patrijspoorten naar de tunnelwand (en de lagen die voorbijschuiven).
+5. **De uitlaat en de motor zitten bovenop achteraan**, de enige plek waar nog ruimte is in de ronde tunnel.
+6. **Instappen gaat achteraan via een laadklep** die naar de tunnelvloer zakt. Achteraan, omdat vooraan de boorkop zit.
+7. **Hellingen tot ±25°.** Binnen kan je dan nog staan (rupsvoertuigen en mensen houden niet van steiler). Afdalen bij de start gaat daarom in een **spiraal** naar beneden.
+
+## Maten (Godot-assen: −Z vooruit, Y omhoog; oorsprong = midden van de romp-as)
+
+| Onderdeel | Positie (z) | Maat |
+|---|---|---|
+| Boorkop | −7,0 tot −5,4 | Ø 6,0 m, draait rond Z |
+| Schild (stilstaand, met koplampen) | −5,4 tot −3,8 | Ø 5,6 m |
+| Romp | −3,8 tot +4,2 | 4,8 breed × 4,2 hoog |
+| Rupsbanden (2×) | −3,4 tot +3,8 | 7,2 lang, 0,9 breed, onderkant op y ≈ −3,0 |
+| Motorblok + 2 uitlaten | +1,6 tot +4,0, bovenop | tot y = +2,9 |
+| Laadklep | scharnier op z = +4,2, y = −1,5 | 2,6 m, open = schuin naar de vloer |
+
+**Binnen** (vloer op y = −1,5, plafond op y = +1,8, binnenbreedte 4,2 m):
+
+| Zone | z | Wat staat er |
+|---|---|---|
+| Cabine | −3,6 tot −1,6 | stoel, stuurpaneel met groot camerascherm, meters (diepte, brandstof, helling), autopiloot-knoppen, toeter, vertrekhendel |
+| Woonruimte | −1,6 tot +1,6 | werkbank (upgrades later), kastjes, bankjes, koffieapparaat, patrijspoort links en rechts, kooilampen |
+| Laadruim | +1,6 tot +4,2 | sjorrails, vrachtvloer met waarschuwingsstrepen, de laadklep |
+
+## Uiterlijk
+
+- Bedrijfsgeel `#F2B705` met antraciet `#23262B`, kaal staal voor de boorkop en de rupsen.
+- Geklonken platen met dikke bouten, panelen met naden, waarschuwingsstrepen rond het schild.
+- "DIEPGANG BV" en "DE MOL · M-01" op de flanken, een paar stickers, deuken.
+- Boorkop: drie spiraalarmen met snijtanden (±30), een rand met tanden, een middennaaf met camera en lichtring.
+- Licht: 4 koplampen in het schild (2 met schaduw), 2 oranje zwaailichten bovenop, warme kooilampen binnen, het blauwige camerascherm in de cabine.
+- Randen lichter (geverfd metaal sleet eraf), holtes donkerder: gebakken in vertexkleuren in Blender, gebruikt door een eigen shader in Godot.
+
+## Werking in het spel
+
+**Besturen** (één piloot; iedereen mag): E op de stoel. W/S gas, A/D draaien, spatie/Ctrl neus omhoog/omlaag (max. ±25°), H toeter, E uitstappen. Je kijkt naar het camerascherm.
+
+**Boren:** vooruit rijden in rots boort grote bollen weg vooraan (Ø 6,4 m). Draaien schaaft ook langs de flanken. Achteruit kan enkel door een vrije tunnel.
+- Snelheid: 3 m/s door rots, 5 m/s door een vrije tunnel; autopiloot 6 m/s.
+- De boorkop volgt de laagregels: **T1 = klei en zandsteen**. Op graniet blokkeert hij met vonken en gekrijs.
+- Brandstof per dienst beperkt (meter in de cabine).
+- Valt de grond onder hem weg (grot), dan zakt hij tot hij steun vindt.
+
+**Afdalen (autopiloot):** knoppen in de cabine (−20, −45, −65 m). De Mol boort een spiraal naar beneden op 25°, komt daarna waterpas en opent de laadklep.
+
+**Extractie:** de vertrekhendel start een aftelling van 10 s (claxon, zwaailichten). Daarna rijdt de Mol automatisch zijn eigen spoor terug naar boven (lussen in het spoor worden overgeslagen). Boven: overzicht van wat in het laadruim ligt.
+
+**Laadruim:** wat erin ligt, telt. Vondsten schuiven mee als hij optrekt of helt; de dichte klep houdt ze binnen.
+
+**Netwerk:** de host simuleert de Mol, de piloot stuurt enkel zijn invoer. Wie in of op de Mol staat, stuurt zijn positie **ten opzichte van de Mol**, net zoals vondsten in het laadruim. Zo staat iedereen op elk scherm netjes binnen, ook als de Mol rijdt.
+
+**Vervangt:** de lift en de vaste liftschacht (GDD v2.1). De put heeft geen schacht meer; de Mol staat bij de start bovenaan in het midden.
+
+## Later (niet nu)
+
+Upgrades (boorkop T2, snelheid, tank, laadruim, hitteschild, lier), onrust door lawaai (M5), het depot als garage (M3), verf en stickers als cosmetica.

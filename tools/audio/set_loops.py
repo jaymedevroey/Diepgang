@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 
 SFX = Path(__file__).resolve().parents[2] / "game" / "assets" / "audio" / "sfx"
-LOOPS = ["drill_motor", "drill_grind", "drill_screech"]
+LOOPS = ["drill_motor", "drill_grind", "drill_screech", "mol_engine", "mol_cutter", "mol_tracks", "mol_interior"]
 
 
 def main() -> None:

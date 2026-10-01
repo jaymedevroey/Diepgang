@@ -16,7 +16,7 @@ func _run() -> void:
 	var original := FileAccess.get_file_as_string(path)
 	var before := Tuning.get_f("carry", "throw_speed", 0.0)
 
-	_expect(Tuning.files().has("pickaxe") and Tuning.files().has("lift"), "alle tuning-bestanden geladen (%d)" % Tuning.files().size())
+	_expect(Tuning.files().has("pickaxe") and Tuning.files().has("mol"), "alle tuning-bestanden geladen (%d)" % Tuning.files().size())
 	_expect(Tuning.comment("pickaxe", "strike_s").contains("Zwaai"), "uitleg geldt voor de hele groep eronder")
 
 	Tuning.set_value("carry", "throw_speed", 9.5)

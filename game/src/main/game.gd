@@ -20,7 +20,7 @@ const COLORS: Array[Color] = [
 var terrain: TerrainAPI
 var terrain_sync: TerrainSync
 var finds: FindField
-var lift: Lift
+var mol: Mol
 var fx: DigFx
 var players: Node3D
 var local_player: Player
@@ -82,11 +82,11 @@ func _build_terrain(ops: Array, finds_state: Array = []) -> void:
 	add_child(terrain)
 	finds.generate(pit_seed)
 	finds.apply_snapshot(finds_state)
-	lift = Lift.new()
-	lift.name = "Lift"
-	lift.game = self
-	add_child(lift)
-	lift.setup()
+	mol = Mol.new()
+	mol.name = "Mol"
+	mol.game = self
+	add_child(mol)
+	mol.setup()
 	for op in ops:
 		terrain.apply_op(op)
 	terrain_sync.flush_pending()
@@ -145,7 +145,7 @@ func _accept(id: int) -> void:
 		existing.append([p.peer_id, _color_of.get(p.peer_id, 0), p.global_position])
 	_rpc_tuning.rpc_id(id, Tuning.snapshot())
 	_rpc_world_init.rpc_id(id, pit_seed, terrain.op_log(), existing, finds.snapshot())
-	lift.send_state(id)
+	mol.send_state(id)
 	var idx := _free_color()
 	_color_of[id] = idx
 	var pos := _spawn_pos(idx)
@@ -199,7 +199,7 @@ func _spawn(peer_id: int, color_idx: int, pos: Vector3) -> void:
 	p.global_position = pos
 	var target := terrain.shaft_center_world()
 	target.y = pos.y
-	p.look_at(target)
+	p.look_at(target) # naar de open laadklep van de Mol
 	p.rotation.x = 0.0
 	if p.is_local:
 		local_player = p
@@ -220,11 +220,10 @@ func _free_color() -> int:
 	return 0
 
 
-## Rond de liftschacht, elke kleur een eigen kant.
+## Achter de Mol, bij de laadklep, naast elkaar.
 func _spawn_pos(idx: int) -> Vector3:
 	var sc := terrain.shaft_center_world()
-	var ang := PI + idx * TAU / COLORS.size()
-	var p := sc + Vector3(cos(ang), 0.0, sin(ang)) * 7.5
+	var p := sc + Vector3(-2.4 + idx * 1.6, 0.0, 9.5)
 	p.y = terrain.surface_height_at(p.x, p.z) + 1.0
 	return p
 

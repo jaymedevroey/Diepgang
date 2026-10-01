@@ -31,6 +31,12 @@ var active_tool: Node3D
 var carry: Carry
 var rig: RobotRig
 var flying := false
+## In de stoel van de Mol (piloot).
+var seated := false
+
+var _shape: CollisionShape3D
+var _look_yaw := 0.0
+const SEAT_FEET := Vector3(0.0, -1.12, -1.82)
 
 var _send_timer := 0.0
 # Interpolatie (kopie): [lokale ontvangsttijd in ms, positie, yaw, pitch]
@@ -52,6 +58,7 @@ func _ready() -> void:
 	shape.shape = capsule
 	shape.position.y = 0.7
 	add_child(shape)
+	_shape = shape
 
 	head = Node3D.new()
 	head.name = "Head"
@@ -126,7 +133,35 @@ func _setup_local() -> void:
 		# Handen vol: gereedschap weg zolang je draagt.
 		active_tool.set_active(it == null)
 		_send_action(Action.CARRY_ON if it else Action.CARRY_OFF))
+	game.mol.pilot_changed.connect(_on_pilot_changed)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+func _on_pilot_changed(peer: int) -> void:
+	if peer == peer_id and not seated:
+		_sit()
+	elif peer != peer_id and seated:
+		_unseat()
+
+
+func _sit() -> void:
+	seated = true
+	flying = false
+	_shape.disabled = true
+	_look_yaw = 0.0
+	head.rotation.x = 0.0
+	velocity = Vector3.ZERO
+	active_tool.set_active(false)
+
+
+func _unseat() -> void:
+	seated = false
+	_shape.disabled = false
+	var mol: Mol = game.mol
+	global_transform = Transform3D(Basis(Vector3.UP, mol.yaw), mol.to_world_mol(Vector3(0.0, -1.45, -1.1)))
+	head.rotation.x = 0.0
+	if carry == null or carry.item == null:
+		active_tool.set_active(true)
 
 
 ## Knop, hendel of rail onder het vizier (niet door een muur heen), of null.
@@ -172,7 +207,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not is_local:
 		return
 	var captured := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
-	if event is InputEventMouseMotion and captured:
+	if event is InputEventMouseMotion and captured and seated:
+		# In de stoel: rondkijken binnen de cabine.
+		var sens_s := Tuning.get_f("player", "mouse_sensitivity", 0.0025)
+		_look_yaw = clampf(_look_yaw - event.relative.x * sens_s, -1.5, 1.5)
+		head.rotation.x = clampf(head.rotation.x - event.relative.y * sens_s, -0.9, 0.7)
+	elif event is InputEventMouseMotion and captured:
 		var sens := Tuning.get_f("player", "mouse_sensitivity", 0.0025)
 		rotate_y(-event.relative.x * sens)
 		head.rotation.x = clampf(head.rotation.x - event.relative.y * sens, -1.55, 1.55)
@@ -183,6 +223,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("toggle_fly"):
 		flying = not flying
+	elif event.is_action_pressed("horn") and captured and (seated or game.mol.contains_point(global_position)):
+		game.mol.press(Mol.Cmd.HORN)
+	elif seated:
+		return # geen gereedschap in de stoel
 	elif event.is_action_pressed("tool_1"):
 		select_tool(0)
 	elif event.is_action_pressed("tool_2"):
@@ -195,6 +239,9 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _physics_process(delta: float) -> void:
 	if not is_local:
+		return
+	if seated:
+		_drive_mol(delta)
 		return
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
@@ -219,32 +266,71 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 
 
+## Piloot: zit vast in de stoel en stuurt de Mol (W/S gas, A/D draaien, spatie/Ctrl neus).
+func _drive_mol(delta: float) -> void:
+	var mol: Mol = game.mol
+	# Headless (tests): geen muis om te vangen, toetsen tellen toch.
+	var captured := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or DisplayServer.get_name() == "headless"
+	var throttle := Input.get_axis("move_back", "move_forward") if captured else 0.0
+	var steer := Input.get_axis("move_left", "move_right") if captured else 0.0
+	var nose := (1.0 if Input.is_action_pressed("jump") else 0.0) - (1.0 if Input.is_action_pressed("crouch") else 0.0)
+	mol.send_input(throttle, steer, nose if captured else 0.0, delta)
+	velocity = Vector3.ZERO
+	_seat_to_mol()
+
+
+func _seat_to_mol() -> void:
+	var mol: Mol = game.mol
+	global_transform = mol.body.global_transform * Transform3D(Basis(Vector3.UP, _look_yaw), SEAT_FEET)
+
+
 func _process(delta: float) -> void:
 	if is_local:
+		if seated:
+			_seat_to_mol() # ook tussen physics-ticks, zodat de camera vloeiend meebeweegt
+		var mol: Mol = game.mol
+		var in_mol := mol != null and (seated or mol.contains_point(global_position))
+		if in_mol and mol.drilling and camera_fx.trauma() < 0.22:
+			camera_fx.add_trauma(delta * 0.6) # de hele Mol trilt als hij boort
 		_send_timer += delta
 		if _send_timer >= SEND_INTERVAL:
 			_send_timer = 0.0
+			# In de Mol: positie en draaiing relatief tot de Mol, zodat je op elk scherm netjes
+			# binnen staat, ook als de Mol rijdt (iedereen ziet de Mol iets anders vertraagd).
+			var pos := global_position
+			var yaw := rotation.y
+			if in_mol:
+				pos = mol.to_local_mol(global_position)
+				yaw = rotation.y - mol.yaw
 			var me := multiplayer.get_unique_id()
 			for peer: int in game.ready_peers:
 				if peer != me:
-					_rpc_state.rpc_id(peer, Time.get_ticks_msec(), global_position, rotation.y, head.rotation.x)
+					_rpc_state.rpc_id(peer, Time.get_ticks_msec(), pos, yaw, head.rotation.x, in_mol)
 	else:
 		_interpolate()
 
 
 ## Toestand van de authority naar alle anderen. Onbetrouwbaar: een gemiste update
-## wordt door de volgende vervangen.
+## wordt door de volgende vervangen. `in_mol`: positie en draaiing zijn relatief tot de Mol.
 @rpc("authority", "unreliable_ordered", "call_remote")
-func _rpc_state(sent_ms: int, pos: Vector3, yaw: float, pitch: float) -> void:
+func _rpc_state(sent_ms: int, pos: Vector3, yaw: float, pitch: float, in_mol: bool) -> void:
 	var now := float(Time.get_ticks_msec())
 	# Klokverschil schatten: de kleinste (ontvangst - verzending) is de beste schatting.
 	_clock_offset = minf(_clock_offset, now - sent_ms)
-	_snapshots.append([float(sent_ms) + _clock_offset, pos, yaw, pitch])
+	_snapshots.append([float(sent_ms) + _clock_offset, pos, yaw, pitch, in_mol])
 	if _snapshots.size() > 30:
 		_snapshots.pop_front()
 	if _snapshots.size() == 1:
-		global_position = pos
-		rotation.y = yaw
+		global_position = _snap_pos(_snapshots[0])
+		rotation.y = _snap_yaw(_snapshots[0])
+
+
+func _snap_pos(s: Array) -> Vector3:
+	return game.mol.to_world_mol(s[1]) if s[4] else s[1]
+
+
+func _snap_yaw(s: Array) -> float:
+	return s[2] + game.mol.yaw if s[4] else s[2]
 
 
 func _interpolate() -> void:
@@ -257,8 +343,9 @@ func _interpolate() -> void:
 	var b: Array = _snapshots[1] if _snapshots.size() > 1 else a
 	var k := 0.0 if b[0] == a[0] else clampf((render_t - a[0]) / (b[0] - a[0]), 0.0, 1.0)
 	var prev := global_position
-	global_position = (a[1] as Vector3).lerp(b[1], k)
-	rotation.y = lerp_angle(a[2], b[2], k)
+	# Beide punten nu naar de wereld omrekenen (met de Mol zoals hij nu staat), dan mengen.
+	global_position = _snap_pos(a).lerp(_snap_pos(b), k)
+	rotation.y = lerp_angle(_snap_yaw(a), _snap_yaw(b), k)
 	head.rotation.x = lerpf(a[3], b[3], k)
 	if rig:
 		var dt := get_process_delta_time()

@@ -20,6 +20,7 @@ var crusts: Dictionary = {} # find_id -> Crust
 
 var _last_hit: Dictionary = {} # host: peer_id -> tijd (s)
 var _prev_velocity: Dictionary = {} # host: find_id -> Vector3
+var _stowed := {} # find_id -> Transform3D relatief tot de Mol (laadruim, zie _stow)
 var _send_timer := 0.0
 
 
@@ -253,11 +254,16 @@ func drop_all_of(peer: int) -> void:
 func _physics_process(delta: float) -> void:
 	if not multiplayer.is_server() or game == null:
 		return
+	var mol_now: Mol = game.mol
+	var mol_moving := mol_now != null and mol_now.body != null and (absf(mol_now.speed) > 0.05 or mol_now.mode in [Mol.Mode.AUTO_DOWN, Mol.Mode.EXTRACTING])
 	for it in items:
 		if not it.freed:
 			continue
 		if it.carriers.size() > 0:
+			_stowed.erase(it.find_id)
 			it.global_position = carry_target(it)
+		elif _stow(it, mol_now, mol_moving):
+			pass
 		else:
 			_check_impact(it)
 			_rescue_if_stuck(it, delta)
@@ -267,23 +273,56 @@ func _physics_process(delta: float) -> void:
 	_send_timer = 0.0
 	var ids := PackedInt32Array()
 	var poses: Array = []
+	var in_mol := PackedByteArray()
+	var mol: Mol = game.mol
 	for it in items:
-		if it.freed and (not it.sleeping or it.carriers.size() > 0):
-			ids.append(it.find_id)
+		if not it.freed:
+			continue
+		var inside := mol != null and mol.contains_point(it.global_position)
+		# In een rijdende Mol slaapt een vondst ook, maar hij beweegt wel mee.
+		if it.sleeping and it.carriers.is_empty() and not (inside and absf(mol.speed) > 0.01):
+			continue
+		ids.append(it.find_id)
+		if inside:
+			poses.append(mol.body.global_transform.affine_inverse() * it.global_transform)
+		else:
 			poses.append(it.global_transform)
+		in_mol.append(1 if inside else 0)
 	if ids.is_empty():
 		return
 	for peer: int in game.ready_peers:
 		if peer != multiplayer.get_unique_id():
-			_rpc_poses.rpc_id(peer, ids, poses)
+			_rpc_poses.rpc_id(peer, ids, poses, in_mol)
 
 
 @rpc("authority", "unreliable_ordered")
-func _rpc_poses(ids: PackedInt32Array, poses: Array) -> void:
+func _rpc_poses(ids: PackedInt32Array, poses: Array, in_mol: PackedByteArray) -> void:
 	for i in ids.size():
 		var it := item(ids[i])
 		if it:
-			it.push_snapshot(poses[i])
+			it.push_snapshot(poses[i], in_mol[i] == 1)
+
+
+## Host: laadruim. Rijdt de Mol, dan zitten losse vondsten in de Mol vastgesjord en volgen ze
+## hem exact (wrijving alleen is bij 22° helling en 6 m/s niet betrouwbaar). Staat hij stil,
+## dan neemt de fysica het weer over. Geeft true terug als de vondst vastzit.
+func _stow(it: FindItem, mol: Mol, moving: bool) -> bool:
+	var stowed: bool = _stowed.has(it.find_id)
+	if moving and (stowed or mol.contains_point(it.global_position)):
+		if not stowed:
+			_stowed[it.find_id] = mol.body.global_transform.affine_inverse() * it.global_transform
+			it.freeze = true
+		it.global_transform = mol.body.global_transform * (_stowed[it.find_id] as Transform3D)
+		it.last_safe = it.global_position
+		_prev_velocity.erase(it.find_id)
+		return true
+	if stowed:
+		_stowed.erase(it.find_id)
+		it.freeze = false
+		it.linear_velocity = Vector3.ZERO
+		it.angular_velocity = Vector3.ZERO
+		it.sleeping = false
+	return false
 
 
 ## Minstens een halve meter diep in de rots (dichtstbijzijnde voxel, dus met marge).

@@ -19,7 +19,10 @@ func _ready() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		return
-	if event.is_action_pressed("interact"):
+	if event.is_action_pressed("interact") and player.seated:
+		player.game.mol.leave_seat() # E in de stoel = uitstappen
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("interact"):
 		var button := player.aimed_interactable()
 		if button:
 			button.used.emit(player)
@@ -28,7 +31,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		else:
 			try_grab()
 		get_viewport().set_input_as_handled()
-	elif item and event.is_action_pressed("dig"):
+	elif item and event.is_action_pressed("dig") and not player.seated:
 		drop(true)
 		get_viewport().set_input_as_handled()
 

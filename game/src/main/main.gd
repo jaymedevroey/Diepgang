@@ -12,7 +12,8 @@ extends Node3D
 ##   net_test          host + client: beweging en terrein-sync (tools/net_test.py)
 ##   find_test         vondsten en korsten: uitbikken, boren, vrijkomen (headless)
 ##   carry_test        oppakken, dragen, gooien, botsschade (headless)
-##   lift_test         lift roepen, meerijden met speler en vondst (headless)
+##   mol_test          de Mol: besturen, boren, autopiloot, meerijden, extractie (headless)
+##   mol_preview       screenshots van de Mol (buiten, binnen, cabine, afdalen)
 ##   tuning_test       tuning-waarden aanpassen en bewaren (headless)
 ## Extra in play (voor controle door de agent):
 ##   --shot=naam --frames=90,140   screenshots N frames na het spawnen, dan afsluiten
@@ -30,11 +31,13 @@ const SCENARIOS := {
 	"find_preview": preload("res://src/main/scenarios/find_preview.gd"),
 	"carry_test": preload("res://src/main/scenarios/carry_test.gd"),
 	"carry_preview": preload("res://src/main/scenarios/carry_preview.gd"),
-	"lift_test": preload("res://src/main/scenarios/lift_test.gd"),
+	"mol_test": preload("res://src/main/scenarios/mol_test.gd"),
+	"mol_preview": preload("res://src/main/scenarios/mol_preview.gd"),
 	"tuning_test": preload("res://src/main/scenarios/tuning_test.gd"),
+	"terrain_preview": preload("res://src/main/scenarios/terrain_preview.gd"),
 }
 ## Scenario's waarin de host ook een eigen speler krijgt.
-const SCENARIOS_WITH_PLAYER := ["play", "net_test", "find_test", "carry_test", "carry_preview", "lift_test"]
+const SCENARIOS_WITH_PLAYER := ["play", "net_test", "find_test", "carry_test", "carry_preview", "mol_test", "mol_preview"]
 const AIM_COLORS := {
 	Pickaxe.Aim.NONE: Color(1, 1, 1, 0.35),
 	Pickaxe.Aim.DIGGABLE: Color(1, 1, 1, 0.95),
@@ -58,6 +61,8 @@ var _tuning_menu: TuningMenu
 var _start_menu: StartMenu
 var _stats_visible := true
 var _aim := Pickaxe.Aim.NONE
+var _banner_until := 0.0
+var _mol_connected := false
 var _frame_since_spawn := -1
 var _shot_frames: PackedInt32Array = []
 
@@ -145,6 +150,11 @@ func _on_net_started() -> void:
 
 func _on_world_loaded(stats: Dictionary) -> void:
 	_show_banner("")
+	if not _mol_connected:
+		_mol_connected = true
+		game.mol.message.connect(func(t: String) -> void: _flash(t, 4.0))
+		game.mol.summary.connect(func(count: int, value: int) -> void:
+			_flash("De Mol is boven  ·  laadruim: %d vondst%s  ·  €%d" % [count, "" if count == 1 else "en", value], 8.0))
 	print("[diepgang] terrein geladen in %.0f ms (time-out: %s), statisch geheugen %.1f MB, videogeheugen %.1f MB" % [
 		stats.load_ms, stats.load_timed_out, stats.mem_static_mb, stats.video_mem_mb])
 	print("[diepgang] terrein-statistieken: ", JSON.stringify(stats))
@@ -200,8 +210,11 @@ func _process(_delta: float) -> void:
 	if _frame_since_spawn >= 0:
 		_frame_since_spawn += 1
 		_take_shots()
-	if player and _aim != Pickaxe.Aim.TOO_HARD:
+	if player and player.seated:
+		_hint.text = ""
+	elif player and _aim != Pickaxe.Aim.TOO_HARD:
 		_hint.text = _aim_info()
+	_update_mol_banner()
 	if _start_menu and _start_menu.visible:
 		_hud_label.text = ""
 		return
@@ -227,7 +240,10 @@ func _process(_delta: float) -> void:
 			var frac := d.heat / Tuning.get_f("drill", "heat_max", 5.5)
 			var bar := "█".repeat(int(frac * 12)) + "░".repeat(12 - int(frac * 12))
 			lines.append("Hitte %s%s" % [bar, "  OVERVERHIT" if d.overheated else ""])
-		lines.append("Linkermuis: graven (vasthouden) · E: oppakken · V vliegen · F1 tuning · F3 paneel")
+		if player.seated:
+			lines = _pilot_lines(lines)
+		else:
+			lines.append("Linkermuis: graven (vasthouden) · E: oppakken · V vliegen · F1 tuning · F3 paneel")
 	_hud_label.text = "\n".join(lines)
 
 
@@ -257,6 +273,43 @@ func _aim_info() -> String:
 		var prefix := "E: oppakken · " if f.freed and f.carriers.size() < 2 else ""
 		return "%s%s · €%d · gaaf %d%%" % [prefix, f.display_name(), f.value(), int(round(f.condition * 100))]
 	return ""
+
+
+const MOL_MODES := ["geparkeerd", "rijden", "autopiloot: afdalen", "vertrek", "naar boven"]
+
+
+func _pilot_lines(lines: PackedStringArray) -> PackedStringArray:
+	var m := game.mol
+	lines.append("DE MOL  ·  %s" % MOL_MODES[m.mode])
+	lines.append("Snelheid %.1f m/s  ·  diepte %d m  ·  helling %d°  ·  brandstof %d%%" % [
+		absf(m.speed), int(m.depth()), int(round(rad_to_deg(m.pitch))), int(m.fuel * 100.0)])
+	if m.blocked:
+		lines.append("! Boorkop T1 te zwak voor deze laag: neus omhoog (spatie) of draai bij")
+	elif m.fuel <= 0.0:
+		lines.append("! Brandstof op: trek aan de vertrekhendel om naar boven te gaan")
+	lines.append("W/S gas · A/D sturen · spatie/Ctrl neus omhoog/omlaag · H toeter · E uitstappen")
+	return lines
+
+
+## Aftelling en meldingen van de Mol, voor iedereen.
+func _update_mol_banner() -> void:
+	if game == null or game.mol == null or game.mol.body == null:
+		return
+	var now := Time.get_ticks_msec() / 1000.0
+	if game.mol.mode == Mol.Mode.COUNTDOWN:
+		_show_banner("De Mol vertrekt over %d s  ·  iedereen aan boord!" % int(ceil(game.mol.countdown)))
+	elif game.mol.mode == Mol.Mode.EXTRACTING:
+		_show_banner("De Mol rijdt naar boven…")
+	elif _banner_until > 0.0 and now > _banner_until:
+		_banner_until = 0.0
+		_show_banner("")
+	elif _banner_until == 0.0 and _banner.text.begins_with("De Mol"):
+		_show_banner("")
+
+
+func _flash(text: String, seconds: float) -> void:
+	_show_banner(text)
+	_banner_until = Time.get_ticks_msec() / 1000.0 + seconds
 
 
 func _take_shots() -> void:

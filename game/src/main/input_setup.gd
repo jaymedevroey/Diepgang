@@ -16,6 +16,7 @@ const KEYS := {
 	"tool_2": KEY_2,
 	"interact": KEY_E,
 	"toggle_tuning": KEY_F1,
+	"horn": KEY_H,
 }
 
 

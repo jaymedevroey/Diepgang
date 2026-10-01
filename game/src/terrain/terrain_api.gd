@@ -209,6 +209,21 @@ func is_solid(world: Vector3) -> bool:
 	return _tool.get_voxel_f(Vector3i(p.round())) < 0.0
 
 
+## Afstand tot het rotsoppervlak in meter (trilineair; negatief = in de rots).
+## Uit de voxeldata zelf, dus ook juist als de collision van dat blok nog niet gebouwd is.
+func sdf_at(world: Vector3) -> float:
+	var p := _terrain.to_local(world)
+	var b := Vector3i(p.floor())
+	var f := p - Vector3(b)
+	var v := 0.0
+	for dz in 2:
+		for dy in 2:
+			for dx in 2:
+				var w := (f.x if dx else 1.0 - f.x) * (f.y if dy else 1.0 - f.y) * (f.z if dz else 1.0 - f.z)
+				v += w * _tool.get_voxel_f(b + Vector3i(dx, dy, dz))
+	return v * VOXEL_SIZE
+
+
 ## Ruwe SDF-waarde (voxels; negatief = rots) van de dichtstbijzijnde voxel. Voor tests.
 func debug_sdf(world: Vector3) -> float:
 	return _tool.get_voxel_f(Vector3i(_terrain.to_local(world).round()))

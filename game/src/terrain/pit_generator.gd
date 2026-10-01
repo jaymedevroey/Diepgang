@@ -47,7 +47,7 @@ func sdf_at(p: Vector3) -> float:
 
 func _sdf(p: Vector3, caverns: Array[Vector4]) -> float:
 	var s := p.y - surface_at(p.x, p.z)
-	s = maxf(s, shaft_radius - Vector2(p.x, p.z).distance_to(shaft_center))
+	# Geen vaste schacht meer: de Mol boort zijn eigen weg (GDD v2.1). shaft_center = midden van de put.
 	for c in caverns:
 		var d := Vector3(p.x - c.x, (p.y - c.y) * CAVERN_SQUASH, p.z - c.z).length()
 		s = maxf(s, (c.w - d) / CAVERN_SQUASH)

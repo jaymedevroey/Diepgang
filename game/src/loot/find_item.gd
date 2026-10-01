@@ -59,9 +59,9 @@ func celebrate() -> void:
 	tw.tween_property(mat, "emission_energy_multiplier", 0.0, 0.9)
 
 
-## Client: toestand van de host binnen.
-func push_snapshot(xf: Transform3D) -> void:
-	_snapshots.append([float(Time.get_ticks_msec()), xf])
+## Client: toestand van de host binnen. `in_mol`: transform is relatief tot de Mol.
+func push_snapshot(xf: Transform3D, in_mol := false) -> void:
+	_snapshots.append([float(Time.get_ticks_msec()), xf, in_mol])
 	if _snapshots.size() > 20:
 		_snapshots.pop_front()
 
@@ -77,4 +77,11 @@ func _process(_delta: float) -> void:
 	var a: Array = _snapshots[0]
 	var b: Array = _snapshots[1] if _snapshots.size() > 1 else a
 	var k := 0.0 if b[0] == a[0] else clampf((render_t - a[0]) / (b[0] - a[0]), 0.0, 1.0)
-	global_transform = (a[1] as Transform3D).interpolate_with(b[1], k)
+	global_transform = _snap_world(a).interpolate_with(_snap_world(b), k)
+
+
+func _snap_world(s: Array) -> Transform3D:
+	if s.size() > 2 and s[2]:
+		var mol: Mol = get_parent().game.mol
+		return mol.body.global_transform * (s[1] as Transform3D)
+	return s[1]
