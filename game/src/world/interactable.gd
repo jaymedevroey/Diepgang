@@ -5,7 +5,7 @@ extends StaticBody3D
 
 signal used(player: Player)
 
-## Tekst in de HUD als je erop mikt, bv. "E: lift roepen".
+## Tekst in de HUD als je erop mikt, bv. "E: toeteren".
 var hint := ""
 
 

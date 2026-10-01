@@ -251,7 +251,7 @@ func shaft_center_world() -> Vector3:
 	return Vector3(_generator.shaft_center.x, 0.0, _generator.shaft_center.y) * VOXEL_SIZE
 
 
-## Plek op het oppervlak naast de liftschacht.
+## Plek op het oppervlak naast het midden van de put.
 func spawn_point() -> Vector3:
 	var p := shaft_center_world() + Vector3(-(_generator.shaft_radius * VOXEL_SIZE + 4.0), 0.0, 0.0)
 	p.y = surface_height_at(p.x, p.z) + 1.0

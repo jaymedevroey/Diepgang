@@ -34,7 +34,7 @@ func _ready() -> void:
 	title.add_theme_color_override("font_color", Color(1.0, 0.7, 0.3))
 	col.add_child(title)
 	var sub := Label.new()
-	sub.text = "M1-playtest · graven, uitbikken, dragen, lift"
+	sub.text = "Playtest · graven, uitbikken, dragen, de Mol"
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	sub.add_theme_color_override("font_color", Color(0.75, 0.7, 0.62))
 	col.add_child(sub)
