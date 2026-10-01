@@ -163,7 +163,7 @@ func show_error(text: String) -> void:
 	_status.text = text
 
 
-func _unhandled_input(event: InputEvent) -> void:
+func _input(event: InputEvent) -> void:
 	if visible and event.is_action_pressed("ui_cancel") and _join_card.visible and not _settings.visible:
 		_toggle_join()
 		get_viewport().set_input_as_handled()

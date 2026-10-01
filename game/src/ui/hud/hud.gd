@@ -475,8 +475,11 @@ func _update_compass(player: Player, mol: Mol, terrain: TerrainAPI) -> void:
 		var to := mol.body.global_position - p
 		compass.mol_bearing_deg = fposmod(rad_to_deg(atan2(to.x, -to.z)), 360.0)
 		compass.mol_distance = Vector2(to.x, to.z).length()
-		# Ver van de Mol, of de Mol vertrekt: de richting blijft in beeld.
-		compass.active = not mol.contains_point(p) and (compass.mol_distance > 25.0 or mol.mode == Mol.Mode.COUNTDOWN)
+		# De richting blijft in beeld zolang je de Mol niet ziet: buiten de Mol en ofwel ver weg,
+		# ofwel niet voor je (meer dan 50° opzij), of als de Mol vertrekt.
+		var rel := absf(wrapf(compass.mol_bearing_deg - compass.heading_deg, -180.0, 180.0))
+		compass.active = not mol.contains_point(p) and (compass.mol_distance > 25.0 or rel > 50.0
+				or mol.mode == Mol.Mode.COUNTDOWN)
 
 
 func _update_tools(player: Player) -> void:

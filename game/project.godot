@@ -24,6 +24,13 @@ Sfx="*res://src/audio/sfx.gd"
 SteamService="*res://src/net/steam_service.gd"
 Net="*res://src/net/net_session.gd"
 
+[display]
+
+window/size/viewport_width=1920
+window/size/viewport_height=1080
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+
 [physics]
 
 3d/physics_engine="Jolt Physics"

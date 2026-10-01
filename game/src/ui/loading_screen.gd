@@ -70,6 +70,7 @@ func show_status(text: String) -> void:
 	if not visible:
 		_tip.text = "Tip: " + TIPS[randi() % TIPS.size()]
 		modulate.a = 1.0
+		mouse_filter = Control.MOUSE_FILTER_STOP
 		visible = true
 	_status.text = text
 
@@ -77,6 +78,7 @@ func show_status(text: String) -> void:
 func finish() -> void:
 	if not visible:
 		return
+	mouse_filter = Control.MOUSE_FILTER_IGNORE # vervagen mag geen klikken opvangen
 	var tw := create_tween()
 	tw.tween_property(self, "modulate:a", 0.0, 0.6).set_ease(Tween.EASE_IN)
 	tw.tween_callback(func() -> void: visible = false)

@@ -115,18 +115,15 @@ func close() -> void:
 	closed.emit()
 
 
-func _unhandled_input(event: InputEvent) -> void:
+func _input(event: InputEvent) -> void:
 	if not visible:
 		return
-	if _waiting_for != null:
-		return # _input vangt de toets op
-	if event.is_action_pressed("ui_cancel"):
-		close()
-		get_viewport().set_input_as_handled()
-
-
-func _input(event: InputEvent) -> void:
-	if _waiting_for == null or not visible:
+	if _waiting_for == null:
+		# Esc sluit, ook als een knop de focus heeft (die zou ui_cancel anders zelf opslokken).
+		if event.is_action_pressed("ui_cancel") and not _popup_open():
+			close()
+			Sfx.ui("back")
+			get_viewport().set_input_as_handled()
 		return
 	var key := event as InputEventKey
 	var mouse := event as InputEventMouseButton
@@ -143,6 +140,14 @@ func _input(event: InputEvent) -> void:
 		var ev := InputEventMouseButton.new()
 		ev.button_index = mouse.button_index
 		_finish_rebind(ev)
+
+
+## Staat een keuzelijst open? Dan sluit Esc die, niet het hele menu.
+func _popup_open() -> bool:
+	for o in find_children("*", "OptionButton", true, false):
+		if (o as OptionButton).get_popup().visible:
+			return true
+	return false
 
 
 func _show(tab: String) -> void:

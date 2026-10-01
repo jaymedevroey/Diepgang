@@ -2,6 +2,15 @@
 
 Wat we onderweg leerden en wat het GDD bijstuurt. Nieuwste bovenaan.
 
+## 2026-10-01 — HUD en menu's
+
+- **UI-maten zonder stretch-modus zijn pixels**: op 1440p werd alles klein. `display/window/stretch/mode = canvas_items`, basis 1920×1080, aspect `expand`.
+- **Een laadscherm met `MOUSE_FILTER_STOP` dat nog vervaagt, vangt de klik waarmee je de muis wil vangen.** Bij het vervagen op IGNORE zetten, en de muis meteen vangen zodra je in de put staat.
+- **Esc in menu's via `_input`, niet `_unhandled_input`**: een knop met focus verwerkt `ui_cancel` zelf.
+- **`DisplayServer.keyboard_get_keycode_from_physical` bestaat niet headless** (fout per frame). Toetsnamen cachen en headless de fysieke code tonen.
+- **Testen met computer use:** `open_application` start een *tweede* exemplaar als de game al draait (toetsen gaan dan naar het verkeerde venster): eerst alle exemplaren afsluiten. De **Escape-toets komt via computer use niet aan** in de game (andere toetsen wel; vastgesteld met `--log-keys`). Esc daarom headless testen met een echt event (`ui_test`). Absolute muissprongen geven grote rukken in een first-person camera: kleine stapjes.
+- Vertexkleuren uit Blender in Godot met `vertex_color_is_srgb`, anders veel te licht.
+
 ## 2026-10-01 — De Mol
 
 - **Een test die enkel zittend meerijdt, bewijst niets over staand meerijden.** Jayme stond in de rijdende Mol: hij gleed 4 m weg en zijn blik draaide 180° mee. De vloer van een AnimatableBody neemt een CharacterBody niet mee in draaiing. Oplossing: wie in de Mol staat, krijgt elke tick de verplaatsing en draaiing van de Mol erbij (`Player._ride_mol`), platformsnelheid uit, en de Mol simuleert vóór de spelers (`process_physics_priority`). Elke fix nu eerst met een test die zonder de fix faalt.

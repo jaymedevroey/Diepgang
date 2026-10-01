@@ -16,6 +16,7 @@ extends Node3D
 ##   mol_preview       screenshots van de Mol (buiten, binnen, cabine, afdalen)
 ##   hud_preview       screenshots van de HUD in alle toestanden
 ##   ui_preview        thema en instellingenmenu
+##   ui_test           menu's met echte invoer: Esc, toetsen omzetten, bewaren, pauze (headless)
 ##   tuning_test       tuning-waarden aanpassen en bewaren (headless)
 ## Extra in play (voor controle door de agent):
 ##   --shot=naam --frames=90,140   screenshots N frames na het spawnen, dan afsluiten
@@ -39,9 +40,10 @@ const SCENARIOS := {
 	"terrain_preview": preload("res://src/main/scenarios/terrain_preview.gd"),
 	"ui_preview": preload("res://src/main/scenarios/ui_preview.gd"),
 	"hud_preview": preload("res://src/main/scenarios/hud_preview.gd"),
+	"ui_test": preload("res://src/main/scenarios/ui_test.gd"),
 }
 ## Scenario's waarin de host ook een eigen speler krijgt.
-const SCENARIOS_WITH_PLAYER := ["play", "net_test", "find_test", "carry_test", "carry_preview", "mol_test", "mol_preview", "hud_preview"]
+const SCENARIOS_WITH_PLAYER := ["play", "net_test", "find_test", "carry_test", "carry_preview", "mol_test", "mol_preview", "hud_preview", "ui_test"]
 
 var game: Game
 var player: Player
@@ -110,6 +112,8 @@ func _ready() -> void:
 		Net.start_host(port)
 	elif CmdArgs.has("join"):
 		_join(str(CmdArgs.value("join")), port)
+	elif scenario == "ui_test":
+		pass # de test start zelf een solo-sessie
 	elif scenario != "play" or CmdArgs.has("solo") or CmdArgs.has("shot"):
 		Net.start_solo()
 	else:
@@ -182,6 +186,8 @@ func _on_player_spawned(p: Player) -> void:
 	if CmdArgs.value("tool", "") == "drill":
 		p.select_tool(1)
 	_loading.finish()
+	if DisplayServer.get_name() != "headless":
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED # meteen kunnen rondkijken, zonder eerst te klikken
 	if Net.mode == Net.Mode.HOST:
 		hud.toast("Je host. Vrienden doen mee via Esc > Vrienden uitnodigen.", "info", 7.0)
 	_frame_since_spawn = 0

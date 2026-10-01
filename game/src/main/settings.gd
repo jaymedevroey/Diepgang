@@ -43,6 +43,8 @@ const HUD_DYNAMIC := 1
 const HUD_ALWAYS := 2
 
 var _cfg := ConfigFile.new()
+var _key_cache: Dictionary = {}
+var _log_keys := "--log-keys" in OS.get_cmdline_user_args() # toetsen loggen (diagnose)
 var _ready_done := false
 
 
@@ -89,6 +91,7 @@ func reset_section(section: String) -> void:
 	if section == "keys":
 		InputMap.load_from_project_settings()
 		InputSetup.ensure()
+		_key_cache.clear()
 	apply_all()
 	for key: String in DEFAULTS:
 		if key.begins_with(section + "/"):
@@ -138,6 +141,17 @@ func _apply(key: String) -> void:
 			AudioServer.set_bus_mute(i, v <= 0.001)
 
 
+func _input(event: InputEvent) -> void:
+	if _log_keys and event is InputEventKey and event.pressed:
+		var k := event as InputEventKey
+		var line := "[toets] keycode=%d physical=%d ui_cancel=%s" % [k.keycode, k.physical_keycode, event.is_action_pressed("ui_cancel")]
+		print(line)
+		var f := FileAccess.open(PerfLog.log_dir().path_join("toetsen.txt"), FileAccess.READ_WRITE if FileAccess.file_exists(PerfLog.log_dir().path_join("toetsen.txt")) else FileAccess.WRITE)
+		if f:
+			f.seek_end()
+			f.store_line(line)
+
+
 func _notification(what: int) -> void:
 	if not _ready_done:
 		return
@@ -170,6 +184,7 @@ func rebind(action: String, event: InputEvent) -> void:
 		if ev is InputEventKey or ev is InputEventMouseButton:
 			InputMap.action_erase_event(action, ev)
 	InputMap.action_add_event(action, event)
+	_key_cache.clear()
 	if event is InputEventKey:
 		_cfg.set_value("keys", action, "key:%d" % (event as InputEventKey).physical_keycode)
 	elif event is InputEventMouseButton:
@@ -204,7 +219,11 @@ func _load_bindings() -> void:
 static func event_label(ev: InputEvent) -> String:
 	if ev is InputEventKey:
 		var k := ev as InputEventKey
-		var code := DisplayServer.keyboard_get_keycode_from_physical(k.physical_keycode) if k.physical_keycode else k.keycode
+		var code := k.keycode
+		if k.physical_keycode:
+			code = k.physical_keycode
+			if DisplayServer.get_name() != "headless": # headless kent geen toetsenbordindeling
+				code = DisplayServer.keyboard_get_keycode_from_physical(k.physical_keycode)
 		var names := {KEY_SPACE: "Spatie", KEY_CTRL: "Ctrl", KEY_SHIFT: "Shift", KEY_ALT: "Alt", KEY_TAB: "Tab",
 				KEY_ESCAPE: "Esc", KEY_ENTER: "Enter", KEY_BACKSPACE: "Backspace"}
 		return names.get(code, OS.get_keycode_string(code))
@@ -215,7 +234,10 @@ static func event_label(ev: InputEvent) -> String:
 	return "?"
 
 
-## Toets van een actie als korte tekst voor in de HUD ("E", "Linkermuis").
+## Toets van een actie als korte tekst voor in de HUD ("E", "Linkermuis"). Gecachet: de HUD vraagt
+## dit elke frame, en de indeling van het toetsenbord opvragen is niet gratis.
 func key_of(action: String) -> String:
-	var ev := binding(action)
-	return event_label(ev) if ev else "?"
+	if not _key_cache.has(action):
+		var ev := binding(action)
+		_key_cache[action] = event_label(ev) if ev else "?"
+	return _key_cache[action]

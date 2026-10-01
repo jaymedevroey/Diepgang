@@ -12,7 +12,8 @@ Afvinkbare taken per mijlpaal. Bron: [docs/GDD.md](../docs/GDD.md) §10 en §13.
 | Rendertest | `tools\godot.cmd --path game -- --scenario=render --no-steam` (+ `--rendering-method gl_compatibility` vóór `--`) |
 | Windows-build | `tools\export_windows.cmd` → `builds\windows\Diepgang.exe` |
 | Nettest (host + client, headless) | `py -3.11 tools/net_test.py` (of `--exe builds/windows/Diepgang.console.exe`) |
-| Vondsten, dragen, de Mol, tuning (headless) | `tools\godot.cmd --headless --path game -- --scenario=find_test --no-steam` (ook `carry_test`, `mol_test`, `tuning_test`) |
+| Vondsten, dragen, de Mol, tuning, menu's (headless) | `tools\godot.cmd --headless --path game -- --scenario=find_test --no-steam` (ook `carry_test`, `mol_test`, `tuning_test`, `ui_test`) |
+| HUD en menu (screenshots) | `--scenario=hud_preview` (korst, vondst, dragen, ver, piloot, vertrek, resultaat, pauze) · `--scenario=ui_preview` · `-- --menu-shot --menu-settings --menu-join` |
 | Screenshots | `-- --autodig --pitch=-30 --shot=naam --frames=60,300` · `--scenario=robot_preview` · `find_preview` · `carry_preview` · `mol_preview` (`--only=buiten,zij,rups,achter,binnen,cabine,afdalen`) · `--menu-shot` |
 | Model van de Mol bouwen | `"C:\Program Files\Blender Foundation\Blender 5.2lender.exe" -b --factory-startup --python tools/blender/mol.py -- game/assets/models/mol.glb`, daarna `tools\godot.cmd --headless --path game --import` |
 | Twee instanties met de hand | `tools\godot.cmd --path game -- --host` en `tools\godot.cmd --path game -- --join=127.0.0.1` |
@@ -115,6 +116,12 @@ Stijl: Deep Rock Galactic + PEAK + Astroneer. Alle modellen in Blender (geen AI-
     - 2026-10-01, ronde 2 na feedback van Jayme: staand meerijden (gleed weg, blik draaide), draaien in de rots (romp in de stenen), flikkeren (coplanaire vloer, geen AA, model-trillen), stoel niet te vinden (stuurhendels + E in de cabine), zwart camerascherm, gereedschap door de wand. `mol_test` 42 controles; de nieuwe controles falen zonder de fixes. Zelf gespeeld in de build met toetsenbord en muis: instappen, rijden, in de rots draaien, staand afdalen tot −61 m, uitstappen.
     - 2026-10-01, ronde 3: uitstappen na een rit (vooral in buitenzicht) zette je ver weg en je viel door de map. Opgelost en door Jayme getest ("het werkt"). Vangnet bij vallen onder de wereld. `mol_test` 47 controles.
     - Open: Jayme speelt het en zegt wat beter moet.
+  - [x] **HUD en menu's**, 2026-10-01. Research: [docs/research/hud-menu.md](../docs/research/hud-menu.md) (DRG, PEAK, Lethal Company, R.E.P.O. e.a.).
+    - Huisstijl in code (`UiTheme`): Bungee, Nunito, VT323; geel/antraciet; knoppen met een "lip", schakelaars, schuifregelaars.
+    - Hoofdmenu met 3D-decor (de Mol aan de rand van de put, nachtlucht, werflamp; `tools/blender/menu_set.py`), laadscherm met tips, pauzemenu (co-op loopt door), instellingen (beeld, geluid, besturing, toetsen omzetten, interface, HUD per onderdeel uit/dynamisch/altijd), knopgeluiden.
+    - HUD: vizier met ring per toestand en hitteboog, kompas met diepte/laag en richting naar de Mol, gereedschap, draagkaartje, meldingen, vertrekbanner, eindoverzicht, ploeg, besturing van de Mol; toetsblokjes volgen de eigen toetsen. UI schaalt mee met de resolutie (basis 1080p).
+    - Verificatie: `ui_test` 14 controles (Esc sluit menu's, toets omzetten werkt in het spel, bewaren, pauze); `hud_preview`-screenshots bekeken; zelf gespeeld in de build (menu, instellingen, toets omzetten, laadscherm, spel).
+    - Open: Jayme speelt het. Nog niet: Steam-uitnodigingen (M4), ondertitels en de stem van de firma (komt met geluid), ping (M3).
 - [ ] **M3 Inhoud** (eind oktober): de Mol werkend (afdalen, rijden en boren, laadruim, extractie; vervangt de lift), Fossielbed, Kristalgrotten, Graafworm, gas, ±8 items, depot met kas en museum, cosmetica.
 - [ ] **M4 Samen** (begin november): Steam-lobby's en uitnodigingen, voice, test met 150 ms vertraging. Poort 2.
 - [ ] **M5 Kernlus** (half november): opdrachten, quota, boete, lava, onrust, opslaan, host-vertrek, Oude Kolenmijn met tutorial.
