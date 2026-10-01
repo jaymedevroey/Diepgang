@@ -37,7 +37,7 @@ Logs, CSV's en screenshots komen in `logs/` (editor) of `builds\windows\logs\` (
 - [x] **Stap 5:** een stresstest met 4 gesimuleerde gravers plus 30 fysica-objecten.
   Verificatie: frametijd en collision-pieken zijn gelogd.
   - 2026-10-01, release-build, 1600×900, vsync uit, RTX 4090: 60 s, 32 graafacties/s. Frametijd gem. **0,63 ms**, p99 **1,44 ms**, max **8,7 ms**, 0 frames boven 16,7 ms. Frames met graafactie gem. 1,20 ms (max 2,5) tegenover 0,63 ms zonder. Ops worden gebundeld (±4 per tick). **Geldt niet voor mid-range**, zie lessons.md.
-- [ ] **Stap 6:** een Windows-export (release) bouwen.
+- [x] **Stap 6:** een Windows-export (release) bouwen.
   Verificatie: Jayme start de .exe en kan graven.
   - 2026-10-01: build staat in `builds\windows\`, met gebakken shaders. `dig_test` slaagt 3× op de build (met Steam). **Wacht op Jayme.**
 - [x] **Stap 7:** de renderertest, Forward+ tegenover Compatibility.
@@ -123,4 +123,4 @@ Stijl: Deep Rock Galactic + PEAK + Astroneer. Alle modellen in Blender (geen AI-
 ## Jayme (parallel)
 
 - [ ] Steamworks-account aanmaken ($100 app fee), W-8BEN en identiteitsgegevens.
-- [ ] M0 stap 6: `builds\windows\Diepgang.exe` starten en graven (linkermuis). Laat weten hoe het voelt en welke fps het HUD toont.
+- [x] M0 stap 6: `builds\windows\Diepgang.exe` starten en graven. 2026-10-01: Jayme speelt de builds (graven, de Mol).
