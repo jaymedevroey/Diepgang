@@ -19,7 +19,7 @@ const VIEWMODEL_FOV := 68.0
 
 # Houdingen van de hand t.o.v. de camera: positie + rotatie in graden.
 # Rotatie-X negatief = kop van de camera weg (naar voren), positief = naar achteren.
-const POSE_REST := [Vector3(0.36, -0.42, -0.62), Vector3(-28, -18, -12)]
+const POSE_REST := [Vector3(0.36, -0.37, -0.6), Vector3(-28, -18, -12)]
 const POSE_RAISED := [Vector3(0.44, -0.18, -0.52), Vector3(40, -14, 20)]
 const POSE_STRUCK := [Vector3(0.12, -0.34, -0.7), Vector3(-80, -4, 2)]
 

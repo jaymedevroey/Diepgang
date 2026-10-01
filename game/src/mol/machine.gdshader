@@ -18,6 +18,12 @@ uniform vec3 grime_color : source_color = vec3(0.16, 0.12, 0.09);
 uniform float variation = 0.06;
 uniform bool hazard = false;        // geel-zwarte strepen
 uniform float hazard_scale = 2.2;   // strepen per meter
+uniform float detail_scale = 1.0;   // >1 voor kleine voorwerpen (gereedschap): fijnere vlekken en strepen
+// Gereedschap in beeld (first person): eigen gezichtsveld en niet door muren steken (zoals
+// fov_override en z_clip_scale van StandardMaterial3D).
+uniform bool viewmodel = false;
+uniform float viewmodel_fov = 68.0;
+uniform float viewmodel_zclip = 0.3;
 
 varying vec3 opos;
 varying vec4 wear;
@@ -40,8 +46,20 @@ float vnoise(vec3 x) {
 }
 
 void vertex() {
-	opos = VERTEX;
+	opos = VERTEX * detail_scale;
 	wear = COLOR;
+	if (viewmodel) {
+		float f = 1.0 / tan(radians(viewmodel_fov) * 0.5);
+		float aspect = abs(PROJECTION_MATRIX[1][1] / PROJECTION_MATRIX[0][0]);
+		mat4 proj = PROJECTION_MATRIX;
+		proj[1][1] = f * sign(PROJECTION_MATRIX[1][1]);
+		proj[0][0] = f / aspect * sign(PROJECTION_MATRIX[0][0]);
+		POSITION = proj * (MODELVIEW_MATRIX * vec4(VERTEX, 1.0));
+		POSITION.z = mix(POSITION.w, POSITION.z, viewmodel_zclip);
+	} else {
+		// Wie POSITION ergens schrijft, moet het overal doen: Godot gebruikt het dan altijd.
+		POSITION = PROJECTION_MATRIX * (MODELVIEW_MATRIX * vec4(VERTEX, 1.0));
+	}
 }
 
 void fragment() {
@@ -70,7 +88,7 @@ void fragment() {
 	float rough = mix(roughness, 0.32, edge);
 
 	// Vuil in holtes en wat meer onderaan (stof van de tunnel).
-	float low = smoothstep(-0.8, -2.8, opos.y);
+	float low = smoothstep(-0.8, -2.8, opos.y / detail_scale);
 	// Stof onderaan: zacht en grootschalig (een waas, geen vlekken).
 	float dust = low * low_grime * (0.25 + 0.2 * smoothstep(0.2, 0.8, vnoise(opos * 0.8)));
 	float dirt = clamp(smoothstep(0.3, 0.9, wear.g) + dust, 0.0, 1.0) * grime;

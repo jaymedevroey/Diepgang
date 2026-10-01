@@ -1,97 +1,79 @@
 class_name PickaxeModel
 extends RefCounted
-## Bouwt het houweel voor in beeld uit primitieven (tijdelijk; later een Blender-model).
-## Oorsprong = de hand. De steel loopt langs +Y, de punt van de kop wijst naar -Z.
+## Gereedschapsmodellen uit Blender (tools/blender/tools.py → assets/models/tools.glb):
+## houweel, boor, boorspiraal en de robothandschoen. Materialen = de machine-shader van de Mol
+## (geel, antraciet, kaal staal met slijtage), in first person met een eigen gezichtsveld.
+## Oorsprong van het houweel = de hand. De steel loopt langs +Y, de punt van de kop wijst naar -Z.
 
-const WOOD := Color(0.42, 0.27, 0.15)
-const METAL := Color(0.36, 0.37, 0.4)
 const GLOVE := Color(0.95, 0.55, 0.12) # robotkleur van speler 1
 ## Renderlaag voor gereedschap in beeld (laag 2), zodat een vullicht enkel dat raakt.
 const VIEWMODEL_LAYER := 1 << 1
+const SOURCE := preload("res://assets/models/tools.glb")
+## Kleine voorwerpen: fijnere slijtvlekken en strepen dan op de Mol.
+const DETAIL := 7.0
+const EMISSIVE := {"Lens": [Color(1.0, 0.85, 0.6), 2.5], "Cyan": [Color(0.31, 0.89, 0.94), 2.5]}
 
-static var _viewmodel := true
+static var _parts: Dictionary = {} # naam -> [mesh, transform]
+static var _materials: Dictionary = {}
 
 
-## `viewmodel` = in first-person voor de eigen camera (eigen FOV, z-clip, renderlaag 2).
+## `viewmodel` = in first-person voor de eigen camera (eigen FOV, z-clip, renderlaag 2) mét handschoen.
 ## Zonder: gewoon in de wereld, in de hand van een robot.
 static func build(viewmodel_fov: float, glove_color := GLOVE, viewmodel := true) -> Node3D:
-	_viewmodel = viewmodel
 	var root := Node3D.new()
 	root.name = "PickaxeModel"
-
-	var handle := CylinderMesh.new()
-	handle.top_radius = 0.018
-	handle.bottom_radius = 0.022
-	handle.height = 0.62
-	handle.radial_segments = 10
-	_add(root, handle, _mat(WOOD, 0.85, 0.0, viewmodel_fov), Vector3(0, 0.22, 0))
-
-	# Kop: blok + punt naar voren (licht gebogen) + platte beitel naar achteren.
-	var head := Node3D.new()
-	head.position = Vector3(0, 0.5, 0)
-	root.add_child(head)
-	var block := BoxMesh.new()
-	block.size = Vector3(0.05, 0.065, 0.075)
-	var metal := _mat(METAL, 0.45, 0.8, viewmodel_fov)
-	_add(head, block, metal, Vector3.ZERO)
-
-	var spike := CylinderMesh.new()
-	spike.top_radius = 0.0
-	spike.bottom_radius = 0.026
-	spike.height = 0.24
-	spike.radial_segments = 8
-	var s := _add(head, spike, metal, Vector3(0, -0.02, -0.14))
-	s.rotation = Vector3(deg_to_rad(-100), 0, 0)
-
-	var adze := CylinderMesh.new()
-	adze.top_radius = 0.004
-	adze.bottom_radius = 0.028
-	adze.height = 0.15
-	adze.radial_segments = 8
-	var a := _add(head, adze, metal, Vector3(0, -0.01, 0.1))
-	a.rotation = Vector3(deg_to_rad(95), 0, 0)
-	a.scale = Vector3(1.7, 1.0, 0.45)
-
-	var ring := CylinderMesh.new()
-	ring.top_radius = 0.026
-	ring.bottom_radius = 0.026
-	ring.height = 0.03
-	_add(head, ring, metal, Vector3(0, -0.045, 0))
-
-	if not viewmodel:
-		return root # de robot heeft zijn eigen hand
-	# Robothandschoen rond de greep.
-	var glove := CapsuleMesh.new()
-	glove.radius = 0.045
-	glove.height = 0.13
-	_add(root, glove, _mat(glove_color, 0.55, 0.1, viewmodel_fov), Vector3(0.0, 0.0, 0.0))
-	var knuckle := BoxMesh.new()
-	knuckle.size = Vector3(0.07, 0.05, 0.06)
-	_add(root, knuckle, _mat(glove_color.darkened(0.3), 0.6, 0.1, viewmodel_fov), Vector3(0.0, 0.0, -0.03))
+	root.add_child(part("Pickaxe", viewmodel_fov, glove_color, viewmodel))
+	if viewmodel:
+		root.add_child(part("Glove", viewmodel_fov, glove_color, viewmodel))
 	return root
 
 
-static func _add(parent: Node3D, mesh: Mesh, mat: Material, pos: Vector3) -> MeshInstance3D:
+## Kopie van een onderdeel uit tools.glb (zelfde plaats t.o.v. de oorsprong) met de juiste materialen.
+static func part(name: String, viewmodel_fov: float, tint: Color, viewmodel: bool) -> MeshInstance3D:
+	var src: Array = _source(name)
 	var mi := MeshInstance3D.new()
-	mi.mesh = mesh
-	mi.material_override = mat
-	mi.position = pos
-	if _viewmodel:
+	mi.name = name
+	mi.mesh = src[0]
+	mi.transform = src[1]
+	for i in mi.mesh.get_surface_count():
+		var m := mi.mesh.surface_get_material(i)
+		mi.set_surface_override_material(i, material(m.resource_name if m else "", viewmodel_fov if viewmodel else 0.0, tint))
+	if viewmodel:
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		mi.layers = VIEWMODEL_LAYER
-	parent.add_child(mi)
 	return mi
 
 
-## Viewmodel-materiaal: eigen FOV en z-clip-schaal, zodat het niet door muren steekt.
-static func _mat(color: Color, roughness: float, metallic: float, fov: float) -> StandardMaterial3D:
-	var m := StandardMaterial3D.new()
-	m.albedo_color = color
-	m.roughness = roughness
-	m.metallic = metallic
-	if _viewmodel:
-		m.use_z_clip_scale = true
-		m.z_clip_scale = 0.3
-		m.use_fov_override = true
-		m.fov_override = fov
+static func material(name: String, viewmodel_fov: float, tint: Color) -> Material:
+	var key := "%s|%.1f|%s" % [name, viewmodel_fov, tint.to_html() if name == "PlayerColor" else ""]
+	if _materials.has(key):
+		return _materials[key]
+	# Gereedschap is klein en dun: de slijtage van de Mol (randen, holtes) zou er overal zitten.
+	var m: Material = MolVisual.machine_material(name, false, DETAIL, viewmodel_fov, tint, 0.35)
+	if m == null:
+		var sm := StandardMaterial3D.new()
+		if EMISSIVE.has(name):
+			sm.albedo_color = EMISSIVE[name][0]
+			sm.emission_enabled = true
+			sm.emission = EMISSIVE[name][0]
+			sm.emission_energy_multiplier = EMISSIVE[name][1]
+		else:
+			sm.albedo_color = Color(0.5, 0.5, 0.5)
+		if viewmodel_fov > 0.0:
+			sm.use_z_clip_scale = true
+			sm.z_clip_scale = 0.3
+			sm.use_fov_override = true
+			sm.fov_override = viewmodel_fov
+		m = sm
+	_materials[key] = m
 	return m
+
+
+## Mesh en plaats van een onderdeel; de scène wordt één keer geopend en meteen weer vrijgegeven.
+static func _source(name: String) -> Array:
+	if _parts.is_empty():
+		var root := SOURCE.instantiate()
+		for mi: MeshInstance3D in root.find_children("*", "MeshInstance3D", true, false):
+			_parts[mi.name] = [mi.mesh, mi.transform]
+		root.free()
+	return _parts[name]

@@ -13,7 +13,7 @@ signal running_changed(running: bool)
 const TOOL := Strata.Tool.BOOR_T1
 const VIEWMODEL_FOV := 68.0
 # Rechtsonder, bit gericht op het vizier.
-const POSE := [Vector3(0.26, -0.27, -0.56), Vector3(8, 9, 0)]
+const POSE := [Vector3(0.3, -0.33, -0.55), Vector3(6, 16, 0)]
 
 var terrain: TerrainAPI
 var sync: TerrainSync

@@ -64,6 +64,7 @@ PALETTE = {
     "DecalLight": ((0.95, 0.93, 0.88), 0.0, 0.6, None),
     "Bulb": ((1.0, 0.9, 0.7), 0.0, 0.2, ((1.0, 0.82, 0.55), 6.0)),
     "Cyan": ((0.31, 0.89, 0.94), 0.0, 0.2, ((0.31, 0.89, 0.94), 3.0)),
+    "PlayerColor": ((0.95, 0.55, 0.12), 0.1, 0.5, None),  # in Godot vervangen door de spelerskleur
 }
 _MATS = {}
 
@@ -243,6 +244,69 @@ def sweep(points, width, height, material, group, up=(0, 1, 0), closed=False, be
     o = bpy.data.objects.new("sweep", me)
     bpy.context.collection.objects.link(o)
     return _finish(o, material, group, bevel, 2)
+
+
+def loft(points, radii, material, group, verts=12, up=(0, 1, 0), twist=0.0, profile=None, smooth=True, bevel=0.0):
+    """Buis met wisselende dikte langs Godot-punten (houweelpunt, botten, boorspiraal, kristallen).
+    radii: per punt een getal of (rx, ry); 0 aan een uiteinde = spits. rx ligt opzij (t x up), ry langs up.
+    profile: optionele doorsnede als lijst (x, y) rond (0, 0) met straal ~1, anders een cirkel.
+    twist: graden draaiing van de doorsnede over de hele lengte."""
+    pts = [Vector(p) for p in points]
+    n = len(pts)
+    if profile is None:
+        profile = [(math.cos(i / verts * math.tau), math.sin(i / verts * math.tau)) for i in range(verts)]
+    m = len(profile)
+    upv = Vector(up)
+    bm = bmesh.new()
+    rings = []
+    for i, p in enumerate(pts):
+        a = pts[i - 1] if i > 0 else p
+        b = pts[i + 1] if i < n - 1 else p
+        t = b - a
+        if t.length < 1e-9:
+            t = Vector((0, 0, 1))
+        t.normalize()
+        side = t.cross(upv)
+        if side.length < 1e-6:
+            side = t.cross(Vector((1, 0, 0)))
+        side.normalize()
+        u = side.cross(t).normalized()
+        r = radii[i]
+        rx, ry = (r, r) if isinstance(r, (int, float)) else r
+        if rx <= 1e-6 and ry <= 1e-6:
+            rings.append([bm.verts.new(G(*p))])
+            continue
+        ang = math.radians(twist) * i / max(1, n - 1)
+        ca, sa = math.cos(ang), math.sin(ang)
+        ring = []
+        for (x, y) in profile:
+            xr, yr = x * ca - y * sa, x * sa + y * ca
+            ring.append(bm.verts.new(G(*(p + side * xr * rx + u * yr * ry))))
+        rings.append(ring)
+    for i in range(n - 1):
+        r0, r1 = rings[i], rings[i + 1]
+        if len(r0) == 1 and len(r1) == 1:
+            continue
+        if len(r0) == 1:
+            for k in range(m):
+                bm.faces.new([r0[0], r1[k], r1[(k + 1) % m]])
+        elif len(r1) == 1:
+            for k in range(m):
+                bm.faces.new([r0[k], r1[0], r0[(k + 1) % m]])
+        else:
+            for k in range(m):
+                bm.faces.new([r0[k], r1[k], r1[(k + 1) % m], r0[(k + 1) % m]])
+    if len(rings[0]) > 1:
+        bm.faces.new(list(rings[0]))
+    if len(rings[-1]) > 1:
+        bm.faces.new(list(reversed(rings[-1])))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    me = bpy.data.meshes.new("loft")
+    bm.to_mesh(me)
+    bm.free()
+    o = bpy.data.objects.new("loft", me)
+    bpy.context.collection.objects.link(o)
+    return _finish(o, material, group, bevel, 2, smooth=smooth)
 
 
 def tube(points, radius, material, group, verts=10, closed=False):

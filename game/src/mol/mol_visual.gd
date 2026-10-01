@@ -176,18 +176,27 @@ func _apply_materials() -> void:
 			mi.visible = false
 
 
-## Machine-materiaal uit de paletnaam van Blender (ook voor ander decor, bv. het menu).
-static func machine_material(name: String, inside := false) -> ShaderMaterial:
-	if not MATS.has(name):
+## Machine-materiaal uit de paletnaam van Blender (ook voor ander decor en gereedschap).
+## `detail`: >1 voor kleine voorwerpen. `viewmodel_fov` > 0: gereedschap in beeld (first person).
+## `tint`: kleur voor "PlayerColor" (de spelerskleur).
+static func machine_material(name: String, inside := false, detail := 1.0, viewmodel_fov := 0.0,
+		tint := Color(0.95, 0.55, 0.12), wear := 1.0) -> ShaderMaterial:
+	var player := name == "PlayerColor"
+	if not MATS.has(name) and not player:
 		return null
-	var p: Dictionary = MATS[name]
+	var p: Dictionary = MATS["Yellow" if player else name]
 	var m := ShaderMaterial.new()
 	m.shader = MACHINE
-	m.set_shader_parameter("albedo", p.albedo)
+	m.set_shader_parameter("albedo", tint if player else p.albedo)
+	m.set_shader_parameter("detail_scale", detail)
+	m.set_shader_parameter("hazard_scale", 2.2 * detail)
+	if viewmodel_fov > 0.0:
+		m.set_shader_parameter("viewmodel", true)
+		m.set_shader_parameter("viewmodel_fov", viewmodel_fov)
 	m.set_shader_parameter("metallic", p.metallic)
 	m.set_shader_parameter("roughness", p.roughness)
-	m.set_shader_parameter("edge_wear", p.edge * (0.3 if inside else 1.0))
-	m.set_shader_parameter("grime", p.grime * (0.45 if inside else 1.0))
+	m.set_shader_parameter("edge_wear", p.edge * (0.3 if inside else 1.0) * wear)
+	m.set_shader_parameter("grime", p.grime * (0.45 if inside else 1.0) * wear)
 	m.set_shader_parameter("low_grime", 0.0 if inside else 1.0)
 	m.set_shader_parameter("bare_metal", p.get("bare", Color(0.62, 0.62, 0.6)))
 	m.set_shader_parameter("hazard", p.get("hazard", false))
