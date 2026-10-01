@@ -61,7 +61,9 @@ void fragment() {
 	// De vertexkleur alleen volstaat niet: op een vlak met enkel hoekpunten loopt die over het
 	// hele vlak door, en dan krijgen dunne platen overal schilfers.
 	float curv = length(fwidth(NORMAL)) / max(length(fwidth(VERTEX)), 1e-4);
-	float rim = smoothstep(3.0, 12.0, curv) * smoothstep(0.35, 0.8, wear.r);
+	// Zeer grote waarden komen van harde (gesplitste) randen: een sprong in de normaal binnen één
+	// pixel. Die negeren, anders zinderen dunne lijntjes bij elke beweging.
+	float rim = smoothstep(3.0, 12.0, curv) * (1.0 - smoothstep(70.0, 140.0, curv)) * smoothstep(0.35, 0.8, wear.r);
 	float edge = rim * mix(0.45, 1.0, chip) * edge_wear;
 	vec3 col = mix(base, bare_metal, edge);
 	float met = mix(metallic, 0.85, edge);

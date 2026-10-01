@@ -84,6 +84,8 @@ func _build_terrain(ops: Array, finds_state: Array = []) -> void:
 	finds.apply_snapshot(finds_state)
 	mol = Mol.new()
 	mol.name = "Mol"
+	# Eerst de Mol, dan de spelers: wie meerijdt, volgt de Mol van deze tick (zie Player._ride_mol).
+	mol.process_physics_priority = -10
 	mol.game = self
 	add_child(mol)
 	mol.setup()

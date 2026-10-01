@@ -29,8 +29,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("interact"):
 		var button := player.aimed_interactable()
+		var mol: Mol = player.game.mol
 		if button:
 			button.used.emit(player)
+		elif item == null and aimed_item() == null and mol.in_cockpit(player.global_position) and mol.pilot == 0:
+			mol.press(Mol.Cmd.SEAT) # in de cabine: E = plaatsnemen, ook als je niet precies op de stoel mikt
 		elif item:
 			drop(false)
 		else:
@@ -46,7 +49,7 @@ func aimed_item() -> FindItem:
 	var cam := player.camera
 	var reach := Tuning.get_f("carry", "grab_reach", 3.0)
 	var hit: Dictionary = player.game.terrain.raycast(cam.global_position, cam.global_position - cam.global_basis.z * reach,
-			Layers.TERRAIN | Layers.LOOT)
+			Layers.TERRAIN | Layers.LOOT | Layers.LIFT) # de Mol houdt de straal tegen
 	if hit.is_empty() or not (hit.collider is FindItem):
 		return null
 	var it: FindItem = hit.collider

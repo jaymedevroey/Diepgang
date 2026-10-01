@@ -70,6 +70,11 @@ func _run(p: Player) -> void:
 		p.head.rotation.x = deg_to_rad(-5)
 		await _shot("mol_patrijspoort", 0.3)
 		p._look_yaw = 0.0
+		# Drie opeenvolgende frames van de vloer en de romp tijdens het rijden (flikkeren?).
+		_cam.make_current()
+		for k in 3:
+			_look(mol, Vector3(-1.2, 0.3, 3.4), Vector3(0.6, -1.5, -0.5))
+			await _shot("mol_frame_%d" % k, 0.0)
 		p.chase.activate()
 		await _shot("mol_buitenzicht", 3.0)
 		p.chase.orbit_yaw = deg_to_rad(35.0)
@@ -78,6 +83,8 @@ func _run(p: Player) -> void:
 			await get_tree().physics_frame
 		await _shot("mol_buitenzicht_onder", 2.0)
 		p.camera.make_current()
+		p.head.rotation.x = deg_to_rad(-4)
+		await _shot("mol_scherm_onder", 1.0)
 		await _wait(0.5)
 		mol.leave_seat()
 		await _wait(0.4)

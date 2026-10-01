@@ -39,6 +39,7 @@ RENDER_DIR = Path(ARGS[ARGS.index("--render") + 1]) if "--render" in ARGS else N
 HULL_W, HULL_H, HULL_CH = 4.8, 4.2, 0.9
 HULL_Z0, HULL_Z1 = -3.8, 4.2
 IN_W, IN_Y0, IN_Y1, IN_CH = 4.2, -1.5, 1.8, 0.75
+FLOOR_LIFT = 0.008  # vloerplaat net boven de romp (geen gedeeld vlak)
 IN_Z0 = -3.6
 SHIELD_R, SHIELD_Z0, SHIELD_Z1 = 2.8, -5.4, -3.8
 HEAD_R = 3.0
@@ -432,7 +433,8 @@ def build_interior():
     g = "Interior"
     length = HULL_Z1 - IN_Z0
     zc = (IN_Z0 + HULL_Z1) / 2
-    box((IN_W - 0.02, 0.06, length - 0.02), (0, IN_Y0 - 0.03, zc), "Floor", g, bevel=0.0)
+    # Vloerplaat 8 mm boven de uitgesneden romp: op hetzelfde vlak flikkert hij (z-fighting).
+    box((IN_W - 0.02, 0.06, length - 0.02), (0, IN_Y0 - 0.03 + FLOOR_LIFT, zc), "Floor", g, bevel=0.0)
     # Spanten.
     for z in (-2.95, -1.6, 1.6, 3.05):
         sweep([(x, y, z) for x, y in inner_profile_points()], 0.14, 0.1, "Anthracite", g, up=(0, 0, 1), bevel=0.02)
@@ -536,6 +538,10 @@ def build_cockpit(g):
     cyl(0.045, 0.1, desk(-1.82, -0.18, 0.09), "Red", g, verts=16, bevel=0.005, rot=DESK_ROT)
     cyl(0.038, 0.005, desk(-1.82, -0.18, 0.141), "Wood", g, verts=16, bevel=0.0, rot=DESK_ROT)
 
+    # Bakken waaruit de stuurhendels komen, met een rubberen hoes.
+    for x in (-0.55, 0.55):
+        box((0.26, 0.1, 0.3), (x, IN_Y0 + 0.05 + FLOOR_LIFT, -2.12), "Anthracite", g, bevel=0.02)
+        cyl(0.075, 0.06, (x, IN_Y0 + 0.12, -2.12), "Rubber", g, verts=14, bevel=0.015)
     # Stoel.
     sz = -1.85
     cyl(0.12, 0.45, (0, IN_Y0 + 0.23, sz), "Anthracite", g, verts=16, bevel=0.02)
@@ -591,9 +597,9 @@ def build_living(g):
 def build_cargo(g):
     hw = IN_W / 2
     # Waarschuwingsranden op de vloer, sjorrails, wandrails.
-    box((IN_W - 0.1, 0.012, 0.14), (0, IN_Y0 + 0.006, 1.62), "Hazard", g, bevel=0.0)
+    box((IN_W - 0.1, 0.012, 0.14), (0, IN_Y0 + 0.016, 1.62), "Hazard", g, bevel=0.0)
     for s in (-1, 1):
-        box((0.14, 0.012, 2.5), (s * (hw - 0.12), IN_Y0 + 0.006, 2.9), "Hazard", g, bevel=0.0)
+        box((0.14, 0.012, 2.5), (s * (hw - 0.12), IN_Y0 + 0.016, 2.9), "Hazard", g, bevel=0.0)
         tube([(s * 1.1, IN_Y0 + 0.05, 1.85), (s * 1.1, IN_Y0 + 0.05, 4.0)], 0.03, "Steel", g, verts=8)
         for y in (-0.7, 0.55):
             tube([(s * (hw - 0.06), y, 1.75), (s * (hw - 0.06), y, 4.05)], 0.03, "Steel", g, verts=8)
@@ -647,6 +653,21 @@ def build_lever():
 
 
 NEEDLES = []
+STICK_BASE = {"L": (-0.55, IN_Y0 + 0.1, -2.12), "R": (0.55, IN_Y0 + 0.1, -2.12)}
+
+
+def build_sticks():
+    """Twee stuurhendels zoals in een rupsvoertuig: duwen = vooruit, trekken = achteruit, verschil = draaien."""
+    for side, base in STICK_BASE.items():
+        g = f"Stick_{side}"
+        x, y, z = base
+        top = (x, -0.62, z - 0.08)
+        cyl(0.05, 0.08, (x, y + 0.02, z), "Anthracite", g, verts=14, bevel=0.01)
+        tube([(x, y + 0.05, z), top], 0.026, "Steel", g, verts=10)
+        cyl(0.042, 0.2, (top[0], top[1] + 0.08, top[2] - 0.03), "Rubber", g, verts=14, bevel=0.012,
+            rot=(-10, 0, 0))
+        sphere(0.045, (top[0], top[1] + 0.19, top[2] - 0.05), "Yellow" if side == "L" else "Yellow", g,
+               segments=12, rings=6)
 
 
 def build_needles():
@@ -684,6 +705,7 @@ def main():
     build_monitor()
     lever_base = build_lever()
     build_needles()
+    build_sticks()
     build_glass()
 
     root = bpy.data.objects.new("Mol", None)
@@ -700,6 +722,8 @@ def main():
     objects["Glass"] = join_group("Glass", "Glass")
     for g, c in NEEDLES:
         objects[g] = join_group(g, g, origin=c)
+    for side, base in STICK_BASE.items():
+        objects[f"Stick_{side}"] = join_group(f"Stick_{side}", f"Stick_{side}", origin=base)
     objects["TrackLink"] = join_group("TrackLink", "TrackLink")
     for side in ("L", "R"):
         for i in range(7):

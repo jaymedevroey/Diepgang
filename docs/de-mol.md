@@ -44,7 +44,7 @@ De Mol boort een tunnel en moet daar zelf doorheen. Dat bepaalt de vorm, net als
 
 ## Werking in het spel
 
-**Besturen** (één piloot; iedereen mag): E op de stoel. W/S gas, A/D draaien, spatie/Ctrl neus omhoog/omlaag (max. ±25°), H toeter. In de stoel kijk je rond met de muis; E op een knop drukt hem in, E ergens anders = uitstappen. Je kijkt naar het camerascherm (bewakingsmonitor: CAM 1, REC, vizier, diepte en laag), of met **C naar buiten** (camera achter de Mol, kiest in een tunnel zelf de vrije richting terug langs de tunnel).
+**Besturen** (één piloot; iedereen mag): E op de stoel of de twee stuurhendels ernaast (in de cabine volstaat E). De hendels bewegen mee met wat de Mol doet (rupsverschil bij draaien). W/S gas, A/D draaien, spatie/Ctrl neus omhoog/omlaag (max. ±25°), H toeter. In de stoel kijk je rond met de muis; E op een knop drukt hem in, E ergens anders = uitstappen. Je kijkt naar het camerascherm (bewakingsmonitor: CAM 1, REC, vizier, diepte en laag), of met **C naar buiten** (camera achter de Mol, kiest in een tunnel zelf de vrije richting terug langs de tunnel).
 
 **Boren:** vooruit rijden in rots boort grote bollen weg vooraan (Ø 6,4 m). Draaien schaaft ook langs de flanken. Achteruit kan enkel door een vrije tunnel.
 - Snelheid: 3 m/s door rots, 5 m/s door een vrije tunnel; autopiloot 6 m/s.
@@ -55,6 +55,8 @@ De Mol boort een tunnel en moet daar zelf doorheen. Dat bepaalt de vorm, net als
 **Afdalen (autopiloot):** knoppen in de cabine (−20, −40, −60 m). De Mol boort een spiraal (straal 11 m) naar beneden op 22°, komt daarna waterpas en opent de laadklep. Stuit hij op te hard gesteente, dan stopt hij op die diepte.
 
 **Extractie:** de vertrekhendel start een aftelling van 10 s (claxon, zwaailichten). Daarna rijdt de Mol automatisch zijn eigen spoor terug naar boven (lussen in het spoor worden overgeslagen). Boven: overzicht van wat in het laadruim ligt, en er wordt bijgetankt. Wie niet aan boord was, klimt te voet naar boven (komt terug bij de spawn achter de Mol).
+
+**Meerijden:** wie in de Mol staat, beweegt exact mee (positie en kijkrichting), ook in de spiraal; je eigen stappen komen daarbovenop. Draaien en kantelen schaaft de tunnel over de hele lengte van de Mol vrij.
 
 **Laadruim:** wat erin ligt, telt. Zolang de Mol rijdt, zitten losse vondsten in de Mol vastgesjord en volgen ze hem exact (op wrijving alleen schoven ze bij 22° en 6 m/s weg); staat hij stil, dan neemt de fysica het weer over.
 

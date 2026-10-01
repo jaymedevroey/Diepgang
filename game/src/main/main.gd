@@ -263,10 +263,12 @@ func _aim_info() -> String:
 	var button := player.aimed_interactable()
 	if button:
 		return button.hint
+	if game.mol.in_cockpit(player.global_position) and game.mol.pilot == 0:
+		return "E: de Mol besturen"
 	var cam := player.camera
 	var hit := terrain.raycast(cam.global_position, cam.global_position - cam.global_basis.z * 3.5,
-			Layers.TERRAIN | Layers.CRUST | Layers.LOOT)
-	if hit.is_empty():
+			Layers.TERRAIN | Layers.CRUST | Layers.LOOT | Layers.LIFT)
+	if hit.is_empty() or not (hit.collider is Crust or hit.collider is FindItem):
 		return ""
 	if hit.collider is Crust:
 		var c: Crust = hit.collider

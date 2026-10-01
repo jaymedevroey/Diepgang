@@ -150,7 +150,7 @@ func _impact() -> bool:
 	var reach := Tuning.get_f("pickaxe", "reach", 2.6)
 	var from := camera.global_position
 	var dir := -camera.global_basis.z
-	var hit := terrain.raycast(from, from + dir * reach, Layers.TERRAIN | Layers.CRUST)
+	var hit := terrain.tool_raycast(from, from + dir * reach)
 	if hit.is_empty():
 		return false
 	var pos: Vector3 = hit.position
@@ -184,7 +184,7 @@ func _impact() -> bool:
 func _update_aim() -> void:
 	var reach := Tuning.get_f("pickaxe", "reach", 2.6)
 	var from := camera.global_position
-	var hit := terrain.raycast(from, from - camera.global_basis.z * reach, Layers.TERRAIN | Layers.CRUST)
+	var hit := terrain.tool_raycast(from, from - camera.global_basis.z * reach)
 	var new_aim := Aim.NONE
 	if not hit.is_empty() and hit.collider is Crust:
 		new_aim = Aim.CRUST

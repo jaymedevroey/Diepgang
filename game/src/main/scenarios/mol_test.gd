@@ -106,23 +106,68 @@ func _run(p: Player) -> void:
 	_expect(absf(mol.speed) < 0.2, "staat weer stil na het loslaten")
 	_expect(mol.depth() < 0.8, "zakt niet weg bij rijden over het oppervlak (diepte %.2f m)" % mol.depth())
 
-	# 5. Autopiloot naar −20 m.
+	# 5. Autopiloot naar −20 m, met de speler STAAND in de woonruimte (niet in de stoel).
+	#    Hij moet mee bewegen: niet wegglijden, niet ronddraaien t.o.v. de Mol.
+	mol.leave_seat()
+	await _wait(0.3)
+	p.global_transform = Transform3D(Basis(Vector3.UP, mol.yaw + 0.5), mol.to_world_mol(Vector3(0.7, -1.4, 0.3)))
+	p.velocity = Vector3.ZERO
+	await _wait(0.6)
+	var stand := mol.to_local_mol(p.global_position)
+	var rel_yaw := angle_difference(mol.yaw, p.rotation.y)
 	mol.press(Mol.Cmd.AUTO, 20.0)
 	await _wait(0.2)
-	_expect(mol.mode == Mol.Mode.AUTO_DOWN, "autopiloot gestart")
+	_expect(mol.mode == Mol.Mode.AUTO_DOWN, "autopiloot gestart (staand bediend)")
 	var t0 := Time.get_ticks_msec()
+	var drift := 0.0
+	var yaw_drift := 0.0
 	while mol.mode == Mol.Mode.AUTO_DOWN and Time.get_ticks_msec() - t0 < 60000:
 		await get_tree().physics_frame
+		var now_local := mol.to_local_mol(p.global_position)
+		drift = maxf(drift, Vector2(now_local.x - stand.x, now_local.z - stand.z).length())
+		yaw_drift = maxf(yaw_drift, absf(angle_difference(rel_yaw, angle_difference(mol.yaw, p.rotation.y))))
 	var secs := (Time.get_ticks_msec() - t0) / 1000.0
 	_expect(mol.mode != Mol.Mode.AUTO_DOWN, "autopiloot klaar in %.0f s" % secs)
 	_expect(mol.depth() > 18.0 and mol.depth() < 26.0, "op diepte aangekomen (%.1f m)" % mol.depth())
 	_expect(absf(rad_to_deg(mol.pitch)) < 0.5, "waterpas geparkeerd (%.1f°)" % rad_to_deg(mol.pitch))
 	_expect(mol.ramp_open, "laadklep open op diepte")
 	await _wait(1.0)
-	_expect(mol.contains_point(p.global_position) and p.seated, "piloot reed mee")
+	_expect(mol.contains_point(p.global_position), "staande speler reed mee")
+	_expect(drift < 0.35, "staande speler gleed niet weg in de spiraal (max. %.2f m)" % drift)
+	_expect(rad_to_deg(yaw_drift) < 4.0, "kijkrichting draaide mee met de Mol (max. %.1f° verschil)" % rad_to_deg(yaw_drift))
 	_expect(mol.cargo_contents().has(it), "vondst reed mee in het laadruim")
+	# Vanuit de Mol naar de wand mikken: het houweel ziet de rots erachter niet (niet door de wand graven).
+	p.global_transform = Transform3D(Basis(Vector3.UP, mol.yaw - PI / 2), mol.to_world_mol(Vector3(1.2, -1.4, -0.4)))
+	p.head.rotation.x = 0.0
+	await _wait(0.2)
+	var behind := p.global_position + -p.camera.global_basis.z * 2.5
+	var ray := t.tool_raycast(p.camera.global_position, p.camera.global_position - p.camera.global_basis.z * 2.6)
+	_expect(ray.is_empty(), "gereedschap gaat niet door de wand van de Mol (rots erachter: %s)" % t.is_solid(behind))
 
-	# 6. Uitstappen en de tunnel in lopen.
+	# 6. In de tunnel zelf draaien en de neus heffen: er mag geen rots in de romp komen.
+	p.global_transform = Transform3D(Basis(Vector3.UP, mol.yaw), mol.to_world_mol(Vector3(0, -1.45, -1.0)))
+	await _wait(0.4)
+	mol.press(Mol.Cmd.SEAT)
+	await _wait(0.3)
+	var yaw0 := mol.yaw
+	Input.action_press("move_right")
+	await _wait(4.0)
+	Input.action_release("move_right")
+	_expect(absf(rad_to_deg(angle_difference(yaw0, mol.yaw))) > 60.0, "piloot draait ter plaatse (%.0f°)" % rad_to_deg(absf(angle_difference(yaw0, mol.yaw))))
+	await _wait(0.5)
+	_expect(_hull_clear(mol, t), "na het draaien zit er geen rots in de romp")
+	Input.action_press("jump")
+	await _wait(1.5)
+	Input.action_release("jump")
+	await _wait(0.3)
+	_expect(rad_to_deg(mol.pitch) > 10.0, "neus omhoog (%.0f°)" % rad_to_deg(mol.pitch))
+	_expect(_hull_clear(mol, t), "na het kantelen zit er geen rots in de romp")
+	Input.action_press("crouch")
+	await _wait(1.5)
+	Input.action_release("crouch")
+	_expect(mol.contains_point(p.global_position) and p.seated, "piloot zit nog in de Mol")
+
+	# Uitstappen en de tunnel in lopen.
 	mol.leave_seat()
 	await _wait(0.3)
 	_expect(not p.seated and mol.pilot == 0 and mol.mode == Mol.Mode.PARKED, "uitgestapt, de Mol staat geparkeerd")
@@ -174,6 +219,20 @@ func _run(p: Player) -> void:
 	for f in _failures:
 		print("[mol_test] MISLUKT: ", f)
 	get_tree().quit(0 if _failures.is_empty() else 1)
+
+
+## Geen rots binnen de romp: punten op 2,3 m van de as, over de hele lengte.
+func _hull_clear(mol: Mol, t: TerrainAPI) -> bool:
+	var bad := 0
+	for z in [-6.0, -4.0, -2.0, 0.0, 2.0, 4.0]:
+		for k in 8:
+			var a := k / 8.0 * TAU
+			var local := Vector3(cos(a) * 2.3, sin(a) * 2.0, z)
+			if t.is_solid(mol.to_world_mol(local)):
+				bad += 1
+	if bad > 0:
+		print("[mol_test] %d rotspunten in de romp" % bad)
+	return bad == 0
 
 
 func _wait(s: float) -> void:

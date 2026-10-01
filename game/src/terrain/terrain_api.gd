@@ -260,6 +260,15 @@ func spawn_point() -> Vector3:
 
 ## Straal tegen het terrein (en optioneel andere lagen, zie Layers).
 ## Zelfde resultaat als PhysicsDirectSpaceState3D.intersect_ray.
+## Straal voor gereedschap: rots en korsten, maar de Mol houdt hem tegen (niet door zijn wand
+## heen graven). Raakt hij eerst de Mol, dan is het resultaat leeg.
+func tool_raycast(from: Vector3, to: Vector3) -> Dictionary:
+	var hit := raycast(from, to, Layers.TERRAIN | Layers.CRUST | Layers.LIFT)
+	if not hit.is_empty() and hit.collider is CollisionObject3D and (hit.collider as CollisionObject3D).collision_layer & Layers.LIFT:
+		return {}
+	return hit
+
+
 func raycast(from: Vector3, to: Vector3, mask := COLLISION_LAYER) -> Dictionary:
 	var query := PhysicsRayQueryParameters3D.create(from, to, mask)
 	return get_world_3d().direct_space_state.intersect_ray(query)

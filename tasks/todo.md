@@ -112,6 +112,7 @@ Stijl: Deep Rock Galactic + PEAK + Astroneer. Alle modellen in Blender (geen AI-
     - Model in Blender ([mol.py](../tools/blender/mol.py), 94k driehoeken): boorkop met spiraalarmen, schild, romp, rupsen, motor, interieur (cabine met schuine console, woonruimte, laadruim), slijtage in vertexkleuren.
     - Werking: rijden en boren, steun op het terrein, autopiloot (spiraal), laadruim, extractie met samenvatting, bijtanken, achterblijvers, buitenzicht (C), camerascherm, meters, knoppen vanuit de stoel.
     - Verificatie: `mol_test` 34 controles (o.a. van de spawn de klep op lopen, afdalen tot −20, vondst rijdt mee, extractie, graniet blokkeert); nettest met een client als piloot (19 controles).
+    - 2026-10-01, ronde 2 na feedback van Jayme: staand meerijden (gleed weg, blik draaide), draaien in de rots (romp in de stenen), flikkeren (coplanaire vloer, geen AA, model-trillen), stoel niet te vinden (stuurhendels + E in de cabine), zwart camerascherm, gereedschap door de wand. `mol_test` 42 controles; de nieuwe controles falen zonder de fixes. Zelf gespeeld in de build met toetsenbord en muis: instappen, rijden, in de rots draaien, staand afdalen tot −61 m, uitstappen.
     - Open: Jayme speelt het en zegt wat beter moet.
 - [ ] **M3 Inhoud** (eind oktober): de Mol werkend (afdalen, rijden en boren, laadruim, extractie; vervangt de lift), Fossielbed, Kristalgrotten, Graafworm, gas, ±8 items, depot met kas en museum, cosmetica.
 - [ ] **M4 Samen** (begin november): Steam-lobby's en uitnodigingen, voice, test met 150 ms vertraging. Poort 2.

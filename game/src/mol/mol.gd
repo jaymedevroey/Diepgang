@@ -67,6 +67,7 @@ var _beep_timer := 0.0
 var _start_pos := Vector3.ZERO
 var _readout_timer := 0.0
 var _ramp_shape: CollisionShape3D
+var _visual_yaw := 0.0
 var _teleport: Variant = null # [pos, yaw, pitch], toegepast in de volgende physics-tick
 
 # Clients.
@@ -121,6 +122,12 @@ func contains_point(world: Vector3) -> bool:
 	if ramp_open: # op de klep, die schuin naar de vloer loopt
 		return local.z > 4.0 and local.z < 7.2 and absf(local.x) < 2.1 and local.y > -3.4 and local.y < -0.5
 	return false
+
+
+## Staat een wereldpunt in de cabine (voor de woonruimte)? Daar zet E je aan het stuur.
+func in_cockpit(world: Vector3) -> bool:
+	var local := body.global_transform.affine_inverse() * world
+	return INSIDE.has_point(local) and local.z < -1.2
 
 
 func to_local_mol(world: Vector3) -> Vector3:
@@ -350,7 +357,9 @@ func _drive(inp: Vector3, delta: float) -> void:
 	var auto := mode == Mode.AUTO_DOWN
 	# Neus en draaien.
 	var max_pitch := deg_to_rad(Tuning.get_f("mol", "max_pitch_deg", 25.0))
+	var pitch_was := pitch
 	pitch = clampf(pitch + inp.z * deg_to_rad(Tuning.get_f("mol", "pitch_rate_deg", 12.0)) * delta, -max_pitch, max_pitch)
+	_yaw_since_bore += absf(pitch - pitch_was)
 	var turn := -inp.y * deg_to_rad(Tuning.get_f("mol", "yaw_rate_deg", 22.0)) * delta * (0.7 if drilling and not auto else 1.0)
 	yaw += turn
 	_yaw_since_bore += absf(turn)
@@ -391,12 +400,9 @@ func _drive(inp: Vector3, delta: float) -> void:
 	if speed > 0.05 and (rock or _since_bore >= BORE_STEP * 3.0) and _since_bore >= BORE_STEP:
 		_since_bore = 0.0
 		_bore(pos + fwd * BORE_AHEAD)
-	if _yaw_since_bore > deg_to_rad(6.0):
+	if _yaw_since_bore > deg_to_rad(3.0):
 		_yaw_since_bore = 0.0
-		for off in [2.5, -1.0, -4.0]: # bij het draaien schaaft hij langs de flanken
-			var c: Vector3 = pos + fwd * off
-			if _probe_ring(c, fwd, 3.0)[0]:
-				_bore(c)
+		_shave_body(pos, fwd)
 	fuel = maxf(0.0, fuel - step.length() * (1.0 / Tuning.get_f("mol", "fuel_m_boring", 400.0) if drilling else 1.0 / Tuning.get_f("mol", "fuel_m_driving", 1500.0)))
 	if blocked and not was_blocked or blocked and _blocked_sound <= 0.0:
 		_blocked_sound = 1.0
@@ -432,6 +438,18 @@ func _probe_ring(center: Vector3, fwd: Vector3, radius := 2.4) -> Array:
 			if not Strata.can_dig(t.layer_at(p), TIER):
 				hard = true
 	return [rock, hard]
+
+
+## Draaien of kantelen: voor- en achterkant zwaaien opzij. Over de hele lengte vrijmaken waar
+## rots tegen de romp zit (bollen om de 1,6 m: daartussen blijft de tunnel breder dan de romp).
+const SHAVE_OFFSETS := [-6.4, -4.8, -3.2, -1.6, 0.0, 1.6, 3.2, 4.4]
+
+
+func _shave_body(pos: Vector3, fwd: Vector3) -> void:
+	for off: float in SHAVE_OFFSETS:
+		var c: Vector3 = pos + fwd * off
+		if _probe_ring(c, fwd, 2.95)[0]:
+			_bore(c)
 
 
 func _bore(center: Vector3) -> void:
@@ -592,6 +610,13 @@ func _interpolate() -> void:
 
 
 func _update_visual() -> void:
+	# Hendels uit wat de Mol doet (zo zien alle peers ze bewegen): gas en draaien als rupsverschil.
+	var dt := get_physics_process_delta_time()
+	var turn_rate := angle_difference(_visual_yaw, yaw) / maxf(dt, 0.001)
+	_visual_yaw = yaw
+	var gas := clampf(speed / 3.0, -1.0, 1.0)
+	var steer := clampf(-turn_rate / deg_to_rad(22.0), -1.0, 1.0)
+	visual.sticks = Vector2(clampf(gas + steer, -1.0, 1.0), clampf(gas - steer, -1.0, 1.0))
 	_update_ramp_shape()
 	visual.set_gauges([depth() / 60.0, absf(speed) / 6.0, fuel])
 	visual.speed = speed
@@ -696,15 +721,17 @@ func _build_buttons() -> void:
 	_button(a["Btn_Ramp_Back"], "E: laadklep open/dicht", Cmd.RAMP, 0.0, 0.3)
 	_button(a["Lever"], "E: vertrekken naar boven (10 s)", Cmd.DEPART, 0.0, 0.3)
 	_button(a["Workbench"], "Werkbank (upgrades komen later)", Cmd.WORKBENCH, 0.0, 0.6)
+	# Stoel en stuurhendels samen: groot genoeg om niet te missen, laag genoeg om over te mikken
+	# naar de knoppen op de console.
 	var seat := Node3D.new()
 	body.add_child(seat)
-	seat.position = Vector3(0, -0.9, -1.85)
-	_button(seat, "E: de Mol besturen", Cmd.SEAT, 0.0, 0.7)
+	seat.position = Vector3(0, -0.95, -2.05)
+	_button(seat, "E: de Mol besturen", Cmd.SEAT, 0.0, Vector3(1.2, 1.1, 1.1))
 
 
-func _button(anchor: Node3D, hint: String, button: Cmd, arg: float, size: float) -> void:
+func _button(anchor: Node3D, hint: String, button: Cmd, arg: float, size: Variant) -> void:
 	var shape := BoxShape3D.new()
-	shape.size = Vector3.ONE * size
+	shape.size = size if size is Vector3 else Vector3.ONE * float(size)
 	var it := Interactable.make(hint, shape)
 	it.set_meta("mol_cmd", button)
 	anchor.add_child(it)

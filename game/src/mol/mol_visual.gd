@@ -30,7 +30,7 @@ const MATS := {
 	"Hazard": {"albedo": Color(0.949, 0.718, 0.02), "metallic": 0.15, "roughness": 0.5, "edge": 0.7, "grime": 0.5, "hazard": true},
 	"Panel": {"albedo": Color(0.78, 0.76, 0.72), "metallic": 0.1, "roughness": 0.55, "edge": 0.3, "grime": 0.45},
 	"Cream": {"albedo": Color(0.913, 0.882, 0.827), "metallic": 0.05, "roughness": 0.6, "edge": 0.2, "grime": 0.3},
-	"Floor": {"albedo": Color(0.24, 0.245, 0.25), "metallic": 0.8, "roughness": 0.5, "edge": 0.6, "grime": 0.7},
+	"Floor": {"albedo": Color(0.36, 0.36, 0.35), "metallic": 0.35, "roughness": 0.62, "edge": 0.6, "grime": 0.6},
 	"Wood": {"albedo": Color(0.55, 0.36, 0.2), "metallic": 0.0, "roughness": 0.75, "edge": 0.15, "grime": 0.4, "bare": Color(0.72, 0.56, 0.38)},
 	"Leather": {"albedo": Color(0.42, 0.24, 0.13), "metallic": 0.0, "roughness": 0.6, "edge": 0.3, "grime": 0.3, "bare": Color(0.6, 0.4, 0.26)},
 	"Red": {"albedo": Color(0.78, 0.1, 0.07), "metallic": 0.1, "roughness": 0.45, "edge": 0.6, "grime": 0.4},
@@ -68,6 +68,9 @@ var _wheels: Array = [] # [node, as, straal]
 var _lever: Node3D
 var _lever_rest: Transform3D
 var _needles: Array = [] # [node, rust-transform, huidige hoek, doelhoek]
+var _sticks: Array = [] # [node, rust-transform, huidige hoek]
+## Stuurhendels: x = links, y = rechts, -1..1 (duwen = vooruit).
+var sticks := Vector2.ZERO
 var _links: Array[MultiMeshInstance3D] = []
 var _track_scroll := 0.0
 var _head_spin := 0.0
@@ -90,7 +93,6 @@ var _snd: Dictionary = {}
 var _feed_viewport: SubViewport
 var _feed_camera: Camera3D
 var _rng := RandomNumberGenerator.new()
-var _shake := 0.0
 var _label_left: Label3D
 var _label_right: Label3D
 
@@ -104,6 +106,9 @@ func _ready() -> void:
 	_head = anchors["DrillHead"]
 	_lever = anchors["Lever"]
 	_lever_rest = _lever.transform
+	for side in ["Stick_L", "Stick_R"]:
+		var st: Node3D = anchors[side]
+		_sticks.append([st, st.transform, 0.0])
 	for k in 3:
 		var n: Node3D = anchors["Needle_%d" % k]
 		_needles.append([n, n.transform, 0.0, 0.0])
@@ -283,7 +288,10 @@ func _update_tracks() -> void:
 # --- Licht ------------------------------------------------------------------------------
 
 func _build_lights() -> void:
-	var hub := _spot("Light_Hub", Color(1.0, 0.9, 0.75), 5.0, 26.0, 42.0, true)
+	# Iets vóór de naaf en zonder schaduw: in het voorvlak van de naaf blokkeerde zijn eigen
+	# behuizing het licht, en bleef het camerascherm zwart.
+	var hub := _spot("Light_Hub", Color(1.0, 0.9, 0.75), 3.5, 30.0, 50.0, false)
+	hub.position = Vector3(0, 0, -0.3)
 	hub.spot_angle_attenuation = 0.7
 	_spot("Light_Bar", Color(1.0, 0.88, 0.7), 2.2, 16.0, 62.0, false)
 	_spot("Light_Roof_L", Color(1.0, 0.85, 0.65), 1.4, 12.0, 50.0, false)
@@ -580,6 +588,14 @@ func _process(delta: float) -> void:
 		var rest: Transform3D = nd[1]
 		(nd[0] as Node3D).transform = Transform3D(Basis(DESK_NORMAL, nd[2]) * rest.basis, rest.origin)
 
+	# Stuurhendels: duwen = die rups vooruit.
+	for i in _sticks.size():
+		var st: Array = _sticks[i]
+		var want := -deg_to_rad(22.0) * (sticks.x if i == 0 else sticks.y)
+		st[2] = lerpf(st[2], want, minf(1.0, delta * 10.0))
+		var rest: Transform3D = st[1]
+		(st[0] as Node3D).transform = Transform3D(Basis(Vector3.RIGHT, st[2]) * rest.basis, rest.origin)
+
 	# Licht en zwaailichten.
 	for l in _lights:
 		l.visible = lights_on
@@ -615,9 +631,8 @@ func _process(delta: float) -> void:
 	_fade(_snd.tracks, -6.0 if absf(speed) > 0.15 else -80.0, delta)
 	(_snd.tracks as AudioStreamPlayer3D).pitch_scale = clampf(0.5 + absf(speed) * 0.2, 0.5, 1.8)
 
-	# Trillen bij boren.
-	_shake = move_toward(_shake, 0.012 if drilling else 0.0, delta * 0.05)
-	model.position = Vector3(_rng.randf_range(-1, 1), _rng.randf_range(-1, 1), 0.0) * _shake
+	# Trillen bij boren gebeurt met de camera (vloeiend). Het model zelf elk frame willekeurig
+	# verschuiven deed alles in de Mol zinderen.
 
 	# Camerascherm.
 	_feed_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS if feed_active else SubViewport.UPDATE_DISABLED

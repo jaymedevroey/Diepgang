@@ -26,6 +26,9 @@ var camera: Camera3D
 var camera_fx: CameraFx
 ## Buitenzicht als piloot (C). Enkel bij de lokale speler.
 var chase: MolChaseCam
+# Meerijden in de Mol: zijn transform bij de vorige tick (zie _ride_mol).
+var _mol_ref := Transform3D()
+var _riding := false
 var pickaxe: Pickaxe
 var drill: Drill
 var tools: Array[Node3D] = []
@@ -52,6 +55,9 @@ func _ready() -> void:
 	is_local = peer_id == multiplayer.get_unique_id()
 	collision_layer = LAYER_PLAYERS
 	collision_mask = MASK
+	# Geen platformsnelheid van de Mol erbij: meerijden doet _ride_mol, anders telt het dubbel.
+	platform_floor_layers = 0
+	platform_wall_layers = 0
 
 	var capsule := CapsuleShape3D.new()
 	capsule.radius = 0.35
@@ -262,6 +268,7 @@ func _physics_process(delta: float) -> void:
 	if seated:
 		_drive_mol(delta)
 		return
+	_ride_mol()
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and DisplayServer.get_name() != "headless":
 		input = Vector2.ZERO
@@ -283,6 +290,28 @@ func _physics_process(delta: float) -> void:
 		elif Input.is_action_just_pressed("jump") and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 			velocity.y = Tuning.get_f("player", "jump_velocity", 4.5)
 	move_and_slide()
+
+
+## Wie in de Mol staat, beweegt mee met de Mol: positie en kijkrichting volgen exact zijn
+## verplaatsing en draaiing sinds de vorige tick. Je eigen stappen komen daarbovenop.
+## (De vloer alleen neemt je niet mee: dan glijd je weg en draait je blik rond als hij bijdraait.)
+func _ride_mol() -> void:
+	var mol: Mol = game.mol
+	if mol == null or mol.body == null or flying or not mol.contains_point(global_position):
+		_riding = false
+		return
+	var now := mol.body.global_transform
+	if _riding:
+		var d := now * _mol_ref.affine_inverse()
+		global_position = d * global_position
+		var fwd := d.basis * -global_basis.z
+		if Vector2(fwd.x, fwd.z).length() > 0.01:
+			rotation.y = atan2(-fwd.x, -fwd.z)
+		# Verticale snelheid relatief tot de Mol: niet "vallen" als hij daalt, niet gelanceerd worden als hij stijgt.
+		if is_on_floor():
+			velocity.y = minf(velocity.y, 0.0)
+	_mol_ref = now
+	_riding = true
 
 
 ## Piloot: zit vast in de stoel en stuurt de Mol (W/S gas, A/D draaien, spatie/Ctrl neus).

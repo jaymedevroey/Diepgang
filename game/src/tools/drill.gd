@@ -161,8 +161,7 @@ func _process(delta: float) -> void:
 
 func _aim_hit() -> Dictionary:
 	var from := camera.global_position
-	return terrain.raycast(from, from - camera.global_basis.z * Tuning.get_f("drill", "reach", 2.8),
-			Layers.TERRAIN | Layers.CRUST)
+	return terrain.tool_raycast(from, from - camera.global_basis.z * Tuning.get_f("drill", "reach", 2.8))
 
 
 func _update_aim(hit: Dictionary) -> void:
