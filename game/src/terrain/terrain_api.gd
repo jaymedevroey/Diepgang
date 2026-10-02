@@ -473,6 +473,15 @@ func generated_rock_depth(world: Vector3) -> float:
 	return -_generator.sdf_at(world / VOXEL_SIZE) * VOXEL_SIZE
 
 
+## Grotten van de generator in wereldruimte: x, y, z = midden, w = horizontale straal (meter).
+## Verticaal is een grot CAVERN_SQUASH keer platter.
+func caves() -> Array[Vector4]:
+	var out: Array[Vector4] = []
+	for c in _generator._caverns:
+		out.append(c * VOXEL_SIZE)
+	return out
+
+
 func layer_at(world: Vector3) -> Strata.Layer:
 	return Strata.layer_at(world, pit_seed)
 

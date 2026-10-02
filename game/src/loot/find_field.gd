@@ -34,34 +34,60 @@ func generate(pit_seed: int) -> void:
 	var t: TerrainAPI = game.terrain
 	var rng := RandomNumberGenerator.new()
 	rng.seed = pit_seed * 7919 + 11
-	var count := Tuning.get_i("finds", "count", 36)
-	var near := Tuning.get_i("finds", "near_spawn", 5)
 	var spawn := t.spawn_point()
-	var sc := t.shaft_center_world()
 	var size := t.world_size()
-	for i in count:
-		var pos := Vector3.ZERO
-		var ok := false
-		for attempt in 60:
-			if i < near:
-				var ang := rng.randf() * TAU
-				var d := rng.randf_range(2.5, 7.0)
-				pos = spawn + Vector3(cos(ang), 0, sin(ang)) * d
-				pos.y = t.surface_height_at(pos.x, pos.z) - rng.randf_range(1.3, 2.6)
-			else:
-				pos = Vector3(rng.randf_range(5.0, size.x - 5.0), 0, rng.randf_range(5.0, size.z - 5.0))
-				pos.y = rng.randf_range(Strata.TOPS_M[1] + 5.0, t.surface_height_at(pos.x, pos.z) - 2.0)
-			var flat := Vector2(pos.x - sc.x, pos.z - sc.z).length()
-			if flat > 6.0 and t.generated_rock_depth(pos) > 1.0 and _far_from_others(pos):
-				ok = true
-				break
-		if not ok:
+	# 1. Rond de landingsplek, ondiep, om meteen te vinden. De eerste is een bot (de haak van het spel).
+	var near := Tuning.get_i("finds", "near_spawn", 5)
+	for i in near:
+		_place(rng, func() -> Array:
+			var ang := rng.randf() * TAU
+			var p := spawn + Vector3(cos(ang), 0, sin(ang)) * rng.randf_range(2.5, 7.0)
+			p.y = t.surface_height_at(p.x, p.z) - rng.randf_range(1.3, 2.6)
+			return [p, FindKinds.Kind.CLAW if i == 0 else -1])
+	# 2. Fossielbedden: clusters skeletstukken in zandsteen en graniet.
+	for b in Tuning.get_i("finds", "beds", 8):
+		var center := Vector3(rng.randf_range(12.0, size.x - 12.0), rng.randf_range(Strata.TOPS_M[0] + 8.0, Strata.TOPS_M[2] - 4.0),
+				rng.randf_range(12.0, size.z - 12.0))
+		for k in rng.randi_range(4, 8):
+			_place(rng, func() -> Array:
+				return [center + Vector3(rng.randf_range(-7, 7), rng.randf_range(-2.5, 2.5), rng.randf_range(-7, 7)), -2])
+	# 3. Rond grotten: net achter de wand, te vinden van in de grot.
+	var caves := t.caves()
+	for i in Tuning.get_i("finds", "near_caves", 45):
+		var c: Vector4 = caves[rng.randi() % caves.size()]
+		_place(rng, func() -> Array:
+			var a := rng.randf() * TAU
+			var r := c.w + rng.randf_range(0.8, 3.0)
+			return [Vector3(c.x + cos(a) * r, c.y + rng.randf_range(-0.4, 0.4) * c.w / PlanetGenerator.CAVERN_SQUASH, c.z + sin(a) * r), -1])
+	# 4. Verspreid, op elke diepte (opzij is evenveel te vinden als diep: geen "recht naar beneden").
+	for i in Tuning.get_i("finds", "scattered", 60):
+		_place(rng, func() -> Array:
+			var p := Vector3(rng.randf_range(8.0, size.x - 8.0), 0, rng.randf_range(8.0, size.z - 8.0))
+			p.y = rng.randf_range(6.0, t.surface_height_at(p.x, p.z) - 2.0)
+			return [p, -1])
+	print("[finds] %d vondsten geplaatst (seed %d)" % [items.size(), pit_seed])
+
+
+## Eén vondst plaatsen. `where` geeft [positie, soort] terug (soort -1 = volgens de laag,
+## -2 = fossielbed). Tot 40 pogingen voor een plek in de rots, weg van de landingsplek en van
+## andere vondsten. Altijd evenveel getallen uit de rng per poging: elke peer plaatst hetzelfde.
+func _place(rng: RandomNumberGenerator, where: Callable) -> void:
+	var t: TerrainAPI = game.terrain
+	var sc := t.shaft_center_world()
+	for attempt in 40:
+		var res: Array = where.call()
+		var pos: Vector3 = res[0]
+		var forced: int = res[1]
+		var rot := Vector3(rng.randf() * TAU, rng.randf() * TAU, rng.randf() * TAU)
+		var flat := Vector2(pos.x - sc.x, pos.z - sc.z).length()
+		if flat < 6.0 or pos.y < 4.0 or t.generated_rock_depth(pos) < 1.0 or not _far_from_others(pos):
 			continue
+		var kind: FindKinds.Kind = forced if forced >= 0 else FindKinds.pick_kind(rng, pos.y, t.layer_at(pos), forced == -2)
 		var item := FindItem.new()
-		item.setup(items.size(), FindKinds.pick_kind(rng, pos.y, t.layer_at(pos)))
+		item.setup(items.size(), kind)
 		add_child(item)
 		item.global_position = pos
-		item.rotation = Vector3(rng.randf() * TAU, rng.randf() * TAU, rng.randf() * TAU)
+		item.rotation = rot
 		items.append(item)
 		var crust := Crust.new()
 		crust.name = "Crust%d" % item.find_id
@@ -69,7 +95,7 @@ func generate(pit_seed: int) -> void:
 		add_child(crust)
 		crust.global_transform = item.global_transform
 		crusts[item.find_id] = crust
-	print("[finds] %d vondsten geplaatst (seed %d)" % [items.size(), pit_seed])
+		return
 
 
 func _far_from_others(pos: Vector3) -> bool:
@@ -111,7 +137,9 @@ func _apply_hit(sender: int, find_id: int, tool: int, pos: Vector3) -> void:
 		return
 	var drill := tool != Strata.Tool.HOUWEEL
 	var now := Time.get_ticks_msec() / 1000.0
-	var min_gap := Tuning.get_f("finds", "drill_min_interval" if drill else "pickaxe_min_interval", 0.1)
+	# Ruim (dig.host_slack): de client wacht al op zijn gereedschap, en echte tijd en speltijd
+	# lopen onder zware belasting (streaming) uiteen.
+	var min_gap := Tuning.get_f("finds", "drill_min_interval" if drill else "pickaxe_min_interval", 0.1) / Tuning.get_f("dig", "host_slack", 2.0)
 	if now - float(_last_hit.get(sender, -100.0)) < min_gap:
 		print("[finds] treffer op %d geweigerd: te snel (%.3f s)" % [find_id, now - float(_last_hit.get(sender, -100.0))])
 		return

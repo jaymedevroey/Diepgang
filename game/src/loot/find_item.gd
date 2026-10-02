@@ -34,6 +34,8 @@ func setup(id: int, kind_value: FindKinds.Kind) -> void:
 	freeze = true
 	var mesh := FindKinds.mesh(kind)
 	_mesh = MeshInstance3D.new()
+	# 158 vondsten op de planeet: enkel tekenen in de buurt (in de rots zie je ze toch niet).
+	_mesh.visibility_range_end = Tuning.get_f("finds", "draw_distance", 70.0)
 	_mesh.mesh = mesh
 	var mats := FindKinds.materials(kind)
 	for i in mats.size():

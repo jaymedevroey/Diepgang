@@ -1,9 +1,12 @@
 class_name FindKinds
 extends RefCounted
 ## Soorten vondsten (GDD §4: families per laag) met hun model uit Blender (tools/blender/finds.py).
-##   klei             muntenbuidel, oude fles, tuinkabouter, oude tv (rommel: veel gewicht, weinig waard)
+##   klei             muntenbuidel, oude fles, tuinkabouter, oude tv (rommel van eerdere bezoekers)
 ##   zandsteen        skeletten (dijbeen, wervel, rib, schedel, klauw) en een oude mijnwerkerslamp
-##   diep zandsteen   zeldzaam: geode en goudklomp (vlak boven het graniet)
+##   diep zandsteen   ook geode en goudklomp (vlak boven het graniet)
+##   graniet          grote schedels, goud, geodes
+##   kristal          vooral geodes
+##   fossielbed       een cluster skeletstukken
 ## Plaatsing volgt uit de seed (FindField), dus elke peer kiest dezelfde soorten.
 
 enum Kind { FEMUR, VERTEBRA, RIB, SKULL, CLAW, LAMP, COINS, BOTTLE, GNOME, TV, GEODE, GOLD }
@@ -21,6 +24,10 @@ const MASSES: Array[float] = [8.0, 3.0, 2.0, 14.0, 2.0, 3.0, 2.0, 1.0, 4.0, 12.0
 const WEIGHTS_CLAY: Array[float] = [0, 0, 0, 0, 0, 0, 30, 30, 18, 12, 0, 0]
 const WEIGHTS_SAND: Array[float] = [25, 30, 25, 5, 15, 10, 0, 0, 0, 0, 0, 0]
 const WEIGHTS_DEEP: Array[float] = [14, 10, 10, 9, 8, 5, 0, 0, 0, 0, 20, 16]
+const WEIGHTS_GRANITE: Array[float] = [10, 6, 6, 12, 8, 6, 0, 0, 0, 0, 24, 26]
+const WEIGHTS_CRYSTAL: Array[float] = [4, 2, 2, 8, 6, 2, 0, 0, 0, 0, 46, 22]
+## Fossielbed: enkel skeletstukken.
+const WEIGHTS_BED: Array[float] = [22, 30, 26, 8, 14, 0, 0, 0, 0, 0, 0, 0]
 ## Diep zandsteen: zoveel meter boven de top van het graniet.
 const DEEP_BAND := 14.0
 ## Vondsten met zoveel waarde of meer krijgen een gouden glans bij het vrijkomen.
@@ -32,10 +39,16 @@ const DETAIL := 7.0
 static var _meshes: Dictionary = {}
 
 
-static func pick_kind(rng: RandomNumberGenerator, world_y: float, layer: Strata.Layer) -> Kind:
+static func pick_kind(rng: RandomNumberGenerator, world_y: float, layer: Strata.Layer, bed := false) -> Kind:
 	var weights: Array[float] = WEIGHTS_SAND
-	if layer == Strata.Layer.KLEI:
+	if bed:
+		weights = WEIGHTS_BED
+	elif layer == Strata.Layer.KLEI:
 		weights = WEIGHTS_CLAY
+	elif layer == Strata.Layer.GRANIET:
+		weights = WEIGHTS_GRANITE
+	elif layer == Strata.Layer.KRISTAL:
+		weights = WEIGHTS_CRYSTAL
 	elif world_y < Strata.TOPS_M[1] + DEEP_BAND:
 		weights = WEIGHTS_DEEP
 	var total := 0.0

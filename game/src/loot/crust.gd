@@ -27,6 +27,8 @@ func setup(id: int, half_extents: Vector3, max_hp_value: float, seed_value: floa
 	sphere.radial_segments = 28
 	sphere.rings = 14
 	_mesh = MeshInstance3D.new()
+	# 158 vondsten op de planeet: enkel tekenen in de buurt (in de rots zie je ze toch niet).
+	_mesh.visibility_range_end = Tuning.get_f("finds", "draw_distance", 70.0)
 	_mesh.mesh = sphere
 	_mesh.scale = radii
 	_mat = ShaderMaterial.new()

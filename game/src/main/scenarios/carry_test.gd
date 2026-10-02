@@ -45,7 +45,12 @@ func _run(p: Player) -> void:
 	var expect := maxf(0.4, 1.0 - it.mass / 30.0)
 	_expect(is_equal_approx(mult, expect), "trager met gewicht (%.2f bij %.0f kg)" % [mult, it.mass])
 
-	# Volgt de hand.
+	# Volgt de hand. Naar de oppervlakte erboven, zodat er ruimte is om te gooien.
+	var t_api: TerrainAPI = main.terrain
+	var up := p.global_position
+	up.y = t_api.surface_height_at(up.x, up.z) + 1.2
+	p.global_position = up
+	await _frames(3)
 	p.global_position += Vector3(2.0, 0, 0)
 	await _frames(3)
 	var target := p.hold_point(it.half_extents.length())

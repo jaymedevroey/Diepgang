@@ -87,6 +87,9 @@ func _run(p: Player) -> void:
 		var pos := it.global_position
 		if it.freed or pos.x < 16.0 or pos.x > size.x - 16.0 or pos.z < 18.0 or pos.y > Strata.TOPS_M[2] - 10.0:
 			continue
+		# De boorkop T1 komt enkel door klei en zandsteen.
+		if not Strata.can_dig(t.layer_at(pos), Mol.TIER) or not Strata.can_dig(t.layer_at(pos + Vector3(0, 0, 12)), Mol.TIER):
+			continue
 		if Vector2(pos.x - sc.x, pos.z - sc.z).length() < 12.0:
 			continue
 		victim = it
