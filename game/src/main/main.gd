@@ -42,6 +42,7 @@ const SCENARIOS := {
 	"mol_test": preload("res://src/main/scenarios/mol_test.gd"),
 	"sonar_test": preload("res://src/main/scenarios/sonar_test.gd"),
 	"stream_test": preload("res://src/main/scenarios/stream_test.gd"),
+	"planet_preview": preload("res://src/main/scenarios/planet_preview.gd"),
 	"mol_edge_test": preload("res://src/main/scenarios/mol_edge_test.gd"),
 	"mol_preview": preload("res://src/main/scenarios/mol_preview.gd"),
 	"tuning_test": preload("res://src/main/scenarios/tuning_test.gd"),

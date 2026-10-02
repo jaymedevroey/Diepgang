@@ -42,7 +42,7 @@ var ops_applied_last_tick := 0
 
 var _terrain: VoxelTerrain
 var _tool: VoxelToolTerrain
-var _generator: PitGenerator
+var _generator: PlanetGenerator
 var _queue: Array[Dictionary] = []
 ## Ops voor gebied dat nog niet geladen is: datablok van het centrum -> [op, ...].
 var _waiting: Dictionary = {}
@@ -73,7 +73,7 @@ func _ready() -> void:
 	_brush_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
 	_brush_noise.fractal_octaves = 2
 
-	_generator = PitGenerator.new()
+	_generator = PlanetGenerator.new()
 	_generator.setup(pit_seed, dims)
 
 	_terrain = VoxelTerrain.new()
