@@ -104,7 +104,7 @@ Netwerkmodel (GDD §9): host-autoritatief voor terrein en buit; elke speler bepa
   - 2026-10-01: startmenu (solo, hosten met IP in beeld, meedoen via IP), handleiding `docs/playtest-m1.md` (ook als `LEESMIJ.txt` in de build). Build getest: dig/find/carry/lift-test en de nettest met twee exe's slagen; stresstest gem. 0,95 ms, max. 9,5 ms.
 - [ ] **Poort 1** met Jayme (en Ian/Anir): voelen graven en slepen goed? Vragenlijst in `docs/playtest-m1.md`.
 
-## Planning (herzien 2026-10-01, zie GDD §10)
+## Planning (herzien 2026-10-02, GDD v3 §10)
 
 Volgorde op vraag van Jayme: eerst mooi, dan inhoud, dan Steam/voice, dan de kernlus.
 
@@ -144,10 +144,32 @@ Stijl: Deep Rock Galactic + PEAK + Astroneer. Alle modellen in Blender (geen AI-
     - Zelf gespeeld in de build (toetsenbord en muis): aan het stuur, gedraaid tot het doel op 12 uur stond, erheen gereden (9 → 6 m, "! DICHTBIJ"). Daarbij een oude fout van de Mol gevonden: met de neus omlaag schuin de grond in tot tegen de **rand van de put** kwam er rots in de cabine (boorbollen werden aan de buitenmuur naar binnen geschoven) en zat hij vast. Opgelost: de buitenmuur blokkeert ("! RAND PUT"), draaien zwaait niet in de muur, rots-voeler zo breed als de romp met rupsen, kopruimte vrijmaken als de steun hem optilt, schaven langs de echte omtrek van de romp. `mol_edge_test` (10 controles) speelt de rit na; zonder de fix 7 fouten (8 rotspunten in de romp, vast tegen de muur), met de fix 3× op rij groen.
 - [x] **Onderzoek plezier en design** (vraag van Jayme), 2026-10-01: [docs/research/plezier-en-design.md](../docs/research/plezier-en-design.md). Vier onderzoekssporen met bronnen (vergelijkbare games; vinden en museum; samenspel; spelgevoel, progressie en demo) plus een eigen audit en playtest. Twaalf hoofdpunten, ±60 aanbevelingen met kost, een voorstel per mijlpaal en zes open vragen voor Jayme.
   - Open: Jayme kiest (o.a. een stuk kernlus naar voren halen, de sonar als rol met PING, opgeschepte vondsten altijd "gebroken", tempo van de Mol).
-- [ ] **M3 Inhoud** (eind oktober): de Mol werkend (afdalen, rijden en boren, laadruim, extractie; vervangt de lift), Fossielbed, Kristalgrotten, Graafworm, gas, ±8 items, depot met kas en museum, cosmetica.
-- [ ] **M4 Samen** (begin november): Steam-lobby's en uitnodigingen, voice, test met 150 ms vertraging. Poort 2.
-- [ ] **M5 Kernlus** (half november): opdrachten, quota, boete, lava, onrust, opslaan, host-vertrek, Oude Kolenmijn met tutorial.
-- [ ] **M6 Demo** (december): demo, capsules, trailer, Steam-pagina.
+- [ ] **M3 Kernlus** (oktober, GDD v3 §3–4): de planeet, De Ekster, drop en extractie, en een dienst met een doel. Alles co-op via het bestaande netwerk, elke stap met de nettest.
+  - [ ] **1. Grote planeet met streaming** (250 × 250 × 300 m): viewers per speler en op de Mol, graafacties per blok opnieuw toegepast bij het laden, generator met oppervlak, 4–5 lagen, grotten en buitenmuur.
+    Verificatie: graven ver weg, weglopen tot het blok ontladen is, terugkomen: het gat is er nog; host en client zelfde checksum in het geladen gebied; laadtijd en geheugen gemeten; alle bestaande tests aangepast en groen.
+  - [ ] **2. Vondsten en erts in de grote wereld:** vondsten als data, nodes enkel in de buurt van spelers; ertsclusters, ertszak, trechter aan de Mol.
+    Verificatie: `find_test`, een ertstest, nettest (client delft, host telt).
+  - [ ] **3. Oppervlak en hemel:** buitenaardse vlakte met kraters en rotsen, hemel per planeettype (manen, ringen), De Ekster in de lucht.
+    Verificatie: screenshots bekeken.
+  - [ ] **4. De Ekster:** moederschip in Blender (dropbaai met de Mol, terminal, taxatiepoort, museumzaal, werkbank). Je begint en eindigt hier.
+    Verificatie: screenshots, zelf rondgelopen.
+  - [ ] **5. Drop:** de Mol valt met de ploeg erin op de planeet (gloed, stuwraketten, landing); het terrein laadt intussen.
+    Verificatie: test: iedereen blijft in de Mol, landing op het oppervlak, terrein geladen bij de landing; nettest; screenshots.
+  - [ ] **6. Extractie met de grijper:** de Mol rijdt naar boven, De Ekster pikt hem op, terug in de dropbaai; achterblijvers worden vervangen (kosten).
+    Verificatie: test met speler binnen en buiten; nettest.
+  - [ ] **7. Opdracht, quota, teamkas, opslaan:** terminal met 2–3 planeten, kwartaal van 3 diensten, boete, kas, opslaan bij de host.
+    Verificatie: test (doel gehaald / gemist / opslaan en laden).
+  - [ ] **8. Taxatie en museum:** taxatiepoort met onthulling één voor één, verkopen of schenken, museum met skeletsets, gaten met hints, namen op de bordjes.
+    Verificatie: test + screenshots.
+  - [ ] **9. Magma en onrust:** magma stijgt (de enige klok), onrust door lawaai, bevingen, vallende rotsen in gemarkeerde zones.
+    Verificatie: test + screenshots.
+  - [ ] **10. Sonar met PING:** stil 12 m en vaag, PING tot 24 m maar luid.
+    Verificatie: `sonar_test`.
+  - [ ] **11. Incidentrapport** na elke dienst (prijzen, waarde, schade).
+- [ ] **M4 Inhoud** (november): Graafworm, gas, alle ±8 items, 3 planeettypes, neergaan en redden, cosmetica, mutators, opdrachten met uitdaging, tutorial-opdracht.
+- [ ] **M5 Samen** (Jayme beslist): Steam-lobby's en uitnodigingen, voice, test met 150 ms vertraging. Poort 2.
+- [ ] **M6 Geluid** (Jayme beslist).
+- [ ] **M7 Demo** (februari–maart 2027): demo, capsules, trailer, Steam-pagina.
 
 ## Jayme (parallel)
 
