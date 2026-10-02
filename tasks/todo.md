@@ -11,6 +11,7 @@ Afvinkbare taken per mijlpaal. Bron: [docs/GDD.md](../docs/GDD.md) §10 en §13.
 | Stresstest (venster, 60 s) | `tools\godot.cmd --path game -- --scenario=stress --duration=60 --no-steam` |
 | Rendertest | `tools\godot.cmd --path game -- --scenario=render --no-steam` (+ `--rendering-method gl_compatibility` vóór `--`) |
 | Windows-build | `tools\export_windows.cmd` → `builds\windows\Diepgang.exe` |
+| Build online zetten (andere toestellen) | build in `builds\Diepgang-windows.zip` (enkel exe, pck, dll's, LEESMIJ), dan `gh release create vX.Y.Z builds/Diepgang-windows.zip --prerelease` op [jaymedevroey/Diepgang](https://github.com/jaymedevroey/Diepgang) (privé) |
 | Nettest (host + client, headless) | `py -3.11 tools/net_test.py` (of `--exe builds/windows/Diepgang.console.exe`) |
 | Vondsten, dragen, de Mol, sonar, tuning, menu's (headless) | `tools\godot.cmd --headless --path game -- --scenario=find_test --no-steam` (ook `carry_test`, `mol_test`, `sonar_test`, `mol_edge_test`, `tuning_test`, `ui_test`) |
 | Rots per laag (voor/na) | `--scenario=terrain_preview --shot=naam` (tunnel en bekapte wand per laag, met GPU-tijd; `--only=klei,kristal`) |

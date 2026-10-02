@@ -2,6 +2,12 @@
 
 Wat we onderweg leerden en wat het GDD bijstuurt. Nieuwste bovenaan.
 
+## 2026-10-02 — Repo op GitHub
+
+- **De GitHub-koppeling (MCP) mag geen repo aanmaken** (403 "Resource not accessible by integration"). Wel: `gh` via winget, Jayme logt één keer in met de apparaatcode (github.com/login/device), daarna `gh repo create --private --source . --push` en `gh release create`.
+- Repo: https://github.com/jaymedevroey/Diepgang (privé). Builds gaan als zip in een Release (niet in git: de exe is 109 MB, boven de limiet van 100 MB per bestand).
+- In `builds\windows` blijven `~RF….TMP`-kopieën achter van overschreven bestanden: niet meezippen.
+
 ## 2026-10-01 — Sonar in de Mol
 
 - **Een hulpmiddel dat je naar iets toe leidt, verandert wat spelers ermee doen.** Met de sonar rijd je recht op vondsten af, en de boorkop boorde er dwars doorheen: de korst bleef in de Mol zweven (de test zag de vondst op Mol-hoogte). Bij elke nieuwe "kijk"-functie nagaan wat er gebeurt als spelers hem volgen tot het einde. Hier: de boorkop schept op, beschadigd (zelf uitbikken blijft lonen).
