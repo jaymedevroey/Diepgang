@@ -43,6 +43,7 @@ const SCENARIOS := {
 	"sonar_test": preload("res://src/main/scenarios/sonar_test.gd"),
 	"stream_test": preload("res://src/main/scenarios/stream_test.gd"),
 	"planet_preview": preload("res://src/main/scenarios/planet_preview.gd"),
+	"drive_perf": preload("res://src/main/scenarios/drive_perf.gd"),
 	"mol_edge_test": preload("res://src/main/scenarios/mol_edge_test.gd"),
 	"mol_preview": preload("res://src/main/scenarios/mol_preview.gd"),
 	"tuning_test": preload("res://src/main/scenarios/tuning_test.gd"),
@@ -54,7 +55,7 @@ const SCENARIOS := {
 	"finds_gallery": preload("res://src/main/scenarios/finds_gallery.gd"),
 }
 ## Scenario's waarin de host ook een eigen speler krijgt.
-const SCENARIOS_WITH_PLAYER := ["play", "net_test", "find_test", "carry_test", "carry_preview", "mol_test", "sonar_test", "mol_edge_test", "stream_test", "mol_preview", "hud_preview", "ui_test", "tool_preview"]
+const SCENARIOS_WITH_PLAYER := ["play", "net_test", "find_test", "carry_test", "carry_preview", "mol_test", "sonar_test", "mol_edge_test", "stream_test", "drive_perf", "mol_preview", "hud_preview", "ui_test", "tool_preview"]
 
 var game: Game
 var player: Player
