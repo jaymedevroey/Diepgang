@@ -80,6 +80,9 @@ func _build_terrain(ops: Array, finds_state: Array = []) -> void:
 	terrain.name = "Terrain"
 	terrain.pit_seed = pit_seed
 	add_child(terrain)
+	# Het spel begint zodra het terrein rond de Mol (en de spawnplek erachter) er is.
+	terrain.focus_world = terrain.shaft_center_world() + Vector3(0.0, terrain.surface_height_at(
+			terrain.shaft_center_world().x, terrain.shaft_center_world().z), 4.0)
 	finds.generate(pit_seed)
 	finds.apply_snapshot(finds_state)
 	mol = Mol.new()
@@ -205,6 +208,14 @@ func _spawn(peer_id: int, color_idx: int, pos: Vector3) -> void:
 	p.rotation.x = 0.0
 	if p.is_local:
 		local_player = p
+	# Terrein rond elke speler laden. Collision: de host simuleert buit bij iedereen, een client
+	# enkel bij zichzelf (andere spelers volgt hij via het netwerk).
+	var view := Tuning.get_f("terrain", "view_m", 110.0)
+	var coll := Tuning.get_f("terrain", "collision_m", 48.0)
+	if p.is_local or Net.is_host():
+		terrain.add_viewer(p, view, coll)
+	else:
+		terrain.add_viewer(p, coll)
 	player_spawned.emit(p)
 
 

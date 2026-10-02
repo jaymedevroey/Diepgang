@@ -69,14 +69,23 @@ func _run() -> void:
 	var burst := Tuning.get_i("dig", "burst", 3)
 	_expect(accepted == burst, "snelheidslimiet: %d van 20 aanvaard (burst %d)" % [accepted, burst])
 
-	# Buitenmuur blijft dicht, ook als je er vlak naast graaft.
-	t.debug_dig(Vector3(0.3, 60.0, 0.3), 1.0)
+	# Buitenmuur blijft dicht, ook als je er vlak naast graaft. Eerst het terrein daar laden
+	# (de planeet streamt: enkel rond viewers is er data).
+	var wall_spot := Node3D.new()
+	add_child(wall_spot)
+	wall_spot.global_position = Vector3(2.0, 200.0, 125.0)
+	t.add_viewer(wall_spot, 24.0, 12.0)
+	var t0 := Time.get_ticks_msec()
+	while not t.is_area_ready(Vector3(4.0, 200.0, 125.0), 4.0) and Time.get_ticks_msec() - t0 < 20000:
+		await get_tree().process_frame
+	t.debug_dig(Vector3(0.3, 200.0, 125.0), 1.0)
 	await _ticks(2)
-	_expect(t.is_solid(Vector3(0.5, 60.0, 0.5)), "buitenmuur blijft dicht")
+	_expect(t.data_loaded(Vector3(0.5, 200.0, 125.0)) and t.is_solid(Vector3(0.5, 200.0, 125.0)), "buitenmuur blijft dicht")
+	wall_spot.queue_free()
 
 	_expect(t.op_log().size() >= 9, "op-logboek bevat de graafacties (%d)" % t.op_log().size())
 	_expect(t.layer_at(Vector3(10, 10, 10)) == Strata.Layer.KRISTAL, "laag onderaan is kristal")
-	_expect(t.layer_at(Vector3(10, 145, 10)) == Strata.Layer.KLEI, "laag bovenaan is klei")
+	_expect(t.layer_at(Vector3(10, 250, 10)) == Strata.Layer.KLEI, "laag bovenaan is klei")
 
 	print("[dig_test] %d controles, %d mislukt" % [_checks, _failures.size()])
 	for f in _failures:

@@ -15,6 +15,7 @@ extends Node3D
 ##   mol_test          de Mol: besturen, boren, autopiloot, meerijden, extractie (headless)
 ##   sonar_test        sonar in de Mol (richting, echo's, bereik) en opscheppen door de boorkop (headless)
 ##   mol_edge_test     de Mol schuin de grond in tot tegen de buitenmuur: geen rots in de romp (headless)
+##   stream_test       grote planeet: laden rond de spelers, gaten blijven na ontladen, ops wachten (headless)
 ##   mol_preview       screenshots van de Mol (buiten, binnen, cabine, afdalen)
 ##   hud_preview       screenshots van de HUD in alle toestanden
 ##   ui_preview        thema en instellingenmenu
@@ -40,6 +41,7 @@ const SCENARIOS := {
 	"carry_preview": preload("res://src/main/scenarios/carry_preview.gd"),
 	"mol_test": preload("res://src/main/scenarios/mol_test.gd"),
 	"sonar_test": preload("res://src/main/scenarios/sonar_test.gd"),
+	"stream_test": preload("res://src/main/scenarios/stream_test.gd"),
 	"mol_edge_test": preload("res://src/main/scenarios/mol_edge_test.gd"),
 	"mol_preview": preload("res://src/main/scenarios/mol_preview.gd"),
 	"tuning_test": preload("res://src/main/scenarios/tuning_test.gd"),
@@ -51,7 +53,7 @@ const SCENARIOS := {
 	"finds_gallery": preload("res://src/main/scenarios/finds_gallery.gd"),
 }
 ## Scenario's waarin de host ook een eigen speler krijgt.
-const SCENARIOS_WITH_PLAYER := ["play", "net_test", "find_test", "carry_test", "carry_preview", "mol_test", "sonar_test", "mol_edge_test", "mol_preview", "hud_preview", "ui_test", "tool_preview"]
+const SCENARIOS_WITH_PLAYER := ["play", "net_test", "find_test", "carry_test", "carry_preview", "mol_test", "sonar_test", "mol_edge_test", "stream_test", "mol_preview", "hud_preview", "ui_test", "tool_preview"]
 
 var game: Game
 var player: Player
@@ -62,6 +64,8 @@ var terrain: TerrainAPI:
 		return game.terrain if game else null
 
 var hud: Hud
+## Tijd tot het gebied rond de start geladen was (ms), voor tests.
+var load_ms := 0.0
 var _loading: LoadingScreen
 var _pause: PauseMenu
 var _tuning_menu: TuningMenu
@@ -163,6 +167,7 @@ func _on_net_started() -> void:
 
 
 func _on_world_loaded(stats: Dictionary) -> void:
+	load_ms = stats.load_ms
 	if _atmosphere == null:
 		_atmosphere = Atmosphere.new()
 		_atmosphere.name = "Atmosphere"

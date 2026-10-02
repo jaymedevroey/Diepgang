@@ -115,7 +115,7 @@ func _validate(sender: int, op: Dictionary) -> String:
 	var t := terrain()
 	if not op.has_all(["op", "c", "tool"]):
 		return "onvolledige op"
-	if not t.take_token(sender):
+	if not t.take_token(sender, true):
 		return "te snel"
 	var player: Node3D = game.player_node(sender)
 	if player == null:

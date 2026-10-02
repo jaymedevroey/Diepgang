@@ -109,6 +109,8 @@ func setup() -> void:
 	body.add_child(visual)
 	_build_collision()
 	_build_buttons()
+	# Terrein rond de Mol: hij boort en rijdt ook als niemand in de buurt is (autopiloot, extractie).
+	t.add_viewer(body, Tuning.get_f("terrain", "view_m", 110.0), Tuning.get_f("terrain", "collision_m", 48.0))
 	_place(_start_pos, 0.0, 0.0)
 	_path = [_start_pos]
 

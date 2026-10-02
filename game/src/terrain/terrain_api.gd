@@ -11,6 +11,12 @@ extends Node3D
 ##   CHIP          {c, n, rt, rd, amp}  afgeplatte, ruwe schilfer langs normaal n (houweel)
 ## Elke op doet nieuw = max(huidig, -kwast): commutatief en idempotent (docs/research/graven.md).
 ## Ruis in de kwast zit in wereldruimte met een vaste seed, zodat elke peer hetzelfde uitkomt.
+##
+## Streaming (GDD v3): de planeet is te groot om helemaal geladen te zijn. Viewers op de spelers en
+## de Mol (add_viewer) laden het terrein rond hen. Bewerkte blokken die ontladen worden, gaan naar een
+## VoxelStreamMemory en komen zo terug. Een op voor gebied dat (nog) niet geladen is, wacht per
+## datablok tot dat blok laadt (block_loaded) en wordt dan alsnog toegepast: zo ziet elke peer
+## uiteindelijk hetzelfde, ook voor graafwerk ver van hem vandaan.
 
 signal loaded(stats: Dictionary)
 signal dug(world_center: Vector3, radius_m: float)
@@ -25,7 +31,10 @@ const LOAD_TIMEOUT_MS := 120000.0
 const SDF_BIT := 1 << VoxelBuffer.CHANNEL_SDF
 
 @export var pit_seed := 1
-@export var dims := Vector3i(128, 320, 128)
+@export var dims := Vector3i(500, 600, 500)
+## Het spel kan beginnen zodra het gebied rond dit punt gemesht is (wereld, meter).
+var focus_world := Vector3.ZERO
+var focus_radius := 24.0
 
 var is_loaded := false
 var ops_applied_total := 0
@@ -35,6 +44,20 @@ var _terrain: VoxelTerrain
 var _tool: VoxelToolTerrain
 var _generator: PitGenerator
 var _queue: Array[Dictionary] = []
+## Ops voor gebied dat nog niet geladen is: datablok van het centrum -> [op, ...].
+var _waiting: Dictionary = {}
+var _waiting_count := 0
+var _sweep_timer := 0.0
+## Toegepaste ops per datablok dat ze raken (om ze na een herlaadbeurt na te kijken).
+var _op_blocks: Dictionary = {}
+## Na te kijken: [op, blok, tijd tot wanneer]. Zie _verify.
+var _verify_queue: Array = []
+var _verify_timer := 0.0
+## Hoe vaak een op opnieuw moest (voor tests en het infopaneel).
+var ops_repaired := 0
+var _block_size := 16
+## [viewer, doel, afstand_m, collisions] van elke viewer (voor collision_ready).
+var _viewers: Array = []
 var _op_log: Array[Dictionary] = []
 var _buckets: Dictionary = {} # player_id -> [tokens, laatste tijd in s]
 var _tick := 0
@@ -58,20 +81,17 @@ func _ready() -> void:
 	_terrain.scale = Vector3.ONE * VOXEL_SIZE
 	_terrain.generator = _generator
 	_terrain.mesher = VoxelMesherTransvoxel.new()
+	_terrain.stream = VoxelStreamMemory.new()
 	_terrain.bounds = AABB(Vector3.ZERO, Vector3(dims))
 	_terrain.mesh_block_size = 16
-	_terrain.max_view_distance = 512
+	_terrain.max_view_distance = int(Tuning.get_f("terrain", "max_view_m", 160.0) / VOXEL_SIZE) # in voxels (gemeten), viewers in meter
 	_terrain.generate_collisions = true
 	_terrain.collision_layer = COLLISION_LAYER
 	_terrain.collision_mask = 0
 	_terrain.material_override = _make_material()
 	add_child(_terrain)
-
-	# De put is klein genoeg om volledig geladen te blijven: één viewer in het midden.
-	var viewer := VoxelViewer.new()
-	viewer.view_distance = 512
-	viewer.position = world_size() * 0.5
-	add_child(viewer)
+	_block_size = _terrain.get_data_block_size()
+	_terrain.block_loaded.connect(_on_block_loaded)
 
 	_tool = _terrain.get_voxel_tool() as VoxelToolTerrain
 	_tool.channel = VoxelBuffer.CHANNEL_SDF
@@ -83,7 +103,7 @@ func _process(_delta: float) -> void:
 	if is_loaded:
 		return
 	var elapsed_ms := (Time.get_ticks_usec() - _load_start_us) / 1000.0
-	var meshed := _terrain.is_area_meshed(AABB(Vector3.ZERO, Vector3(dims)))
+	var meshed := is_area_ready(focus_world, focus_radius)
 	if meshed or elapsed_ms > LOAD_TIMEOUT_MS:
 		is_loaded = true
 		var stats := get_stats()
@@ -92,35 +112,136 @@ func _process(_delta: float) -> void:
 		loaded.emit(stats)
 
 
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	_tick += 1
 	ops_applied_last_tick = 0
+	# Vangnet: block_loaded komt soms net voor het blok bruikbaar is. Om de 0,5 s nakijken of de
+	# blokken van wachtende ops er intussen zijn.
+	_sweep_timer += delta
+	if _sweep_timer > 0.5 and _waiting_count > 0:
+		_sweep_timer = 0.0
+		for key: Vector3i in _waiting.keys():
+			if _terrain.has_data_block(key):
+				_requeue(key)
+	_verify_timer += delta
+	if _verify_timer > 0.2 and not _verify_queue.is_empty():
+		_verify_timer = 0.0
+		_verify(Time.get_ticks_msec() / 1000.0)
 	if _queue.is_empty():
 		return
-	var pending: Array[Dictionary] = []
 	for op in _queue:
 		var c: Vector3 = op.c
 		var reach := _op_reach(op)
-		if not _tool.is_area_editable(AABB(c - Vector3.ONE * (reach + 1.0), Vector3.ONE * (2.0 * reach + 2.0))):
-			pending.append(op)
+		if not _editable(op):
+			_wait_for_blocks(op)
 			continue
-		match op.op:
-			Op.SPHERE_REMOVE:
-				_tool.do_sphere(c, op.r)
-				if op.has("b"):
-					var b: PackedFloat32Array = op.b
-					for i in range(0, b.size() - 3, 4):
-						_tool.do_sphere(Vector3(b[i], b[i + 1], b[i + 2]), b[i + 3])
-			Op.CHIP:
-				_apply_chip(op)
-		_op_log.append(op)
+		_write(op)
+		_index_and_verify(op)
 		ops_applied_last_tick += 1
 		var world := _terrain.to_global(c)
 		_wake_bodies(world, reach * VOXEL_SIZE)
 		dug.emit(world, reach * VOXEL_SIZE)
 		op_applied.emit(op)
 	ops_applied_total += ops_applied_last_tick
-	_queue = pending
+	_queue.clear()
+
+
+func _editable(op: Dictionary) -> bool:
+	var c: Vector3 = op.c
+	var reach := _op_reach(op)
+	return _tool.is_area_editable(AABB(c - Vector3.ONE * (reach + 1.0), Vector3.ONE * (2.0 * reach + 2.0)))
+
+
+func _write(op: Dictionary) -> void:
+	var c: Vector3 = op.c
+	match op.op:
+		Op.SPHERE_REMOVE:
+			_tool.do_sphere(c, op.r)
+			if op.has("b"):
+				var b: PackedFloat32Array = op.b
+				for i in range(0, b.size() - 3, 4):
+					_tool.do_sphere(Vector3(b[i], b[i + 1], b[i + 2]), b[i + 3])
+		Op.CHIP:
+			_apply_chip(op)
+
+
+# --- Nakijken (godot_voxel kan bewerkingen vlak na het laden overschrijven) --------------------
+#
+# Een laadantwoord dat binnenkomt voor een blok dat al bestaat, overschrijft het blok volledig
+# (VoxelTerrain::apply_data_block_response, try_set_block). Met viewers die overlappen (speler in
+# de Mol) gebeurt dat af en toe vlak na het laden, en dan is een gat weg (gemeten: 1 op 4-6 keer).
+# Ops zijn idempotent, dus: na het toepassen en na elk geladen blok enkele seconden nakijken of
+# het gat er nog is (één voxel per op en blok), en zo niet, de op opnieuw toepassen.
+
+const VERIFY_SECONDS := 4.0
+
+
+func _index_and_verify(op: Dictionary) -> void:
+	var deadline := Time.get_ticks_msec() / 1000.0 + VERIFY_SECONDS
+	for block: Vector3i in _blocks_of(op):
+		if not _op_blocks.has(block):
+			_op_blocks[block] = []
+		(_op_blocks[block] as Array).append(op)
+		_verify_queue.append([op, block, deadline])
+
+
+func _blocks_of(op: Dictionary) -> Array[Vector3i]:
+	var c: Vector3 = op.c
+	var r := _op_core(op)
+	var lo := _terrain.voxel_to_data_block(c - Vector3.ONE * r)
+	var hi := _terrain.voxel_to_data_block(c + Vector3.ONE * r)
+	var out: Array[Vector3i] = []
+	for z in range(lo.z, hi.z + 1):
+		for y in range(lo.y, hi.y + 1):
+			for x in range(lo.x, hi.x + 1):
+				out.append(Vector3i(x, y, z))
+	return out
+
+
+## Straal (voxels) waarbinnen een op gegarandeerd lucht maakt.
+func _op_core(op: Dictionary) -> float:
+	if op.op == Op.CHIP:
+		return minf(op.rt, op.rd) * 0.6
+	return float(op.r) - 0.6
+
+
+## Een voxel in `block` die na de op lucht moet zijn (zo dicht mogelijk bij het blok), of null.
+func _sample_in(op: Dictionary, block: Vector3i) -> Variant:
+	var c: Vector3 = op.c
+	var r := _op_core(op)
+	if r < 0.5:
+		return null
+	var lo := Vector3(block * _block_size)
+	var nearest := c.clamp(lo, lo + Vector3.ONE * (_block_size - 1))
+	var d := nearest - c
+	if d.length() > r:
+		nearest = c + d.normalized() * r
+	var v := Vector3i(nearest.round())
+	if v.x < block.x * _block_size or v.y < block.y * _block_size or v.z < block.z * _block_size:
+		return null
+	if v.x >= (block.x + 1) * _block_size or v.y >= (block.y + 1) * _block_size or v.z >= (block.z + 1) * _block_size:
+		return null
+	if Vector3(v).distance_to(c) > r:
+		return null
+	return v
+
+
+func _verify(now: float) -> void:
+	var keep: Array = []
+	for e: Array in _verify_queue:
+		if now > float(e[2]):
+			continue
+		var op: Dictionary = e[0]
+		var block: Vector3i = e[1]
+		if not _terrain.has_data_block(block):
+			keep.append(e)
+			continue
+		var v: Variant = _sample_in(op, block)
+		if v != null and _tool.get_voxel_f(v) < 0.0 and _editable(op):
+			_write(op)
+			ops_repaired += 1
+		keep.append(e)
+	_verify_queue = keep
 
 
 # --- Graven -------------------------------------------------------------------
@@ -186,6 +307,9 @@ func make_chip_op(player_id: int, world_hit: Vector3, world_normal: Vector3,
 ## Past een op toe (lokaal gemaakt of van het netwerk). Geen snelheidslimiet:
 ## wie een op van een ander aanvaardt, moet die eerst zelf valideren.
 func apply_op(op: Dictionary) -> void:
+	# In het logboek bij ontvangst, niet pas bij toepassen: een op die wacht op een blok dat
+	# deze peer nooit laadt, moet toch mee naar wie later binnenkomt.
+	_op_log.append(op)
 	_queue.append(op)
 
 
@@ -200,15 +324,22 @@ func debug_dig(world_center: Vector3, radius_m: float) -> void:
 
 
 ## Snelheidslimiet per speler (token bucket, dig.max_ops_per_second en dig.burst).
-func take_token(player_id: int) -> bool:
-	return _take_token(player_id)
+## `lenient`: voor de host die ops van een client valideert. De client houdt zich al aan de
+## gewone limiet en heeft zijn op al voorspeld (niet terug te draaien); door schommelingen in het
+## netwerk komen ops soms gebundeld binnen. De host kijkt dus ruimer (dig.host_slack ×).
+func take_token(player_id: int, lenient := false) -> bool:
+	return _take_token(player_id, Tuning.get_f("dig", "host_slack", 2.0) if lenient else 1.0)
 
 
-## Checksum van het volledige SDF-kanaal. Twee peers met hetzelfde terrein geven dezelfde waarde.
-func checksum() -> String:
+## Checksum van het SDF-kanaal in een kubus rond `world_center` (half = halve zijde in meter).
+## Twee peers met hetzelfde terrein in dat (geladen) gebied geven dezelfde waarde.
+func checksum(world_center: Vector3, half_m := 32.0) -> String:
+	var lo := Vector3i(_terrain.to_local(world_center - Vector3.ONE * half_m).floor()).clamp(Vector3i.ZERO, dims - Vector3i.ONE)
+	var hi := Vector3i(_terrain.to_local(world_center + Vector3.ONE * half_m).ceil()).clamp(Vector3i.ZERO, dims)
+	var size := (hi - lo).max(Vector3i.ONE)
 	var buf := VoxelBuffer.new()
-	buf.create(dims.x, dims.y, dims.z)
-	_tool.copy(Vector3i.ZERO, buf, SDF_BIT, false)
+	buf.create(size.x, size.y, size.z)
+	_tool.copy(lo, buf, SDF_BIT, false)
 	var ctx := HashingContext.new()
 	ctx.start(HashingContext.HASH_MD5)
 	ctx.update(buf.get_channel_as_byte_array(VoxelBuffer.CHANNEL_SDF))
@@ -221,6 +352,92 @@ func op_log() -> Array[Dictionary]:
 
 func queued_ops() -> int:
 	return _queue.size()
+
+
+## Ops die wachten tot hun gebied geladen is (ver van elke viewer).
+func waiting_ops() -> int:
+	return _waiting_count
+
+
+# --- Streaming ------------------------------------------------------------------
+
+## Laadt het terrein rond `target` zolang die bestaat. `distance_m`: straal voor beeld (en data);
+## `collision_m`: straal waarbinnen ook collision gebouwd wordt (0 = geen). Twee viewers, omdat
+## collision bouwen het duurste is (hoofdthread) en enkel dichtbij nodig is.
+func add_viewer(target: Node3D, distance_m: float, collision_m := 0.0) -> void:
+	var visual := VoxelViewer.new()
+	visual.name = "TerrainViewer"
+	visual.view_distance = int(distance_m) # wereldeenheden (meter), niet voxels: gemeten
+	visual.view_distance_vertical_ratio = Tuning.get_f("terrain", "vertical_ratio", 0.75)
+	visual.requires_collisions = false
+	target.add_child(visual)
+	_viewers.append([visual, target, distance_m, false])
+	if collision_m > 0.0:
+		var coll := VoxelViewer.new()
+		coll.name = "TerrainCollisionViewer"
+		coll.view_distance = int(collision_m)
+		coll.requires_visuals = false
+		coll.requires_collisions = true
+		target.add_child(coll)
+		_viewers.append([coll, target, collision_m, true])
+
+
+## Is het gebied rond een punt geladen en gemesht (te zien, en met collision als een
+## collision-viewer in de buurt is)?
+func is_area_ready(world_center: Vector3, radius_m: float) -> bool:
+	var c := _terrain.to_local(world_center)
+	var r := radius_m / VOXEL_SIZE
+	var box := AABB(c - Vector3.ONE * r, Vector3.ONE * r * 2.0).intersection(AABB(Vector3.ZERO, Vector3(dims)))
+	return box.size != Vector3.ZERO and _terrain.is_area_meshed(box)
+
+
+## Is de voxeldata rond dit punt geladen (los van meshes en collision)?
+func data_loaded(world: Vector3) -> bool:
+	return _terrain.has_data_block(_terrain.voxel_to_data_block(_terrain.to_local(world)))
+
+
+## Staat er collision onder dit punt? (Binnen het bereik van een collision-viewer en gemesht.)
+## Losse buit ver van iedereen bevriest de host, anders valt hij door de wereld.
+func collision_ready(world: Vector3) -> bool:
+	for v: Array in _viewers:
+		if not v[3] or not is_instance_valid(v[1]):
+			continue
+		if (v[1] as Node3D).global_position.distance_to(world) < float(v[2]) - 6.0:
+			return is_area_ready(world, 2.0)
+	return false
+
+
+func _wait_for_blocks(op: Dictionary) -> void:
+	var key := _terrain.voxel_to_data_block(op.c)
+	if not _waiting.has(key):
+		_waiting[key] = []
+	(_waiting[key] as Array).append(op)
+	_waiting_count += 1
+
+
+## Een datablok is geladen: ops die erop wachtten (centrum in dit blok of ernaast) opnieuw proberen.
+func _on_block_loaded(block: Vector3i) -> void:
+	# Een (opnieuw) geladen blok: ops die erin gegraven hebben nakijken (stream of overschreven).
+	if _op_blocks.has(block):
+		var deadline := Time.get_ticks_msec() / 1000.0 + VERIFY_SECONDS
+		for op: Dictionary in _op_blocks[block]:
+			_verify_queue.append([op, block, deadline])
+	if _waiting_count == 0:
+		return
+	for dz in range(-1, 2):
+		for dy in range(-1, 2):
+			for dx in range(-1, 2):
+				var key := block + Vector3i(dx, dy, dz)
+				if _waiting.has(key):
+					_requeue(key)
+
+
+func _requeue(key: Vector3i) -> void:
+	var ops: Array = _waiting[key]
+	_waiting.erase(key)
+	_waiting_count -= ops.size()
+	for op: Dictionary in ops:
+		_queue.append(op)
 
 
 # --- Vragen -------------------------------------------------------------------
@@ -355,9 +572,9 @@ func _clamp_center(c: Vector3, r: float) -> Vector3:
 	return c
 
 
-func _take_token(player_id: int) -> bool:
-	var rate: float = Tuning.get_f("dig", "max_ops_per_second", 8.0)
-	var burst: float = Tuning.get_f("dig", "burst", 3.0)
+func _take_token(player_id: int, slack := 1.0) -> bool:
+	var rate: float = Tuning.get_f("dig", "max_ops_per_second", 8.0) * slack
+	var burst: float = Tuning.get_f("dig", "burst", 3.0) * slack + (slack - 1.0) * 2.0
 	var now := Time.get_ticks_usec() / 1000000.0
 	# Array i.p.v. Vector2: Vector2 is 32-bit en de afronding van `now` kan een token doen verdwijnen.
 	var bucket: Array = _buckets.get(player_id, [burst, now])

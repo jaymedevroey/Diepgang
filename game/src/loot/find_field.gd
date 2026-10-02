@@ -26,6 +26,7 @@ var crusts: Dictionary = {} # find_id -> Crust
 var _last_hit: Dictionary = {} # host: peer_id -> tijd (s)
 var _prev_velocity: Dictionary = {} # host: find_id -> Vector3
 var _stowed := {} # find_id -> Transform3D relatief tot de Mol (laadruim, zie _stow)
+var _parked := {} # find_id -> true: bevroren omdat er geen collision onder ligt (streaming)
 var _send_timer := 0.0
 
 
@@ -49,7 +50,7 @@ func generate(pit_seed: int) -> void:
 				pos.y = t.surface_height_at(pos.x, pos.z) - rng.randf_range(1.3, 2.6)
 			else:
 				pos = Vector3(rng.randf_range(5.0, size.x - 5.0), 0, rng.randf_range(5.0, size.z - 5.0))
-				pos.y = rng.randf_range(85.0, t.surface_height_at(pos.x, pos.z) - 2.0)
+				pos.y = rng.randf_range(Strata.TOPS_M[1] + 5.0, t.surface_height_at(pos.x, pos.z) - 2.0)
 			var flat := Vector2(pos.x - sc.x, pos.z - sc.z).length()
 			if flat > 6.0 and t.generated_rock_depth(pos) > 1.0 and _far_from_others(pos):
 				ok = true
@@ -327,6 +328,8 @@ func _physics_process(delta: float) -> void:
 			it.global_position = carry_target(it)
 		elif _stow(it, mol_now, mol_moving):
 			pass
+		elif _park(it):
+			pass
 		else:
 			_check_impact(it)
 			_rescue_if_stuck(it, delta)
@@ -388,27 +391,58 @@ func _stow(it: FindItem, mol: Mol, moving: bool) -> bool:
 	return false
 
 
+## Host: ligt een losse vondst ver van elke speler en de Mol, dan is er geen collision meer onder
+## hem (streaming) en zou hij door de wereld vallen. Dan bevriest hij tot er weer iemand in de
+## buurt is. Geeft true terug zolang hij geparkeerd is.
+func _park(it: FindItem) -> bool:
+	var parked: bool = _parked.has(it.find_id)
+	var ready: bool = game.terrain.collision_ready(it.global_position)
+	if not ready:
+		if not parked:
+			_parked[it.find_id] = true
+			it.freeze = true
+		return true
+	if parked:
+		_parked.erase(it.find_id)
+		it.freeze = false
+		it.sleeping = false
+	return false
+
+
 ## Minstens een halve meter diep in de rots (dichtstbijzijnde voxel, dus met marge).
 func _inside_rock(pos: Vector3) -> bool:
 	return game.terrain.debug_sdf(pos) < -1.0
 
 
 ## Host: vangnet. Zit een losse vondst in de rots of valt hij onder de put, dan terug naar
-## zijn laatste veilige plek. Anders valt hij door de binnenkant van het terrein weg.
+## zijn laatste veilige plek, en van daar omhoog tot er echt ruimte is. Een plek telt pas als
+## veilig als hij in de lucht ligt: net onder het oppervlak (bv. losgelaten in de wand) zakt hij
+## door de botsvorm en zat hij vroeger eindeloos vast (vangnet zette hem telkens terug in de grond).
 func _rescue_if_stuck(it: FindItem, delta: float) -> void:
 	var pos := it.global_position
 	if _inside_rock(pos) or pos.y < -2.0:
 		it.stuck_time += delta
 		if it.stuck_time > 0.25:
-			it.global_position = it.last_safe + Vector3(0, 0.3, 0)
+			it.global_position = _free_spot_above(it.last_safe, it)
 			it.linear_velocity = Vector3.ZERO
 			it.angular_velocity = Vector3.ZERO
 			it.stuck_time = 0.0
-			print("[finds] vondst %d zat vast in de rots: teruggezet" % it.find_id)
+			print("[finds] vondst %d zat vast in de rots: teruggezet naar %s" % [it.find_id, it.global_position])
 	else:
 		it.stuck_time = 0.0
-		if it.linear_velocity.length() < 3.0:
+		if it.linear_velocity.length() < 3.0 and game.terrain.debug_sdf(pos) > 0.0:
 			it.last_safe = pos
+
+
+## Vanaf `from` omhoog tot de vondst er helemaal in de lucht past (SDF in voxels groter dan zijn straal).
+func _free_spot_above(from: Vector3, it: FindItem) -> Vector3:
+	var need := it.half_extents.length() / TerrainAPI.VOXEL_SIZE + 0.5
+	var p := from
+	for i in 32:
+		if game.terrain.debug_sdf(p) >= need:
+			return p
+		p.y += 0.25
+	return from + Vector3(0, 0.3, 0)
 
 
 ## Host: harde klap (vallen, gooien, botsen) kost gaafheid (GDD §3: botst, breekt).

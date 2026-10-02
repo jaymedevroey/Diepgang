@@ -2,6 +2,15 @@
 
 Wat we onderweg leerden en wat het GDD bijstuurt. Nieuwste bovenaan.
 
+## 2026-10-03 — Grote planeet met streaming
+
+- **godot_voxel 1.7x, eenheden (gemeten):** `VoxelViewer.view_distance` is in **wereldeenheden** (meter bij een terrein met schaal 0,5), `VoxelTerrain.max_view_distance` in **voxels**. Eerst gaf ik voxels aan de viewer: alles tot 220 m laadde.
+- **Laden gebeurt in een kubus rond de viewer**, afgerond op datablokken (8 m). Een punt op 120 m schuin is dus nog geladen. Tests met "ver weg" moeten langs één as verder dan view_m + 8 m liggen, of met een kleinere view_m.
+- **Bewerkingen kunnen vlak na het laden verloren gaan** als viewers overlappen (speler in de Mol): een laadantwoord voor een blok dat al bestaat overschrijft het volledig (`apply_data_block_response` → `try_set_block`, gezien in de broncode). Gemeten: 1 op 4–6 keer. Oplossing: ops zijn idempotent, dus na elke op en na elk geladen blok 4 s lang één voxel per op nakijken en zo nodig opnieuw toepassen (`ops_repaired`). Enkel vertrouwen op `block_loaded` is niet genoeg (komt soms voor het blok bruikbaar is).
+- **VoxelStreamMemory** houdt bewerkte blokken bij als ze ontladen worden; ops voor niet-geladen gebied wachten per datablok en gaan in het logboek bij ontvangst (voor late joiners).
+- **Vangnet voor buit: een "veilige plek" moet echt in de lucht liggen.** Net onder het oppervlak losgelaten (een speler in de wand) zakte een vondst door de botsvorm, en het vangnet zette hem telkens terug in de grond. Nu: last_safe enkel bij sdf > 0, en terugzetten zoekt omhoog tot er ruimte is.
+- **De host moet ruimer valideren dan de client zichzelf beperkt** (host_slack ×2): met streaming heeft de host langere frames en komen ops gebundeld binnen; één geweigerde (al voorspelde) op = een andere wereld bij de client.
+
 ## 2026-10-02 — Repo op GitHub
 
 - **De GitHub-koppeling (MCP) mag geen repo aanmaken** (403 "Resource not accessible by integration"). Wel: `gh` via winget, Jayme logt één keer in met de apparaatcode (github.com/login/device), daarna `gh repo create --private --source . --push` en `gh release create`.

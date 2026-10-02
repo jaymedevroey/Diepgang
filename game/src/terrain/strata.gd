@@ -9,7 +9,7 @@ enum Tool { HOUWEEL, BOOR_T1, BOOR_T2 }
 
 const NAMES: Array[String] = ["Kristal", "Graniet", "Zandsteen", "Klei"]
 ## Bovengrens van elke laag in meter boven de bodem. Klei loopt tot aan het oppervlak.
-const TOPS_M: Array[float] = [35.0, 80.0, 125.0]
+const TOPS_M: Array[float] = [60.0, 140.0, 215.0]
 ## Welk gereedschap een laag minstens nodig heeft (GDD §4, tabel Lagen).
 const MIN_TOOL: Array[Tool] = [Tool.BOOR_T2, Tool.BOOR_T2, Tool.BOOR_T1, Tool.HOUWEEL]
 ## Kleur van stof en brokjes per laag (iets lichter dan de wand, zodat puin leesbaar blijft).

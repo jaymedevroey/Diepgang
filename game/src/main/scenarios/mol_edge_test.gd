@@ -34,6 +34,12 @@ func _run(p: Player) -> void:
 	mol.press(Mol.Cmd.SEAT)
 	await _wait(0.4)
 	_expect(p.seated, "aan het stuur")
+	# De planeet is groot: start 80 m van het midden, zodat dezelfde rit als in de playtest de
+	# westrand haalt.
+	var start := Vector3(t.world_size().x * 0.5 - 80.0, 0.0, t.world_size().z * 0.5)
+	start.y = t.surface_height_at(start.x, start.z) - Mol.TRACK_BOTTOM
+	mol.teleport(start, 0.0, 0.0)
+	await _wait(2.5)
 
 	await _hold("move_left", 5.2, mol, t)
 	await _hold("move_forward", 5.0, mol, t)
@@ -41,7 +47,7 @@ func _run(p: Player) -> void:
 	await _hold("crouch", 2.0, mol, t)
 	_expect(rad_to_deg(mol.pitch) < -20.0, "neus omlaag (%.0f°)" % rad_to_deg(mol.pitch))
 	var dive_start := mol.body.global_position
-	await _hold("move_forward", 10.0, mol, t)
+	await _hold("move_forward", 15.0, mol, t)
 	_expect(mol.depth() > 3.0, "schuin de grond in geboord (%.1f m diep)" % mol.depth())
 	_expect(_saw_edge and absf(mol.speed) < 0.1, "gestopt voor de buitenmuur van de put (x %.1f, z %.1f)" % [mol.body.global_position.x, mol.body.global_position.z])
 	var size := t.world_size()

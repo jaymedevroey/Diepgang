@@ -124,7 +124,7 @@ func _run_client(p: Player) -> void:
 	p.global_position = back
 	await get_tree().create_timer(0.8).timeout
 	_rpc_tuning_report.rpc_id(1, Tuning.get_f("carry", "throw_speed", 0.0))
-	var sum := t.checksum()
+	var sum := t.checksum(t.focus_world, 40.0) # rond de start: daar graven host en client, en rijdt de Mol
 	print("[net_test] client: %d slagen, vondst vrij: %s, checksum %s" % [done, it.freed, sum])
 	_rpc_report.rpc_id(1, sum, p.global_position, done)
 	_rpc_find_report.rpc_id(1, it.find_id, it.freed, it.global_position)
@@ -194,7 +194,7 @@ func _rpc_report(client_sum: String, client_pos: Vector3, chips: int) -> void:
 	var sender := multiplayer.get_remote_sender_id()
 	await _frames(10) # ops van dezelfde reliable-stroom zijn toegepast in de volgende ticks
 	var t: TerrainAPI = main.terrain
-	var host_sum := t.checksum()
+	var host_sum := t.checksum(t.focus_world, 40.0)
 	var remote: Player = main.game.player_node(sender)
 	var from_sender := t.op_log().filter(func(op: Dictionary) -> bool: return op.p == sender).size()
 	_expect(chips == CHIPS + DRILL_BITES, "client deed %d/%d slagen + boorhappen (en weigerde houweel in zandsteen)" % [chips, CHIPS + DRILL_BITES])

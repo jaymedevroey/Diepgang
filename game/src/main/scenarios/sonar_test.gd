@@ -85,7 +85,7 @@ func _run(p: Player) -> void:
 	var victim: FindItem = null
 	for it: FindItem in finds.items:
 		var pos := it.global_position
-		if it.freed or pos.x < 16.0 or pos.x > size.x - 16.0 or pos.z < 18.0 or pos.y > 125.0:
+		if it.freed or pos.x < 16.0 or pos.x > size.x - 16.0 or pos.z < 18.0 or pos.y > Strata.TOPS_M[2] - 10.0:
 			continue
 		if Vector2(pos.x - sc.x, pos.z - sc.z).length() < 12.0:
 			continue
