@@ -1,15 +1,17 @@
 # DIEPGANG — Game Design Document
 
-> Werktitel. Versie 2.1, 1 oktober 2026 (v2: 30 september). Wijzigingen in v2.1: zie §14.
+> Werktitel. Versie 3, 2 oktober 2026 (v2.1: 1 oktober, v2: 30 september). Wijzigingen in v3: zie §14.
 > 3D online co-op opgravingsgame voor Steam, volledig te bouwen door een AI-codeeragent op Jayme's pc thuis.
 
 ---
 
 ## 1. Samenvatting
 
-**Pitch:** Online co-op voor 1–4 spelers in first-person 3D. Jullie zijn robotjes van **Diepgang BV**, een louche opgravingsfirma. Met **de Mol**, jullie grote rijdende drilboor, boor je je een weg naar beneden in een afgesloten opgravingsput. Daar graaf je door volledig vervormbare aarde naar fossielen, relieken en schatten, en sleep je ze naar het laadruim van de Mol voor de lava van onderen alles opslokt. In het depot verkoop je de buit, zet je de mooiste vondsten in je **museum** en upgrade je gereedschap, uitrusting en de Mol.
+**Pitch:** Online co-op voor 1–4 spelers in first-person 3D. Jullie zijn goedkope robotjes van **DIG** (Diepgang Interplanetaire Grondwerken), een louche intergalactisch bedrijf dat van planeet naar planeet trekt om te stelen wat onder de grond zit. Elke dienst begint in **de Mol**, jullie rijdende boormachine, die vanuit het moederschip **De Ekster** op een planeet gedropt wordt. Daar boor je je naar beneden door volledig vervormbare grond, delf je erts, bik je alien-fossielen en relieken uit hun korst en sleep je alles naar het laadruim, voor het magma van onderen alles opslokt. Daarna rijdt de Mol terug naar boven en pikt het schip jullie op. Aan boord taxeer je de buit, verkoop je hem of zet je hem in het **museum** van de Raad van Bestuur, en upgrade je gereedschap en de Mol.
 
-**Hoofdhaak: archeologie in plaats van mijnbouw.** Een skelet komt in 3–8 losse stukken uit de grond. Elk stuk moet apart uitgebikt en heel naar boven gebracht worden. In het depot bouw je het weer in elkaar. Het museum groeit zichtbaar tussen runs, met gaten waar een bot ontbreekt. Dat geeft een verzameldoel, een trofee om aan vrienden te tonen, en iets wat GONE DIGGING, Deep Rock Galactic en R.E.P.O. niet hebben.
+**Hoofdhaak: archeologie op vreemde planeten in plaats van enkel mijnbouw.** Een skelet komt in 3–8 losse stukken uit de grond. Elk stuk moet apart uitgebikt en heel naar boven gebracht worden. Aan boord bouw je het weer in elkaar: het museum groeit zichtbaar tussen diensten, met gaten waar een bot ontbreekt. Erts is het vaste inkomen, vondsten zijn de grote uitbetaling en de verzameling. Daarbovenop: **de drop**. Elke dienst begint met de hele ploeg in de Mol die door de atmosfeer valt.
+
+> Naam van het bedrijf en het schip: voorstel van de agent (DIG, De Ekster). Jayme kan ze vervangen.
 
 | | |
 |---|---|
@@ -17,10 +19,11 @@
 | Spelers | 1–4 online (Steam), solo volledig speelbaar |
 | Camera | First-person |
 | Prijs | €8,99, met launchkorting |
-| Doelgroep | Vriendengroepen die R.E.P.O., PEAK en Lethal Company spelen, plus fans van A Game About Digging A Hole |
+| Doelgroep | Vriendengroepen die R.E.P.O., PEAK, Lethal Company en Helldivers 2 spelen, plus fans van A Game About Digging A Hole en Deep Rock Galactic |
 | Engine | Godot 4.7.2 (vastgepind) |
-| Doel | Demo op Steam Next Fest, 14–21 juni 2027, daarna Early Access |
-| Engelse titel | Nog te kiezen na een check op Steam en merken. Niet "Deep Work": dat is een boektitel |
+| Doel | Demo op Steam Next Fest, 14–21 juni 2027 (demo eerder, februari–maart 2027), daarna Early Access |
+| Toon | Louche bedrijf met humor: cynische berichten van het hoofdkantoor, boetes, "werknemer van de dienst". De robots zijn schattig |
+| Engelse titel | Nog te kiezen na een check op Steam en merken |
 
 ---
 
@@ -34,6 +37,7 @@
 | A Game About Digging A Hole | solo graven + upgrades | $4,99 | 90% van 11,4k, 1M+ verkocht | Graven op zich is satisfying. Klachten: kort, upgrades te vroeg maximaal |
 | R.E.P.O. | fysieke buit, extractie, proximity voice | $9,99 | 96% van 139k, piek ~230k | Fysica-komedie + voice = clips |
 | PEAK | co-op klimmen | $7,99 | 95% van 146k | Kleine team, lage prijs, sterke viraliteit |
+| A Game About Digging A Hole Together | 4 spelers online, crossplay (aangekondigd 29–30 sep 2026, H2 2026) | ? | — | De co-op-versie van een miljoenenhit: "co-op graven" is geen haak meer |
 | Keep Digging | co-op voxel graven | $6,99 | 77% van 1,2k | Klachten: performance, "recht naar beneden = klaar", ~2 u inhoud, geld niet gedeeld |
 | Digging Together | co-op graven met rollen | $3,99 | 45% van 24 | Te weinig inhoud, gladde besturing, crashes, upgrades die niets voelen |
 
@@ -50,86 +54,104 @@ Het venster is ongeveer 6–18 maanden.
 - **Tegenover GONE DIGGING:** archeologie, uitbikken, het museum, en een neergegane speler die zelf buit wordt.
 
 ### Waarom het goed bij de AI-bouwer past
-Het spel speelt zich volledig ondergronds af:
-- Er zijn geen lucht, bomen, gras, water of gebouwen nodig.
+Het spel speelt zich grotendeels ondergronds af, en het oppervlak van een planeet is kaal:
+- Er zijn geen bomen, gras, water of gebouwen nodig; de hemel is een shader.
 - Rots is procedureel (ruis, lagen, shader).
 - De duisternis beperkt wat je ziet, wat zowel art-werk als performance scheelt.
 - Licht doet het zware werk: gloeiende kristallen en lava.
 
-Het depot is een **ondergrondse hal** bovenaan de put, waar de Mol tussen diensten staat, geen gebouw aan de oppervlakte.
+De basis is het **moederschip De Ekster**: één interieur (dropbaai, terminal, taxatie, museum), geen gebouwen op de planeet.
 
 ---
 
 ## 3. Kernlus
 
 ```
-Depot → opdracht kiezen → met de Mol naar beneden boren → scannen → graven → korst uitbikken
-→ buit naar het laadruim van de Mol slepen (of de Mol dichterbij rijden) → onrust/lava stijgt
-→ extractie: de Mol rijdt terug omhoog → verkopen → museum aanvullen → upgraden → volgende opdracht
+De Ekster (moederschip) → planeet en opdracht kiezen → drop met de Mol → boren naar beneden
+→ sonar → graven, erts delven, korsten uitbikken → buit naar het laadruim → magma en onrust stijgen
+→ extractie: de Mol rijdt naar boven en wordt opgepikt → taxatie aan boord → verkopen of museum → upgraden
 ```
 
 ### Een dienst (15–20 minuten)
-1. **Opdracht kiezen**, bijvoorbeeld: "Haal €2.500 aan vondsten boven. Bonus voor een compleet skelet."
-2. **Afdalen.** De Mol boort zich vanuit het depot door de lagen naar beneden, met de hele bemanning aan boord. Door de ramen zie je de lagen voorbijschuiven. Hij stopt op een diepte die de piloot kiest (zolang zijn boorkop die laag aankan).
-3. **Scannen.** Een ping toont vage blips: "iets groots, 12 m, schuin onder".
-4. **Graven.** Je boort tunnels naar de vondst toe.
-5. **Uitbikken.** Elke vondst zit in een **korst**. Met het houweel bik je die weg zonder schade, maar traag. Boren door de korst gaat sneller, maar verlaagt de waarde.
-6. **Slepen.** Met de grijphandschoen draag je buit voor je uit. Zware stukken draag je met twee, maar dan ga je trager. Laat je iets vallen, dan telt de fysica: het botst, breekt of rolt weg.
-7. **Onrust en lava.** Een onrustmeter loopt op met de tijd en met lawaai (boren, explosies). Bij elke drempel beeft de put: rotsblokken vallen in onstabiele zones en de lava stijgt een stuk. Tussen de drempels stijgt de lava ook traag.
-8. **Extractie.** De piloot trekt aan de hendel. Na een aftelling met claxon rijdt de Mol terug omhoog door zijn eigen tunnel. Wie niet aan boord is, blijft achter en verliest wat hij droeg. Wat in het laadruim ligt, telt.
-9. **Uitbetaling.** De waarde hangt af van hoe gaaf de vondst is, plus een eventuele bonus. Wie de opdracht niet haalt, betaalt een **boete** en verliest reputatie. **Upgrades blijven altijd behouden.** Reputatie bepaalt welke sites je mag doen.
+1. **Aan boord van De Ekster** kies je op de terminal een planeet: 2–3 keuzes, elk met een opdracht (en later mutators, §4).
+2. **Drop.** Iedereen stapt in de Mol, de piloot trekt aan de drophendel. De Mol valt door de atmosfeer (gloed, schokken, stuwraketten) en landt in een stofwolk. De drop is meteen ook het laadscherm: het terrein laadt terwijl je valt.
+3. **Afdalen.** De Mol boort zich in de grond, zelf gestuurd of met de autopiloot.
+4. **Zoeken.** De sonar luistert stil (kort bereik, vaag). Een **PING** geeft een scherp beeld tot ver, maar maakt lawaai.
+5. **Graven en delven.** Erts gaat in je ertszak en geef je af aan de trechter van de Mol. Vondsten zitten in een **korst**: met het houweel bik je die weg zonder schade, maar traag; boren gaat sneller, maar verlaagt de waarde.
+6. **Slepen.** Vondsten draag je fysiek naar het laadruim. Zware stukken draag je met twee, maar dan ga je trager. Valt iets, dan telt de fysica: het botst, breekt of rolt weg.
+7. **Magma en onrust.**
+   - Magma stijgt van onderen: dat is de **enige klok**.
+   - Onrust stijgt alleen door lawaai: boren, de Mol, pings en explosies.
+   - Bij elke drempel beeft de planeet: rotsblokken vallen in gemarkeerde zones en het magma maakt een sprong.
+8. **Extractie.** De piloot trekt aan de vertrekhendel. Na een aftelling rijdt de Mol zijn eigen spoor terug naar de oppervlakte. De Ekster laat een grijper zakken en pikt hem op.
+   - Wie niet aan boord is, blijft achter: hij komt als vervangrobot terug op het schip.
+   - De firma rekent de vervanging aan, en wat hij droeg, is weg.
+9. **Taxatie aan boord.**
+   - Je draagt de vondsten uit het laadruim door de **taxatiepoort**. Elk stuk wordt één voor één onthuld: soort, gaafheid, waarde.
+   - **Verkopen** = geld in de teamkas. **Schenken** aan het museum = reputatie en ontgrendelingen.
+   - Erts wordt automatisch verkocht.
+10. **Quota.**
+    - Een kwartaal is 3 diensten, met een geldoel dat schaalt met het aantal spelers.
+    - Wie het doel mist, krijgt een **boete** (schuld) en verliest reputatie.
+    - **Upgrades en het museum blijven altijd behouden.** Reputatie bepaalt welke planeten je mag doen.
 
 ### Waarom deze lus werkt
 - De quota met boete zorgt voor spanning: "nog één fossiel of nu naar boven?"
-- De lava stijgt van onderen, terwijl de beste vondsten diep zitten. Dat is de hebzucht-tegen-veiligheid-afweging.
-- Uitbikken tegenover boren is een voortdurende afweging tussen tijd en waarde.
-- Samen dragen en fysica-ongelukken leveren de clips.
-- De Mol is de veilige thuis in het donker, maar elke meter die hij rijdt maakt lawaai: dichter bij de vondsten rijden of de onrust laag houden?
+- Het magma stijgt van onderen, terwijl de beste vondsten diep zitten. Dat is de hebzucht-tegen-veiligheid-afweging. Het is de enige klok: geen tweede timer erbovenop. *DRG: Rogue Core* verloor zijn spelers deels door een strenge timer.
+- Uitbikken tegenover boren is een voortdurende afweging tussen tijd en waarde. Erts is zeker geld, een vondst is een gok met een grote uitbetaling.
+- Samen dragen en fysica-ongelukken leveren de clips. De drop en de grijper zijn de twee grote momenten van elke dienst.
+- De Mol is de veilige thuis in het donker, maar elke meter die hij boort maakt lawaai.
 
 ---
 
 ## 4. Wereld
 
-### De put
-- Een afgesloten volume van ongeveer **64 × 160 × 64 m**. Voxels van 0,5 m, dus 128 × 320 × 128.
-- Procedureel per run (seed), met handgemaakte set pieces: oude mijngangen, grotten, fossielbedden.
+### De planeet (per dienst nieuw, uit een zaad)
+- **Speelgebied ±250 × 250 m, ±300 m diep.** Voxels van 0,5 m (500 × 600 × 500).
+  - Het terrein laadt rond de spelers en de Mol (streaming).
+  - Graafacties worden per blok opnieuw toegepast zodra dat blok laadt, zodat elke peer hetzelfde ziet.
+- **Bovenaan een oppervlak in open lucht:** een kale buitenaardse vlakte met kraters en rotsblokken, onder een vreemde hemel met manen en ringen. De Ekster hangt hoog in de lucht.
+- **Rand:** een onbreekbare buitenmuur, het concessiegebied van DIG. De Mol stopt ervoor.
+- **Grotten** op elke diepte, waarvan enkele groot genoeg voor de Mol.
 - **Terrein kan je enkel wegnemen, nooit toevoegen.** Daardoor maakt de volgorde van graafacties niet uit en blijft de synchronisatie eenvoudig.
 
 ### Lagen
-Elke laag heeft een eigen kleur **en** een eigen patroon, voor leesbaarheid en voor kleurenblinden.
+Elk planeettype heeft 4–5 lagen van ±60 m, elk met een eigen kleur **en** een eigen patroon (leesbaar, ook voor kleurenblinden). Voorbeeld voor het eerste type, **Roestbol** (roestwoestijn):
 
-| Laag | Graven met | Vondsten | Gevaar |
-|---|---|---|---|
-| Klei | alles | munten, flessen, rommel | weinig |
-| Zandsteen | boor T1 | fossielen, oud gereedschap | onstabiele zones |
-| Graniet | boor T2 | geodes, goud, grote skeletten | gasbellen |
-| Kristal | boor T2 | lichtgevende kristallen (breekbaar) | gas, de Graafworm |
+| Laag | Graven met | Erts | Vondsten | Gevaar |
+|---|---|---|---|---|
+| Stof en klei | alles | koper | rommel van vorige bezoekers, munten | weinig |
+| Zandsteen | boor T1 | ijzer | fossielen, oud gereedschap | onstabiele zones |
+| Basalt/graniet | boor T2 | goud | geodes, grote skeletten, relieken | gasbellen |
+| Kristal | boor T2 | kristal | lichtgevende kristallen (breekbaar) | gas, de Graafworm |
+| (Kern) | boor T3 | zeldzaam | — | magma dichtbij |
 
 **Regels:**
-- De boor-tier bepaalt of je een laag *doorkomt*. Het houweel bikt korsten in *elke* laag.
-- De waarde zit verspreid over alle lagen, dus recht naar beneden graven levert niets extra op. Samen met de lava die van onderen stijgt voorkomt dat de skip die Keep Digging kapotmaakte.
+- De boor-tier bepaalt of je een laag *doorkomt*. Het houweel bikt korsten en delft erts in *elke* laag.
+- De waarde zit verspreid, ook opzij: rijke zakken, fossielbedden en grotten liggen op elke diepte. Recht naar beneden graven levert niets extra op. Samen met het magma dat van onderen stijgt voorkomt dat de skip die Keep Digging kapotmaakte.
 
-### Sites
-| Site | Early Access | Kenmerk |
+### Planeettypes (in plaats van vaste sites)
+| Type | Early Access | Kenmerk |
 |---|---|---|
-| Oude Kolenmijn | ja | begeleide eerste opdracht (tutorial), klei + zandsteen, bestaande gangen |
-| Fossielbed | ja | veel grote, zware skeletten in stukken: samenwerken |
-| Kristalgrotten | ja | breekbare, lichtgevende buit, gas, de Graafworm |
-| Vulkanische Pijp | later | snelle lava, basalt, hittepak |
-| Verzonken Stad | later | ingestorte ruïnes in de rots (zuilen, trappen), relieken |
+| Roestbol | ja | begeleide eerste opdracht (tutorial), roestwoestijn, klei + zandsteen bovenaan |
+| Fossielwereld | ja | veel grote, zware skeletten in stukken: samenwerken |
+| Kristalmaan | ja | breekbare, lichtgevende buit, gas, de Graafworm |
+| Vulkaanplaneet | later | snel magma, basalt, hittepak |
+| Verzonken beschaving | later | ingestorte ruïnes in de rots (zuilen, trappen), relieken |
 
-Na Early Access komen nog een eindeloze "diepe dienst" en een wekelijkse site met een vast zaad.
+Na Early Access komen nog een eindeloze "diepe dienst" en een wekelijkse planeet met een vast zaad.
 
-### Vondsten (procedurele families)
-Honderd handgemaakte modellen is niet realistisch. Vijf families met veel variatie wel:
-
-1. **Skeletten:** botvormen per soort gecombineerd, 3–8 stukken per skelet, voor het museum.
-2. **Relieken:** beelden, maskers en vazen uit bouwblokken met varianten.
-3. **Kristallen en geodes:** procedurele meshes, gloeiend en breekbaar.
-4. **Metalen:** goudklompen, munten, oude machines.
-5. **Rommel:** grappige vondsten (oude tv, tuinkabouter, fietsbel) die weinig waard zijn maar leuk om te vinden.
-
-Elke waardeklasse heeft zijn eigen geluid en glans.
+### Buit
+- **Erts** (vast inkomen): aders en clusters in de rots, met per laag een eigen soort.
+  - Je delft het met houweel of boor. Het gaat in je **ertszak** (±40 stuks) en je geeft het af aan de trechter van de Mol.
+  - Het telt enkel als de Mol terugkomt.
+- **Vondsten** (de haak), in vijf families met veel variatie:
+  1. **Skeletten:** alien-fossielen in 3–8 stukken per skelet, voor het museum.
+  2. **Relieken:** beelden, maskers en vazen van verdwenen beschavingen, uit bouwblokken met varianten.
+  3. **Kristallen en geodes:** gloeiend en breekbaar.
+  4. **Metalen:** goudklompen, munten, oude machines.
+  5. **Rommel van eerdere bezoekers** (een tuinkabouter, een oude tv, een fles): weinig waard maar grappig. Een concurrent was hier al.
+- Elke vondst zit in een korst. Ze liggen geconcentreerd in fossielbedden en rond grotten, niet uniform. Elke waardeklasse heeft een eigen geluid en glans.
 
 ---
 
@@ -168,15 +190,17 @@ Elke waardeklasse heeft zijn eigen geluid en glans.
 
 ## 5A. De Mol (rijdende drilboor en basis)
 
-> Toegevoegd in v2.1 op vraag van Jayme. Werknaam. Vervangt de lift uit M1.
+> Toegevoegd in v2.1 op vraag van Jayme. Werknaam. Vervangt de lift uit M1. In v3: gedropt vanuit De Ekster, opgepikt met een grijper.
 
-Een grote rupsvoertuig-drilboor (±10 m lang, ±6 m breed) van Diepgang BV: vooraan een draaiende boorkop met snijtanden, daarachter een cabine met ramen en koplampen, een laadruim en een motor met uitlaat. De Mol is jullie **basis**, jullie **transport** en jullie **extractie** in één.
+Een grote rupsvoertuig-drilboor (±10 m lang, ±6 m breed) van DIG: vooraan een draaiende boorkop met snijtanden, daarachter een cabine met ramen en koplampen, een laadruim en een motor met uitlaat. De Mol is jullie **basis**, jullie **transport** en jullie **extractie** in één.
 
 **Rol in een dienst**
-- **Afdalen:** de Mol boort vanuit het depot naar beneden tot de diepte die de piloot kiest.
+- **Drop:** de Mol hangt in de dropbaai van De Ekster en wordt met de hele ploeg erin op de planeet gedropt (gloed, stuwraketten, landing in een stofwolk).
+- **Afdalen:** de Mol boort vanaf de oppervlakte naar beneden, zelf gestuurd of met de autopiloot.
 - **Rijden:** tijdens de dienst kan hij verder rijden en grote tunnels boren (±6 m breed), ook schuin omhoog of omlaag (begrensde helling).
 - **Laadruim:** buit die erin ligt bij vertrek, telt. De capaciteit is beperkt (gewicht).
-- **Extractie:** terug omhoog door zijn eigen tunnel (zie §3).
+- **Extractie:** terug omhoog door zijn eigen tunnel; aan de oppervlakte laat De Ekster een grijper zakken die hem oppikt (zie §3).
+- **Ertstrechter:** spelers geven hun erts af aan een trechter aan de Mol.
 - **Neergegane robots** sleep je naar de Mol om ze te repareren (§6).
 
 **Besturing:** één piloot in de cabine; iedereen mag piloot worden. De anderen rijden mee, binnen of op het dek.
@@ -197,7 +221,7 @@ Een grote rupsvoertuig-drilboor (±10 m lang, ±6 m breed) van Diepgang BV: voor
 
 ## 6. Gevaren en wezens
 
-- **Lava:** een stijgend vlak met shader en een dodelijke zone. Geen stromingssimulatie.
+- **Magma:** een stijgend vlak met shader en een dodelijke zone, de enige klok van een dienst. Geen stromingssimulatie. Het slokt losse buit op.
 - **Instortingen:** vallende rotsblokken (fysica-objecten) met stof in **gemarkeerde onstabiele zones**. Spannend en vermijdbaar, en het terrein verandert er niet door.
 - **Gasbellen:** een zichtbare gele waas, en de T2-scanner toont ze. Ze ontploffen bij vonken, bijvoorbeeld van de boor.
 - **Graafworm** (het enige wezen in Early Access):
@@ -244,6 +268,10 @@ Een grote rupsvoertuig-drilboor (±10 m lang, ±6 m breed) van Diepgang BV: voor
 
 **Richting (v2.1, Jayme):** de vibe van **Deep Rock Galactic** (gestileerd, chunky, licht in het donker) met de warmte en speelsheid van **PEAK** en de zachte vormen en voertuigen van **Astroneer**. Gestileerd, niet fotorealistisch. **Alle modellen in Blender** (headless scripts), geen AI-gegenereerde modellen.
 
+- **Drie plekken:**
+  - **De Ekster:** warm, industrieel, druk, zoals de Space Rig van DRG. Dropbaai met de Mol, terminal, taxatiepoort, museum, werkbank.
+  - **Het oppervlak van een planeet:** kaal en buitenaards, met een sterke hemel (manen, ringen, nevel). Geen bomen of water.
+  - **Ondergronds:** donker, de kern van het spel.
 - **Beeld:** donker als bewuste stijlkeuze. Enkel wat verlicht is, heeft detail.
   - Palet: 6–8 kleuren plus 2 emissieve accenten.
   - Warm amber voor de helmlampen, cyaan voor de kristallen, oranje voor de lava, en een eigen aardetint per laag.
@@ -270,7 +298,7 @@ Een grote rupsvoertuig-drilboor (±10 m lang, ±6 m breed) van Diepgang BV: voor
 | Onderdeel | Keuze |
 |---|---|
 | Engine | Godot **4.7.2** (standaard, geen .NET), Forward+, **Jolt** physics (standaard sinds 4.6), GDScript |
-| Terrein | **godot_voxel 1.7 GDExtension** (werkt met de standaard Godot-editor en exporttemplates), `VoxelTerrain` zonder LOD, Transvoxel smooth mesher, blokgrootte 16. Afgeschermd achter een eigen `TerrainAPI`-laag |
+| Terrein | **godot_voxel 1.7 GDExtension** (werkt met de standaard Godot-editor en exporttemplates), `VoxelTerrain` zonder LOD, Transvoxel smooth mesher, blokgrootte 16. Afgeschermd achter een eigen `TerrainAPI`-laag. Vanaf v3 **streaming**: een `VoxelViewer` per speler en op de Mol; graafacties staan in een ruimtelijk op-logboek en worden opnieuw toegepast zodra een blok laadt |
 | Terrein-sync | Eigen code: graafacties `(op, centrum, straal, tick)` gaan via de host naar iedereen. Enkel wegnemen, dus volgorde maakt niet uit. Wie later binnenkomt, krijgt het zaad en de lijst met graafacties. Graafacties per tick bundelen en de herbouw van collision beperken |
 | Netwerk | **GodotSteam 4.20.x GDExtension** met ingebouwde `SteamMultiplayerPeer`: lobbies, uitnodigingen via vriendenlijst, Valve-relay (geen port forwarding). Niet combineren met de losse steam-multiplayer-peer-extensie |
 | Spelers | De client bepaalt de eigen beweging, anderen interpoleren |
@@ -307,24 +335,25 @@ Een grote rupsvoertuig-drilboor (±10 m lang, ±6 m breed) van Diepgang BV: voor
 
 ## 10. Planning en poorten
 
-> Herzien op 1 oktober 2026 (v2.1). M0 en M1 waren in een dag klaar in plaats van in een maand. Op vraag van Jayme komt het uiterlijk eerst en Steam/voice en de kernlus daarna (oude M2/M3 en M4/M5 gewisseld). Het netwerk zelf zit er al in sinds M1.
+> Herzien op 2 oktober 2026 (v3). Uiterlijk en de Mol zijn klaar (M2). Op vraag van Jayme komt nu **eerst de kernlus**, met de nieuwe wereld (planeet, moederschip, drop). **Geluid en Steam/voice beslist Jayme zelf** en komen later. Alles wat gebouwd wordt, werkt meteen in co-op via het bestaande netwerk.
 
 | Mijlpaal | Doel | Inhoud | Poort |
 |---|---|---|---|
 | **M0 Opzet** | ✅ 1 oktober 2026 | Repo, Godot 4.7.2, voxel- en GodotSteam-extensies samen, Windows-export, render- en performancetest | Jayme start de build en kan graven |
-| **M1 Graafspeelgoed** | ✅ 1 oktober | First-person robot, graven, korsten uitbikken, dragen, lift. **Al met netwerk** (ENet, host/join). Tuning-menu | **Poort 1:** voelen graven en slepen goed? |
-| **M2 Uiterlijk** (was M5) | half oktober | Stijlgids, rotstexturen per laag, Blender-modellen (**de Mol**, gereedschap, fossielen, puin), sfeer en licht (stof in de lucht, kristallen, kleurgrading), ambient geluid en muziek, eigen stijl voor menu's en HUD, instellingen | "Ziet het eruit als een game?" |
-| **M3 Inhoud** (was M4) | eind oktober | **De Mol** werkend (afdalen, rijden en boren, laadruim, extractie; vervangt de lift), Fossielbed en Kristalgrotten, Graafworm, gas, alle ±8 items, **depot met teamkas en museum** (vooruitgehaald uit de kernlus), cosmetica | |
-| **M4 Samen** (was M2) | begin november | Steam-lobby's en uitnodigingen, voice, getest met 150 ms vertraging | **Poort 2:** 30 min met drie vrienden zonder problemen, en is het leuk? |
-| **M5 Kernlus** (was M3) | half november | Opdrachten, quota, boete, lava, onrust, **opslaan**, host die vertrekt, Oude Kolenmijn volledig met tutorial | De eerste versie die "een game" is |
-| **M6 Demo** | december | Demo, capsules, trailer, Steam-pagina | Steam-pagina "Coming Soon" zodra het Steamworks-account er is. **Next Fest juni 2027** blijft de vaste datum (inschrijven voor 25 april); een eerdere Next Fest kan als de deadlines het toelaten |
+| **M1 Graafspeelgoed** | ✅ 1 oktober | First-person robot, graven, korsten uitbikken, dragen, lift. Al met netwerk (ENet, host/join). Tuning-menu | **Poort 1:** voelen graven en slepen goed? |
+| **M2 Uiterlijk** | ✅ 1 oktober | De Mol (model en werking), gereedschap, vondsten en puin in Blender, rots en licht, HUD en menu's, sonar | "Ziet het eruit als een game?" |
+| **M3 Kernlus** | oktober | **De planeet** (±250 × 300 m met streaming, oppervlak en hemel, erts, gespreide vondsten). **De Ekster** (moederschip als basis), **drop** en **extractie met de grijper**. Opdracht en quota, teamkas, taxatie, eerste museum, opslaan. Magma en onrust met bevingen. Sonar met PING | De eerste versie die "een game" is |
+| **M4 Inhoud** | november | Graafworm, gas, alle ±8 items, 3 planeettypes, neergaan en redden, cosmetica, mutators, opdrachten met uitdaging | |
+| **M5 Samen** | Jayme beslist | Steam-lobby's en uitnodigingen, voice, getest met 150 ms vertraging | **Poort 2:** 30 min met drie vrienden zonder problemen, en is het leuk? |
+| **M6 Geluid** | Jayme beslist | Inslagen per materiaal, de Mol, sfeer, muziek | |
+| **M7 Demo** | februari–maart 2027 | Demo (vroeg, lang laten staan), capsules, trailer, Steam-pagina | Steam-pagina "Coming Soon" zodra het Steamworks-account er is. **Next Fest juni 2027** blijft de vaste datum (inschrijven voor 25 april) |
 
-**Wat het tempo bepaalt:** hoe snel Jayme, Ian en Anir kunnen playtesten, en de wachttijden bij Steam. Niet het programmeren. De data kloppen als er per mijlpaal binnen enkele dagen getest wordt.
+**Wat het tempo bepaalt:** hoe snel Jayme, Ian en Anir kunnen playtesten, en de wachttijden bij Steam. Niet het programmeren.
 
 ### Stopcriteria
 - **Poort 1 faalt** (graven en slepen voelen niet goed): bijsturen of stoppen, na enkele weken in plaats van maanden.
 - **Poort 2 faalt** (netwerk werkt niet betrouwbaar): terug naar een eenvoudiger model, of pivoteren.
-- **GONE DIGGING blijkt bij release bijna identiek:** archeologie en het museum nog verder als hoofdzaak naar voren schuiven.
+- **GONE DIGGING of A Game About Digging A Hole Together blijkt bij release bijna identiek:** archeologie, het museum en de drop met de Mol nog verder als hoofdzaak naar voren schuiven.
 
 ---
 
@@ -350,7 +379,8 @@ Een grote rupsvoertuig-drilboor (±10 m lang, ±6 m breed) van Diepgang BV: voor
 | Haperingen door collision-herbouw | Graven beperken en bundelen, kleine blokken, vroeg profileren op een mid-range pc |
 | De agent ziet de echte look niet | In M0 testen of Forward+ via lavapipe werkt. Anders enkel effecten die de eenvoudige renderer ook toont, plus Jayme's screenshots en helderheidskalibratie |
 | Steam-administratie | Nu starten |
-| Concurrentie (GONE DIGGING, Q2 2027) | Het museum en de archeologie als unieke haak, en een demo op Next Fest in juni |
+| Concurrentie (GONE DIGGING Q2 2027, A Game About Digging A Hole Together H2 2026) | Archeologie, het museum en de drop met de Mol als haak; demo vroeg (februari–maart 2027) en lang laten staan |
+| Grote wereld met streaming (250 × 300 m) | Op-logboek per blok, viewers per speler, vroeg meten op een mid-range pc; vondsten als data tot iemand in de buurt komt |
 
 ---
 
@@ -400,6 +430,16 @@ diepgang/
 ---
 
 ## 14. Wijzigingen
+
+### v2.1 → v3 (2 oktober 2026, met Jayme)
+1. **Nieuwe achtergrond:** jullie werken voor een louche intergalactisch bedrijf (DIG) dat planeten leegrooft, met humor. Het depot wordt het moederschip **De Ekster** in een baan om de planeet.
+2. **Begin en einde van een dienst:** de Mol wordt met de ploeg erin op de planeet **gedropt** (zoals in Helldivers), en aan het einde rijdt hij naar de oppervlakte waar het schip hem met een **grijper** oppikt.
+3. **Grotere wereld:** ±250 × 250 m en ±300 m diep in plaats van 64 × 64 × 160 m, met streaming, en een oppervlak in open lucht. Per dienst een nieuwe planeet. Sites worden planeettypes.
+4. **Buit:** erts als vast inkomen (ertszak, trechter aan de Mol) én alien-vondsten in een korst voor het museum.
+5. **Lava wordt magma**, de enige klok. Onrust volgt enkel lawaai.
+6. **Sonar:** stil kort en vaag, een PING scherp maar luid (onderzoek: "nooit alles zichtbaar").
+7. **Planning:** eerst de kernlus (M3), dan inhoud (M4). Steam/voice en geluid beslist Jayme. Alles blijft co-op via het bestaande netwerk.
+8. Onderzoek naar plezier en design: [research/plezier-en-design.md](research/plezier-en-design.md).
 
 ### v2 → v2.1 (1 oktober 2026, met Jayme)
 1. **De Mol** toegevoegd (§5A): een rijdende drilboor als basis, transport en extractie. Vervangt de lift en de vaste liftschacht.
