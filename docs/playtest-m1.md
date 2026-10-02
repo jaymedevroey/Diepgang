@@ -11,7 +11,7 @@ Niet: is het mooi, is het af, is er genoeg te doen. Enkel: is het leuk om te gra
    - **Hosten**: je IP-adres staat daarna linksboven in beeld. Geef dat aan de anderen.
    - **Meedoen**: typ het IP van de host en klik op Meedoen.
 
-**Samen spelen in M1 gaat via het netwerk thuis (LAN).** Spelen Ian en Anir van thuis uit, dan moet de host poort **24565 (UDP)** openzetten op zijn router, of jullie gebruiken samen een virtueel LAN zoals Tailscale of ZeroTier (gratis): dan vul je het Tailscale-IP van de host in. Uitnodigen via Steam, zonder gedoe met IP's, komt in M2.
+**Samen spelen gaat voorlopig via het netwerk thuis (LAN).** Spelen Ian en Anir van thuis uit, dan moet de host poort **24565 (UDP)** openzetten op zijn router, of jullie gebruiken samen een virtueel LAN zoals Tailscale of ZeroTier (gratis): dan vul je het Tailscale-IP van de host in. Uitnodigen via Steam, zonder gedoe met IP's, komt later (M4).
 
 ## Besturing
 
@@ -31,7 +31,7 @@ Niet: is het mooi, is het af, is er genoeg te doen. Enkel: is het leuk om te gra
 
 - **Houweel**: graaft klei (bovenste ±25 m). Op hardere rots ketst het af.
 - **Boor T1**: graaft ook zandsteen. Snel en luid, raakt oververhit, je loopt trager.
-- **Vondsten**: fossielstukken in een bleke korst. Er liggen er 5 ondiep rond de start. Het vizier wordt **geel** als je op een korst mikt.
+- **Vondsten**: 12 soorten, elk in een bleke korst. Klei: rommel en munten; zandsteen: botten en een oude mijnwerkerslamp; diep zandsteen (net boven het graniet): ook geodes en goud. Er liggen er 5 ondiep rond de start. Het vizier wordt **geel** als je op een korst mikt.
   - Houweel: 4 slagen, de vondst blijft gaaf.
   - Boor: sneller, maar de vondst verliest gaafheid, en dus waarde.
 - **Dragen**: E. Zware stukken maken je trager; met twee dragen gaat sneller. Hard laten vallen of gooien kost gaafheid.
@@ -40,7 +40,9 @@ Niet: is het mooi, is het af, is er genoeg te doen. Enkel: is het leuk om te gra
   - **Autopiloot:** de gele knoppen 20 M / 40 M / 60 M. Hij boort een spiraal naar beneden en opent onderaan de klep.
   - **Laadruim** (achteraan): wat erin ligt, rijdt mee en telt.
   - **Vertrekhendel** (rood, rechts op de console): 10 s aftellen, daarna rijdt hij vanzelf zijn spoor terug naar boven. Wie niet aan boord is, klimt te voet naar boven. Boven wordt bijgetankt.
-  - De boorkop (T1) kan klei en zandsteen aan; op graniet (vanaf ±70 m) blokkeert hij.
+  - **Sonar** (de ronde groene beeldbuis rechts van het camerascherm): vage blips van vondsten tot 24 m ver. Groter = zwaarder, ▲/▼ = boven of onder de Mol. Rechts staat het dichtstbijzijnde doel: afstand, richting op de klok (12 uur = vooruit) en hoogte. In buitenzicht staat de sonar rechtsonder.
+  - Rijdt de boorkop in een vondst, dan schept hij hem op in het laadruim, maar zwaar beschadigd (30%). Bij "! DICHTBIJ" dus beter stoppen en zelf uitbikken.
+  - De boorkop (T1) kan klei en zandsteen aan; op graniet (vanaf ±70 m) blokkeert hij, en ook voor de buitenmuur van de put stopt hij ("! RAND PUT").
 
 Er is nog **geen** opdracht, geld, lava, depot of museum: dat is M3.
 
