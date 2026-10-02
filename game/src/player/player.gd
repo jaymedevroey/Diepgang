@@ -8,7 +8,7 @@ extends CharacterBody3D
 ## Naam van de node = peer-id, onder Game/Players, zodat RPC-paden overal gelijk zijn.
 
 const LAYER_PLAYERS := 1 << 2
-const MASK := Layers.TERRAIN | Layers.LOOT | Layers.LIFT
+const MASK := Layers.TERRAIN | Layers.LOOT | Layers.LIFT | Layers.BOUNDS
 const SEND_INTERVAL := 0.05
 const INTERP_DELAY_MS := 100.0
 

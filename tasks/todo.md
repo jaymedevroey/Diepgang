@@ -153,8 +153,11 @@ Stijl: Deep Rock Galactic + PEAK + Astroneer. Alle modellen in Blender (geen AI-
     - Vondsten: 158 over de planeet (5 bij de landing, de eerste een bot; 8 fossielbedden; 45 achter grotwanden; 60 verspreid op elke diepte); soort per laag uitgebreid met graniet en kristal. Getekend tot 70 m. (Alle nodes blijven bestaan, bevroren in de rots: 158 is licht genoeg; "enkel nodes in de buurt" bleek niet nodig.)
     - Erts: 316 clusters (korte ader koper bij de landing, aders per laag, clusters uit grotwanden); koper, ijzer, zilver, lichtkristal. Houweel = 1 eenheid per slag, boor trager per tik. Ertszak (40) in de HUD, storten in de nieuwe trechter in het laadruim van de Mol, telt bij de extractie. De rotswand fonkelt in de kleur van erts dat vlak achter het oppervlak zit.
     - Verificatie: `ore_test` 13 controles (plaatsing, delven, zak vol, storten enkel bij de trechter, glinsteren), `find_test`, nettest 26 controles (client delft 2 erts en stort, host en client zelfde zak, laadruim en levens). Screenshots `logs/erts_*.png` bekeken (fonkels eerst veel te zwaar, bijgestuurd).
-  - [ ] **3. Oppervlak en hemel:** buitenaardse vlakte met kraters en rotsen, hemel per planeettype (manen, ringen), De Ekster in de lucht.
-    Verificatie: screenshots bekeken.
+  - [x] **3. Oppervlak en hemel**, 2026-10-03.
+    - Hemel (planet_sky.gdshader) per planeettype (PlanetType, nu Roestbol): stoffige horizon, donkere top, een kleine zon met gloed, een grote geringde planeet laag aan de hemel, nevel, weinig sterren. Zon met schaduw aan de oppervlakte (dooft uit onder de grond), helder omgevingslicht en verder zicht boven de grond.
+    - Verre landschap (PlanetSurface): ring tot ±475 m met dezelfde hoogtefunctie, heuvels en mesa's naar de horizon; rok langs de rand. Concessiegrens: paaltjes met knipperlichtjes om de 16 m en onzichtbare muren (laag BOUNDS) voor spelers.
+    - Verificatie: screenshots `logs/oppervlak.png`, `hemel_reus.png`, `hemel_zon.png` bekeken; `stream_test` 18 controles (muur aan de rand houdt je tegen, verre landschap bestaat).
+    - Open: De Ekster in de lucht komt met stap 4/5 (het schip zelf).
   - [ ] **4. De Ekster:** moederschip in Blender (dropbaai met de Mol, terminal, taxatiepoort, museumzaal, werkbank). Je begint en eindigt hier.
     Verificatie: screenshots, zelf rondgelopen.
   - [ ] **5. Drop:** de Mol valt met de ploeg erin op de planeet (gloed, stuwraketten, landing); het terrein laadt intussen.

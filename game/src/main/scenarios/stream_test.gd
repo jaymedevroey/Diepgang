@@ -93,6 +93,17 @@ func _run(p: Player) -> void:
 	_expect(not t.is_solid(far), "op toegepast zodra het gebied geladen is (na %d ms)" % (Time.get_ticks_msec() - t1))
 	_expect(t.waiting_ops() == 0, "geen ops meer die wachten (%d)" % t.waiting_ops())
 
+	# 3. Concessiegrens: aan de oppervlakte loop je niet het speelgebied uit.
+	var edge := Vector3(6.0, 0.0, 140.0)
+	edge.y = t.surface_height_at(edge.x, edge.z) + 1.2
+	await _go(p, edge)
+	p.rotation.y = PI / 2.0 # kijk naar −x (naar de rand)
+	Input.action_press("move_forward")
+	await _wait(2.5)
+	Input.action_release("move_forward")
+	_expect(p.global_position.x > 0.0, "onzichtbare muur aan de rand (x %.2f)" % p.global_position.x)
+	_expect(main.game.surface.get_node_or_null("FarTerrain") != null, "verre landschap rond het speelgebied")
+
 	print("[stream_test] ops opnieuw toegepast (overschreven na laden): %d" % t.ops_repaired)
 	print("[stream_test] %d controles, %d mislukt → %s" % [_checks, _failures.size(), "GESLAAGD" if _failures.is_empty() else "GEFAALD"])
 	for f in _failures:

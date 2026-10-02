@@ -3,7 +3,8 @@ extends Node
 ## Sfeer volgens de diepte van de camera (stijlgids §Licht, docs/research/rots-en-licht.md):
 ## - elke laag een eigen misttint en omgevingslicht (klei roodbruin, zandsteen goud,
 ##   graniet blauwgrijs, kristal indigo), vloeiend overgaand;
-## - boven de put een nachtlucht met koud maanlicht, dat uitdooft zodra je onder de grond zit;
+## - boven de grond de hemel van de planeet (PlanetType) met een laagstaande zon en schaduwen,
+##   die uitdooft zodra je onder de grond zit;
 ## - kleurgrading: hooglichten warm, schaduwen koel (een kleine LUT, in code gemaakt);
 ## - zwevende stofjes rond de camera, enkel zichtbaar in het licht;
 ## - de helderheid uit de instellingen.
@@ -30,14 +31,19 @@ var _scatter := Color()
 var _ambient := Color()
 var _depth := 0.0
 var _ready_once := false
+var _planet: Dictionary = {}
 
 
-func setup(environment: Environment, terrain_api: TerrainAPI) -> void:
+func setup(environment: Environment, terrain_api: TerrainAPI, planet := PlanetType.Id.ROESTBOL) -> void:
 	env = environment
 	terrain = terrain_api
+	_planet = PlanetType.params(planet)
 	env.background_mode = Environment.BG_SKY
 	var sky_mat := ShaderMaterial.new()
-	sky_mat.shader = preload("res://src/ui/night_sky.gdshader")
+	sky_mat.shader = preload("res://src/world/planet_sky.gdshader")
+	var sky_params: Dictionary = _planet.sky
+	for k: String in sky_params:
+		sky_mat.set_shader_parameter(k, sky_params[k])
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
 	env.sky = sky
@@ -50,13 +56,15 @@ func setup(environment: Environment, terrain_api: TerrainAPI) -> void:
 		if key == "video/brightness" or key == "video":
 			_apply_brightness())
 
+	# De zon van de planeet: laag, warm, met lange schaduwen. Onder de grond dooft hij uit.
 	_moon = DirectionalLight3D.new()
-	_moon.name = "Moon"
-	_moon.light_color = Color(0.55, 0.64, 0.9)
+	_moon.name = "Sun"
+	_moon.light_color = _planet.sun_color
 	_moon.light_energy = 0.0
 	_moon.shadow_enabled = true
-	_moon.directional_shadow_max_distance = 120.0
-	_moon.rotation = Vector3(deg_to_rad(-48), deg_to_rad(-35), 0)
+	_moon.directional_shadow_max_distance = 140.0
+	var rot: Vector3 = _planet.sun_rotation_deg
+	_moon.rotation = Vector3(deg_to_rad(rot.x), deg_to_rad(rot.y), deg_to_rad(rot.z))
 	add_child(_moon)
 	_build_dust()
 	# Nep-terugkaatsing (zoals de zaklamp in The Last of Us): een zwak lampje zonder schaduw net
@@ -91,9 +99,10 @@ func _process(delta: float) -> void:
 	var fog: Color = _mix4(FOG, f)
 	var scatter: Color = _mix4(SCATTER, f)
 	var ambient: Color = _mix4(AMBIENT, f)
-	# Aan de oppervlakte: neutralere nachtmist.
+	# Aan de oppervlakte: de stoffige lucht van de planeet, verder zicht, helder omgevingslicht.
 	var surface := 1.0 - smoothstep(2.0, 10.0, depth)
-	fog = fog.lerp(SURFACE_FOG, surface)
+	fog = fog.lerp(_planet.get("fog", SURFACE_FOG), surface)
+	ambient = ambient.lerp(_planet.get("ambient", ambient), surface)
 	var k := 1.0 if not _ready_once else minf(1.0, delta * 1.5)
 	_ready_once = true
 	_fog = _fog.lerp(fog, k)
@@ -102,10 +111,12 @@ func _process(delta: float) -> void:
 	env.fog_light_color = _fog
 	env.volumetric_fog_albedo = _scatter
 	env.ambient_light_color = _ambient
-	env.ambient_light_energy = lerpf(0.16, 0.1, smoothstep(5.0, 60.0, depth)) + 0.07 * float(f[0]) # kristal: wat indigo
-	env.volumetric_fog_density = lerpf(0.008, 0.022, smoothstep(2.0, 20.0, depth))
-	# Het maanlicht dooft uit onder de grond (geen schaduw door 100 m rots heen).
-	_moon.light_energy = 0.32 * surface
+	var under := lerpf(0.16, 0.1, smoothstep(5.0, 60.0, depth)) + 0.07 * float(f[0]) # kristal: wat indigo
+	env.ambient_light_energy = lerpf(under, float(_planet.get("ambient_energy", 0.3)), surface)
+	env.volumetric_fog_density = lerpf(0.008, 0.022, smoothstep(2.0, 20.0, depth)) * lerpf(1.0, 0.35, surface)
+	env.fog_density = lerpf(0.015, float(_planet.get("fog_density", 0.006)), surface)
+	# Het zonlicht dooft uit onder de grond (geen schaduw door 100 m rots heen).
+	_moon.light_energy = float(_planet.get("sun_energy", 1.0)) * surface
 	_moon.visible = surface > 0.01
 	_update_bounce(cam, depth, delta)
 	# Stofjes volgen de camera.

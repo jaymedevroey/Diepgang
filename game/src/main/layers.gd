@@ -9,3 +9,5 @@ const DEBRIS := 1 << 3
 const CRUST := 1 << 4
 const LIFT := 1 << 5
 const INTERACT := 1 << 6
+## Onzichtbare muren aan de concessiegrens (enkel spelers botsen ertegen).
+const BOUNDS := 1 << 7

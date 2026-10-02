@@ -176,7 +176,7 @@ func _on_world_loaded(stats: Dictionary) -> void:
 		_atmosphere = Atmosphere.new()
 		_atmosphere.name = "Atmosphere"
 		add_child(_atmosphere)
-		_atmosphere.setup(($WorldEnvironment as WorldEnvironment).environment, terrain)
+		_atmosphere.setup(($WorldEnvironment as WorldEnvironment).environment, terrain, game.planet_type)
 	if not _mol_connected:
 		_mol_connected = true
 		game.mol.message.connect(func(t: String) -> void:

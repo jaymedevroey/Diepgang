@@ -391,6 +391,11 @@ func is_area_ready(world_center: Vector3, radius_m: float) -> bool:
 	return box.size != Vector3.ZERO and _terrain.is_area_meshed(box)
 
 
+## Het materiaal van het terrein (ook voor het verre landschap, zodat het naadloos aansluit).
+func terrain_material() -> ShaderMaterial:
+	return _terrain.material_override as ShaderMaterial
+
+
 ## Erts vlak achter de wand laten glinsteren (OreField geeft de dichtstbijzijnde clusters).
 func set_ore_glints(points: Array[Vector4]) -> void:
 	var mat := _terrain.material_override as ShaderMaterial

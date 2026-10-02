@@ -21,6 +21,9 @@ var terrain: TerrainAPI
 var terrain_sync: TerrainSync
 var finds: FindField
 var ores: OreField
+var surface: PlanetSurface
+## Type van de huidige planeet (hemel, zon, sfeer).
+var planet_type := PlanetType.Id.ROESTBOL
 var mol: Mol
 var fx: DigFx
 var players: Node3D
@@ -88,6 +91,10 @@ func _build_terrain(ops: Array, finds_state: Array = [], ores_state: Array = [])
 	# Het spel begint zodra het terrein rond de Mol (en de spawnplek erachter) er is.
 	terrain.focus_world = terrain.shaft_center_world() + Vector3(0.0, terrain.surface_height_at(
 			terrain.shaft_center_world().x, terrain.shaft_center_world().z), 4.0)
+	surface = PlanetSurface.new()
+	surface.name = "Surface"
+	add_child(surface)
+	surface.build(terrain, pit_seed)
 	finds.generate(pit_seed)
 	finds.apply_snapshot(finds_state)
 	ores.generate(pit_seed)
