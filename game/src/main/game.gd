@@ -20,6 +20,7 @@ const COLORS: Array[Color] = [
 var terrain: TerrainAPI
 var terrain_sync: TerrainSync
 var finds: FindField
+var ores: OreField
 var mol: Mol
 var fx: DigFx
 var players: Node3D
@@ -54,6 +55,10 @@ func _ready() -> void:
 	finds.name = "Finds"
 	finds.game = self
 	add_child(finds)
+	ores = OreField.new()
+	ores.name = "Ores"
+	ores.game = self
+	add_child(ores)
 	Net.peer_left.connect(_on_peer_left)
 	Tuning.changed.connect(func(_f: String, _k: String) -> void:
 		if multiplayer.is_server():
@@ -75,7 +80,7 @@ func player_node(peer_id: int) -> Player:
 
 # --- Wereld -------------------------------------------------------------------
 
-func _build_terrain(ops: Array, finds_state: Array = []) -> void:
+func _build_terrain(ops: Array, finds_state: Array = [], ores_state: Array = []) -> void:
 	terrain = TerrainAPI.new()
 	terrain.name = "Terrain"
 	terrain.pit_seed = pit_seed
@@ -85,6 +90,8 @@ func _build_terrain(ops: Array, finds_state: Array = []) -> void:
 			terrain.shaft_center_world().x, terrain.shaft_center_world().z), 4.0)
 	finds.generate(pit_seed)
 	finds.apply_snapshot(finds_state)
+	ores.generate(pit_seed)
+	ores.apply_snapshot(ores_state)
 	mol = Mol.new()
 	mol.name = "Mol"
 	# Eerst de Mol, dan de spelers: wie meerijdt, volgt de Mol van deze tick (zie Player._ride_mol).
@@ -149,7 +156,7 @@ func _accept(id: int) -> void:
 	for p: Player in players.get_children():
 		existing.append([p.peer_id, _color_of.get(p.peer_id, 0), p.global_position])
 	_rpc_tuning.rpc_id(id, Tuning.snapshot())
-	_rpc_world_init.rpc_id(id, pit_seed, terrain.op_log(), existing, finds.snapshot())
+	_rpc_world_init.rpc_id(id, pit_seed, terrain.op_log(), existing, finds.snapshot(), ores.snapshot())
 	mol.send_state(id)
 	var idx := _free_color()
 	_color_of[id] = idx
@@ -161,10 +168,10 @@ func _accept(id: int) -> void:
 
 
 @rpc("authority", "reliable")
-func _rpc_world_init(seed_value: int, ops: Array, existing: Array, finds_state: Array) -> void:
+func _rpc_world_init(seed_value: int, ops: Array, existing: Array, finds_state: Array, ores_state: Array) -> void:
 	pit_seed = seed_value
 	_pending_spawns.append_array(existing)
-	_build_terrain(ops, finds_state)
+	_build_terrain(ops, finds_state, ores_state)
 	print("[game] wereld ontvangen: seed %d, %d ops, %d spelers" % [seed_value, ops.size(), existing.size()])
 
 

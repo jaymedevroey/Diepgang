@@ -613,6 +613,14 @@ def build_cargo(g):
             box((sz + 0.02, sz + 0.02, 0.05), (x, y, z + dz), "Anthracite", g, bevel=0.01)
     text("LAADRUIM", 0.16, (hw - 0.02, 0.9, 2.9), (0, -90, 0), "DecalDark", g)
     text("MAX 400 KG  ·  NIET STAPELEN", 0.06, (hw - 0.02, 0.72, 2.9), (0, -90, 0), "DecalDark", g)
+    # Ertstrechter op de linkerwand: brede gele mond, smalle pijp naar de vloer (in het onderstel).
+    tx, ty, tz = -(hw - 0.36), 0.05, 3.3
+    cyl(0.32, 0.36, (tx, ty, tz), "Yellow", g, verts=12, bevel=0.015, r2=0.1)
+    torus(0.31, 0.025, (tx, ty + 0.18, tz), "Steel", g, axis="y", major_seg=24, minor_seg=6)
+    tube([(tx, ty - 0.16, tz), (tx, IN_Y0 + 0.04, tz), (-(hw - 0.05), IN_Y0 + 0.04, tz)], 0.07, "DarkSteel", g, verts=10)
+    box((0.06, 0.5, 0.08), (-(hw - 0.04), ty - 0.05, tz - 0.3), "Anthracite", g, bevel=0.01)
+    box((0.06, 0.5, 0.08), (-(hw - 0.04), ty - 0.05, tz + 0.3), "Anthracite", g, bevel=0.01)
+    text("ERTS", 0.12, (-(hw - 0.02), 0.62, tz), (0, 90, 0), "DecalDark", g)
     # Bediening laadklep bij de klep.
     box((0.08, 0.32, 0.22), (hw - 0.04, -0.25, 3.7), "Anthracite", g, bevel=0.02)
     cyl(0.05, 0.05, (hw - 0.09, -0.25, 3.7), "Yellow", g, axis="x", verts=12, bevel=0.0)
@@ -837,6 +845,7 @@ def main():
         "Btn_Ramp_Cockpit": (desk(BTN_RAMP_U, 0.02, 0.07), DESK_ROT),
         "Btn_Ramp_Back": ((IN_W / 2 - 0.09, -0.25, 3.7), (0, 0, 0)),
         "Workbench": ((-(IN_W / 2 - 0.38), -0.5, 1.05), (0, 0, 0)),
+        "Ore_Chute": ((-(IN_W / 2 - 0.36), 0.25, 3.3), (0, 0, 0)),
         "Exhaust_L": ((-0.55, 3.0, 1.85), (0, 0, 0)),
         "Exhaust_R": ((0.55, 3.0, 1.85), (0, 0, 0)),
         "Label_Depth": ((-1.44, 0.35, -3.31), (0, 22, 0)),

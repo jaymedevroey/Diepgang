@@ -13,7 +13,7 @@ Afvinkbare taken per mijlpaal. Bron: [docs/GDD.md](../docs/GDD.md) §10 en §13.
 | Windows-build | `tools\export_windows.cmd` → `builds\windows\Diepgang.exe` |
 | Build online zetten (andere toestellen) | build in `builds\Diepgang-windows.zip` (enkel exe, pck, dll's, LEESMIJ), dan `gh release create vX.Y.Z builds/Diepgang-windows.zip --prerelease` op [jaymedevroey/Diepgang](https://github.com/jaymedevroey/Diepgang) (privé) |
 | Nettest (host + client, headless) | `py -3.11 tools/net_test.py` (of `--exe builds/windows/Diepgang.console.exe`) |
-| Vondsten, dragen, de Mol, sonar, tuning, menu's (headless) | `tools\godot.cmd --headless --path game -- --scenario=find_test --no-steam` (ook `carry_test`, `mol_test`, `sonar_test`, `mol_edge_test`, `stream_test`, `tuning_test`, `ui_test`) |
+| Vondsten, dragen, de Mol, sonar, tuning, menu's (headless) | `tools\godot.cmd --headless --path game -- --scenario=find_test --no-steam` (ook `carry_test`, `mol_test`, `sonar_test`, `mol_edge_test`, `stream_test`, `ore_test`, `tuning_test`, `ui_test`) |
 | Rots per laag (voor/na) | `--scenario=terrain_preview --shot=naam` (tunnel en bekapte wand per laag, met GPU-tijd; `--only=klei,kristal`) |
 | HUD en menu (screenshots) | `--scenario=hud_preview` (korst, vondst, dragen, ver, piloot, vertrek, resultaat, pauze) · `--scenario=ui_preview` · `-- --menu-shot --menu-settings --menu-join` |
 | Screenshots | `-- --autodig --pitch=-30 --shot=naam --frames=60,300` · `--scenario=robot_preview` · `find_preview` · `carry_preview` · `mol_preview` (`--only=buiten,zij,rups,achter,binnen,cabine,afdalen`, of `--only=sonar`) · `--menu-shot` |
@@ -149,8 +149,10 @@ Stijl: Deep Rock Galactic + PEAK + Astroneer. Alle modellen in Blender (geen AI-
     - TerrainAPI streamt (viewers per speler en op de Mol, VoxelStreamMemory, ops die wachten op hun blok, nakijken en herstellen van overschreven bewerkingen). PlanetGenerator: vlakte met kraters, rotsblokken en een vlakke landingsplek, 46 grotten (5 groot), 26 gangen, buitenmuur enkel onder het oppervlak. Lagen herschaald.
     - Verificatie: `stream_test` 16 controles (gat blijft na ontladen en herladen, op voor niet-geladen gebied wordt toegepast als je er komt, echte collision rond de Mol); nettest 22 controles groen (3× op rij); alle tests aangepast en groen. Laden tot speelbaar 3,5–4,2 s, ±130 MB (headless). `drive_perf` met venster op deze pc: 6–7 ms gemiddeld, p99 ≤ 13 ms, max 25 ms, geen frames boven 33 ms (RTX 4090: geen bewijs voor mid-range). Screenshots `logs/planeet_*.png` bekeken.
     - Open: het landschap voorbij de rand (stap 3), grotwanden van dichtbij beoordelen, meten op een mid-range pc.
-  - [ ] **2. Vondsten en erts in de grote wereld:** vondsten als data, nodes enkel in de buurt van spelers; ertsclusters, ertszak, trechter aan de Mol.
-    Verificatie: `find_test`, een ertstest, nettest (client delft, host telt).
+  - [x] **2. Vondsten en erts in de grote wereld**, 2026-10-03.
+    - Vondsten: 158 over de planeet (5 bij de landing, de eerste een bot; 8 fossielbedden; 45 achter grotwanden; 60 verspreid op elke diepte); soort per laag uitgebreid met graniet en kristal. Getekend tot 70 m. (Alle nodes blijven bestaan, bevroren in de rots: 158 is licht genoeg; "enkel nodes in de buurt" bleek niet nodig.)
+    - Erts: 316 clusters (korte ader koper bij de landing, aders per laag, clusters uit grotwanden); koper, ijzer, zilver, lichtkristal. Houweel = 1 eenheid per slag, boor trager per tik. Ertszak (40) in de HUD, storten in de nieuwe trechter in het laadruim van de Mol, telt bij de extractie. De rotswand fonkelt in de kleur van erts dat vlak achter het oppervlak zit.
+    - Verificatie: `ore_test` 13 controles (plaatsing, delven, zak vol, storten enkel bij de trechter, glinsteren), `find_test`, nettest 26 controles (client delft 2 erts en stort, host en client zelfde zak, laadruim en levens). Screenshots `logs/erts_*.png` bekeken (fonkels eerst veel te zwaar, bijgestuurd).
   - [ ] **3. Oppervlak en hemel:** buitenaardse vlakte met kraters en rotsen, hemel per planeettype (manen, ringen), De Ekster in de lucht.
     Verificatie: screenshots bekeken.
   - [ ] **4. De Ekster:** moederschip in Blender (dropbaai met de Mol, terminal, taxatiepoort, museumzaal, werkbank). Je begint en eindigt hier.

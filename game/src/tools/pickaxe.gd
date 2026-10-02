@@ -12,7 +12,7 @@ signal aim_changed(state: Aim)
 signal swung
 
 enum State { IDLE, WINDUP, STRIKE, HITSTOP, RECOVER }
-enum Aim { NONE, DIGGABLE, TOO_HARD, CRUST }
+enum Aim { NONE, DIGGABLE, TOO_HARD, CRUST, ORE }
 
 const TOOL := Strata.Tool.HOUWEEL
 const VIEWMODEL_FOV := 68.0
@@ -26,6 +26,7 @@ const POSE_STRUCK := [Vector3(0.12, -0.34, -0.7), Vector3(-80, -4, 2)]
 var terrain: TerrainAPI
 var sync: TerrainSync
 var finds: FindField
+var ores: OreField
 var camera: Camera3D
 var body: CharacterBody3D
 var fx: DigFx
@@ -162,6 +163,14 @@ func _impact() -> bool:
 		camera_fx.kick(Tuning.get_f("pickaxe", "kick_pitch_deg", 1.6) * 0.7, _rng.randf_range(-1, 1) * 0.4)
 		camera_fx.add_trauma(Tuning.get_f("pickaxe", "shake_trauma", 0.28) * 0.7)
 		return true
+	if hit.collider is OreCluster:
+		# Erts delven: één eenheid per slag (de host telt).
+		var ore: OreCluster = hit.collider
+		ores.hit(ore.cluster_id, TOOL, pos)
+		fx.impact(pos, normal, OreKinds.COLORS[ore.kind], 3)
+		camera_fx.kick(Tuning.get_f("pickaxe", "kick_pitch_deg", 1.6) * 0.8, _rng.randf_range(-1, 1) * 0.5)
+		camera_fx.add_trauma(Tuning.get_f("pickaxe", "shake_trauma", 0.28) * 0.8)
+		return true
 	var layer := terrain.layer_at(pos - normal * 0.2)
 	var color := Strata.DEBRIS_COLORS[layer]
 	if Strata.can_dig(layer, TOOL):
@@ -188,6 +197,8 @@ func _update_aim() -> void:
 	var new_aim := Aim.NONE
 	if not hit.is_empty() and hit.collider is Crust:
 		new_aim = Aim.CRUST
+	elif not hit.is_empty() and hit.collider is OreCluster:
+		new_aim = Aim.ORE
 	elif not hit.is_empty():
 		var layer := terrain.layer_at(hit.position - hit.normal * 0.2)
 		new_aim = Aim.DIGGABLE if Strata.can_dig(layer, TOOL) else Aim.TOO_HARD

@@ -4,11 +4,13 @@ extends Node
 ## positie en terrein-checksum aan de host. Host: vergelijkt met wat hij zelf ziet.
 ## Naam van deze node is "Scenario" op elke peer, zodat de RPC's aankomen.
 
-const TIMEOUT_S := 90.0
+const TIMEOUT_S := 180.0
 const CHIPS := 6
 const DRILL_BITES := 4
 ## Deze vondst schept de boorkop van de Mol op (bij de host), de client moet het zien.
 const SCOOP_ID := 10
+## Ertscluster (ader bij de landing) dat de client delft.
+const ORE_ID := 2
 
 var main: Node
 var _checks := 0
@@ -104,6 +106,25 @@ func _run_client(p: Player) -> void:
 	print("[net_test] client: vondst gedragen: %s" % carried)
 	p.global_position = back
 	p.set_physics_process(true)
+	# Erts: twee slagen op de ader bij de landing, dan storten in de trechter van de Mol.
+	var ores: OreField = main.game.ores
+	var oc := ores.clusters[ORE_ID]
+	p.set_physics_process(false)
+	p.global_position = oc.global_position + Vector3(0, 1.5, 0)
+	await get_tree().create_timer(0.4).timeout
+	for i in 2:
+		ores.hit(ORE_ID, Strata.Tool.HOUWEEL, oc.global_position)
+		await get_tree().create_timer(0.4).timeout
+	await get_tree().create_timer(0.3).timeout
+	var bag_after := OreField.units(ores.bag_of(p.peer_id))
+	var mol_ore: Mol = main.game.mol
+	p.global_position = mol_ore.chute_position() + mol_ore.body.global_basis.x * 1.0
+	await get_tree().create_timer(0.6).timeout # de host moet ons eerst bij de trechter zien
+	ores.deposit()
+	await get_tree().create_timer(0.5).timeout
+	_rpc_ore_report.rpc_id(1, bag_after, OreField.units(ores.bag_of(p.peer_id)), OreField.units(ores.hold), oc.hp)
+	p.global_position = back
+	p.set_physics_process(true)
 	# De Mol: instappen, plaatsnemen, klep dicht, 3 s vooruit rijden (de host simuleert).
 	var mol: Mol = main.game.mol
 	await get_tree().create_timer(0.5).timeout
@@ -130,6 +151,18 @@ func _run_client(p: Player) -> void:
 	_rpc_find_report.rpc_id(1, it.find_id, it.freed, it.global_position)
 	var sc := finds.items[SCOOP_ID]
 	_rpc_scoop_report.rpc_id(1, sc.freed, sc.condition, mol.contains_point(sc.global_position), finds.crusts.has(SCOOP_ID))
+
+
+@rpc("any_peer", "reliable")
+func _rpc_ore_report(bag_after_hits: int, bag_now: int, hold: int, cluster_hp: float) -> void:
+	if not multiplayer.is_server():
+		return
+	var ores: OreField = main.game.ores
+	var oc := ores.clusters[ORE_ID]
+	_expect(bag_after_hits == 2, "client delfde 2 erts (zak %d)" % bag_after_hits)
+	_expect(bag_now == 0 and OreField.units(ores.bag_of(multiplayer.get_remote_sender_id())) == 0, "client stortte zijn zak (bij client en host leeg)")
+	_expect(hold == 2 and OreField.units(ores.hold) == 2, "2 erts in de Mol, bij client en host (%d / %d)" % [hold, OreField.units(ores.hold)])
+	_expect(is_equal_approx(cluster_hp, oc.hp) and oc.hp == oc.max_hp - 2, "cluster heeft bij client en host dezelfde levens (%.0f)" % oc.hp)
 
 
 ## Client is geladen: de host laat de boorkop een vondst opscheppen (zoals bij het boren).

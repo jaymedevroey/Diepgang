@@ -10,6 +10,10 @@ extends Node3D
 signal mode_changed(mode: Mode)
 signal pilot_changed(peer: int)
 signal summary(count: int, value: int, left_behind: int)
+
+## Erts van de laatste extractie (gezet net voor `summary`).
+var last_ore_units := 0
+var last_ore_value := 0
 signal message(text: String)
 
 enum Mode { PARKED, DRIVING, AUTO_DOWN, COUNTDOWN, EXTRACTING }
@@ -145,6 +149,11 @@ func contains_point(world: Vector3) -> bool:
 	if ramp_open: # op de klep, die schuin naar de vloer loopt
 		return local.z > 4.0 and local.z < 7.2 and absf(local.x) < 2.1 and local.y > -3.4 and local.y < -0.5
 	return false
+
+
+## Mond van de ertstrechter (laadruim, linkerwand).
+func chute_position() -> Vector3:
+	return (visual.anchors["Ore_Chute"] as Node3D).global_position
 
 
 ## Staat een wereldpunt in de cabine (voor de woonruimte)? Daar zet E je aan het stuur.
@@ -309,7 +318,9 @@ func _rpc_message(text: String) -> void:
 
 
 @rpc("authority", "call_local", "reliable")
-func _rpc_summary(count: int, value: int, left_behind: int) -> void:
+func _rpc_summary(count: int, value: int, left_behind: int, ore_units: int, ore_value: int) -> void:
+	last_ore_units = ore_units
+	last_ore_value = ore_value
 	summary.emit(count, value, left_behind)
 
 
@@ -663,11 +674,15 @@ func _extract(delta: float) -> void:
 		_rpc_event.rpc(Event.ARRIVED)
 		# Wie niet aan boord was, klom te voet door de tunnel naar boven.
 		var left := 0
+		var left_peers: Array = []
 		for pl: Player in game.players.get_children():
 			if not pl.seated and not contains_point(pl.global_position):
 				pl.host_teleport(game.spawn_pos_of(pl.peer_id))
 				left += 1
-		_rpc_summary.rpc(items.size(), value, left)
+				left_peers.append(pl.peer_id)
+		var ores: OreField = game.ores
+		_rpc_summary.rpc(items.size(), value, left, OreField.units(ores.hold), OreField.value(ores.hold))
+		ores.host_after_extraction(left_peers)
 		return
 	var target := _path[_path_index]
 	var pos := body.global_position
@@ -765,11 +780,14 @@ func _update_visual() -> void:
 			value += it.value()
 		var states := ["GEPARKEERD", "RIJDEN", "AUTOPILOOT", "VERTREK %d" % int(ceil(countdown)), "NAAR BOVEN"]
 		var state: String = ("! RAND PUT" if at_edge else "! TE HARD") if blocked else ("BOREN" if drilling and mode == Mode.DRIVING else states[mode])
+		var ore: PackedInt32Array = game.ores.hold
 		visual.set_readout("%s
 DIEPTE   %4d M
 HELLING  %+4d°
 BRANDST. %4d%%
-LAADRUIM %d · €%d" % [state, int(depth()), int(round(rad_to_deg(pitch))), int(fuel * 100.0), cargo.size(), value])
+LAADRUIM %d · €%d
+ERTS     %d · €%d" % [state, int(depth()), int(round(rad_to_deg(pitch))), int(fuel * 100.0), cargo.size(), value,
+				OreField.units(ore), OreField.value(ore)])
 		visual.feed_text = "%d M  ·  %s  ·  %.1f M/S" % [int(depth()), Strata.NAMES[front].to_upper(), absf(speed)]
 	# Camerascherm enkel renderen als de lokale speler in de Mol is.
 	var me: Player = game.player_node(Net.my_id())
@@ -841,6 +859,13 @@ func _build_buttons() -> void:
 	_button(a["Btn_Ramp_Back"], "E: laadklep open/dicht", Cmd.RAMP, 0.0, 0.3)
 	_button(a["Lever"], "E: vertrekken naar boven (10 s)", Cmd.DEPART, 0.0, 0.3)
 	_button(a["Workbench"], "Werkbank (upgrades komen later)", Cmd.WORKBENCH, 0.0, 0.6)
+	# Ertstrechter: storten gaat rechtstreeks naar het ertsveld (host controleert de afstand).
+	var chute_shape := BoxShape3D.new()
+	chute_shape.size = Vector3(0.8, 0.7, 0.8)
+	var chute := Interactable.make("E: erts storten", chute_shape)
+	chute.set_meta("ore_chute", true)
+	a["Ore_Chute"].add_child(chute)
+	chute.used.connect(func(_p: Player) -> void: game.ores.deposit())
 	# Stoel en stuurhendels samen: groot genoeg om niet te missen, laag genoeg om over te mikken
 	# naar de knoppen op de console.
 	var seat := Node3D.new()

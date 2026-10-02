@@ -25,6 +25,11 @@ var _slots: Array[PanelContainer] = []
 var _tool_name: Label
 var _tool_hint: HBoxContainer
 var _carry: HudFader
+var _ore: HudFader
+var _ore_label: Label
+var _ore_value: Label
+var _ore_shown := -1
+var _ore_connected := false
 var _carry_name: Label
 var _carry_value: Label
 var _carry_bar: ColorRect
@@ -322,6 +327,37 @@ func _build_bottom() -> void:
 	scol.add_child(_sonar_view)
 
 
+	# Ertszak: klein kaartje linksonder, boven het draagkaartje; verschijnt bij elke verandering.
+	_ore = HudFader.new()
+	_ore.mode_key = "hud/prompts"
+	_ore.hold = 3.0
+	_ore.needs_content = true
+	_ore.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+	_ore.position = Vector2(28, -228)
+	_ore.size = Vector2(300, 48)
+	add_child(_ore)
+	var ochip := PanelContainer.new()
+	ochip.theme_type_variation = &"HudChip"
+	_ore.add_child(ochip)
+	var orow := HBoxContainer.new()
+	orow.add_theme_constant_override("separation", 10)
+	ochip.add_child(orow)
+	var oh := Label.new()
+	oh.text = "ERTSZAK"
+	oh.add_theme_font_override("font", UiTheme.heading())
+	oh.add_theme_font_size_override("font_size", 15)
+	oh.add_theme_color_override("font_color", UiTheme.YELLOW)
+	orow.add_child(oh)
+	_ore_label = Label.new()
+	_ore_label.add_theme_font_override("font", UiTheme.body(800))
+	_ore_label.add_theme_font_size_override("font_size", 18)
+	orow.add_child(_ore_label)
+	_ore_value = Label.new()
+	_ore_value.add_theme_font_size_override("font_size", 16)
+	_ore_value.add_theme_color_override("font_color", UiTheme.CREAM_DIM)
+	orow.add_child(_ore_value)
+
+
 func _build_left() -> void:
 	_team = HudFader.new()
 	_team.mode_key = "hud/team"
@@ -439,11 +475,13 @@ func toast(text: String, kind := "info", seconds := 4.5) -> void:
 
 
 ## Eindoverzicht na de extractie.
-func show_result(count: int, value: int, left_behind: int) -> void:
+func show_result(count: int, value: int, left_behind: int, ore_units := 0, ore_value := 0) -> void:
 	for c in _result_rows.get_children():
 		c.queue_free()
 	_result_row("Vondsten in het laadruim", str(count))
-	_result_row("Waarde", "€%d" % value, UiTheme.YELLOW)
+	_result_row("Waarde vondsten", "€%d" % value, UiTheme.YELLOW)
+	if ore_units > 0:
+		_result_row("Erts (%d)" % ore_units, "€%d" % ore_value, UiTheme.YELLOW)
 	if left_behind > 0:
 		_result_row("Achterblijvers (te voet boven)", str(left_behind), UiTheme.DANGER)
 	_result_row("Brandstof", "bijgetankt")
@@ -485,6 +523,7 @@ func update(player: Player, game: Game, terrain: TerrainAPI) -> void:
 	_update_compass(player, mol, terrain)
 	_update_tools(player)
 	_update_carry(player)
+	_update_ore(player, game)
 	_update_prompt(player, game, terrain)
 	_update_pilot(player)
 	_update_sonar(player, mol)
@@ -593,6 +632,13 @@ func _update_prompt(player: Player, game: Game, terrain: TerrainAPI) -> void:
 			crosshair.crust_max = c.max_hp
 			text = "Korst: uitbikken"
 			sub = "houweel is veilig · boor is sneller, maar schaadt de vondst"
+		elif not hit.is_empty() and hit.collider is OreCluster:
+			var o: OreCluster = hit.collider
+			state = HudCrosshair.State.CRUST
+			crosshair.crust_hp = o.hp
+			crosshair.crust_max = o.max_hp
+			text = "Erts: %s" % OreKinds.NAMES[o.kind]
+			sub = "€%d per stuk · %d over · houweel of boor" % [OreKinds.VALUES[o.kind], int(ceil(o.hp))]
 		elif not hit.is_empty() and hit.collider is FindItem:
 			var f: FindItem = hit.collider
 			state = HudCrosshair.State.USE if f.freed else HudCrosshair.State.NONE
@@ -626,6 +672,28 @@ func _set_prompt(action: String, text: String, sub: String) -> void:
 	if action != "" and not _prompt_caps.get_children().any(func(c: Node) -> bool: return (c as KeyCap).action == action):
 		_prompt_caps.add_child(KeyCap.make(action, 16))
 	_prompt_caps.visible = action != ""
+
+
+func _update_ore(player: Player, game: Game) -> void:
+	var ores: OreField = game.ores
+	if ores == null:
+		return
+	if not _ore_connected:
+		_ore_connected = true
+		ores.bag_full.connect(func() -> void:
+			toast("Ertszak vol: stort hem in de trechter van de Mol", "warn"))
+	var bag := ores.bag_of(player.peer_id)
+	var n := OreField.units(bag)
+	_ore.active = n > 0 and int(Settings.get_value("hud/prompts")) == Settings.HUD_ALWAYS
+	if n == _ore_shown:
+		return
+	_ore_shown = n
+	var cap := Tuning.get_i("ore", "bag_capacity", 40)
+	_ore_label.text = "%d/%d" % [n, cap]
+	_ore_label.add_theme_color_override("font_color", UiTheme.DANGER if n >= cap else UiTheme.CREAM)
+	_ore_value.text = "€%d" % OreField.value(bag)
+	if n > 0:
+		_ore.poke()
 
 
 func _update_pilot(player: Player) -> void:

@@ -18,6 +18,7 @@ const POSE := [Vector3(0.3, -0.33, -0.55), Vector3(6, 16, 0)]
 var terrain: TerrainAPI
 var sync: TerrainSync
 var finds: FindField
+var ores: OreField
 var camera: Camera3D
 var body: CharacterBody3D
 var fx: DigFx
@@ -105,6 +106,14 @@ func _physics_process(delta: float) -> void:
 			_crust_timer = 0.1
 			finds.hit_crust(hit.collider.find_id, TOOL, hit.position)
 			fx.crust_hit(hit.position, hit.normal, false)
+	elif running and not hit.is_empty() and hit.collider is OreCluster:
+		# Erts boren: trager per tik dan het houweel per slag, maar zonder pauze.
+		var ore: OreCluster = hit.collider
+		touching = true
+		_set_contact(true, false, hit.position, hit.normal, OreKinds.COLORS[ore.kind])
+		if _crust_timer <= 0.0:
+			_crust_timer = 0.1
+			ores.hit(ore.cluster_id, TOOL, hit.position)
 	elif running and not hit.is_empty():
 		var pos: Vector3 = hit.position
 		var normal: Vector3 = hit.normal
@@ -168,6 +177,8 @@ func _update_aim(hit: Dictionary) -> void:
 	var new_aim := Pickaxe.Aim.NONE
 	if not hit.is_empty() and hit.collider is Crust:
 		new_aim = Pickaxe.Aim.CRUST
+	elif not hit.is_empty() and hit.collider is OreCluster:
+		new_aim = Pickaxe.Aim.ORE
 	elif not hit.is_empty():
 		var layer := terrain.layer_at(hit.position - hit.normal * 0.2)
 		new_aim = Pickaxe.Aim.DIGGABLE if Strata.can_dig(layer, TOOL) else Pickaxe.Aim.TOO_HARD

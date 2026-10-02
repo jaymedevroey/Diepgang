@@ -8,7 +8,7 @@ signal closed
 
 const TITLES := {
 	"camera": "Camera", "carry": "Dragen", "dig": "Graven", "drill": "Boor", "finds": "Vondsten",
-	"mol": "De Mol", "pickaxe": "Houweel", "player": "Speler", "terrain": "Terrein",
+	"mol": "De Mol", "pickaxe": "Houweel", "player": "Speler", "terrain": "Terrein", "ore": "Erts",
 }
 
 var _tabs: TabContainer

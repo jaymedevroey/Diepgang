@@ -4,6 +4,10 @@ Wat we onderweg leerden en wat het GDD bijstuurt. Nieuwste bovenaan.
 
 ## 2026-10-03 — Grote planeet met streaming
 
+- **GDScript-lambda's kunnen geen twee waarden teruggeven**: `return p, -1` in een lambda die als argument meegaat, wordt gelezen als een extra argument van de aanroep ("Too many arguments"). Een Array teruggeven.
+- **Een effect in een shader eerst bekijken van dichtbij**: de ertsfonkels waren als confetti (vierkante cellen van 7 cm, 40% aan). Kleine ronde fonkels (3 cm, ±14% aan) en een zachte verkleuring lezen als erts.
+- De nettest duurt langer met streaming (beide kanten laden): limiet 180 s (scenario) / 220 s (net_test.py).
+
 - **godot_voxel 1.7x, eenheden (gemeten):** `VoxelViewer.view_distance` is in **wereldeenheden** (meter bij een terrein met schaal 0,5), `VoxelTerrain.max_view_distance` in **voxels**. Eerst gaf ik voxels aan de viewer: alles tot 220 m laadde.
 - **Laden gebeurt in een kubus rond de viewer**, afgerond op datablokken (8 m). Een punt op 120 m schuin is dus nog geladen. Tests met "ver weg" moeten langs één as verder dan view_m + 8 m liggen, of met een kleinere view_m.
 - **Bewerkingen kunnen vlak na het laden verloren gaan** als viewers overlappen (speler in de Mol): een laadantwoord voor een blok dat al bestaat overschrijft het volledig (`apply_data_block_response` → `try_set_block`, gezien in de broncode). Gemeten: 1 op 4–6 keer. Oplossing: ops zijn idempotent, dus na elke op en na elk geladen blok 4 s lang één voxel per op nakijken en zo nodig opnieuw toepassen (`ops_repaired`). Enkel vertrouwen op `block_loaded` is niet genoeg (komt soms voor het blok bruikbaar is).

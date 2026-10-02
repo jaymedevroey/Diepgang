@@ -38,7 +38,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--exe", help="geëxporteerde build i.p.v. de editor")
     ap.add_argument("--port", type=int, default=24599)
-    ap.add_argument("--timeout", type=float, default=120.0)
+    ap.add_argument("--timeout", type=float, default=220.0)
     args = ap.parse_args()
 
     base = [str(ROOT / args.exe)] if args.exe else [str(GODOT), "--path", "game"]

@@ -391,6 +391,15 @@ func is_area_ready(world_center: Vector3, radius_m: float) -> bool:
 	return box.size != Vector3.ZERO and _terrain.is_area_meshed(box)
 
 
+## Erts vlak achter de wand laten glinsteren (OreField geeft de dichtstbijzijnde clusters).
+func set_ore_glints(points: Array[Vector4]) -> void:
+	var mat := _terrain.material_override as ShaderMaterial
+	var arr := PackedVector4Array(points)
+	arr.resize(16)
+	mat.set_shader_parameter("ore_points", arr)
+	mat.set_shader_parameter("ore_count", mini(points.size(), 16))
+
+
 ## Is de voxeldata rond dit punt geladen (los van meshes en collision)?
 func data_loaded(world: Vector3) -> bool:
 	return _terrain.has_data_block(_terrain.voxel_to_data_block(_terrain.to_local(world)))
@@ -617,4 +626,9 @@ func _make_material() -> ShaderMaterial:
 	mat.set_shader_parameter("top_kristal", Strata.TOPS_M[0])
 	mat.set_shader_parameter("top_graniet", Strata.TOPS_M[1])
 	mat.set_shader_parameter("top_zandsteen", Strata.TOPS_M[2])
+	var ore_cols := PackedVector4Array()
+	for c: Color in OreKinds.COLORS:
+		var l := c.srgb_to_linear()
+		ore_cols.append(Vector4(l.r, l.g, l.b, 1.0))
+	mat.set_shader_parameter("ore_colors", ore_cols)
 	return mat

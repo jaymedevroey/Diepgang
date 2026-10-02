@@ -18,6 +18,10 @@ uniform float top_graniet = 80.0;
 uniform float top_zandsteen = 125.0;
 uniform float vein_energy = 2.4;
 uniform float facet_strength = 1.0;
+// Erts vlak achter de wand (OreField): xyz = cluster (wereld), w = soort. Kleuren lineair.
+uniform vec4 ore_points[16];
+uniform int ore_count = 0;
+uniform vec4 ore_colors[4];
 
 varying vec3 wpos;
 varying vec3 wnrm;
@@ -239,6 +243,31 @@ void fragment() {
 	// Lichte lip net boven de naad: de grens leest als een richel.
 	float lip = smoothstep(0.06, 0.1, db) * (1.0 - smoothstep(0.12, 0.22, db)) * near;
 	col = mix(col, light * 1.15, lip * 0.35);
+
+	// Erts vlak achter de wand: fonkelende spikkels in de kleur van het erts, en een lichte
+	// verkleuring rond de ader. Zo zie je waar je moet graven.
+	float ore_k = 0.0;
+	vec3 ore_c = vec3(0.0);
+	for (int i = 0; i < ore_count; i++) {
+		float k = 1.0 - smoothstep(0.4, 1.8, distance(wpos, ore_points[i].xyz));
+		if (k > ore_k) {
+			ore_k = k;
+			ore_c = ore_colors[int(ore_points[i].w)].rgb;
+		}
+	}
+	if (ore_k > 0.0) {
+		// Kleine ronde fonkels (±3 cm), weinig, meer naarmate je dichter bij de ader zit.
+		vec3 cp = wpos * 34.0 + vec3(seed_f * 3.1);
+		vec3 ci = floor(cp);
+		float h = hash1(ci);
+		float r = 0.2 + 0.14 * hash1(ci + vec3(7.3));
+		float speck = step(1.0 - 0.14 * ore_k, h) * (1.0 - smoothstep(r * 0.55, r, length(fract(cp) - 0.5)));
+		float twinkle = 0.5 + 0.5 * sin(TIME * 2.6 + h * 60.0);
+		speck *= near;
+		col = mix(col, ore_c * 0.4, ore_k * ore_k * 0.28);
+		col = mix(col, ore_c, speck * 0.8);
+		emit += ore_c * (speck * twinkle * (0.9 + 1.6 * ore_k) + ore_k * ore_k * 0.04);
+	}
 
 	NORMAL = normalize((VIEW_MATRIX * vec4(n, 0.0)).xyz);
 	ALBEDO = col;
