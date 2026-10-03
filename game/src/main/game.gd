@@ -191,6 +191,8 @@ func _rebuild_world(seed_value: int) -> void:
 	# De oude wereld blijft tot het einde van dit beeld in de boom (verborgen, stil, met een andere
 	# naam): godot_voxel werkt zijn terreinen pas later in het beeld bij en vroeg anders de plek op
 	# van een terrein dat al uit de boom was ("!is_inside_tree", vooral in co-op).
+	if surface:
+		surface.abandon() # de werkthread leest het oude terrein nog
 	for old: Node3D in [terrain, surface]:
 		if old:
 			old.name = String(old.name) + "_oud"

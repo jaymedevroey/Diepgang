@@ -89,6 +89,14 @@ func build(t: TerrainAPI, planet_seed: int) -> void:
 	_main_us = Time.get_ticks_usec() - _t0
 
 
+## Nieuwe wereld: wacht tot de werkthread klaar is, zodat hij het oude terrein niet meer leest als
+## dat vrijgegeven wordt (anders een crash bij snel na elkaar kiezen).
+func abandon() -> void:
+	if _task >= 0:
+		WorkerThreadPool.wait_for_task_completion(_task)
+		_task = -1
+
+
 ## Wacht op de werkthread en hang de meshes in de scène (ook voor tests die er meteen op rekenen).
 func finish() -> void:
 	if _task < 0:
