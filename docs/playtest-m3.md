@@ -7,11 +7,11 @@
 1. Start `Diepgang.exe`.
 2. Kies **Solo spelen**, **Hosten** of **Meedoen** (IP van de host). Samen spelen gaat nog via LAN, poort 24565 (UDP), of een virtueel LAN zoals Tailscale. Steam-uitnodigingen komen later.
 
-Je begint op **De Ekster**, in de hub. De binnenkant is nog de oude, tijdelijke versie: de nieuwe wordt ontworpen.
+Je begint op **De Ekster**, in het laadrek achteraan het schip. **Nieuw in 0.5:** de echte binnenkant, zoals de Super Destroyer van Helldivers, met DIG-humor. Loop vooruit: het werkdek (de tv met DIG-nieuws, vier nissen voor latere upgrades), de gang (spuitcabine, firmabord), de brug met de opdrachttafel, en dan de trap af naar de hangar met de Mol voor het grote raam.
 
 ## Een dienst
 
-1. **Opdracht kiezen**: E op de opdrachtterminal (het blauwe scherm vooraan). Drie concessies, elk met een risico: meer risico = meer geld, maar het magma stijgt sneller. Kiezen laadt een nieuwe wereld (±10 s).
+1. **Opdracht kiezen**: E aan de opdrachttafel op de brug (de ronde tafel met het hologram, op de verhoging). Drie concessies, elk met een risico: meer risico = meer geld, maar het magma stijgt sneller. Kiezen laadt een nieuwe wereld (±10 s).
 2. **Droppen**: stap in de Mol en trek aan de rode hendel. Na het aftellen val je uit het schip (buitenbeeld) en landt de Mol op de planeet.
 3. **Graven en delven**: houweel (stil, veilig voor vondsten), boor (snel, maar luid en beschadigt vondsten). Vondsten naar het laadruim, erts in de trechter van de Mol.
 4. **Het magma** stijgt van onderen: de eerste 2 minuten niet, daarna steeds sneller. Het statusscherm links in de Mol toont hoe ver het onder de Mol staat; dichtbij verschijnt het ook bovenaan in beeld. Wie erin zakt, smelt (een vervanger staat in de Mol, dat kost geld). Op −60 m vertrekt de Mol vanzelf: noodophaling.
@@ -19,7 +19,7 @@ Je begint op **De Ekster**, in de hub. De binnenkant is nog de oude, tijdelijke 
 6. **Terug**: de vertrekhendel in de Mol. Hij rijdt zijn spoor terug, de grijper van De Ekster pikt hem op. Wie niet in de Mol zit, blijft achter (en kost een vervanger).
 7. **Incidentrapport**: wat verkocht werd, de bonus van de opdracht, de kosten, en hoe je ervoor staat in het kwartaal. Drie diensten per kwartaal: haal je het doel niet, dan krijg je een boete.
 
-De firma (kas, kwartaal) wordt bewaard. Het verkopen gebeurt nu nog vanzelf; de taxatiepoort en het museum komen met de nieuwe binnenkant.
+De firma (kas, kwartaal) wordt bewaard. Het verkopen gebeurt nu nog vanzelf: de taxatiepoort, het verkoopluik, de automaat, de kast en de upgrades staan er al, maar werken nog niet (E geeft uitleg). Het museum komt later.
 
 ## Besturing
 
@@ -43,7 +43,8 @@ De firma (kas, kwartaal) wordt bewaard. Het verkopen gebeurt nu nog vanzelf; de 
 3. **Bevingen**: zag je de zones? Was de waarschuwing genoeg? Leuk of irritant?
 4. **Sonar en PING**: gebruik je de PING? Is 12 m stil te weinig?
 5. **De drop en het ophalen**: het buitenbeeld, de landing, de grijper.
-6. **Leukste en meest irritante moment.**
-7. Alles wat vreemd liep (vastzitten, zwart beeld, haperingen), graag met wat je deed.
+6. **De binnenkant**: voelt het als een schip waar je graag rondloopt? Vind je de weg (laadrek → brug → Mol)? Lees je de tv en de bordjes? Wat ontbreekt er, wat is te veel?
+7. **Leukste en meest irritante moment.**
+8. Alles wat vreemd liep (vastzitten, zwart beeld, haperingen), graag met wat je deed.
 
 Bewaarde firma: `%APPDATA%\Godot\app_userdata\Diepgang\saves\firma.json` (verwijderen = opnieuw beginnen). Tuning-waarden: `...\Diepgang\tuning\`.
