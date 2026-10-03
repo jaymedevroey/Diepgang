@@ -174,8 +174,8 @@ func _setup_local() -> void:
 	carry.finds = game.finds
 	add_child(carry)
 	carry.changed.connect(func(it: FindItem) -> void:
-		# Handen vol: gereedschap weg zolang je draagt.
-		active_tool.set_active(it == null)
+		# Handen vol: gereedschap weg zolang je draagt (en in het schip sowieso weg).
+		active_tool.set_active(it == null and not _holstered)
 		_send_action(Action.CARRY_ON if it else Action.CARRY_OFF))
 	game.mol.pilot_changed.connect(_on_pilot_changed)
 	chase = MolChaseCam.new()
@@ -289,7 +289,7 @@ func _unseat() -> void:
 	var mol: Mol = game.mol
 	global_transform = Transform3D(Basis(Vector3.UP, mol.yaw), mol.to_world_mol(Vector3(0.0, -1.45, -0.65)))
 	head.rotation.x = 0.0
-	if carry == null or carry.item == null:
+	if (carry == null or carry.item == null) and not _holstered:
 		active_tool.set_active(true)
 
 
@@ -334,7 +334,7 @@ func select_tool(index: int) -> void:
 		return
 	active_tool = tools[index]
 	for t in tools:
-		t.set_active(t == active_tool)
+		t.set_active(t == active_tool and not _holstered)
 	_send_action(Action.TOOL_PICKAXE if active_tool == pickaxe else Action.TOOL_DRILL)
 	tool_changed.emit(active_tool)
 
@@ -552,6 +552,7 @@ func _process(delta: float) -> void:
 		var in_mol := mol != null and (seated or mol.contains_point(global_position))
 		_update_drop_cam(mol, in_mol)
 		_update_cinematic(mol, in_mol, delta)
+		_update_holster()
 		if in_mol and mol.drilling and camera_fx.trauma() < 0.22:
 			camera_fx.add_trauma(delta * 0.6) # de hele Mol trilt als hij boort
 		_send_timer += delta
@@ -610,10 +611,28 @@ func _update_cinematic(mol: Mol, in_mol: bool, delta: float) -> void:
 	cinematic = _drop_cine or drop_cam.current
 
 
+## In De Ekster valt er niets te graven: het gereedschap zit weg zolang je in het schip bent (ook in
+## de Mol in de baai). Buiten het schip komt het terug, maar enkel als het hier weggestoken werd en
+## niets anders het weghoudt (de stoel, iets dragen, het filmpje van de drop: dat geeft het zelf terug).
+var _holstered := false
+
+func _update_holster() -> void:
+	if active_tool == null:
+		return
+	var in_ship: bool = game.ship != null and game.ship.contains(global_position)
+	if in_ship and not _holstered:
+		_holstered = true
+		active_tool.set_active(false)
+	elif not in_ship and _holstered:
+		_holstered = false
+		if not seated and (carry == null or carry.item == null) and not _drop_cine and not drop_cam.current:
+			active_tool.set_active(true)
+
+
 func _end_cinematic() -> void:
 	_drop_cine = false
 	_handover = 0.0
-	if not seated and (carry == null or carry.item == null) and active_tool:
+	if not seated and (carry == null or carry.item == null) and active_tool and not _holstered:
 		active_tool.set_active(true)
 	drop_cam.handover()
 	control_returned.emit()

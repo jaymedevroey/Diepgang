@@ -73,6 +73,10 @@ var _in_hub := false
 var _in_mol := false
 var _world_hidden := false
 var _own_cam := true
+## Vorige toestand van de Mol (voor overgangen, zoals het begin van het aftellen).
+var _last_mode := -1
+## Tijdens het drop-aftellen voor wie in de Mol zit: enkel de banner (en waarschuwingen).
+var _countdown_focus := false
 
 
 func _ready() -> void:
@@ -476,7 +480,15 @@ func _small(text: String) -> Label:
 
 ## Korte melding middenonder. kind: "info", "mol", "warn", "find".
 func toast(text: String, kind := "info", seconds := 4.5) -> void:
+	# Tijdens het drop-aftellen in de Mol zegt de banner alles: enkel waarschuwingen komen erdoor.
+	if _countdown_focus and kind != "warn":
+		return
+	# Dezelfde melding staat er al: niet nog eens (de oude blijft gewoon staan).
+	for c in _toasts.get_children():
+		if c.get_meta("text", "") == text and not c.is_queued_for_deletion():
+			return
 	var chip := PanelContainer.new()
+	chip.set_meta("text", text)
 	chip.theme_type_variation = &"HudChip"
 	chip.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	var row := HBoxContainer.new()
@@ -644,6 +656,7 @@ func update(player: Player, game: Game, terrain: TerrainAPI) -> void:
 	_world_hidden = player.get("cinematic") == true or not (_own_cam or chase_cam)
 	_in_hub = game.ship != null and game.ship.contains(player.global_position)
 	_in_mol = mol != null and mol.body != null and (player.seated or mol.contains_point(player.global_position))
+	_update_focus(mol)
 	_update_compass(player, game, mol, terrain)
 	_update_hazard(player, game)
 	_update_tools(player)
@@ -975,28 +988,25 @@ func _update_objective(player: Player, game: Game, mol: Mol, cam: Camera3D) -> v
 	var loading: bool = game.terrain == null or not game.terrain.is_loaded
 	if _was_loading and not loading and _in_hub and game.company and game.company.contract_ready() \
 			and mol and mol.mode == Mol.Mode.DOCKED:
-		toast("De Ekster hangt boven %s. Stap in de Mol en trek aan de hendel." % str(game.company.contract.get("name", "")), "mol", 6.0)
+		toast("Aangekomen boven %s." % str(game.company.contract.get("name", "")), "mol", 5.0)
 	_was_loading = loading
 	objective.show_objective(s.get("title", ""), s.get("sub", ""), s.get("tone", HudObjective.Tone.NORMAL))
 	# Onder de vertrekbanner als die er staat (drop-aftelling), anders onder de strook.
 	objective.position.y = 128.0 + _banner.size.y + 10.0 if _banner.visible else 104.0
 	# Het merkteken op de hendel in de Mol (niet als je er al op mikt: dan staat de prompt er).
 	var lever := _find_lever(mol)
-	_marker.shown = s.get("lever", false) and lever != null and _aimed != lever and not _world_hidden and _own_cam
+	_marker.shown = s.get("lever", false) and lever != null and _aimed != lever and not _world_hidden and _own_cam \
+			and not _countdown_focus
 	if lever:
 		_marker.target = lever.global_position
 		_marker.set_text("HENDEL · VERTREK")
 	_marker.place(cam)
-	# QA-5: het incidentrapport niet over de aftelling van een nieuwe drop.
-	if mol and mol.mode in [Mol.Mode.DROP_COUNTDOWN, Mol.Mode.COUNTDOWN] and _result.visible and not _result_closing:
-		_result_closing = true
+	# QA-5: het incidentrapport meteen weg als een nieuwe aftelling begint (niet over de banner).
+	if mol and mol.mode in [Mol.Mode.DROP_COUNTDOWN, Mol.Mode.COUNTDOWN] and _result.visible:
 		if _result_tween:
 			_result_tween.kill()
-		_result_tween = create_tween()
-		_result_tween.tween_property(_result, "modulate:a", 0.0, 0.3)
-		_result_tween.tween_callback(func() -> void:
-			_result.visible = false
-			_result_closing = false)
+		_result.visible = false
+		_result_closing = false
 
 
 var _lever: Interactable
@@ -1012,6 +1022,21 @@ func _find_lever(mol: Mol) -> Interactable:
 			_lever = it
 			return it
 	return null
+
+
+## Voorrang tijdens het drop-aftellen, voor wie in de Mol zit: de banner met de aftelling, verder
+## niets. Bij het begin: de doelregel, het merkteken, het rapport en de oude meldingen meteen weg.
+func _update_focus(mol: Mol) -> void:
+	var mode := mol.mode if mol else -1
+	var focus := mode == Mol.Mode.DROP_COUNTDOWN and _in_mol
+	if focus and not _countdown_focus:
+		objective.snap_out()
+		_marker.snap_out()
+		for c in _toasts.get_children():
+			_toasts.remove_child(c)
+			c.queue_free()
+	_countdown_focus = focus
+	_last_mode = mode
 
 
 func _update_team(player: Player, game: Game) -> void:
