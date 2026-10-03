@@ -29,6 +29,7 @@ extends Node3D
 ##   tool_preview      screenshots van het gereedschap (studio en first person)
 ##   ui_test           menu's met echte invoer: Esc, toetsen omzetten, bewaren, pauze (headless)
 ##   tuning_test       tuning-waarden aanpassen en bewaren (headless)
+##   hub_screens_test  de schermen in de hub (tv, firmabord, terminal, taxatie) volgen de firma (headless)
 ## Extra in play (voor controle door de agent):
 ##   --shot=naam --frames=90,140   screenshots N frames na het spawnen, dan afsluiten
 ##   --autodig                     gereedschap werkt vanzelf (houweel zwaait, boor boort)
@@ -69,6 +70,7 @@ const SCENARIOS := {
 	"magma_test": preload("res://src/main/scenarios/magma_test.gd"),
 	"company_test": preload("res://src/main/scenarios/company_test.gd"),
 	"interior_preview": preload("res://src/main/scenarios/interior_preview.gd"),
+	"hub_screens_test": preload("res://src/main/scenarios/hub_screens_test.gd"),
 }
 ## Scenario's die op De Ekster beginnen (de Mol in de dropbaai). De rest begint op de planeet.
 const SCENARIOS_ON_SHIP := ["play", "ship_preview", "ship_test", "net_ship_test", "company_test", "interior_preview"]

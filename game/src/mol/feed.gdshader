@@ -4,7 +4,7 @@ render_mode unshaded, cull_back;
 // Camerascherm in de cabine: beeld van de kopcamera met scanlijnen, vignet en wat ruis,
 // zodat het leest als een oude bewakingsmonitor en niet als een venster.
 
-uniform sampler2D feed : source_color, filter_linear;
+uniform sampler2D feed : source_color, filter_linear, repeat_disable;
 uniform vec3 tint : source_color = vec3(0.92, 1.0, 0.95);
 uniform float brightness = 1.25;
 uniform float lines = 176.0;
@@ -20,7 +20,9 @@ void fragment() {
 	// Lichte tonvervorming van een bolle beeldbuis.
 	vec2 c = uv - 0.5;
 	uv = 0.5 + c * (1.0 + 0.06 * dot(c, c));
-	vec3 col = texture(feed, uv).rgb * brightness;
+	// Buiten het beeld (door de bolling) zwart, zoals de rand van een beeldbuis; niet de overkant herhalen.
+	float inside = step(0.0, uv.x) * step(uv.x, 1.0) * step(0.0, uv.y) * step(uv.y, 1.0);
+	vec3 col = texture(feed, uv).rgb * brightness * inside;
 	float l = dot(col, vec3(0.3, 0.59, 0.11));
 	col = mix(col, vec3(l), desaturate) * tint; // wat ontzadigd
 	col *= 0.86 + 0.14 * sin(uv.y * lines * 6.2831);
