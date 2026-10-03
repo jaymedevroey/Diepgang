@@ -102,7 +102,10 @@ func _run(p: Player) -> void:
 	await _wait(2.5)
 	Input.action_release("move_forward")
 	_expect(p.global_position.x > 0.0, "onzichtbare muur aan de rand (x %.2f)" % p.global_position.x)
-	_expect(main.game.surface.get_node_or_null("FarTerrain") != null, "verre landschap rond het speelgebied")
+	var surf: PlanetSurface = main.game.surface
+	surf.finish()
+	_expect(surf.get_node_or_null("FarTerrain") != null, "verre landschap rond het speelgebied")
+	_check_horizon(t, surf)
 
 	print("[stream_test] ops opnieuw toegepast (overschreven na laden): %d" % t.ops_repaired)
 	print("[stream_test] %d controles, %d mislukt → %s" % [_checks, _failures.size(), "GESLAAGD" if _failures.is_empty() else "GEFAALD"])
@@ -112,6 +115,61 @@ func _run(p: Player) -> void:
 
 
 ## Speler ergens neerzetten en wachten tot het terrein daar klaar is (met collision).
+## Het verre landschap (docs: geen "groot vierkant" meer van hoog in de lucht):
+## - de buitenrand ligt van op dropphoogte overal achter de horizon (onder de kim van de hemel);
+## - de ring sluit zonder kier aan op het raster van het speelgebied (zelfde hoogte op de rand);
+## - de rok kijkt naar binnen; van ver weg (de hub) is alles verborgen, de paaltjes van boven ook.
+func _check_horizon(t: TerrainAPI, surf: PlanetSurface) -> void:
+	var size := t.world_size()
+	var c := t.shaft_center_world()
+	var gy := t.surface_height_at(c.x, c.z)
+	var radius := Tuning.get_f("sky", "planet_radius_m", 30000.0)
+	var reach := Tuning.get_f("sky", "horizon_m", 6500.0)
+	# Langs elke richting: de kim van het landschap zelf (kleinste hoek onder de horizontale lijn)
+	# moet boven de kim van de hemel liggen (dan zie je nergens hemel onder de horizon), en de
+	# buitenrand moet erachter vallen (dan zie je de rand nooit).
+	var sky_gap := INF
+	var edge_gap := INF
+	for h in [60.0, 160.0, 345.0]:
+		var dip := sqrt(2.0 * h / radius)
+		for k in 32:
+			var dir := Vector2.from_angle(TAU * k / 32.0)
+			var lowest := INF
+			var d := 300.0
+			while d < reach - 900.0:
+				var p := Vector2(c.x, c.z) + dir * d
+				lowest = minf(lowest, atan2(gy + h - surf.far_height(p.x, p.y), d))
+				d += 40.0
+			var q := Vector2(c.x, c.z) + dir * (reach - 650.0)
+			var edge := atan2(gy + h - surf.far_height(q.x, q.y), reach - 650.0)
+			sky_gap = minf(sky_gap, dip - lowest)
+			edge_gap = minf(edge_gap, edge - lowest)
+	_expect(sky_gap > 0.0, "kim van het landschap boven de kim van de hemel (minstens %.2f°)" % rad_to_deg(sky_gap))
+	_expect(edge_gap > deg_to_rad(0.05), "buitenrand van het verre landschap achter de kim (minstens %.2f°)" % rad_to_deg(edge_gap))
+	var seam := 0.0
+	for k in 33:
+		var s := size.x * k / 32.0
+		for q in [Vector2(s, 0.0), Vector2(s, size.z), Vector2(0.0, s), Vector2(size.x, s)]:
+			seam = maxf(seam, absf(surf.far_height(q.x, q.y) - (t.surface_height_at(q.x, q.y) - 0.5)))
+	_expect(seam < 0.001, "ring sluit aan op het raster van het speelgebied (verschil %.4f m)" % seam)
+	var far := surf.get_node("FarTerrain") as MeshInstance3D
+	var skirt := far.mesh.surface_get_arrays(1)
+	var verts: PackedVector3Array = skirt[Mesh.ARRAY_VERTEX]
+	var normals: PackedVector3Array = skirt[Mesh.ARRAY_NORMAL]
+	var inward := true
+	for i in verts.size():
+		var to_center := Vector3(c.x - verts[i].x, 0.0, c.z - verts[i].z)
+		inward = inward and normals[i].dot(to_center) > 0.0
+	_expect(inward, "rok langs de rand kijkt naar binnen")
+	_expect(far.visibility_range_end > 0.0 and far.visibility_range_end < 1740.0 - 400.0, "verre landschap verborgen vanuit de hub")
+	var posts := surf.get_node("BoundaryPosts").get_children()
+	var hidden := not posts.is_empty()
+	for n: GeometryInstance3D in posts:
+		hidden = hidden and n.visibility_range_end > 0.0 and n.visibility_range_end < 200.0
+	_expect(hidden, "paaltjes en lampjes enkel van dichtbij")
+	print("[stream_test] verre landschap: %s" % surf.triangle_counts())
+
+
 func _go(p: Player, pos: Vector3) -> void:
 	p.set_physics_process(false)
 	p.global_position = pos
