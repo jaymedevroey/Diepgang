@@ -65,7 +65,9 @@ func _run(p: Player) -> void:
 	var hub := ship.global_transform
 	# Vaste camera's: het gereedschap van de speler (aan zijn camera) niet in beeld, en de HUD van
 	# de speler (vizier, strook) is dan weg; de eerste keer even laten uitfaden.
+	var shown: Array[bool] = []
 	for t: Node3D in p.tools:
+		shown.append(t.visible)
 		t.visible = false
 	var first := true
 	for s: Array in HUB_SHOTS:
@@ -73,8 +75,8 @@ func _run(p: Player) -> void:
 			_look(hub, s[1], s[2])
 			await _shot("ekster_" + s[0], 0.9 if first else 0.4)
 			first = false
-	for t: Node3D in p.tools:
-		t.visible = t == p.active_tool
+	for i in p.tools.size():
+		(p.tools[i] as Node3D).visible = shown[i] # zoals het was (in het schip: weggestoken)
 	if only.is_empty() or "terminal" in only:
 		# Zoals je aan de opdrachttafel staat, kijkend naar het scherm.
 		var anchor := ship.anchors["Terminal_Use"] as Node3D
@@ -143,8 +145,8 @@ func _hud_shots(p: Player, game: Game, ship: Ekster, mol: Mol) -> void:
 	await _shot("hud_brug", 0.6)
 	# Aan de terminal, kijkend naar de tafel (de richting van het lege punt).
 	var use := hub.affine_inverse() * ship.anchor_position("Terminal_Use")
-	var use_fwd: Vector3 = hub.affine_inverse().basis * (-(ship.anchors["Terminal_Use"] as Node3D).global_basis.z)
-	await _stand(p, hub, use, use + use_fwd * 2.0 + Vector3(0.0, 2.6, 0.0))
+	var screen: Dictionary = ship.hub_screens.screen_info(HubScreens.TERMINAL)
+	await _stand(p, hub, use, hub.affine_inverse() * (screen.center as Vector3))
 	await _shot("hud_terminal", 0.6)
 	var knob := p.aimed_interactable()
 	if knob:

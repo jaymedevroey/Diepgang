@@ -17,6 +17,14 @@ func poke(seconds := -1.0) -> void:
 	_until = maxf(_until, _now() + (hold if seconds < 0.0 else seconds))
 
 
+## Meteen uit beeld, zonder uit te faden (bv. als iets belangrijkers de plek nodig heeft).
+func snap_out() -> void:
+	_until = 0.0
+	_alpha = 0.0
+	modulate.a = 0.0
+	visible = false
+
+
 func _process(delta: float) -> void:
 	var mode := int(Settings.get_value(mode_key)) if mode_key != "" else Settings.HUD_ALWAYS
 	var want := 0.0

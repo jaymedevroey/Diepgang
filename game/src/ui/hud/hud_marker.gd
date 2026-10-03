@@ -37,6 +37,14 @@ func set_text(text: String) -> void:
 	_label.text = text
 
 
+## Meteen weg (geen uitfaden).
+func snap_out() -> void:
+	shown = false
+	_alpha = 0.0
+	modulate.a = 0.0
+	visible = false
+
+
 ## Elke frame: waar staat het doel op het scherm (of niet, als het achter de camera is).
 func place(cam: Camera3D) -> void:
 	var on := shown and cam != null and not cam.is_position_behind(target)
