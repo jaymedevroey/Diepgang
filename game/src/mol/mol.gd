@@ -69,6 +69,9 @@ const INTERP_DELAY_MS := 100.0
 
 var game: Node # Game
 var body: AnimatableBody3D
+## Waar de Mol het laatst neergezet werd. Het lichaam (sync_to_physics) toont een nieuwe plek pas
+## na de volgende physics-stap; wat de host doorstuurt en wat meespringers krijgen, is deze.
+var placed := Transform3D()
 var visual: MolVisual
 ## Sonar (lokaal op elke peer, enkel bijgewerkt als iemand hier in de Mol kijkt).
 var sonar := Sonar.new()
@@ -118,6 +121,8 @@ var _grab_timer := 0.0
 
 # Clients.
 var _snapshots: Array = [] # [tijd ms, pos, yaw, pitch, speed]
+var _snap_host_ms := -1 # tijd (host) van de laatste sprong
+var _pending_snap: Variant = null # client: [pos, yaw, pitch], toegepast in de volgende physics-tick
 var _clock_offset := INF
 
 # Piloot (lokaal).
@@ -378,7 +383,7 @@ func _rpc_summary(count: int, value: int, left_behind: int, ore_units: int, ore_
 ## Late joiner: alles wat hij moet weten.
 func send_state(peer: int) -> void:
 	var ship: Ekster = game.ship
-	_rpc_full.rpc_id(peer, body.global_position, yaw, pitch, mode, pilot, ramp_open, lights_on, fuel,
+	_rpc_full.rpc_id(peer, placed.origin, yaw, pitch, mode, pilot, ramp_open, lights_on, fuel,
 			ship != null and ship.doors_open, game.exterior.grapple_depth if game.exterior else 0.0)
 
 
@@ -426,6 +431,9 @@ func _physics_process(delta: float) -> void:
 			_simulate(delta)
 		_send_state(delta)
 	else:
+		if _pending_snap != null:
+			_apply_snap(_pending_snap[0], _pending_snap[1], _pending_snap[2])
+			_pending_snap = null
 		_interpolate()
 	_update_visual()
 
@@ -801,11 +809,23 @@ func _hold_docked() -> void:
 ## Host: de Mol springt naar een andere plek (hub ↔ buitenschip). Iedereen tegelijk, zonder
 ## interpolatie ertussen; wie erin zit, springt mee (signaal `snapped`).
 @rpc("authority", "call_local", "reliable")
-func _rpc_snap(pos: Vector3, y: float, p: float) -> void:
-	var old := body.global_transform
+func _rpc_snap(pos: Vector3, y: float, p: float, host_ms: int) -> void:
 	_snapshots.clear()
+	# Toestandspakketjes van vóór de sprong (ander kanaal, kunnen later aankomen) negeren, anders
+	# springt de Mol bij een client even terug en valt wie erin zit eruit.
+	_snap_host_ms = host_ms
+	if multiplayer.is_server():
+		_apply_snap(pos, y, p) # de host zit al in zijn physics-tick
+	else:
+		# Een RPC komt binnen buiten de physics-tick; een AnimatableBody die dan verzet wordt,
+		# zet de physics-stap terug op de oude plek. Dus pas in de volgende tick.
+		_pending_snap = [pos, y, p]
+
+
+func _apply_snap(pos: Vector3, y: float, p: float) -> void:
+	var old := placed
 	_place(pos, y, p)
-	snapped.emit(old, body.global_transform)
+	snapped.emit(old, placed)
 
 
 func _drop_countdown(delta: float) -> void:
@@ -824,7 +844,7 @@ func _drop_countdown(delta: float) -> void:
 		_braking = false
 		_rpc_event.rpc(Event.DEPART)
 		# Van de baai van de hub naar die van het buitenschip, dan vallen.
-		_rpc_snap.rpc(game.exterior.dock_position(), 0.0, 0.0)
+		_rpc_snap.rpc(game.exterior.dock_position(), 0.0, 0.0, Time.get_ticks_msec())
 		_set_mode(Mode.DROPPING, 0)
 
 
@@ -909,7 +929,7 @@ func _lift(delta: float) -> void:
 	_place(pos, lerp_angle(yaw, 0.0, k), lerpf(pitch, 0.0, k))
 	ship.grapple_depth = maxf(0.0, rest.y - EksterExterior.GRAPPLE_REACH - (body.global_transform * HOOK).y)
 	if dist < 0.02:
-		_rpc_snap.rpc(game.ship.dock_transform().origin, 0.0, 0.0)
+		_rpc_snap.rpc(game.ship.dock_transform().origin, 0.0, 0.0, Time.get_ticks_msec())
 		_dock()
 
 
@@ -946,7 +966,8 @@ func _dock() -> void:
 func _place(pos: Vector3, y: float, p: float) -> void:
 	yaw = y
 	pitch = p
-	body.global_transform = Transform3D(Basis.from_euler(Vector3(p, y, 0.0)), pos)
+	placed = Transform3D(Basis.from_euler(Vector3(p, y, 0.0)), pos)
+	body.global_transform = placed
 
 
 # --- Netwerk -------------------------------------------------------------------------------------
@@ -961,12 +982,14 @@ func _send_state(delta: float) -> void:
 	var grapple: float = game.exterior.grapple_depth if game.exterior else 0.0
 	for peer: int in game.ready_peers:
 		if peer != multiplayer.get_unique_id():
-			_rpc_state.rpc_id(peer, Time.get_ticks_msec(), body.global_position, yaw, pitch, speed, flags, fuel,
+			_rpc_state.rpc_id(peer, Time.get_ticks_msec(), placed.origin, yaw, pitch, speed, flags, fuel,
 					Vector2(thrust, grapple))
 
 
 @rpc("authority", "unreliable_ordered")
 func _rpc_state(sent_ms: int, pos: Vector3, y: float, p: float, spd: float, flags: int, f: float, extra: Vector2) -> void:
+	if sent_ms <= _snap_host_ms:
+		return
 	var now := float(Time.get_ticks_msec())
 	_clock_offset = minf(_clock_offset, now - sent_ms)
 	_snapshots.append([float(sent_ms) + _clock_offset, pos, y, p, spd, extra])
