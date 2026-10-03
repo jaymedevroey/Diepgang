@@ -6,18 +6,24 @@ Keuzes van Jayme (2026-10-03): de volgorde van de Super Destroyer (Helldivers 2)
 een tv met DIG-nieuws, GEEN museum (geen skeletten, vitrines of takel) en geen proefblok.
 
 Coördinaten: in het PLAN (meter): x 0..20 (bakboord → stuurboord), z 0..44 (raam → achteraan),
-y omhoog. In Godot: G(x, y, z) = (x − 7, y, z − 9): de oorsprong ligt op de hangarvloer onder het
-midden van de Mol. Alle helpers nemen plancoördinaten.
+y omhoog. In Godot: G(x, y, z) = (x − 7, y, z − 9): de oorsprong ligt op de hangarvloer in het
+midden van de baai (de Mol staat sinds de valschacht 0,95 m verder, zie MOL_DOCK_Z). Alle helpers
+nemen plancoördinaten.
 
 Vloerniveaus: put −0,6 · hangar en kade 0 · laadrek +0,6 · werkdek, gang, brug, galerij +1,2 ·
 verhoging van de terminal +1,8. Treden 0,15 × 0,30 m, nooit één losse trede.
 
 CONTRACT MET HET SPEL (game/src/ship/ekster.gd). Deze namen en plekken niet veranderen zonder ook
 ekster.gd aan te passen. Lege punten tenzij anders vermeld:
-  Mol_Dock            as van de Mol (Mol.body), 2,73 m boven de baaivloer, midden van de baai
+  Mol_Dock            as van de Mol (Mol.body), 2,73 m boven de baaivloer, x in het midden van de baai,
+                      z = MOL_DOCK_Z (9,95; 0,95 m achter het midden van de baai, zodat de boorkop
+                      boven de baai hangt en de Mol vrij door de schacht valt). MOL blijft de oorsprong
+                      van G(): enkel het punt schoof op (2026-10-03).
   Spawn_0..3          plekken in het laadrek (+0,6), kijkend naar voren (−z)
-  Terminal_Use        bij de opdrachttafel (E: opdrachten)
-  Terminal_Screen     MESH: plat scherm/hologram met UV 0..1 boven of op de tafel
+  Terminal_Use        op de verhoging, plan (11,763; 1,8; 24,637) = 1,75 m van het midden op 225°,
+                      gedraaid −45° (−z kijkt naar het midden van de tafel) (E: opdrachten)
+  Terminal_Screen     MESH: plat hologram 2,0 × 0,9 m met UV 0..1 boven de tafel, midden
+                      (13,21; 3,55; 23,19), normaal (−0,7071; 0; 0,7071) naar Terminal_Use
   Appraisal_Gate      midden van de taxatiepoort op de kade
   Appraisal_Screen    MESH: scherm met UV 0..1 aan de poort
   Sell_Hatch          voor het verkoopluik
@@ -28,20 +34,36 @@ ekster.gd aan te passen. Lege punten tenzij anders vermeld:
   Niche_Tools, Niche_Supply, Niche_Free_A, Niche_Free_B   vloer in het midden van elke nis
   Mol_Werf            voor de console van de Mol-werf op de galerij
   BayDoor_L, BayDoor_R  MESH: luikhelften, oorsprong op het scharnier (draaien om z)
+  Clamp_0..3          MESH: klemarmen die de Mol vasthouden (0/1 bakboord voor/achter, 2/3 stuurboord),
+                      oorsprong op het scharnier, as = lokale z. Loslaten: Clamp_0/1 rotation.z = −35°,
+                      Clamp_2/3 rotation.z = +35° (hangar_shaft.CLAMP_OPEN_DEG). De drop-effecten
+                      bewegen ze; geen botsvorm op de armen.
+  Shaft_Lights        MESH: de waarschuwingsstroken in de valschacht onder de baai (materiaal
+                      ShaftLight), apart zodat de drop-effecten ze kunnen laten knipperen
   Collision           MESH: vereenvoudigde botsvorm (vloeren, wanden, trappen als helling,
                       relingen, grote meubels). Wordt in het spel verborgen.
   Lamp_*              warme lamp (omni) · Glow_RRGGBB_* lamp in een kleur · Spot_RRGGBB_* lamp
-                      naar beneden · Sign_TEKST (enkel voor previews)
+                      naar beneden · Sign_TEKST (enkel voor previews). Optionele waarden in de
+                      naam, vóór het volgnummer: _e25 = energie 2,5, _a22 = spothoek 22°, _v3 =
+                      volumetrische mist 0,3 (Ctx.glow/spot, _light_tokens)
 """
 
 import math
 
+import kit
 from builder import Builder
+
+# Gedeelde materialen van de hub (alle zones; ook in MolVisual.MATS): gesleten looppaden en olie.
+kit.PALETTE.update({
+    "FloorWorn": ((0.46, 0.46, 0.45), 0.6, 0.38, None),  # platen waar elke robot loopt: glad gesleten
+    "StainOil": ((0.06, 0.055, 0.05), 0.1, 0.22, None),  # olie en hydrauliekvloeistof
+})
 
 RISER = 0.15
 TREAD = 0.30
 EYE = 1.2
-MOL = (7.0, 9.0)  # midden van de Mol in het plan
+MOL = (7.0, 9.0)  # oorsprong van G() (het midden van de baai); de Mol zelf staat op MOL_DOCK_Z
+MOL_DOCK_Z = 9.95  # Mol_Dock: boorkop (lokaal z −7,9) boven de baai (z ≥ 2,0) en de schacht
 TRACK_DOCK_Y = 2.73  # Mol.body boven de baaivloer
 
 # Zones in het plan (x0, x1, z0, z1) en hun vloer.
@@ -109,13 +131,13 @@ class Ctx:
     def sign(self, text, pos, rot_y=0.0):
         self.anchor("Sign_" + text.replace(" ", "_"), pos, rot_y)
 
-    def glow(self, hex_color, pos):
+    def glow(self, hex_color, pos, e=None):
         i = len(self.shared["anchors"])
-        self.anchor(f"Glow_{hex_color}_{i}", pos)
+        self.anchor(f"Glow_{hex_color}{_light_tokens(e)}_{i}", pos)
 
-    def spot(self, hex_color, pos):
+    def spot(self, hex_color, pos, e=None, a=None, v=None):
         i = len(self.shared["anchors"])
-        self.anchor(f"Spot_{hex_color}_{i}", pos)
+        self.anchor(f"Spot_{hex_color}{_light_tokens(e, a, v)}_{i}", pos)
 
     def lamp(self, pos):
         i = len(self.shared["anchors"])
@@ -144,6 +166,19 @@ class Ctx:
         cx = (x_low + x_high) / 2
         cy = (y_low + y_high) / 2 - thick / 2
         b.box(G(cx, cy, (z0 + z1) / 2), (length, thick, abs(z1 - z0)), u=(dx, dy, 0), v=(-dy, dx, 0), material="Soot")
+
+
+def _light_tokens(e=None, a=None, v=None):
+    """Optionele lampwaarden in de naam (Ekster.add_lights leest ze; zonder: de standaard):
+    _e25 = energie 2,5 · _a22 = spothoek 22° · _v3 = volumetrische mist 0,3."""
+    out = ""
+    if e is not None:
+        out += f"_e{round(e * 10)}"
+    if a is not None:
+        out += f"_a{round(a)}"
+    if v is not None:
+        out += f"_v{round(v * 10)}"
+    return out
 
 
 # --- Geometrie-helpers (plancoördinaten) -----------------------------------------------------------

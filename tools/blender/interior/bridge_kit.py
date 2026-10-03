@@ -269,8 +269,9 @@ def text(b, body, size, pos, normal, material, up=(0, 1, 0), align="CENTER", ext
     bpy.data.meshes.remove(me)
 
 
-def plate_grid(b, x0, x1, z0, z1, y, cell_x, cell_z, material, gap=0.025, thick=0.03, skip=None, alt=None):
-    """Vloerplaten (bovenkant op y) in een raster met naden. `skip(cx, cz)` laat platen weg."""
+def plate_grid(b, x0, x1, z0, z1, y, cell_x, cell_z, material, gap=0.025, thick=0.03, skip=None, alt=None, worn=None):
+    """Vloerplaten (bovenkant op y) in een raster met naden. `skip(cx, cz)` laat platen weg;
+    `worn(cx, cz)` = True: een gesleten plaat (FloorWorn) op een looppad."""
     nx = max(1, round((x1 - x0) / cell_x))
     nz = max(1, round((z1 - z0) / cell_z))
     for i in range(nx):
@@ -285,6 +286,8 @@ def plate_grid(b, x0, x1, z0, z1, y, cell_x, cell_z, material, gap=0.025, thick=
             m = material
             if alt and alt(i, j):
                 m = alt(i, j)
+            if worn and worn(cx, cz):
+                m = "FloorWorn"
             box(b, (cx, y - thick / 2, cz), (a1 - a0 - gap, thick, c1 - c0 - gap), m)
 
 

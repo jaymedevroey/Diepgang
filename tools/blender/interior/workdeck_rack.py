@@ -14,22 +14,25 @@ ZF = 42.42  # voorkant van de capsules
 def shell(ctx, S, R, ST, PN, D, RD, rng):
     rx0, rx1, rz0, rz1 = RACK
     # Trap van 4 treden omlaag (zelfde maten als layout.stairs_z), met een stalen neus en een smalle
-    # ledlijn erop (minder fel dan een volle strook), en de helling in de botsvorm.
+    # ledlijn erop, en de helling in de botsvorm. Rustig gehouden: dit is het eerste beeld van elke
+    # dienst (vroeger gaven ledlijnen op neus én stootbord acht fel gloeiende strepen onderin het beeld).
     for i in range(4):
         top = 1.2 - RISER * i
         za, zb = 40.0 + TREAD * i, 40.0 + TREAD * (i + 1)
         blk(ST, rx0, rx1, 0.0, top, za, zb, "Floor")
         blk(ST, rx0 + 0.15, rx1 - 0.15, top - 0.05, top + 0.006, zb - 0.05, zb, "DarkSteel")
-        blk(D, rx0 + 0.3, rx1 - 0.3, top + 0.006, top + 0.012, zb - 0.032, zb - 0.018, "LedWhite")
+        # Kaal gesleten in het midden, waar elke robot van de laadcapsules naar het werkdek stapt.
+        blk(D, 8.6, 11.4, top + 0.006, top + 0.008, zb - 0.05, zb - 0.004, "Steel")
+        for x in (rx0 + 0.3, 11.5):  # ledlijn enkel naast het looppad (niet erover: daar is hij weggesleten)
+            blk(D, x, x + (8.5 - rx0 - 0.3 if x < 10 else rx1 - 0.3 - 11.5), top + 0.006, top + 0.01, zb - 0.032,
+                zb - 0.022, "LedWhite")
         for x in (rx0 + 0.15, rx1 - 0.35):  # geel-zwart aan de uiteinden
             blk(D, x, x + 0.2, top + 0.001, top + 0.005, za + 0.02, zb - 0.06, "Hazard")
-        # Stootbord (kijkt naar het laadrek): plaat met sleuven en een zacht cyaan lichtje onderaan.
+        # Stootbord (kijkt naar het laadrek): een donkere plaat met schoppen van robotvoeten.
         lo = top - RISER
         blk(D, rx0 + 0.3, rx1 - 0.3, lo + 0.035, top - 0.055, zb, zb + 0.008, "DarkSteel")
-        for k in range(9):
-            xs = rx0 + 0.75 + k * 0.81
-            blk(D, xs, xs + 0.42, lo + 0.06, lo + 0.075, zb + 0.008, zb + 0.011, "Soot")
-        blk(D, rx0 + 0.3, rx1 - 0.3, lo + 0.012, lo + 0.022, zb, zb + 0.01, "LedCyanSoft")
+        for xs in (9.1, 9.9, 10.6):
+            blk(D, xs, xs + 0.22, lo + 0.04, lo + 0.07, zb + 0.008, zb + 0.01, "Steel")
     ctx.col_ramp(rx0, rx1, 41.2, 40.0, YF, 1.2)
     # Latei op de overgang naar het werkdek (kant laadrek), met een waarschuwing.
     blk(R, rx0, rx1, 2.82, YT, 40.0, 40.26, "Anthracite")
@@ -47,9 +50,10 @@ def shell(ctx, S, R, ST, PN, D, RD, rng):
     block(S, rx0, rx1, YF, YT, rz1, rz1 + 0.3, WALL)
     ctx.col_box(rx0, rx1, YF, YT, rz1, rz1 + 0.3)
     # Vloerplaten.
-    for i in range(4):
+    for i in range(4):  # de middelste twee zijn gesleten (de weg naar de trap)
         x0 = 6.15 + i * 1.925
-        floor_plate(PN, x0 + 0.02, x0 + 1.905, rz0 + 0.02, 42.4, YF, 0.016, 0.012, "Floor")
+        floor_plate(PN, x0 + 0.02, x0 + 1.905, rz0 + 0.02, 42.4, YF, 0.016, 0.012,
+                    "FloorWorn" if i in (1, 2) else "Floor")
     # Rubberen strips op de treden (grip).
     for i in range(1, 4):
         top = 1.2 - 0.15 * i
@@ -96,7 +100,8 @@ def shell(ctx, S, R, ST, PN, D, RD, rng):
 
 
 def pod(ctx, P, PN, D, px, i):
-    """Laadcapsule: halve achthoek, open aan de voorkant, cyaan binnenin, een laadarm in de rug."""
+    """Laadcapsule: halve achthoek, open aan de voorkant, cyaan licht onder de hoed, een laadkabel in de
+    rug, en per capsule een warme statusrand (amber = laden, rood = defect) met een laadmeter."""
     zb = 43.98
     foot = [(px - 0.78, ZF + 0.05), (px + 0.78, ZF + 0.05), (px + 0.78, 43.55), (px + 0.45, zb), (px - 0.45, zb),
             (px - 0.78, 43.55)]
@@ -114,28 +119,36 @@ def pod(ctx, P, PN, D, px, i):
     for dx in (-0.25, 0.0, 0.25):  # slangen van de kroon naar het plafond
         cyl(D, (px + dx, 2.72, 43.02), (0, 1, 0), 0.28, 0.04, 8, "Rubber")
         cyl(D, (px + dx, 2.8, 43.02), (0, 1, 0), 0.05, 0.05, 8, "DarkSteel")
-    # Binnenkant: ribben, kussen in de rug, cyaan strips, lichtpaneel onder de hoed.
+    # Binnenkant: ribben, kussen in de rug, en enkel het cyaan lichtpaneel onder de hoed (de vroegere
+    # cyaan stroken langs de wanden maakten van het rek één vlakke cyaan muur).
     for dx in (-0.3, 0.3):
         blk(D, px + dx - 0.03, px + dx + 0.03, 0.8, 2.55, zb - 0.07, zb - 0.03, "DarkSteel")
     blk(D, px - 0.24, px + 0.24, 1.05, 2.3, zb - 0.09, zb - 0.03, "Rubber")
     for k in range(5):  # kussens in de rug
         blk(D, px - 0.22, px + 0.22, 1.08 + k * 0.245, 1.3 + k * 0.245, zb - 0.11, zb - 0.09, "HullGrey")
-    for s in (-1, 1):
-        # Op de binnenkant van de schuine wand, en langs de zijwand.
-        box(D, (px + s * 0.587, 1.7, 43.744), (0.035, 1.5, 0.01), u=(-s * 0.609, 0, 0.793), v=(0, 1, 0),
-            m="LedCyanSoft")
-        blk(D, *sorted((px + s * 0.738, px + s * 0.75)), 0.85, 2.45, 43.0, 43.04, "LedCyanSoft")
     blk(D, px - 0.45, px + 0.45, 2.605, 2.62, 42.75, 43.6, "LedCyanSoft")
-    # Laadarm in de rug (op schouderhoogte van de robot).
-    blk(D, px - 0.05, px + 0.05, 1.86, 1.96, 43.55, zb - 0.09, "DarkSteel")
-    blk(D, px - 0.09, px + 0.09, 1.82, 2.0, 43.45, 43.55, "Yellow")
-    for dx in (-0.04, 0.04):
-        cyl(D, (px + dx, 1.91, 43.45), (0, 0, -1), 0.05, 0.012, 6, "Steel")
+    # Laadkabel: dik, uit de hoed, in een lus naar een gele stekker op schouderhoogte van de robot.
+    cyl(D, (px + 0.32, 2.6, 43.72), (0, -1, 0), 0.08, 0.075, 10, "DarkSteel")  # doorvoer in de hoed
+    cable(D, (px + 0.32, 2.56, 43.72), (px + 0.1, 1.98, 43.5), 0.4, 0.055, 12, "Rubber", 8)
+    blk(D, px + 0.0, px + 0.2, 1.84, 2.02, 43.36, 43.52, "Yellow")  # stekker
+    blk(D, px + 0.0, px + 0.2, 1.84, 1.87, 43.355, 43.52, "Hazard")
+    for dx in (0.06, 0.14):
+        cyl(D, (px + dx, 1.93, 43.36), (0, 0, -1), 0.06, 0.012, 6, "Steel")
     torus(D, (px + 0.14, 1.6, 43.82), (0, 0, 1), 0.07, 0.013, 10, 4, "Rubber")
     # Voorkader met geel-zwart onderaan en een cyaan ledrand; bovenaan het statusbord.
+    defect = i == 2
     for s in (-1, 1):
         blk(P, *sorted((px + s * 0.7, px + s * 0.88)), YF, 2.62, ZF, ZF + 0.28, "Anthracite")
-        blk(D, *sorted((px + s * 0.71, px + s * 0.87)), YF + 0.15, 1.15, ZF - 0.012, ZF, "Hazard")
+        if s > 0:
+            blk(D, *sorted((px + s * 0.71, px + s * 0.87)), YF + 0.15, 1.15, ZF - 0.012, ZF, "Hazard")
+            continue
+        # Laadmeter op de andere stijl: vijf blokjes, bijna allemaal uit (iedereen staat op 1 à 11%).
+        blk(D, px - 0.86, px - 0.72, 0.78, 1.17, ZF - 0.01, ZF, "DecalDark")
+        for k in range(5):
+            yk = 0.8 + k * 0.073
+            on = k < (1, 1, 0, 1)[i]
+            blk(D, px - 0.84, px - 0.74, yk, yk + 0.055, ZF - 0.014, ZF - 0.01,
+                ("LedRedSoft" if defect else "LedAmberSoft") if on else "Soot")
     blk(P, px - 0.88, px + 0.88, 2.36, 2.74, ZF, ZF + 0.28, "Anthracite")
     for s in (-1, 1):
         x = px + s * 0.7
@@ -145,9 +158,8 @@ def pod(ctx, P, PN, D, px, i):
             blk(D, *sorted((px + s * 0.75, px + s * 0.7)), 0.8, 2.55, z - 0.025, z + 0.025, "DarkSteel")
         cyl(D, (px + s * 0.42, 2.62, 43.9), (0, -1, 0), 1.75, 0.03, 6, "Rubber")
     strip_line(D, [(px - 0.79, 1.22), (px - 0.79, 2.42), (px + 0.79, 2.42), (px + 0.79, 1.22)],
-               Plane("z", ZF, -1), 0.03, "LedCyanSoft")
+               Plane("z", ZF, -1), 0.03, "LedRedSoft" if defect else "LedAmberSoft")
     zf = ZF
-    defect = i == 2
     blk(D, px - 0.27, px + 0.27, 2.5, 2.68, zf - 0.012, zf, "Screen")
     text(D, ("LADEN 3%", "LADEN 11%", "DEFECT", "LADEN 1%")[i], 0.05, (px, 2.59, zf - 0.012), (0, 0, -1),
          "ScreenAmber" if defect else "ScreenCyan", lift=0.002)

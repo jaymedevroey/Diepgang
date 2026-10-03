@@ -22,6 +22,10 @@ CAP = 0.294  # hoogte van een hoofdletter in Bungee bij grootte 1 (gemeten in Bl
 NEW_MATS = {
     "ScreenGlow": ((0.5, 0.78, 0.28), 0.0, 0.35, ((0.5, 0.78, 0.28), 0.6)),  # geelgroen consolebeeld
     "ScreenAmber": ((1.0, 0.6, 0.22), 0.0, 0.35, ((1.0, 0.56, 0.18), 0.8)),  # DIG-beeld, prijzen
+    # Valschacht: waarschuwingsstroken (Shaft_Lights, de drop-effecten laten ze knipperen).
+    "ShaftLight": ((1.0, 0.5, 0.2), 0.0, 0.3, ((1.0, 0.45, 0.15), 2.0)),
+    # Rooster van de galerij: lichter en minder metaalachtig dan DarkSteel, zodat licht erop blijft liggen.
+    "Grating": ((0.3, 0.31, 0.32), 0.55, 0.5, None),
 }
 kit.PALETTE.update(NEW_MATS)
 

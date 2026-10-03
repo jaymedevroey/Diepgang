@@ -5,7 +5,7 @@ firmabord (stuurboord). Plancoördinaten; zie bridge_kit.py."""
 import math
 import random
 
-from bridge_kit import box, grating, plate_grid, prism, text
+from bridge_kit import box, grating, plate_grid, prism, text, vprism
 from bridge_props import Frame, paint_can, splat, spray_can, sticky
 from layout import CORRIDOR, WALL, G, block, slab
 
@@ -24,7 +24,7 @@ def build(ctx, g):
     # --- Vloer (ook onder de deuropening in de achterwand van de brug) ----------------------------
     slab(S, x0, x1, 26.0, z1, Y0 - 0.03, "Soot", Y0 - 0.3)
     ctx.col_box(x0, x1, Y0 - 0.3, Y0, 26.0, z1)
-    plate_grid(K, 8.35, 11.65, 26.65, 29.65, Y0, 1.1, 1.0, "Floor")
+    plate_grid(K, 8.35, 11.65, 26.65, 29.65, Y0, 1.1, 1.0, "FloorWorn")  # het looppad: glad gesleten
     for (a, b_) in ((7.3, 8.35), (11.65, 12.7)):
         grating(K, a, b_, 26.65, 29.65, Y0, along="z", pitch=0.075)
     # --- Wanden, schuine hoeken, plafond ----------------------------------------------------------
@@ -51,12 +51,21 @@ def build(ctx, g):
     # --- Spanten en schotten ----------------------------------------------------------------------
     for zr in RIBS:
         rib(ctx, g, zr, 0.14)
+    # Vlakke botsvorm langs de wanden tussen spanten en schotten (geen inhammen om in vast te lopen;
+    # LVL-1). Bakboord niet voor de opening van de spuitcabine (z 27,05..29,35).
+    ctx.col_box(12.62, 12.85, Y0, 3.0, 26.6, 29.7)
+    for (a, b_) in ((26.6, 27.05), (29.35, 29.7)):
+        ctx.col_box(7.15, 7.38, Y0, 3.0, a, b_)
     bulkhead(ctx, g, 25.86, 26.6, "BRUG", +1)
     bulkhead(ctx, g, 29.7, 30.0, "WERKDEK", -1)
     # Brugzijde van het schot: stijlen met strepen en een kopbord in de achterwand van de brug.
     for (a, b_) in ((6.62, 7.0), (13.0, 13.38)):
         block(P, a, b_, Y0, 4.2, 25.86, 26.0, "DarkSteel")
-        ctx.col_box(a, b_, Y0, 4.2, 25.86, 26.0)
+        if a > 10:  # stuurboord: hoek afgeschuind (LVL-1)
+            vprism(ctx.shared["collision"], [(13.0, 25.86), (13.24, 25.86), (13.38, 26.0), (13.0, 26.0)], Y0, 4.2,
+                   "Soot")
+        else:
+            ctx.col_box(a, b_, Y0, 4.2, 25.86, 26.0)
         block(D, a + 0.06, b_ - 0.06, Y0 + 0.05, Y0 + 1.6, 25.85, 25.86, "Hazard")
         block(L, a + 0.16, b_ - 0.16, Y0 + 1.75, 3.9, 25.845, 25.86, "LedAmber")
     block(P, 6.62, 13.38, 3.8, 4.2, 25.86, 26.0, "DarkSteel")
@@ -81,13 +90,15 @@ def build(ctx, g):
     for (px, py, r, m) in ((x1 - 0.95, top - 0.08, 0.045, "Steel"), (x1 - 1.1, top - 0.06, 0.032, "Copper")):
         RD.pipe([G(px, py, z0 + 0.3), G(px, py, z1 - 0.3)], r, 8, m, clamps=0.9)
     # Bordje aan het plafond: de nooduitgang (tegen betaling).
+    # Naast de as van de gang (bakboord), zodat het bord BRUG erachter leesbaar blijft.
+    ex = 8.7
     for sx in (-0.3, 0.3):
-        box(RD, (10.0 + sx, top - 0.19, 27.0), (0.015, 0.38, 0.015), "Steel")
-    box(D, (10.0, top - 0.48, 27.0), (0.7, 0.2, 0.05), "Green")
-    text(D, "NOODUITGANG", 0.07, (10.0, top - 0.46, 27.03), (0, 0, 1), "Cream")
-    text(D, "(BETALEND)", 0.04, (10.0, top - 0.53, 27.03), (0, 0, 1), "Cream")
-    text(D, "NOODUITGANG", 0.07, (10.0, top - 0.46, 26.97), (0, 0, -1), "Cream")
-    text(D, "(BETALEND)", 0.04, (10.0, top - 0.53, 26.97), (0, 0, -1), "Cream")
+        box(RD, (ex + sx, top - 0.19, 27.0), (0.015, 0.38, 0.015), "Steel")
+    box(D, (ex, top - 0.48, 27.0), (0.7, 0.2, 0.05), "Green")
+    text(D, "NOODUITGANG", 0.07, (ex, top - 0.46, 27.03), (0, 0, 1), "Cream")
+    text(D, "(BETALEND)", 0.04, (ex, top - 0.53, 27.03), (0, 0, 1), "Cream")
+    text(D, "NOODUITGANG", 0.07, (ex, top - 0.46, 26.97), (0, 0, -1), "Cream")
+    text(D, "(BETALEND)", 0.04, (ex, top - 0.53, 26.97), (0, 0, -1), "Cream")
     paint_booth(ctx, g, rng)
     company_board(ctx, g, rng)
     ctx.glow("ffe0bc", (10.0, top - 0.35, 28.2))
@@ -122,7 +133,13 @@ def bulkhead(ctx, g, za, zb, title, facing):
         prism(P, [(xo, Y0), (xi, Y0), (xi, iy1 - ich), (xi + sx * ich, iy1), (xi + sx * ich, top),
                   (xo + sx * CH, top), (xo, top - CH)], (0, 0, za), (0, 0, 1), zb - za, "DarkSteel")
         a, b_ = sorted((xo, xi))
-        ctx.col_box(a, b_, Y0, top, za, zb)
+        if facing > 0 and sx < 0:
+            # Brugzijde, stuurboord: een afgeschuinde stijl, zodat robots die van de terminal naar de
+            # gang lopen er niet op blijven haken (LVL-1, door de level-agent nagemeten).
+            vprism(ctx.shared["collision"], [(12.62, 26.6), (13.0, 26.6), (13.0, 25.86), (12.87, 25.86),
+                                             (12.62, 26.11)], Y0, top, "Soot")
+        else:
+            ctx.col_box(a, b_, Y0, top, za, zb)
         hx = xi + sx * 0.006
         block(D, min(hx, xi), max(hx, xi), Y0 + 0.02, Y0 + 1.5, za + 0.03, zb - 0.03, "Hazard")
     block(P, ix0 + ich, ix1 - ich, iy1, top, za, zb, "DarkSteel")

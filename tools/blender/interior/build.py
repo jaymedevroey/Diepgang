@@ -70,12 +70,26 @@ def screen_quad(name, pos, normal, width, height):
 def door(name, hinge, extent):
     """Luikhelft met de oorsprong op het scharnier: x van extent[0] tot extent[1] t.o.v. het
     scharnier, lengte extent[2] langs z."""
+    import hangar_doors
     x0, x1, length = extent
     b = Builder(name)
-    b.box(((x0 + x1) / 2, -0.17, 0.0), (abs(x1 - x0) - 0.05, 0.3, length - 0.1), material="Anthracite")
-    b.box(((x0 + x1) / 2, 0.0, 0.0), (abs(x1 - x0) - 0.4, 0.02, length - 0.6), material="DarkSteel")
-    o = b.to_object(name, bevel=0.02)
+    # Detail in hangar_doors.py; de voetafdruk in x en z blijft die van de oude doos (contract).
+    assert abs(abs(x1 - x0) - 4.0) < 1e-6 and abs(length - 14.0) < 1e-6, "luikmaat veranderd: hangar_doors nakijken"
+    hangar_doors.door_mesh(b, 1 if x1 > 0 else -1, layout.MOL_DOCK_Z - hinge[2])
+    o = b.to_object(name, bevel=0.008)
     o.location = kit.G(*layout.G(*hinge))
+    return o
+
+
+def part(name, b, pivot):
+    """Een los onderdeel met een eigen naam (contract): de Builder `b` is in plancoördinaten gebouwd,
+    de oorsprong komt op `pivot` (plan; None = de oorsprong van de hub), zodat het spel het kan draaien."""
+    from mathutils import Matrix
+    o = b.to_object(name, bevel=0.0 if name == "Shaft_Lights" else 0.02)
+    if pivot is not None:
+        p = kit.G(*layout.G(*pivot))
+        o.data.transform(Matrix.Translation(-p))
+        o.location = p
     return o
 
 
@@ -83,7 +97,7 @@ def build():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     kit._MATS.clear()
     PARTS.clear()
-    shared = {"builders": {}, "anchors": [], "collision": Builder("Collision"), "doors": [], "screens": []}
+    shared = {"builders": {}, "anchors": [], "collision": Builder("Collision"), "doors": [], "screens": [], "parts": []}
     failed = []
     for zone in ZONES:
         try:
@@ -103,6 +117,8 @@ def build():
     col.parent = root
     for name, hinge, extent in shared["doors"]:
         door(name, hinge, extent).parent = root
+    for name, b, pivot in shared["parts"]:
+        part(name, b, pivot).parent = root
     for name, pos, normal, w, h in shared["screens"]:
         screen_quad(name, pos, normal, w, h).parent = root
     for name, pos, rot in shared["anchors"]:

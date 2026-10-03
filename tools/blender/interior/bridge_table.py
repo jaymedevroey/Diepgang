@@ -5,9 +5,11 @@ Terminal_Screen. Plancoördinaten; zie bridge_kit.py."""
 import math
 import random
 
+from mathutils import Vector
+
 from bridge_kit import (V, _faces, arcs_inside, band, beam, box, circle_pts, cone_open, diamond, revolve, ring,
                         ring_point, sphere, tbox, text, vprism)
-from layout import DAIS, RISER, G, block
+from layout import DAIS, RISER, G
 
 ZMIN = 21.13  # net achter de reling van de brug
 ZMAX = 26.0  # de achterwand
@@ -123,33 +125,33 @@ def build_table(ctx, g):
         diamond(H, (px, hy, pz), 0.035, 0.055, "LensOrange")
         box(H, (px, (ym + hy) / 2, pz), (0.005, hy - ym - 0.06, 0.005), "HoloCyan")
         band(H, (px, ym + 0.01, pz), 0.07, 0.004, 0.008, 16, "LensOrange")
-    # Projector en bundel. Het planeethologram staat iets naar voren (−z) en laag, onder de onderrand
-    # van Terminal_Screen zoals je het vanaf Terminal_Use ziet: het opdrachtscherm blijft leesbaar.
-    hz = cz - 0.2
-    D.cyl(G(cx, ym, hz), (0, 1, 0), 0.06, 0.15, 24, "Steel")
-    ring(H, (cx, 0, hz), 0.08, 0.13, ym + 0.06, ym + 0.065, 24, "HoloCyan")
-    cone_open(H, (cx, ym + 0.065, hz), (0, 1, 0), 0.11, 0.085, 0.2, 24, "HoloBeam")
+    # Projector en bundel. Het planeethologram staat volledig ACHTER het vlak van Terminal_Screen (gezien
+    # vanaf Terminal_Use, op 225°), op ooghoogte net onder de onderrand: het scherm blijft leesbaar.
+    hx, hz = cx + 0.53, cz - 0.53
+    D.cyl(G(hx, ym, hz), (0, 1, 0), 0.06, 0.15, 24, "Steel")
+    ring(H, (hx, 0, hz), 0.08, 0.13, ym + 0.06, ym + 0.065, 24, "HoloCyan")
+    cone_open(H, (hx, ym + 0.065, hz), (0, 1, 0), 0.11, 0.085, 0.2, 24, "HoloBeam")
     cone_open(H, (cx, ym + 0.0, cz), (0, 1, 0), 0.18, 0.99, 0.99, 48, "HoloBeam")
     # Het hologram: een planeet als draadmodel, een ring, een baan met een maan.
-    pc = (cx, 3.0, hz)
+    pc = (hx, 3.0, hz)
     sphere(H, pc, 0.205, "HoloCore", 2)
     R = 0.22
     for lat in (-55, -28, 0, 28, 55):
         a = math.radians(lat)
-        band(H, (cx, pc[1] + R * math.sin(a), hz), R * math.cos(a), 0.011, 0.008, 32, "HoloCyan")
+        band(H, (hx, pc[1] + R * math.sin(a), hz), R * math.cos(a), 0.011, 0.008, 32, "HoloCyan")
     for k in range(4):
         f = math.pi * k / 4
         band(H, pc, R, 0.011, 0.008, 32, "HoloCyan", axis=(math.cos(f), 0, math.sin(f)), ref=(0, 1, 0))
     tilt = (0.0, math.cos(math.radians(22)), math.sin(math.radians(22)))
-    band(H, pc, 0.36, 0.004, 0.1, 48, "HoloCyan", axis=tilt)
+    band(H, pc, 0.32, 0.004, 0.09, 48, "HoloCyan", axis=tilt)
     orbit_axis = (math.sin(math.radians(-14)), math.cos(math.radians(-14)), 0.12)
-    band(H, pc, 0.52, 0.006, 0.006, 48, "HoloCyan", axis=orbit_axis)
-    sphere(H, ring_point(pc, orbit_axis, 0.52, math.radians(125)), 0.035, "LensOrange", 1)
+    band(H, pc, 0.4, 0.006, 0.006, 48, "HoloCyan", axis=orbit_axis)
+    sphere(H, ring_point(pc, orbit_axis, 0.4, math.radians(125)), 0.035, "LensOrange", 1)
     band(H, (cx, ym + 0.17, cz), 1.02, 0.006, 0.006, 48, "HoloCyan")
-    # Consoles op de rand, schuin naar wie ervoor staat.
+    # Consoles op de rand, schuin naar wie ervoor staat; de grote met de rode knop bij Terminal_Use (225°).
     rim_y = y + 0.92
-    for deg, w, scr in ((180, 0.52, "ScreenAmber"), (115, 0.34, "ScreenGreen"), (245, 0.34, "ScreenGreen"),
-                        (50, 0.3, "ScreenGreen"), (310, 0.3, "ScreenAmber")):
+    for deg, w, scr in ((225, 0.52, "ScreenAmber"), (115, 0.34, "ScreenGreen"), (170, 0.34, "ScreenGreen"),
+                        (50, 0.3, "ScreenGreen"), (300, 0.3, "ScreenAmber")):
         t = math.radians(deg)
         tang = (math.cos(t), 0.0, math.sin(t))
         out = (math.sin(t), 0.0, -math.cos(t))
@@ -170,36 +172,57 @@ def build_table(ctx, g):
             box(D, on(-0.02 * j, 0.06 - j * 0.025, 0.026), (w * (0.5 - 0.1 * j), 0.008, 0.002), "Soot", u=tang, v=v)
         for j, m in enumerate(("LensRed", "Cyan", "LensOrange", "LedWhite")):
             box(D, on(-w / 2 + 0.07 + j * 0.05, -0.065, 0.025), (0.026, 0.026, 0.012), m, u=tang, v=v)
-        if deg == 180:  # de grote rode knop, onder een geel klepje
+        if deg == 225:  # de grote rode knop, onder een geel klepje
             box(D, on(w / 2 - 0.08, -0.06, 0.03), (0.07, 0.06, 0.012), "Yellow", u=tang, v=v)
             D.cyl(G(*on(w / 2 - 0.08, -0.06, 0.035)), n, 0.02, 0.022, 12, "LensRed")
     # Botsvorm (tafel) staat al in de oude vorm: cilinder tot boven de rand.
     ctx.shared["collision"].cyl(G(cx, 1.8, cz), (0, 1, 0), 1.0, 1.3, 16, "Soot")
 
 
+# Opdrachtscherm en de plek waar je ervoor staat (LVL-1, door de level-agent nagemeten: vanaf elke
+# aanlooproute bereikbaar). De plek ligt op 225° op de verhoging, het scherm kijkt ernaar.
+USE = (11.763, 1.8, 24.637)  # polar(1,75, 225°) rond DAIS
+SCREEN = (13.21, 3.55, 23.19)  # midden; 2,05 m van het oog, net achter de naaf van de lichtkroon
+SCREEN_N = (-0.7071, 0.0, 0.7071)  # naar de gebruiksplek (en de gang)
+SCREEN_R = (0.7071, 0.0, 0.7071)  # rechts op het scherm, gezien vanaf de gebruiksplek
+
+
 def build_screen(ctx, g):
     """Terminal_Screen (de quad komt uit build.py) is een dubbelzijdig hologram boven de tafel: niets
-    massiefs ervoor of erachter. Een emitterbalk eronder met het opschrift, twee dunne stangen opzij
-    naar de luifel. Bovenrand op 4,0 m (de luifel op 4,2), onderrand op 3,1 m: vanaf de brug zichtbaar
-    boven de tafel."""
-    cx, cz, _ = DAIS
+    massiefs ervoor of erachter. Onderrand op 3,1 m, bovenrand op 4,0 m. De emitter hangt BOVEN het
+    scherm (een rail aan de spaken van de lichtkroon): een balk eronder zat precies op ooghoogte van een
+    robot op de verhoging (1,8 + 1,2 = 3,0 m) en sneed het beeld bij de terminal in twee."""
     P, D, H = g["props"], g["detail"], g["holo"]
-    sx, sy, sz, w, h = cx, 3.55, cz + 0.6, 2.0, 0.9
-    ctx.shared["screens"].append(("Terminal_Screen", (sx, sy, sz), (0.0, 0.0, 1.0), w, h))
-    ctx.anchor("Terminal_Use", (cx, 1.8, cz + 1.6), 0)
-    yb = sy - h / 2 - 0.03  # bovenkant van de emitterbalk
+    w, h = 2.0, 0.9
+    sx, sy, sz = SCREEN
+    n, r = Vector(SCREEN_N), Vector(SCREEN_R)
+    ctx.shared["screens"].append(("Terminal_Screen", SCREEN, SCREEN_N, w, h))
+    ctx.anchor("Terminal_Use", USE, -45)
+    # Glad gesleten plek op de verhoging, waar elke robot voor de tafel staat.
+    from hangar_wear import blot
+    wx, wz = polar(1.6, math.radians(225))
+    blot(D, wx, 1.8035, wz, 0.24, "FloorWorn", random.Random(5), squash=0.8)
+    c = Vector((sx, sy + h / 2 + 0.055, sz))  # midden van de emitterrail
     ex = w / 2 + 0.1
-    beam(P, (sx - ex, yb - 0.055, sz), (sx + ex, yb - 0.055, sz), 0.12, 0.11, 0.025, "DarkSteel")
-    block(H, sx - w / 2, sx + w / 2, yb, yb + 0.006, sz - 0.012, sz + 0.012, "HoloCyan")
+    a, b_ = c - r * ex, c + r * ex
+    beam(P, tuple(a), tuple(b_), 0.12, 0.09, 0.02, "DarkSteel")
+    lo = Vector((sx, sy + h / 2 + 0.006, sz))  # cyaan lijn: de uitgang van de projector
+    box(H, tuple(lo), (w, 0.006, 0.024), "HoloCyan", u=tuple(r))
     for s in (-1, 1):
-        box(P, (sx + s * (ex + 0.03), yb - 0.055, sz), (0.06, 0.15, 0.16), "Yellow")
-        px = sx + s * (w / 2 + 0.07)
-        box(P, (px, (yb + 4.2) / 2, sz), (0.045, 4.2 - yb, 0.045), "Steel")
-        box(D, (px, 4.19, sz), (0.16, 0.02, 0.16), "DarkSteel")
-    text(D, "OPDRACHTEN", 0.05, (sx, yb - 0.055, sz + 0.061), (0, 0, 1), "Yellow")
-    text(D, "DIG  -  NIET AANRAKEN", 0.04, (sx, yb - 0.055, sz - 0.061), (0, 0, -1), "Yellow")
-    D.pipe([G(sx + ex - 0.05, yb - 0.11, sz + 0.03), G(sx + w / 2 + 0.13, yb + 0.2, sz + 0.05),
-            G(sx + w / 2 + 0.13, 4.2, sz + 0.05)], 0.016, 6, "Rubber")
+        end = c + r * s * (ex + 0.03)
+        box(P, tuple(end), (0.08, 0.13, 0.16), "Yellow", u=tuple(r))
+        # Korte schoor van het railuiteinde naar de lichtkroon (die hangt aan de luifel).
+        top = Vector((DAIS[0], 4.11, DAIS[1])) + (end - Vector((DAIS[0], end.y, DAIS[1]))).normalized() * 1.5
+        tbox(P, tuple(end), tuple(top), 0.04, 0.04, "Steel")
+    text(D, "OPDRACHTEN", 0.05, tuple(c + n * 0.061), SCREEN_N, "Yellow")
+    text(D, "DIG  -  NIET AANRAKEN", 0.04, tuple(c - n * 0.061), tuple(-n), "Yellow")
+    # Voedingskabel van de rail naar de naaf van de kroon.
+    p0 = c + r * (ex - 0.05) + Vector((0, 0.04, 0))
+    hub = Vector((DAIS[0], 4.1, DAIS[1]))
+    p1 = Vector((p0.x, 4.1, p0.z))
+    D.pipe([G(*p0), G(*p1), G(*(p1 + (hub - p1) * 0.75))], 0.016, 6, "Rubber")
+    # Een robot die op de verhoging springt, botst hier (onder de rail en de kroon; LVL-9).
+    ctx.shared["collision"].cyl(G(DAIS[0], 3.9, DAIS[1]), (0, 1, 0), 0.1, 2.0, 24, "Soot")
 
 
 def build_crown(ctx, g):
@@ -210,7 +233,11 @@ def build_crown(ctx, g):
     a = math.radians(22.5)
     revolve(R, c, [(1.46, 3.98), (1.66, 3.98), (1.7, 4.03), (1.7, 4.12), (1.42, 4.12), (1.42, 4.03)], 8,
             "DarkSteel", a, a + 2 * math.pi)
-    revolve(L, c, [(1.5, 3.972), (1.6, 3.972), (1.6, 3.98), (1.5, 3.98)], 8, "LedAmber", a, a + 2 * math.pi)
+    # Ledring: onderaan op de helft aan de kant van Terminal_Use (225°); op de verre helft zit hij op de
+    # buitenkant, zodat hij vanaf de terminal niet achter het (doorzichtige) hologram oplicht.
+    near0 = math.radians(157.5)
+    revolve(L, c, [(1.5, 3.972), (1.6, 3.972), (1.6, 3.98), (1.5, 3.98)], 4, "LedAmber", near0, near0 + math.pi)
+    revolve(L, c, [(1.7, 4.05), (1.708, 4.05), (1.708, 4.1), (1.7, 4.1)], 4, "LedAmber", near0 - math.pi, near0)
     for k in range(4):
         t = math.pi / 2 * k
         p0, p1 = polar(0.3, t), polar(1.44, t)
@@ -222,12 +249,11 @@ def build_crown(ctx, g):
         box(RD, (px, 4.02, pz), (0.02, 0.14, 0.08), "DarkSteel", u=(math.cos(t), 0, math.sin(t)))
     RD.cyl(G(cx, 3.905, cz), (0, 1, 0), 0.015, 0.22, 16, "RunLight")
     RD.cyl(G(cx, 3.9, cz), (0, 1, 0), 0.012, 0.245, 16, "DarkSteel", r2=0.235)
-    # Schuine trekstangen naar de wand boven de luifel, korte steunen achteraan.
-    for side in (-1, 1):
-        p = polar(1.6, side * math.radians(38))
-        tbox(RD, (p[0], 4.1, p[1]), (cx + side * 1.5, 6.2, 23.4), 0.04, 0.04, "Steel")
-        box(RD, (cx + side * 1.5, 6.2, 23.41), (0.14, 0.14, 0.06), "DarkSteel")
-    for t in (math.radians(140), math.radians(220)):
+    # Steunen achteraan aan de luifel (de trekstangen vooraan stonden vanaf de terminal achter het
+    # hologram en zijn weg: de kroon hangt nu aan drie steunen en een balk onder de luifel).
+    for t in (math.radians(140), math.radians(180), math.radians(220)):
         p = polar(1.56, t)
         box(RD, (p[0], 4.16, p[1]), (0.12, 0.08, 0.12), "DarkSteel")
-    ctx.spot("cfeaff", (cx, 3.86, cz))
+    tbox(RD, (polar(1.56, math.radians(140))[0], 4.16, polar(1.56, math.radians(140))[1]),
+         (polar(1.56, math.radians(220))[0], 4.16, polar(1.56, math.radians(220))[1]), 0.1, 0.06, "DarkSteel")
+    ctx.spot("cfeaff", (cx, 3.86, cz), e=3.5, a=26, v=0.3)  # koude bundel op de tafel, zichtbaar in de waas

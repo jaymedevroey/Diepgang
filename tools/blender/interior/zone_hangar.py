@@ -15,9 +15,11 @@ hangar_kit.py (hulpstukken en nieuwe materialen).
 import random
 
 from hangar_kit import box, bulkhead_lamp, cyl
-from hangar_posts import crane, gallery, gate, molwerf, sell_booth, signage, vending
+from hangar_posts import crane, gallery, gate, molwerf, pit_and_gallery, sell_booth, signage, vending
 from hangar_room import ceiling, floor, side_wall, window
-from layout import BAY, PIT, TRACK_DOCK_Y, Ctx, stairs_z
+from hangar_shaft import clamps, shaft, shaft_lights
+from hangar_wear import wear
+from layout import BAY, MOL_DOCK_Z, PIT, TRACK_DOCK_Y, Ctx, stairs_z
 
 
 def build(ctx: Ctx):
@@ -38,7 +40,12 @@ def build(ctx: Ctx):
     floor(ctx, B, rng)
     ctx.shared["doors"].append(("BayDoor_L", (bx0, -0.02, (bz0 + bz1) / 2), (0.0, 4.0, bz1 - bz0)))
     ctx.shared["doors"].append(("BayDoor_R", (bx1, -0.02, (bz0 + bz1) / 2), (-4.0, 0.0, bz1 - bz0)))
-    ctx.anchor("Mol_Dock", ((bx0 + bx1) / 2, TRACK_DOCK_Y, (bz0 + bz1) / 2))
+    dock_z = MOL_DOCK_Z  # 0,95 m achter het midden: de boorkop hangt boven de baai, niet boven de vloer
+    ctx.anchor("Mol_Dock", ((bx0 + bx1) / 2, TRACK_DOCK_Y, dock_z))
+    # Valschacht onder de baai, de stroken die knipperen, en de klemmen die de Mol vasthouden.
+    shaft(ctx, B)
+    shaft_lights(ctx)
+    clamps(ctx, B, dock_z)
     # Zijwanden (de romp zelf loopt door tot de brug).
     box(B["shell"], -0.3, 0.0, -0.6, 9.0, 0, 26, "HullDark")
     box(B["shell"], 20.0, 20.3, -0.6, 9.0, 0, 26, "HullDark")
@@ -63,27 +70,35 @@ def build(ctx: Ctx):
 
     # --- Posten ----------------------------------------------------------------------------------
     gallery(ctx, B, rng)
-    crane(ctx, B)
+    crane(ctx, B, dock_z)
     gate(ctx, B)
     sell_booth(ctx, B)
     vending(ctx, B)
     molwerf(ctx, B)
     signage(ctx, B, rng)
+    pit_and_gallery(ctx, B)
+    wear(ctx, B, (dock_z - 3.0, dock_z + 3.0))
 
     # --- Licht (≤ 12 lampen en gloed, ≤ 3 spots), elk bij een armatuur die je ziet ----------------
+    # Bakboord: wandlampen boven de looproute langs de baai (sterker dan standaard: 4 m hoog).
     for z in (6.0, 13.0):
         bulkhead_lamp(B["shell"], B["det"], (0.06, 4.3, z), (1, 0, 0))
-        ctx.glow("ffcf8f", (0.55, 4.1, z))
-    for z in (5.0, 17.0):
-        bulkhead_lamp(B["shell"], B["det"], (19.94, 5.5, z), (-1, 0, 0))
-        ctx.glow("ffcf8f", (19.45, 5.3, z))
+        ctx.glow("ffcf8f", (0.55, 4.1, z), e=2.2)
+    # Galerij: drie wandlampen laag boven het rooster (vroeger twee op 5,5 m: het rooster bleef zwart).
+    for z in (5.0, 11.3, 17.0):
+        bulkhead_lamp(B["shell"], B["det"], (19.94, 3.9, z), (-1, 0, 0))
+        ctx.glow("ffcf8f", (19.45, 3.7, z), e=1.8)
     ctx.glow("4fe3f0", (12.0, 2.4, 18.3))  # taxatiepoort
     ctx.glow("ffc92e", (18.0, 3.4, 9.5))  # Mol-werf
     ctx.glow("ffb060", (13.9, 2.2, 18.3))  # verkoopluik (niet te dicht: anders een hete rand op de kiosk)
     ctx.glow("ff9a5a", (1.8, 2.0, 18.3))  # automaat
-    ctx.glow("ffd9a0", (6.6, 7.9, 17.4))  # lichtbak boven de kade
     ctx.glow("9ec8ff", (14.0, 0.4, 0.7))  # put, bij het glas
+    # Spots uit het plafond: smalle kegels die een plas licht op de vloer leggen (koel boven de
+    # hangarvloer, warm boven de kade), elk onder een armatuur die je ziet.
     for (x, z, col) in ((13.0, 3.0, "9ec8ff"), (10.0, 18.5, "ffe2b0")):
         cyl(B["rdet"], (x, 8.62, z), (0, 1, 0), 0.31, 0.2, "DarkSteel", segs=14)
         cyl(B["rdet"], (x, 8.6, z), (0, 1, 0), 0.02, 0.15, "LedWhite", segs=14)
-        ctx.spot(col, (x, 8.5, z))
+    ctx.spot("9ec8ff", (13.0, 8.5, 3.0))
+    ctx.spot("ffe2b0", (10.0, 8.5, 18.5), e=5.0, a=30)
+    ctx.spot("ffd9a0", (6.6, 8.05, 17.4), e=6.0, a=28, v=0.3)  # lichtbak boven de kade (was een omni die de vloer niet haalde)
+    ctx.spot("dfe8ff", (13.8, 8.05, 13.0), e=4.5, a=30)  # stuurboordvloer naast de baai
