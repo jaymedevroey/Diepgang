@@ -67,6 +67,8 @@ const EMISSIVE := {
 	"NavRed": [Color(1.0, 0.12, 0.08), 5.0],
 	"NavGreen": [Color(0.2, 1.0, 0.4), 5.0],
 	"RunLight": [Color(0.55, 0.8, 1.0), 4.0],
+	"LedWhite": [Color(0.9, 0.95, 1.0), 1.4],
+	"LedAmber": [Color(1.0, 0.62, 0.28), 2.2],
 }
 
 ## Toestand (gezet door Mol).

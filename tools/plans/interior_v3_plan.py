@@ -117,11 +117,6 @@ def plan(s: Sheet):
     for z in (5.0, 12.0):
         g.line([s.p(0.5, z), s.p(17.5, z)], fill=(200, 160, 40), width=2)
     s.label(0.4, 4.0, "kraan 7,5 m", (200, 160, 40), 11)
-    for i in range(14):
-        z = 4.5 + i * 0.85
-        x = 13.5 - 0.15 * i
-        g.ellipse([s.p(x - 0.3, z - 0.25), s.p(x + 0.3, z + 0.25)], fill=(232, 222, 200))
-    s.label(12.6, 9.0, "skelet\nhangt\n6–8,5 m", (232, 222, 200), 11)
     # Ramen.
     g.line([s.p(0, 0), s.p(20, 0)], fill=GLASS, width=7)
     s.label(0.3, -1.6, "RAAM: hele voorwand, 20 m breed, 0,7 tot 8,5 m hoog", GLASS, 13, True)
@@ -130,10 +125,7 @@ def plan(s: Sheet):
     # Kade: poort, verkoop, takel, automaat.
     s.dot(11.0, 18.3, "G", YELLOW)
     s.dot(14.2, 18.3, "V", (140, 224, 64))
-    s.dot(12.5, 15.0, "H", (232, 222, 200))
     s.dot(1.8, 18.3, "A", (255, 180, 90))
-    for z in (7.0, 10.0, 13.0):
-        s.dot(16.4, z, "o", (232, 222, 200))
     s.dot(18.0, 9.5, "W", (255, 200, 60))
     s.dot(18.0, 1.5, "U", GLASS)
     # Trap kade → brug.
@@ -154,8 +146,7 @@ def plan(s: Sheet):
         g.rectangle([s.p(x0, z0), s.p(x1, z1)], fill=(120, 96, 64), outline=(255, 176, 80), width=2)
         s.label(x0 + 0.3, z0 + 0.3, name, CREAM, 12, True)
         s.label(x0 + 0.3, z0 + 1.6, "2,6 m", DIM, 10)
-    s.dot(10.0, 35.0, "*", (232, 222, 200))
-    s.label(10.6, 34.4, "DIG-logo +\nskeletsokkel", DIM, 11)
+    s.label(8.6, 34.4, "DIG-logo\nin de vloer", DIM, 11)
     s.label(8.2, 30.5, "tv", DIM, 11)
     # Laadrek (spawn) lager.
     s.stairs(8.0, 39.6, 12.0, 40.6, 4, "z")
@@ -191,9 +182,9 @@ def legend(s: Sheet):
     g.text((x0, y), "POSTEN", font=font(15, True), fill=YELLOW)
     y += 28
     for letter, col, text in (("T", CYAN, "opdrachttafel (op een ronde verhoging)"), ("G", YELLOW, "taxatiepoort"),
-                              ("V", (140, 224, 64), "verkoopluik"), ("H", (232, 222, 200), "schenktakel: stuk naar zijn gat in het skelet"),
+                              ("V", (140, 224, 64), "verkoopluik"),
                               ("A", (255, 180, 90), "automaat: springladingen, lichtbakens"), ("W", (255, 200, 60), "Mol-werf (stuurt de portaalkraan)"),
-                              ("U", GLASS, "uitkijkpunt aan het raam"), ("o", (232, 222, 200), "vitrines (museum langs de route)"),
+                              ("U", GLASS, "uitkijkpunt aan het raam"),
                               ("K", (255, 90, 138), "kast en spuitcabine (cosmetica)"), ("F", CYAN, "firmabord: kas, quota, kwartaal"),
                               ("S", CREAM, "laadrek: spawn")):
         cx, cy = x0 + 12, y + 10
@@ -206,7 +197,7 @@ def legend(s: Sheet):
     g.text((x0, y), "UPGRADENISSEN (3 × 4 m, plafond 2,6 m)", font=font(15, True), fill=YELLOW)
     y += 28
     for name, text in (("L1", "gereedschapsbank met schaduwbord"), ("L2", "uitgifte: scanner, takel, ladders, helmlamp"),
-                       ("R1", "proefblok: rots om gereedschap te testen"), ("R2", "vrij voor later")):
+                       ("R1", "vrij voor later"), ("R2", "vrij voor later")):
         g.text((x0, y), name, font=font(14, True), fill=(255, 176, 80))
         g.text((x0 + 40, y + 1), text, font=font(14), fill=CREAM)
         y += 25
@@ -215,7 +206,7 @@ def legend(s: Sheet):
     g.text((x0 + 50, y), "route: spawn > werkdek > gang > brug > trap > Mol", font=font(14), fill=CREAM)
     y += 26
     g.line([(x0, y + 10), (x0 + 40, y + 10)], fill=(140, 224, 64), width=3)
-    g.text((x0 + 50, y), "buit: klep > poort > verkoop of takel (vlak, geen trap)", font=font(14), fill=CREAM)
+    g.text((x0 + 50, y), "buit: klep > poort > verkoop (vlak, geen trap)", font=font(14), fill=CREAM)
 
 
 def section(s: Sheet):
@@ -260,7 +251,7 @@ def section(s: Sheet):
 def main():
     s = Sheet()
     s.g.text((60, 26), "DE EKSTER VAN BINNEN · SUPER DESTROYER IN HET KLEIN", font=font(28, True), fill=YELLOW)
-    s.g.text((60, 72), "Voorstel ronde 3 (onderzoek: schip-interieur-niveaus.md). Enkel een plan: er is nog niets gebouwd.", font=font(17), fill=DIM)
+    s.g.text((60, 72), "Ronde 3, goedgekeurd door Jayme (volgorde, 8 treden, hangar 9 m). Zonder museum en zonder proefblok.", font=font(17), fill=DIM)
     s.g.text((60, 96), "20 × 44 m, één dek met trapjes. Van achter naar voor: laadrek > werkdek > gang > brug > trap > de Mol voor het raam.", font=font(17), fill=CREAM)
     plan(s)
     legend(s)

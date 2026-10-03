@@ -78,6 +78,10 @@ PALETTE = {
     "EngineGlow": ((0.75, 0.88, 1.0), 0.0, 0.2, ((0.7, 0.85, 1.0), 8.0)),
     "NavRed": ((1.0, 0.15, 0.1), 0.0, 0.2, ((1.0, 0.12, 0.08), 6.0)),
     "NavGreen": ((0.2, 1.0, 0.4), 0.0, 0.2, ((0.2, 1.0, 0.4), 6.0)),
+    # Binnen in De Ekster (Super Destroyer-look): witte ledstroken op randen en trapneuzen, amberen
+    # lichtribben rond de nissen. Zachter dan Bulb en BellyLight.
+    "LedWhite": ((0.9, 0.95, 1.0), 0.0, 0.2, ((0.9, 0.95, 1.0), 1.4)),
+    "LedAmber": ((1.0, 0.66, 0.32), 0.0, 0.3, ((1.0, 0.62, 0.28), 2.2)),
     "RunLight": ((0.6, 0.85, 1.0), 0.0, 0.2, ((0.55, 0.8, 1.0), 5.0)),
     "PlayerColor": ((0.95, 0.55, 0.12), 0.1, 0.5, None),  # in Godot vervangen door de spelerskleur
 }
