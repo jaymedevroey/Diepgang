@@ -9,6 +9,9 @@ extends Node3D
 ##   ship_preview      screenshots van De Ekster (de hub langs de route, van buiten, de drop)
 ##   ship_test         De Ekster en de drop: spawnen op het schip, droppen, landen, ophalen (headless)
 ##   net_ship_test     host + client droppen samen en komen samen terug (tools/net_test.py --scenario=net_ship_test)
+##   drop_sequence     opname van de hele drop (beelden, tijdlijn), zie het bestand voor de opties
+##   drop_flow_test    de hele drop als speler met echte invoer (headless; --variant=main|skip|left_behind|on_doors)
+##   net_drop_flow_test de drop zoals de client hem beleeft (tools/net_test.py --scenario=net_drop_flow_test)
 ##   concept_preview   ontwerpen van De Ekster (assets/models/concepts/) in de look van de game
 ##   sky_preview       de zes controlebeelden van de hemel (--sky=a|b|c), logs/sky/
 ##   dig_test          headless controle van graven en de TerrainAPI-laag
@@ -38,6 +41,9 @@ extends Node3D
 
 const SCENARIOS := {
 	"dig_test": preload("res://src/main/scenarios/dig_test.gd"),
+	"drop_sequence": preload("res://src/main/scenarios/drop_sequence.gd"),
+	"drop_flow_test": preload("res://src/main/scenarios/drop_flow_test.gd"),
+	"net_drop_flow_test": preload("res://src/main/scenarios/net_drop_flow_test.gd"),
 	"stress": preload("res://src/main/scenarios/stress_test.gd"),
 	"render": preload("res://src/main/scenarios/render_showcase.gd"),
 	"net_test": preload("res://src/main/scenarios/net_test.gd"),
@@ -73,9 +79,9 @@ const SCENARIOS := {
 	"hub_screens_test": preload("res://src/main/scenarios/hub_screens_test.gd"),
 }
 ## Scenario's die op De Ekster beginnen (de Mol in de dropbaai). De rest begint op de planeet.
-const SCENARIOS_ON_SHIP := ["play", "ship_preview", "ship_test", "net_ship_test", "company_test", "interior_preview"]
+const SCENARIOS_ON_SHIP := ["play", "ship_preview", "drop_sequence", "drop_flow_test", "net_drop_flow_test", "ship_test", "net_ship_test", "company_test", "interior_preview"]
 ## Scenario's waarin de host ook een eigen speler krijgt.
-const SCENARIOS_WITH_PLAYER := ["play", "ship_preview", "ship_test", "net_ship_test", "net_test", "find_test", "carry_test", "carry_preview", "mol_test", "sonar_test", "mol_edge_test", "stream_test", "ore_test", "drive_perf", "mol_preview", "hud_preview", "ui_test", "tool_preview", "magma_test", "company_test"]
+const SCENARIOS_WITH_PLAYER := ["play", "ship_preview", "drop_sequence", "drop_flow_test", "net_drop_flow_test", "ship_test", "net_ship_test", "net_test", "find_test", "carry_test", "carry_preview", "mol_test", "sonar_test", "mol_edge_test", "stream_test", "ore_test", "drive_perf", "mol_preview", "hud_preview", "ui_test", "tool_preview", "magma_test", "company_test"]
 
 var game: Game
 var player: Player
