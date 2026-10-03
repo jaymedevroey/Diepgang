@@ -51,6 +51,7 @@ var _streaks: GPUParticles3D
 var _streak_mat: StandardMaterial3D
 var _lowpass: AudioEffectLowPassFilter
 var _lowpass_t := -1.0
+var _black_hold := -1.0 # seconden zwart na een sprong, tot de Mol er ook in beeld staat (−1 = uit)
 
 
 func _ready() -> void:
@@ -103,6 +104,9 @@ func activate() -> void:
 		_wind.volume_db = -60.0
 		_roar.volume_db = -60.0
 	_bars_want = 1.0
+	if _black_hold >= 0.0:
+		_black_hold = -1.0
+		_fade.color.a = 0.0 # de sprong is voorbij: meteen het buitenbeeld
 	_update(0.0)
 	first_frame_pos = global_position
 	make_current()
@@ -119,6 +123,19 @@ func deactivate() -> void:
 	if mol.mode == Mol.Mode.LIFTING:
 		_bars_want = 0.0 # bij de drop gaan de balken pas weg bij de overdracht
 	_snap_atmosphere()
+
+
+## Staat het lichaam van de Mol (en dus wat je ervan ziet) al waar hij gezet is? Na een sprong loopt
+## het een tick achter (sync_to_physics): dan zou het eerste beeld de Mol niet tonen.
+func mol_synced() -> bool:
+	return mol != null and mol.body != null and mol.body.global_position.distance_to(mol.placed.origin) < 3.0 # (een sprong is honderden m; vallen ±1 m per tick)
+
+
+## Sprong terwijl de speler binnen meerijdt (naar buiten, terug naar de hub): even zwart tot de Mol
+## er ook staat, anders zie je een beeld lang de lucht of de hangar zonder de Mol rond je.
+func hold_black() -> void:
+	_black_hold = 0.0
+	_fade.color.a = 1.0
 
 
 ## Ophalen: het buitenbeeld enkel de eerste LIFT_SHOT seconden, één keer per ophaling.
@@ -182,6 +199,11 @@ func _snap_atmosphere() -> void:
 # --- Elke frame ----------------------------------------------------------------------------------
 
 func _process(delta: float) -> void:
+	if _black_hold >= 0.0:
+		_black_hold += delta
+		if mol_synced() and not current or _black_hold > 0.3:
+			_black_hold = -1.0
+			_fade.color.a = 0.0
 	_update_overlay(delta)
 	_update_lowpass(delta)
 	if mol == null or mol.body == null or not current:
@@ -258,8 +280,12 @@ func _update(delta: float) -> void:
 		_vy_was = mol.vertical_speed
 		_acc = lerpf(_acc, clampf(a, -40.0, 40.0), minf(1.0, delta * 6.0))
 	var lag_want := clampf(-_acc * Tuning.get_f("ship", "drop_cam_lag", 0.22), -1.5, 3.0)
-	_lag_v += ((lag_want - _lag) * 18.0 - _lag_v * 7.0) * delta
-	_lag += _lag_v * delta
+	var left := minf(delta, 0.1) # veer in kleine stapjes (stabiel, ook bij een lang frame)
+	while left > 0.0:
+		var h := minf(left, 1.0 / 120.0)
+		_lag_v += ((lag_want - _lag) * 18.0 - _lag_v * 7.0) * h
+		_lag += _lag_v * h
+		left -= h
 	var pos := m + back * dist + Vector3.UP * (up + _lag)
 	if t:
 		pos.y = maxf(pos.y, t.surface_height_at(pos.x, pos.z) + 2.0)

@@ -135,6 +135,7 @@ var _braking := false # drop: de stuwraketten remmen
 var _hub_fall := false # drop: valt nog door de luiken van de hub (voor de sprong naar buiten)
 var _drop_t := 0.0 # drop: seconden sinds het loslaten
 var _skip_voters: Dictionary = {}
+var _skip_pending := false # overslaan: de sprong gebeurt in de volgende physics-tick (zie _drop)
 var _all_aboard_said := false
 var _grab_timer := 0.0
 
@@ -456,7 +457,7 @@ func drop_skippable() -> bool:
 		return false
 	if in_hub():
 		return true
-	var p := body.global_position
+	var p := placed.origin
 	var h: float = p.y - game.terrain.surface_height_at(p.x, p.z) + TRACK_BOTTOM
 	return h > Tuning.get_f("ship", "drop_short_height", 150.0) + 15.0 and thrust < 0.01
 
@@ -493,8 +494,9 @@ func _handle_skip(sender: int) -> void:
 	if votes >= needed:
 		_rpc_drop_variant.rpc(DropVariant.SHORT)
 		_rpc_message.rpc("Drop ingekort.")
-		if not _hub_fall:
-			_snap_short_entry()
+		# Niet hier springen: dit loopt buiten de physics-tick (invoer, RPC), en dan zette de volgende
+		# _drop de Mol terug op de plek waar zijn lichaam nog stond. _drop springt in de tick.
+		_skip_pending = not _hub_fall
 
 
 ## Host: de Mol naar het beginpunt van de korte drop (boven de landingsplek, al op volle snelheid).
@@ -1026,6 +1028,7 @@ func _drop_countdown(delta: float) -> void:
 		_hub_fall = true
 		_drop_t = 0.0
 		_skip_voters.clear()
+		_skip_pending = false
 		_rpc_skip_votes.rpc(0, 0)
 		_rpc_drop_variant.rpc(DropVariant.FULL if drops_done == 0 else DropVariant.SHORT)
 		drops_done += 1
@@ -1045,8 +1048,13 @@ func next_drop_variant() -> DropVariant:
 ## korte drop. Is het terrein onder de landingsplek nog niet geladen, dan blijft hij erboven hangen.
 func _drop(delta: float) -> void:
 	_drop_t += delta
+	if _skip_pending:
+		_skip_pending = false
+		if not _hub_fall:
+			_snap_short_entry()
+			return
 	if _hub_fall:
-		var hp := body.global_position
+		var hp := placed.origin
 		_vy = maxf(_vy - 9.8 * delta, -Tuning.get_f("ship", "drop_max_speed", 55.0))
 		vertical_speed = _vy
 		hp.y += _vy * delta
@@ -1060,7 +1068,9 @@ func _drop(delta: float) -> void:
 			_rpc_snap.rpc(game.from_hub(hp), yaw, 0.0, Time.get_ticks_msec())
 		return
 	var t: TerrainAPI = game.terrain
-	var pos := body.global_position
+	# De plek waar de Mol gezet is, niet waar het lichaam nu staat: na een sprong (sync_to_physics)
+	# staat dat lichaam een tick op de oude plek.
+	var pos := placed.origin
 	var ground := t.surface_height_at(pos.x, pos.z) - TRACK_BOTTOM
 	var ready := t.collision_ready(Vector3(pos.x, ground + TRACK_BOTTOM, pos.z))
 	var brake := Tuning.get_f("ship", "drop_brake", 22.0)

@@ -191,7 +191,6 @@ func _run(p: Player) -> void:
 func _drop_and_check(p: Player, mol: Mol, game: Game, label: String, max_s: float, countdown: float) -> void:
 	var ship: Ekster = game.ship
 	var local_before := mol.to_local_mol(p.global_position)
-	var tool_before := p.active_tool.visible
 	mol.press(Mol.Cmd.DEPART)
 	await get_tree().physics_frame
 	await get_tree().physics_frame
@@ -247,7 +246,9 @@ func _drop_and_check(p: Player, mol: Mol, game: Game, label: String, max_s: floa
 	var hand_s := (Engine.get_physics_frames() - hand0) / hz
 	_expect(not p.cinematic and hand_s <= Tuning.get_f("ship", "drop_handover_s", 0.7) + 0.3,
 			"%s: besturing terug %.2f s na de landing" % [label, hand_s])
-	_expect(p.active_tool.visible == tool_before, "%s: gereedschap terug in de hand" % label)
+	# In De Ekster zit het gereedschap weg (ook in de Mol in de baai); na de overdracht op de planeet
+	# is het terug in de hand.
+	_expect(p.active_tool.visible, "%s: gereedschap terug in de hand" % label)
 	await _wait(1.0)
 	var moved := mol.to_local_mol(p.global_position).distance_to(local_before)
 	_expect(moved < 0.1 and p.is_on_floor(), "%s: zelfde plek in de Mol (%.3f m), op de vloer" % [label, moved])

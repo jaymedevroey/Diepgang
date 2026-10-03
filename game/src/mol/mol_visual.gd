@@ -572,7 +572,7 @@ func _build_thrusters() -> void:
 			pm.scale_curve = _curve_tex([Vector2(0, 0.6), Vector2(1, 2.4)])
 			pm.color_ramp = _gradient_tex(Color(0.45, 0.4, 0.36, 0.32), Color(0.5, 0.45, 0.4, 0.0))
 			smoke.process_material = pm
-			smoke.draw_pass_1 = _smoke_quad()
+			smoke.draw_pass_1 = _outside_dust_quad(true)
 			smoke.amount = 24
 			smoke.lifetime = 1.4
 			smoke.local_coords = false
@@ -593,24 +593,30 @@ func _build_thrusters() -> void:
 	var wm := ParticleProcessMaterial.new()
 	wm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_RING
 	wm.emission_ring_axis = Vector3(0, 1, 0)
-	wm.emission_ring_radius = 5.0
-	wm.emission_ring_inner_radius = 3.0
-	wm.emission_ring_height = 0.3
+	wm.emission_ring_radius = 6.0
+	wm.emission_ring_inner_radius = 4.0
+	wm.emission_ring_height = 0.6
 	wm.direction = Vector3(0, 0.2, 0)
 	wm.spread = 15.0
-	wm.radial_velocity_min = 10.0
-	wm.radial_velocity_max = 18.0
-	wm.damping_min = 4.0
-	wm.damping_max = 7.0
-	wm.gravity = Vector3(0, 0.4, 0)
-	wm.scale_min = 1.2
-	wm.scale_max = 2.4
+	wm.radial_velocity_min = 6.0
+	wm.radial_velocity_max = 12.0
+	wm.damping_min = 2.5
+	wm.damping_max = 4.5
+	wm.gravity = Vector3(0, 1.2, 0)
+	wm.scale_min = 2.0
+	wm.scale_max = 3.6
 	wm.scale_curve = _curve_tex([Vector2(0, 0.3), Vector2(0.2, 1.0), Vector2(1, 2.2)])
-	wm.color_ramp = _gradient_tex(Color(1, 1, 1, 0.45), Color(1, 1, 1, 0.0))
+	var wg := Gradient.new() # even invloeien (geen ploppende wolken), dan dik, dan weg
+	wg.set_color(0, Color(1, 1, 1, 0.0))
+	wg.add_point(0.1, Color(1, 1, 1, 0.9))
+	wg.set_color(wg.get_point_count() - 1, Color(1, 1, 1, 0.0))
+	var wgt := GradientTexture1D.new()
+	wgt.gradient = wg
+	wm.color_ramp = wgt
 	_downwash.process_material = wm
-	_downwash.draw_pass_1 = _puff_quad()
-	_downwash.amount = 80
-	_downwash.lifetime = 1.8
+	_downwash.draw_pass_1 = _outside_dust_quad(false, 6.0) # grote, trage wolken (kleine leken op spikkels)
+	_downwash.amount = 110
+	_downwash.lifetime = 2.2
 	_downwash.local_coords = false
 	_downwash.emitting = false
 	_downwash.top_level = true
@@ -620,7 +626,7 @@ func _build_thrusters() -> void:
 	# staken de wolken door de vloer de cabine in.
 	_landing_dust = GPUParticles3D.new()
 	var dm := ParticleProcessMaterial.new()
-	_ellipse_emission(dm, 4.6, 7.0, 48)
+	_ellipse_emission(dm, 5.0, 7.4, 48)
 	dm.direction = Vector3(0, 0, 1) # langs de normaal: naar buiten
 	dm.spread = 12.0
 	dm.initial_velocity_min = 7.0
@@ -632,9 +638,9 @@ func _build_thrusters() -> void:
 	dm.scale_max = 2.2
 	# Klein bij de romp, groot verder weg (een grote wolk vlak naast de romp stak door de wand).
 	dm.scale_curve = _curve_tex([Vector2(0, 0.3), Vector2(0.15, 0.9), Vector2(1, 2.4)])
-	dm.color_ramp = _gradient_tex(Color(1, 1, 1, 0.65), Color(1, 1, 1, 0.0))
+	dm.color_ramp = _gradient_tex(Color(1, 1, 1, 0.9), Color(1, 1, 1, 0.0))
 	_landing_dust.process_material = dm
-	_landing_dust.draw_pass_1 = _puff_quad()
+	_landing_dust.draw_pass_1 = _outside_dust_quad(false, 3.5)
 	_landing_dust.amount = 110
 	_landing_dust.lifetime = 3.0
 	_landing_dust.one_shot = true
@@ -787,10 +793,22 @@ func _puff_quad() -> QuadMesh:
 	return q
 
 
-## Rook van de stuwraketten: onbelicht (de gloed van de vlammen vlak ernaast blies hem wit op).
-func _smoke_quad() -> QuadMesh:
+## Stof en rook die buiten rond de Mol hangen (landing, straal, stuwraketten). Een grote billboard naast
+## de romp staat met zijn rand door de wand de cabine in: een witte vlek linksonder na de landing.
+## Daarom vervagen ze vlak bij de camera (wie in de Mol zit, ziet ze niet binnen) en waar ze een
+## oppervlak raken (geen harde snede door de vloer of de wand). unshaded: de rook van de
+## stuwraketten (de gloed van de vlammen vlak ernaast blies hem anders wit op).
+func _outside_dust_quad(unshaded := false, size := 1.0) -> QuadMesh:
 	var q := _puff_quad()
-	(q.material as StandardMaterial3D).shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	q.size = Vector2(size, size)
+	var m := q.material as StandardMaterial3D
+	if unshaded:
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_PIXEL_ALPHA
+	m.distance_fade_min_distance = 2.5
+	m.distance_fade_max_distance = 5.0
+	m.proximity_fade_enabled = true
+	m.proximity_fade_distance = 1.2
 	return q
 
 
@@ -1051,13 +1069,14 @@ func _update_drop_fx(delta: float) -> void:
 	var gp := global_position
 	var h := gp.y - 2.73 - ground_y # rupsen boven de grond
 	# Stof dat de straal van de grond blaast.
-	var wash := over_ground and on and h < 28.0 and h > 3.0
+	# Tot aan de klap (de stofwolk is het laatste wat je van buiten ziet); vlak bij de grond het dikst.
+	var wash := over_ground and on and h < 28.0
 	_downwash.emitting = wash
 	if wash:
 		_downwash.visible = true
 		_downwash.global_position = Vector3(gp.x, ground_y + 0.3, gp.z)
-		_downwash.amount_ratio = clampf(thrust * (1.0 - h / 28.0) * 1.5, 0.15, 1.0)
-		(_downwash.draw_pass_1.surface_get_material(0) as StandardMaterial3D).albedo_color = Color(dust_color.lightened(0.25), 0.85)
+		_downwash.amount_ratio = clampf((1.0 - h / 28.0) * 1.6, 0.2, 1.0)
+		(_downwash.draw_pass_1.surface_get_material(0) as StandardMaterial3D).albedo_color = Color(dust_color.lightened(0.4), 1.0)
 	# Zachte schaduw: waar de zon hem zou werpen, tot de echte schaduw het overneemt (±60 m).
 	var sh_a := 0.5 * smoothstep(35.0, 75.0, h) * (1.0 - smoothstep(180.0, 330.0, h)) if over_ground else 0.0
 	_shadow.visible = sh_a > 0.01
@@ -1081,8 +1100,12 @@ func _update_drop_fx(delta: float) -> void:
 	var amp := deg_to_rad(2.4) * wob
 	var want := Vector3(amp * (0.8 * sin(_wobble_t * 2.3) + 0.35 * sin(_wobble_t * 5.3)), 0.0, amp * sin(_wobble_t * 1.7 + 0.6))
 	model.rotation = model.rotation.lerp(want, minf(1.0, delta * 4.0))
-	_sag_v += (-_sag * 140.0 - _sag_v * 11.0) * delta
-	_sag += _sag_v * delta
+	var left := minf(delta, 0.1) # veer in kleine stapjes (stabiel, ook bij een lang frame)
+	while left > 0.0:
+		var step := minf(left, 1.0 / 120.0)
+		_sag_v += (-_sag * 140.0 - _sag_v * 11.0) * step
+		_sag += _sag_v * step
+		left -= step
 	if absf(_sag) < 0.0005 and absf(_sag_v) < 0.005:
 		_sag = 0.0
 		_sag_v = 0.0
