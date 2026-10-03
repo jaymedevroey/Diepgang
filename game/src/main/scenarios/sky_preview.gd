@@ -277,6 +277,10 @@ func _views() -> void:
 	for k: float in [0.0, 0.5, 1.0]:
 		var p := mol + Vector3(0, lerpf(-4.0, 14.0, k), 30.0)
 		shots.append(["dropcam_k%d" % int(k * 10), p, mol + Vector3(0, lerpf(16.0, -4.0, k), 0) - Vector3(0, 0, 1) * lerpf(0.0, 14.0, k), 72.0])
+	# De achtervolgcamera van de val kijkt van boven 220 m bijna recht omlaag (±77°): fijn detail.
+	for h: float in [300.0, 220.0, 120.0]:
+		var p := land + Vector3(0.0, h, 30.0)
+		shots.append(["val_%03d" % int(h), p, p + Vector3(0.0, -h, -h / tan(deg_to_rad(77.0))), 72.0])
 	var mol2 := land + Vector3(0, 150.0, 0)
 	shots.append(["dropcam_150", mol2 + Vector3(0, 14, 30), mol2 + Vector3(0, -4, -14), 72.0])
 	# Ophalen: vaste camera op de grond (14, 1.7, 26) naast de Mol, die de Mol nakijkt.

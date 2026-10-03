@@ -33,6 +33,8 @@ const POST_SPACING := 16.0
 const SMALL_CRATER_CELL := 56.0
 const BIG_CRATER_CELL := 520.0
 const SKIRT := 30.0
+## Landingsplek in de rotsshader: straal van de aangestampte kern en waar ze helemaal terrein is (m).
+const LANDING_PAD := Vector2(11.0, 30.0)
 
 var terrain: TerrainAPI
 var is_built := false
@@ -77,6 +79,9 @@ func build(t: TerrainAPI, planet_seed: int) -> void:
 	_mesa.frequency = 0.00035
 	_mesa.fractal_type = FastNoiseLite.FRACTAL_FBM
 	_mesa.fractal_octaves = 2
+	# De landingsplek in de rotsshader: aangestampt in het midden, tot 30 m overgaand in het terrein
+	# (de vlakke plek van de generator is 22 m breed, met 20 m overgang).
+	t.terrain_material().set_shader_parameter("landing_pad", Vector4(c.x, c.z, LANDING_PAD.x, LANDING_PAD.y))
 	_place_craters()
 	_build_boundary()
 	# Het zware werk (±50k hoogtes) op een werkthread; de scène enkel op de hoofdthread.
