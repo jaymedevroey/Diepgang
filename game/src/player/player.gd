@@ -197,6 +197,8 @@ func _setup_local() -> void:
 func _on_mol_snapped(old_xf: Transform3D, new_xf: Transform3D) -> void:
 	if drop_cam.current:
 		drop_cam.on_mol_snapped() # overslaan: even zwart, het buitenbeeld begint opnieuw
+	elif _attached != null:
+		drop_cam.hold_black() # binnen meegesprongen: zwart tot de Mol er ook staat
 	var local := old_xf.affine_inverse() * global_position
 	if _attached != null:
 		local = _attached[0]
@@ -578,7 +580,8 @@ func _process(delta: float) -> void:
 ## enkel de eerste seconden (de Mol vertrekt van de grond), daarna terug naar binnen tot in de hub.
 ## Op de plek van de Mol, niet op zijn toestand: bij een client komt de sprong een tick na de toestand.
 func _update_drop_cam(mol: Mol, in_mol: bool) -> void:
-	var drop_shot := in_mol and mol.mode == Mol.Mode.DROPPING and not mol.in_hub()
+	# Pas naar buiten knippen als het lichaam van de Mol er ook staat (anders een beeld zonder Mol).
+	var drop_shot := in_mol and mol.mode == Mol.Mode.DROPPING and not mol.in_hub() and (drop_cam.current or drop_cam.mol_synced())
 	var want := drop_shot or in_mol and drop_cam.wants_lift_shot()
 	if want and not drop_cam.current:
 		drop_cam.activate()

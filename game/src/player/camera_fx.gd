@@ -43,8 +43,14 @@ func _process(delta: float) -> void:
 	_time += delta
 	var stiffness := Tuning.get_f("camera", "kick_stiffness", 180.0)
 	var damping := Tuning.get_f("camera", "kick_damping", 18.0)
-	_kick_vel += (-_kick * stiffness - _kick_vel * damping) * delta
-	_kick += _kick_vel * delta
+	# De veer in kleine stapjes: in één lang frame (laden, een screenshot, een hapering) ontplofte hij
+	# (stijfheid × delta > 2) en tolde de camera rond, tot NaN toe. Hooguit 0,1 s per frame meetellen.
+	var left := minf(delta, 0.1)
+	while left > 0.0:
+		var h := minf(left, 1.0 / 120.0)
+		_kick_vel += (-_kick * stiffness - _kick_vel * damping) * h
+		_kick += _kick_vel * h
+		left -= h
 
 	_trauma = maxf(0.0, _trauma - Tuning.get_f("camera", "trauma_decay", 1.6) * delta)
 	var shake := _trauma * _trauma * Tuning.get_f("camera", "screen_shake_scale", 1.0)
