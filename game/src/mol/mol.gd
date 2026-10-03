@@ -336,7 +336,10 @@ func _handle(sender: int, button: int, arg: float) -> void:
 				_rpc_message.rpc("Eerst een opdracht kiezen, aan de terminal in de hub.")
 			elif inside and mode == Mode.DOCKED and not game.terrain.is_loaded:
 				_rpc_message.rpc("De Ekster is nog onderweg naar de concessie. Even geduld.")
-			elif inside and mode == Mode.DOCKED and game.terrain.is_loaded:
+			elif inside and mode == Mode.DOCKED and not game.world_ready_everywhere():
+				# Een client die de nieuwe wereld nog bouwt, zou in het niets vallen.
+				_rpc_message.rpc("Nog niet iedereen is aangekomen boven de concessie. Even geduld.")
+			elif inside and mode == Mode.DOCKED:
 				countdown = Tuning.get_f("ship", "drop_countdown_s", 8.0)
 				_all_aboard_said = _all_aboard()
 				if _all_aboard_said:

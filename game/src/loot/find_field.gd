@@ -34,6 +34,7 @@ var _next_id := 0
 
 
 func generate(pit_seed: int) -> void:
+	var t_start := Time.get_ticks_msec()
 	var t: TerrainAPI = game.terrain
 	var rng := RandomNumberGenerator.new()
 	rng.seed = pit_seed * 7919 + 11
@@ -68,7 +69,7 @@ func generate(pit_seed: int) -> void:
 			var p := Vector3(rng.randf_range(8.0, size.x - 8.0), 0, rng.randf_range(8.0, size.z - 8.0))
 			p.y = rng.randf_range(6.0, t.surface_height_at(p.x, p.z) - 2.0)
 			return [p, -1])
-	print("[finds] %d vondsten geplaatst (seed %d)" % [items.size(), pit_seed])
+	print("[finds] %d vondsten geplaatst (seed %d) in %d ms" % [items.size(), pit_seed, Time.get_ticks_msec() - t_start])
 
 
 ## Eén vondst plaatsen. `where` geeft [positie, soort] terug (soort -1 = volgens de laag,

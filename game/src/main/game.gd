@@ -59,6 +59,7 @@ var ready_peers: Array[int] = [1]
 
 var _pending_spawns: Array = [] # client: spawns die binnenkomen voor het terrein geladen is
 var _join_queue: Array[int] = [] # host: aanvragen voor de eigen wereld geladen is
+var _world_seed_of := {} # host: peer -> seed van de wereld die bij die peer geladen is
 var _color_of: Dictionary = {} # host: peer_id -> kleurindex
 var _tuning_dirty := false
 var _tuning_timer := 0.0
@@ -193,6 +194,8 @@ func _rebuild_world(seed_value: int) -> void:
 			old.queue_free()
 	finds.clear()
 	ores.clear()
+	if mol:
+		mol.sonar.reset() # oude contacten wijzen naar vondsten die niet meer bestaan
 	_build_terrain([])
 	for p: Player in players.get_children():
 		p.on_new_world()
@@ -249,6 +252,24 @@ func _on_terrain_loaded(stats: Dictionary) -> void:
 	_pending_spawns.clear()
 	if not Net.is_host():
 		_rpc_peer_ready.rpc_id(1)
+		_rpc_world_ready.rpc_id(1, pit_seed)
+
+
+## Host: heeft iedereen die meespeelt de huidige wereld geladen? (Pas dan mag de Mol droppen,
+## anders valt een client in een wereld die er bij hem nog niet is.)
+func world_ready_everywhere() -> bool:
+	if not is_loaded:
+		return false
+	for id in multiplayer.get_peers():
+		if ready_peers.has(id) and int(_world_seed_of.get(id, -1)) != pit_seed:
+			return false
+	return true
+
+
+@rpc("any_peer", "reliable")
+func _rpc_world_ready(seed_value: int) -> void:
+	if multiplayer.is_server():
+		_world_seed_of[multiplayer.get_remote_sender_id()] = seed_value
 
 
 @rpc("any_peer", "reliable")
@@ -325,6 +346,7 @@ func _on_peer_left(id: int) -> void:
 		return
 	_color_of.erase(id)
 	ready_peers.erase(id)
+	_world_seed_of.erase(id)
 	finds.drop_all_of(id)
 	_despawn(id)
 	for peer in multiplayer.get_peers():

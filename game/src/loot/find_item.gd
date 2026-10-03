@@ -16,6 +16,10 @@ var carriers := PackedInt32Array()
 var last_safe := Vector3.ZERO
 var stuck_time := 0.0
 
+## Botsvorm per soort, gedeeld: een convexe vorm maken (met vereenvoudigen) kost ±45 ms, en een
+## nieuwe wereld heeft ±160 vondsten (dat bevroor het spel 8–12 s na het kiezen van een opdracht).
+static var _shapes := {}
+
 # Clients: posities van de host, geïnterpoleerd (100 ms achter).
 var _snapshots: Array = [] # [ontvangsttijd ms, Transform3D]
 var _mesh: MeshInstance3D
@@ -42,7 +46,9 @@ func setup(id: int, kind_value: FindKinds.Kind) -> void:
 		_mesh.set_surface_override_material(i, mats[i])
 	add_child(_mesh)
 	var cs := CollisionShape3D.new()
-	cs.shape = mesh.create_convex_shape(true, true)
+	if not _shapes.has(kind):
+		_shapes[kind] = mesh.create_convex_shape(true, true)
+	cs.shape = _shapes[kind]
 	add_child(cs)
 	half_extents = mesh.get_aabb().size * 0.5
 

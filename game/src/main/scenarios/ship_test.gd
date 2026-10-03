@@ -78,12 +78,12 @@ func _run(p: Player) -> void:
 		_expect(arrived and absf(local.y - (leg[1] as Vector3).y) < 0.1,
 				"te voet naar %s (op %.2f m, verwacht %.2f m)" % [leg[0], local.y, (leg[1] as Vector3).y])
 		if leg[1] == use:
-			# Aan de terminal: kijken naar de tafel, E.
-			p.rotation.y = 0.0
+			# Aan de terminal: kijken zoals het lege punt kijkt (−z, naar de tafel), E.
+			p.rotation.y = (ship.anchors["Terminal_Use"] as Node3D).global_rotation.y
 			p.head.rotation.x = 0.0
 			await get_tree().physics_frame
 			var knob := p.aimed_interactable()
-			_expect(knob != null and knob.hint == "E: opdrachtterminal", "aan de terminal: E opent de opdrachten (%s)" % (knob.hint if knob else "niets"))
+			_expect(knob != null and knob == ship.terminal_button(), "aan de terminal: E opent de opdrachten (%s)" % (knob.hint if knob else "niets"))
 			if knob:
 				knob.used.emit(p)
 				await get_tree().process_frame

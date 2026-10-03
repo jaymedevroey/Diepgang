@@ -156,7 +156,7 @@ func _host_choose(index: int) -> void:
 	contract = options[index]
 	_broadcast()
 	game.host_new_world(int(contract.seed))
-	game.notice_all("Opdracht: %s (risico %s). De Ekster vliegt erheen, de Mol staat klaar." % [contract.name, RISK_NAMES[int(contract.risk)]], "info")
+	game.notice_all("Opdracht gekozen: %s (risico %s)." % [contract.name, RISK_NAMES[int(contract.risk)]], "info")
 	_save()
 
 

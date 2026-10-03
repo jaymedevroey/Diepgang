@@ -56,6 +56,13 @@ func _init() -> void:
 	_rng.randomize()
 
 
+## Nieuwe wereld: de vondsten van de vorige bestaan niet meer (en hun id's worden hergebruikt).
+func reset() -> void:
+	contacts.clear()
+	_ping_hit.clear()
+	_target_id = -1
+
+
 ## Eén stap. `origin`: transform van de Mol. `inside`: vondsten in de Mol tellen niet (laadruim).
 func update(delta: float, origin: Transform3D, items: Array, inside: Callable) -> void:
 	range_m = Tuning.get_f("mol", "sonar_range", 12.0)
@@ -97,8 +104,8 @@ func update(delta: float, origin: Transform3D, items: Array, inside: Callable) -
 			continue
 		if c == null:
 			c = Contact.new()
-			c.item = it
 			contacts[it.find_id] = c
+		c.item = it
 		c.size = size_of(it)
 		var spread := (Tuning.get_f("mol", "sonar_jitter", 0.5) + Tuning.get_f("mol", "sonar_jitter_per_m", 0.05) * dist) \
 				* (1.0 + noise * Tuning.get_f("mol", "sonar_noise_jitter", 2.0))
@@ -135,8 +142,8 @@ func _ping_echo(it: FindItem, dist: float, age: float) -> void:
 	var c: Contact = contacts.get(it.find_id)
 	if c == null:
 		c = Contact.new()
-		c.item = it
 		contacts[it.find_id] = c
+	c.item = it
 	c.size = size_of(it)
 	var spread := Tuning.get_f("mol", "sonar_ping_jitter", 0.15) + Tuning.get_f("mol", "sonar_ping_jitter_per_m", 0.01) * dist
 	c.echo = it.global_position + Vector3(_rng.randfn(0.0, 1.0), _rng.randfn(0.0, 0.5), _rng.randfn(0.0, 1.0)) * spread * 0.5
@@ -173,6 +180,8 @@ func brightness(c: Contact) -> float:
 
 ## Telt de echo nog mee voor het doel? (uit de laatste één à twee vegen, of van een recente PING)
 func _alive(c: Contact) -> bool:
+	if not is_instance_valid(c.item):
+		return false
 	return c.age <= maxf(_period * 1.6, c.decay * 1.2 if c.sharp else 0.0)
 
 

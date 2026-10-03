@@ -2,6 +2,23 @@
 
 Wat we onderweg leerden en wat het GDD bijstuurt. Nieuwste bovenaan.
 
+## 2026-10-03 — Kritische ronde: interieur en drop (vijf agents: art, level, cine, horizon, QA)
+
+- **Eerst onderzoeken met beelden, dan pas bouwen.** Een opnamescenario (`drop_sequence`) legde de hele overgang vast (terminal → kiezen → aftellen → val → landing → besturing, plus vaste camera's op 340/160/60 m). Pas daarmee werd "het grote vierkant" meetbaar: het verre landschap hield op 492–696 m van de landingsplek op, en van hoger dan ±55 m zag je de hemel eronder.
+- **Het vierkant was geen mistprobleem.** Oorzaak: eindig, plat terrein tegen een gebogen hemelhorizon, plus twee verschillende mistmodellen. Mist alleen had ≥95 % nodig op 600 m en had dan ook de landingsplek begraven. Opgelost met een verre ring tot 6,5 km die met de planeet meebuigt (o²/2R), en een automatische controle "geen hemel onder de horizonlijn" (`sky_preview --horizon`).
+- **De witte lijn rond het speelgebied** was de hemel door een kier van 0,5 m: de rok stond verkeerd om, en Godot telt kloksgewijs als voorkant.
+- **Grote seeds breken shaderruis**: een seed van ±762.000 × 7,31 past niet in 32-bit floats, en het voronoi-patroon werd een regelmatig raster op de landingsplek.
+- **Na een sprong de gezette plek van de Mol lezen (`Mol.placed`), niet zijn body**: de buitencamera stond één beeld lang 1,4 km verderop, in de hub. Dat gebeurde bij iedereen, ook bij de host.
+- **`pow()` van een licht negatief getal geeft NaN**; in een additieve shader werd dat een witte bol door de gloed.
+- **Eén convexe botsvorm per vondst kostte ±45 ms**: 158 vondsten bevroren het spel 8–12 s na het kiezen van een opdracht. Nu één vorm per soort, gedeeld (0,46 s).
+- **Sonarcontacten overleven een nieuwe wereld niet**: de id's worden hergebruikt en wezen naar vrijgegeven vondsten (honderden fouten per seconde). `Sonar.reset()` bij een nieuwe wereld.
+- **Een capsule blijft hangen in de hoek tussen een helling en een deurstijl.** Robots liepen van de gang schuin naar de terminal en bleven daar vastzitten. Opgelost door de plek van de terminal te verplaatsen, de stijl af te schuinen en de botsvorm van de muur vlak te maken. Getest met echte invoer en de fysica, vanuit zes richtingen.
+- **E-knoppen keken door muren** (de straal botste niet tegen de hub). Nu een zichtlijncontrole.
+- **Een drop moet op een speler wachten die de wereld nog bouwt**, anders valt die client in het niets (`Game.world_ready_everywhere()`).
+- **Opnames rekken de speltijd** (10–47 fps tijdens het opslaan). Duur dus altijd in speltijd meten, nooit uit de tijd in de bestandsnamen.
+- **De gebruikslimiet stopte alle vijf agents tegelijk.** Ze verder laten gaan met SendMessage werkte zonder werk te verliezen: elk had zijn eigen worktree.
+- **Elk horizontaal onderdeel toetsen aan ooghoogte (vloer + 1,2 m)**: de balk onder het terminalscherm sneed het beeld bij de belangrijkste handeling precies doormidden.
+
 ## 2026-10-03 — De binnenkant van De Ekster (met vijf agents)
 
 - **Wacht met bouwen tot het onderzoek af is, en toon eerst de plattegrond.** Ronde 2 (gebouwd vóór het onderzoek klaar was) kreeg een onnodig hoge hangar van 16 m. Ronde 3 ging plan → blokmodel → details, en het plan werd in één keer goedgekeurd.
