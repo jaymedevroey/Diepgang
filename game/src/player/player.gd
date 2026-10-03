@@ -245,6 +245,11 @@ func _unseat() -> void:
 
 ## Knop, hendel of rail onder het vizier (niet door een muur heen), of null.
 ## In de stoel telt de stoel zelf niet (E is daar uitstappen).
+## Het schip en de Mol (laag LIFT) zitten niet in de straal (dan raakte hij de meubels waar de
+## knoppen op staan); daarom een tweede straal: staat er een wand van het schip of de Mol
+## duidelijk vóór de knop, dan telt hij niet (geen prompt door een deurstijl of een toonbank).
+const SIGHT_MARGIN := 0.12
+
 func aimed_interactable() -> Interactable:
 	var from := camera.global_position
 	var hit: Dictionary = game.terrain.raycast(from, from - camera.global_basis.z * 3.0,
@@ -252,6 +257,11 @@ func aimed_interactable() -> Interactable:
 	var it := hit.collider as Interactable if not hit.is_empty() else null
 	if it and seated and it.get_meta("mol_cmd", -1) == Mol.Cmd.SEAT:
 		return null
+	if it:
+		var at: Vector3 = hit.position
+		var wall: Dictionary = game.terrain.raycast(from, at, Layers.LIFT)
+		if not wall.is_empty() and from.distance_to(wall.position) < from.distance_to(at) - SIGHT_MARGIN:
+			return null
 	return it
 
 

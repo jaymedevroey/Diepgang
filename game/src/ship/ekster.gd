@@ -33,20 +33,32 @@ const CONTRACT := ["Mol_Dock", "Spawn_0", "Spawn_1", "Spawn_2", "Spawn_3", "BayD
 const DOOR_OPEN_DEG := 100.0
 ## Dikte van de botsvorm van een dicht luik (bovenkant gelijk met de hangarvloer, y = 0).
 const DOOR_THICKNESS := 0.3
+## Een luik botst mee met wat je ziet (de doos draait met de luikhelft om het scharnier). Pas als
+## het steiler hangt dan dit, valt de botsvorm weg: daar staat niemand meer op (glijdt eraf), en
+## wie door de baai valt, blijft niet haken aan een luik dat onder de vloer hangt.
+const DOOR_SOLID_MAX_DEG := 60.0
 ## Lege punten die enkel voor de previews in het model zitten.
 const PREVIEW_ONLY := ["Sign_", "Cam_", "Look_"]
-## Wat je ziet als je mikt op iets dat er nog niet is (geen ": " erin: de HUD knipt daar).
+## Wat je ziet als je mikt op iets dat er nog niet is: [titel, gedempte regel eronder]. Geen
+## "E:" in de titel (er gebeurt niets) en geen ": " (de HUD knipt daar).
 const HINTS := {
-	"Appraisal_Gate": "Taxatie komt binnenkort · alles wordt na de dienst vanzelf verkocht",
-	"Sell_Hatch": "Verkoopluik komt later · verkopen gaat nu vanzelf na de dienst",
-	"Vending": "Automaat (komt later)",
-	"Locker": "Kast en spuitcabine (komt later)",
-	"Niche_Tools": "Gereedschap (upgrades komen later)",
-	"Niche_Supply": "Uitgifte (upgrades komen later)",
-	"Niche_Free_A": "Lege nis",
-	"Niche_Free_B": "Lege nis",
-	"Mol_Werf": "Mol-werf (upgrades voor de Mol komen later)",
+	"Appraisal_Gate": ["Taxatiepoort · buiten dienst", "DIG taxeert en verkoopt je buit na de dienst zelf"],
+	"Sell_Hatch": ["Verkoopluik · gesloten", "verkopen gaat na de dienst vanzelf (tegen onze prijs)"],
+	"Vending": ["DIG-automaat · leeg", "bevoorrading volgt · geen terugbetaling"],
+	"Locker": ["Spuitcabine · verf op eigen kosten", "kleuren kiezen komt later"],
+	"Niche_Tools": ["Gereedschap · upgrades", "komt in een latere versie"],
+	"Niche_Supply": ["Uitgifte · loket gesloten", "open di 10:00–10:05 (komt later)"],
+	"Niche_Free_A": ["In aanbouw", "hier komt later iets"],
+	"Niche_Free_B": ["Binnenkort", "hier komt later iets"],
+	"Mol_Werf": ["Mol-werf · upgrades voor de Mol", "komt in een latere versie"],
 }
+## Volgorde van de laadcapsules bij het spawnen: de eerste speler in capsule 02 (midden, zicht door
+## de boog naar BRUG · OPDRACHTEN), dan 03 ("DEFECT"), 01, 04.
+const SPAWN_ORDER := [1, 2, 0, 3]
+## Diepte van een uitlegbox voor een meubel (m), en hoe ver ervoor (geen botsvorm erin: de
+## interactiestraal kijkt of er een wand tussen zit).
+const HINT_DEPTH := 0.3
+const HINT_GAP := 0.03
 
 var game: Node # Game
 var model: Node3D
@@ -64,8 +76,11 @@ var bay := AABB()
 
 var _doors: Array[Node3D] = []
 var _door_shapes: Array[CollisionShape3D] = []
+## Per luik: de botsdoos t.o.v. de luikhelft (zodat hij meedraait).
+var _door_shape_rel: Array[Transform3D] = []
 var _rooms: Array[AABB] = []
 var _dock_local := Vector3.ZERO
+var _terminal_button: Interactable
 
 
 func _ready() -> void:
@@ -107,11 +122,34 @@ func contains(world: Vector3) -> bool:
 	return false
 
 
-## Boven de open baai (wie hier staat als de luiken opengaan, valt).
-func over_bay(world: Vector3) -> bool:
+## Boven de open baai (wie hier staat als de luiken opengaan, valt). `margin`: zoveel meter rond de
+## opening meetellen (bv. om te waarschuwen wie aan de rand staat).
+func over_bay(world: Vector3, margin := 0.0) -> bool:
 	var l := global_transform.affine_inverse() * world
-	return l.x > bay.position.x and l.x < bay.end.x and l.z > bay.position.z and l.z < bay.end.z \
-			and l.y < 1.0 and l.y > -4.0
+	return l.x > bay.position.x - margin and l.x < bay.end.x + margin and l.z > bay.position.z - margin \
+			and l.z < bay.end.z + margin and l.y < 1.0 and l.y > -4.0
+
+
+## Naam van de plek in het schip (voor de HUD), of "" buiten het schip. Grenzen uit layout.py.
+func zone_at(world: Vector3) -> String:
+	if not contains(world):
+		return ""
+	var p := global_transform.affine_inverse() * world + PLAN_ORIGIN # plancoördinaten
+	if p.z >= 40.0:
+		return "LAADREK"
+	if p.z >= 30.0:
+		return "WERKDEK"
+	if p.z >= 26.0:
+		return "GANG"
+	if p.z >= 21.0 and p.y > 0.9:
+		return "BRUG"
+	if p.x >= 16.0 and p.y > 0.9:
+		return "GALERIJ"
+	if p.x >= 12.0 and p.z < 2.6 and p.y < -0.3:
+		return "UITKIJKPUT"
+	if p.z >= 16.0:
+		return "KADE"
+	return "HANGAR"
 
 
 ## Waar de Mol in de baai staat (as van de Mol, zoals Mol.body).
@@ -119,9 +157,21 @@ func dock_transform() -> Transform3D:
 	return (anchors["Mol_Dock"] as Node3D).global_transform
 
 
-## Spawnplek nummer `idx` (in het laadrek, kijkend naar voren).
+## Spawnplek nummer `idx` (in het laadrek, kijkend naar voren), in de volgorde van SPAWN_ORDER.
 func spawn_point(idx: int) -> Vector3:
-	return (anchors["Spawn_%d" % (idx % 4)] as Node3D).global_position
+	return (anchors["Spawn_%d" % SPAWN_ORDER[posmod(idx, 4)]] as Node3D).global_position
+
+
+## De opdrachtterminal (E-knop), of null.
+func terminal_button() -> Interactable:
+	return _terminal_button
+
+
+## Waar de HUD naar wijst voor de terminal: boven de tafel (wereldruimte).
+func terminal_target() -> Vector3:
+	if _terminal_button:
+		return (_terminal_button.get_child(0) as Node3D).global_position
+	return anchor_position("Terminal_Use") if anchors.has("Terminal_Use") else global_position
 
 
 ## Namen uit het contract die niet in het model zitten (leeg = alles in orde).
@@ -139,14 +189,23 @@ func anchor_position(anchor_name: String) -> Vector3:
 
 
 func _process(delta: float) -> void:
+	_update_terminal_hint()
 	var target := 1.0 if doors_open else 0.0
 	if not is_equal_approx(door_amount, target):
 		door_amount = move_toward(door_amount, target, delta / 2.2)
 		var a := deg_to_rad(DOOR_OPEN_DEG) * _ease(door_amount)
 		_doors[0].rotation.z = -a
 		_doors[1].rotation.z = a
-		for cs in _door_shapes:
-			cs.disabled = door_amount > 0.02
+		# De botsdozen volgen de luiken: wie erop staat, zakt mee en glijdt eraf als het te steil
+		# wordt, en valt pas door de baai als er echt een opening is (niet door een dicht ogend luik).
+		for i in _door_shapes.size():
+			_door_shapes[i].transform = _local(_doors[i]) * _door_shape_rel[i]
+			_door_shapes[i].disabled = a > deg_to_rad(DOOR_SOLID_MAX_DEG)
+
+
+## Hoe ver de luiken nu open staan (graden, 0 = dicht), zoals je ze ziet.
+func door_angle_deg() -> float:
+	return DOOR_OPEN_DEG * _ease(door_amount)
 
 
 static func _ease(x: float) -> float:
@@ -205,8 +264,8 @@ func _build_collision() -> void:
 	cs.shape = col.mesh.create_trimesh_shape()
 	body.add_child(cs)
 	cs.transform = _local(col)
-	# Luiken (dicht): een doos per helft, met de bovenkant gelijk met de hangarvloer; open =
-	# uitgeschakeld (wie erop staat, valt). De opening van de baai volgt uit de luiken zelf.
+	# Luiken: een doos per helft, met de bovenkant gelijk met de hangarvloer als ze dicht zijn; ze
+	# draaien mee met de luikhelft (zie _process). De opening van de baai volgt uit de luiken zelf.
 	bay = AABB()
 	for i in _doors.size():
 		var door: MeshInstance3D = _doors[i]
@@ -220,12 +279,16 @@ func _build_collision() -> void:
 		ds.position = Vector3(box.get_center().x, -DOOR_THICKNESS * 0.5, box.get_center().z)
 		body.add_child(ds)
 		_door_shapes.append(ds)
+		_door_shape_rel.append(_local(door).affine_inverse() * ds.transform)
 
 
 ## Lampen uit de lege punten van het model, met een klein budget: geen schaduw, op één na (het
 ## licht door het grote raam). Lamp_ = warm, rondom; Glow_RRGGBB_ = rondom in die kleur;
 ## Spot_RRGGBB_ = recht naar beneden. Lamp_ en Spot_ hangen aan het plafond: hoe hoger (y t.o.v.
 ## de hangarvloer), hoe verder en sterker (het licht valt af met 1/afstand). Ook voor interior_preview.
+## Optioneel na de kleur (tokens, zie _tokens): e = sterkte ×10, r = bereik (m), a = kegelhoek (°),
+## v = gloed in de mist ×10; bv. "Spot_cfeaff_e25_a22_v3_12" of "Glow_ffb060_e8_r5_3".
+## Zonder tokens gelden de standaardwaarden hieronder.
 static func add_lights(root: Node3D) -> void:
 	for n: Node3D in root.find_children("Lamp_*", "Node3D", true, false):
 		var o := OmniLight3D.new()
@@ -236,19 +299,23 @@ static func add_lights(root: Node3D) -> void:
 		n.add_child(o)
 	for n: Node3D in root.find_children("Glow_*", "Node3D", true, false):
 		var g := OmniLight3D.new()
+		var t := _tokens(n.name)
 		g.light_color = _hex_of(n.name, Color(1.0, 0.7, 0.4))
-		g.light_energy = 1.4
-		g.omni_range = 7.0
+		g.light_energy = t.get("e", 14.0) / 10.0
+		g.omni_range = t.get("r", 7.0)
 		_quiet(g)
+		g.light_volumetric_fog_energy = t.get("v", 0.0) / 10.0
 		n.add_child(g)
 	for n: Node3D in root.find_children("Spot_*", "Node3D", true, false):
 		var s := SpotLight3D.new()
+		var t := _tokens(n.name)
 		s.light_color = _hex_of(n.name, Color(0.8, 0.9, 1.0))
-		s.light_energy = 0.35 * maxf(n.position.y, 2.0)
-		s.spot_range = maxf(n.position.y * 1.5, 5.0)
-		s.spot_angle = 35.0
+		s.light_energy = t.get("e", 3.5 * maxf(n.position.y, 2.0)) / 10.0
+		s.spot_range = t.get("r", maxf(n.position.y * 1.5, 5.0))
+		s.spot_angle = t.get("a", 35.0)
 		s.spot_angle_attenuation = 0.8
 		_quiet(s)
+		s.light_volumetric_fog_energy = t.get("v", 0.0) / 10.0
 		n.add_child(s)
 		s.rotation = Vector3(-PI / 2.0, 0.0, 0.0)
 	# Het grote raam: koel licht van buiten, schuin naar binnen, met de schaduw van de stijlen.
@@ -275,6 +342,18 @@ static func _quiet(l: Light3D) -> void:
 	l.light_volumetric_fog_energy = 0.0
 
 
+## Tokens uit een lampnaam: "Spot_cfeaff_e25_a22_v3_12" → {"e": 25, "a": 22, "v": 3}. Een token is
+## één letter (e, r, a, v) gevolgd door cijfers; de kleur en het volgnummer tellen niet mee.
+static func _tokens(node_name: String) -> Dictionary:
+	var out := {}
+	var parts := node_name.split("_")
+	for i in range(2, parts.size()):
+		var p := parts[i]
+		if p.length() >= 2 and p[0] in ["e", "r", "a", "v"] and p.substr(1).is_valid_int():
+			out[p[0]] = float(p.substr(1).to_int())
+	return out
+
+
 ## Kleur uit een naam als "Glow_ffb060_18".
 static func _hex_of(node_name: String, fallback: Color) -> Color:
 	var parts := node_name.split("_")
@@ -296,22 +375,65 @@ func _build_screens() -> void:
 
 ## E-knop op de terminal; op de rest een korte uitleg (dat komt later). Een leeg punt kijkt met
 ## −z naar het ding (zoals de spawnplekken naar voren kijken), de knop staat daar voor je.
+## De interactiestraal kijkt of er een wand van het schip tussen zit (Player.aimed_interactable):
+## een box mag dus niet in een meubel steken, anders zie je hem niet. Daarom staat de uitlegbox
+## net vóór het eerste vlak van de botsvorm dat het punt voor zich heeft.
 func _build_buttons() -> void:
 	if anchors.has("Terminal_Use"):
 		var term_shape := BoxShape3D.new()
 		term_shape.size = Vector3(2.4, 1.6, 1.0)
-		var term := Interactable.make("E: opdrachtterminal", term_shape)
+		var term := Interactable.make("E: opdracht kiezen", term_shape)
 		term.name = "TerminalButton"
 		(anchors["Terminal_Use"] as Node3D).add_child(term)
 		term.position = Vector3(0.0, 1.2, -0.9)
 		term.used.connect(func(p: Player) -> void: game.ship_terminal_used(p))
+		_terminal_button = term
+	var col: MeshInstance3D = anchors["Collision"]
+	var tri := col.mesh.generate_triangle_mesh()
 	for n: String in HINTS:
 		if not anchors.has(n):
 			continue
 		var shape := BoxShape3D.new()
-		# De taxatiepoort: het midden van de poort, van alle kanten.
-		shape.size = Vector3(1.6, 2.4, 1.6) if n == "Appraisal_Gate" else Vector3(1.4, 1.8, 1.0)
-		var it := Interactable.make(HINTS[n], shape)
+		var it := Interactable.make(HINTS[n][0], shape, HINTS[n][1])
 		it.name = n + "Hint"
 		(anchors[n] as Node3D).add_child(it)
-		it.position = Vector3(0.0, 1.3, 0.0) if n == "Appraisal_Gate" else Vector3(0.0, 1.1, -0.75)
+		if n == "Appraisal_Gate":
+			# De taxatiepoort: het midden van de poort, van alle kanten (de opening is vrij).
+			shape.size = Vector3(1.6, 2.4, 1.6)
+			it.position = Vector3(0.0, 1.3, 0.0)
+			continue
+		var d := _free_ahead(anchors[n], col, tri)
+		shape.size = Vector3(1.4, 1.8, HINT_DEPTH)
+		it.position = Vector3(0.0, 1.1, -(d - HINT_GAP - HINT_DEPTH * 0.5))
+
+
+## Vrije ruimte (m) voor een leeg punt langs zijn −z tot het eerste vlak van de botsvorm, gemeten
+## op drie hoogtes (een toonbank, een werkbank, een wand); hooguit 1,3 m.
+func _free_ahead(anchor: Node3D, col: MeshInstance3D, tri: TriangleMesh) -> float:
+	var a := _local(anchor)
+	var to_mesh := _local(col).affine_inverse()
+	var best := 1.3
+	for h: float in [0.5, 1.0, 1.5]:
+		var from := a * Vector3(0.0, h, 0.0)
+		var dir := (a.basis * Vector3(0.0, 0.0, -1.0)).normalized()
+		var hit: Dictionary = tri.intersect_ray(to_mesh * from, (to_mesh.basis * dir).normalized())
+		if not hit.is_empty():
+			best = minf(best, (_local(col) * (hit.position as Vector3)).distance_to(from))
+	return maxf(best, HINT_DEPTH + HINT_GAP + 0.05)
+
+
+## De terminalknop zegt wat E nu doet (kiezen, iets anders kiezen, of de Mol is weg).
+func _update_terminal_hint() -> void:
+	if _terminal_button == null or game == null or game.company == null:
+		return
+	var c: Company = game.company
+	var docked: bool = game.mol == null or game.mol.mode == Mol.Mode.DOCKED
+	if not docked:
+		_terminal_button.hint = "E: opdrachten bekijken"
+		_terminal_button.sub = "de Mol is onderweg · kiezen kan als hij terug is"
+	elif c.contract_ready():
+		_terminal_button.hint = "E: andere opdracht kiezen"
+		_terminal_button.sub = "gekozen: %s" % str(c.contract.get("name", ""))
+	else:
+		_terminal_button.hint = "E: opdracht kiezen"
+		_terminal_button.sub = ""

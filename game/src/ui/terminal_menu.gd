@@ -2,7 +2,14 @@ class_name TerminalMenu
 extends Control
 ## De opdrachtterminal in de hub (E op de terminal): de stand van de firma (kas, reputatie,
 ## kwartaal, quota) en drie opdrachten om uit te kiezen. Kiezen kan iedereen; de host beslist
-## (Company). Het spel loopt door; Esc of SLUITEN sluit.
+## (Company). Na een keuze: een bevestiging ("KOERS GEZET NAAR …") en het menu sluit vanzelf; de
+## HUD zegt daarna wat er gebeurt (De Ekster vliegt erheen, dan naar de Mol). Het spel loopt door;
+## Esc, E of SLUITEN sluit.
+
+## Zo lang blijft de bevestiging staan voor het menu vanzelf sluit (s).
+const CONFIRM_S := 1.4
+## Zo lang wachten we (client) op het antwoord van de host voor we zeggen dat er niets kwam (s).
+const ANSWER_S := 6.0
 
 var company: Company
 var _status: Label
@@ -10,6 +17,13 @@ var _quota_bar: ProgressBar
 var _quota_label: Label
 var _cards: HBoxContainer
 var _note: Label
+var _confirm: Label
+## Opdracht die we kozen en waar we op wachten (index), of −1.
+var _pending := -1
+var _pending_at := 0.0
+## Seconden tot het menu na de bevestiging sluit (0 = niet aan het sluiten). Telt per frame met
+## een plafond: kiezen bouwt de nieuwe wereld, en die eerste lange frame telt niet mee.
+var _closing_left := 0.0
 
 
 func _ready() -> void:
@@ -62,8 +76,16 @@ func _ready() -> void:
 	_cards = HBoxContainer.new()
 	_cards.add_theme_constant_override("separation", 16)
 	col.add_child(_cards)
+	# Bevestiging na een keuze (groot, geel), daaronder de uitleg.
+	_confirm = Label.new()
+	_confirm.add_theme_font_override("font", UiTheme.heading())
+	_confirm.add_theme_font_size_override("font_size", 30)
+	_confirm.add_theme_color_override("font_color", UiTheme.YELLOW)
+	_confirm.visible = false
+	col.add_child(_confirm)
 	_note = Label.new()
 	_note.theme_type_variation = &"Caption"
+	_note.add_theme_font_size_override("font_size", 18)
 	_note.autowrap_mode = TextServer.AUTOWRAP_WORD
 	col.add_child(_note)
 	var close_b := Button.new()
@@ -78,9 +100,18 @@ func _ready() -> void:
 func open(c: Company) -> void:
 	if company != c:
 		if company:
-			company.changed.disconnect(_refresh)
+			company.changed.disconnect(_on_company_changed)
+			var old_mol: Mol = company.game.mol
+			if old_mol and old_mol.mode_changed.is_connected(_on_mol_mode):
+				old_mol.mode_changed.disconnect(_on_mol_mode)
 		company = c
-		company.changed.connect(_refresh)
+		company.changed.connect(_on_company_changed)
+	var mol: Mol = company.game.mol
+	if mol and not mol.mode_changed.is_connected(_on_mol_mode):
+		mol.mode_changed.connect(_on_mol_mode)
+	_pending = -1
+	_closing_left = 0.0
+	_confirm.visible = false
 	visible = true
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	Sfx.ui("open")
@@ -91,14 +122,66 @@ func close() -> void:
 	if not visible:
 		return
 	visible = false
+	_pending = -1
+	_closing_left = 0.0
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	Sfx.ui("back")
 
 
 func _input(event: InputEvent) -> void:
-	if visible and event.is_action_pressed("ui_cancel"):
+	if not visible:
+		return
+	# Esc of nog eens E: sluiten (E is ook waarmee je het menu opende).
+	if event.is_action_pressed("ui_cancel") or event.is_action_pressed("interact"):
 		close()
 		get_viewport().set_input_as_handled()
+
+
+func _process(delta: float) -> void:
+	if not visible:
+		return
+	var now := Time.get_ticks_msec() / 1000.0
+	if _closing_left > 0.0:
+		_closing_left -= minf(delta, 0.05)
+		if _closing_left <= 0.0:
+			close()
+	elif _pending >= 0 and now - _pending_at > ANSWER_S:
+		# De host antwoordde niet met deze opdracht (de Mol vertrok, of iemand anders koos).
+		_pending = -1
+		_note.text = "Geen bevestiging van de host: misschien vertrok de Mol net, of koos iemand anders. Probeer opnieuw."
+		_note.add_theme_color_override("font_color", UiTheme.DANGER)
+
+
+func _on_company_changed() -> void:
+	if _pending >= 0 and company.contract_ready() and _pending < company.options.size() \
+			and company.contract == company.options[_pending]:
+		_pending = -1
+		_confirm.text = "KOERS GEZET NAAR %s" % str(company.contract.name)
+		_confirm.visible = true
+		_closing_left = CONFIRM_S
+		Sfx.ui("toast")
+	_refresh()
+
+
+func _on_mol_mode(_mode: int) -> void:
+	_refresh()
+
+
+func _choose(index: int) -> void:
+	var mol: Mol = company.game.mol
+	if mol == null or mol.mode != Mol.Mode.DOCKED:
+		_note.text = "Kan nu niet: de Mol staat niet in de baai."
+		_note.add_theme_color_override("font_color", UiTheme.DANGER)
+		Sfx.ui("back")
+		return
+	if company.contract == company.options[index]:
+		return
+	Sfx.ui("click")
+	_pending = index
+	_pending_at = Time.get_ticks_msec() / 1000.0
+	_note.text = "Doorgegeven aan de brug…"
+	_note.remove_theme_color_override("font_color")
+	company.choose(index)
 
 
 func _refresh() -> void:
@@ -114,14 +197,19 @@ func _refresh() -> void:
 	_quota_bar.max_value = maxf(1.0, q)
 	_quota_bar.value = clampf(c.earned, 0.0, q)
 	for child in _cards.get_children():
+		_cards.remove_child(child)
 		child.queue_free()
 	for i in c.options.size():
 		_cards.add_child(_option_card(i, c.options[i], c.contract == c.options[i]))
-	var docked: bool = c.game.mol and c.game.mol.mode == Mol.Mode.DOCKED
+	if _pending >= 0:
+		return # "Doorgegeven…" blijft staan tot de host antwoordt
+	_note.remove_theme_color_override("font_color")
+	var mol: Mol = c.game.mol
+	var docked: bool = mol != null and mol.mode == Mol.Mode.DOCKED
 	if not docked:
 		_note.text = "De Mol is op weg. Opdrachten kiezen kan als hij terug in de baai staat."
 	elif c.contract_ready():
-		_note.text = "Gekozen: %s. Stap in de Mol en trek aan de hendel om te droppen." % c.contract.name
+		_note.text = "Gekozen: %s. Stap in de Mol en trek aan de hendel (VERTREK) om te droppen." % c.contract.name
 	else:
 		_note.text = "Kies een opdracht. Meer risico = meer opbrengst, maar het magma stijgt sneller."
 
@@ -131,6 +219,18 @@ func _option_card(index: int, o: Dictionary, chosen: bool) -> Control:
 	var p := PanelContainer.new()
 	p.theme_type_variation = &"Card"
 	p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	if chosen:
+		# De gekozen opdracht valt op: gele rand.
+		var hl := StyleBoxFlat.new()
+		hl.bg_color = UiTheme.ANTHRACITE_HI
+		hl.border_color = UiTheme.YELLOW
+		hl.set_border_width_all(3)
+		hl.set_corner_radius_all(8)
+		hl.content_margin_left = 12
+		hl.content_margin_right = 12
+		hl.content_margin_top = 12
+		hl.content_margin_bottom = 12
+		p.add_theme_stylebox_override("panel", hl)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 8)
 	p.add_child(v)
@@ -152,10 +252,9 @@ func _option_card(index: int, o: Dictionary, chosen: bool) -> Control:
 	v.add_child(d)
 	var b := Button.new()
 	b.text = "GEKOZEN" if chosen else "KIEZEN"
-	b.disabled = chosen or not (company.game.mol and company.game.mol.mode == Mol.Mode.DOCKED)
+	# Niet uitgeschakeld als de Mol weg is: dan zegt het menu waarom het niet kan.
+	b.disabled = chosen
 	b.custom_minimum_size = Vector2(0, 50)
-	b.pressed.connect(func() -> void:
-		Sfx.ui("click")
-		company.choose(index))
+	b.pressed.connect(_choose.bind(index))
 	v.add_child(b)
 	return p

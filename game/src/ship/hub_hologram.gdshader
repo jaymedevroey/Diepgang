@@ -10,6 +10,10 @@ uniform sampler2D feed : source_color, filter_linear, repeat_disable;
 uniform vec3 panel_color : source_color = vec3(0.01, 0.06, 0.08);
 uniform vec3 glow_color : source_color = vec3(0.31, 0.89, 0.94);
 uniform float panel_alpha = 0.5;
+// Voorkant (waar je aan de tafel staat, met de lichte hangar erachter): een donkerder, dichter
+// vlak achter de tekst, zodat die leesbaar blijft. Achterkant: lichter, je kijkt erdoor.
+uniform float front_panel_alpha = 0.8;
+uniform vec3 front_panel_color : source_color = vec3(0.005, 0.03, 0.045);
 uniform float brightness = 1.8;
 uniform float lines = 144.0;
 
@@ -38,9 +42,11 @@ void fragment() {
 	// Zachte randen.
 	float edge = smoothstep(0.0, 0.02, uv.x) * smoothstep(1.0, 0.98, uv.x)
 			* smoothstep(0.0, 0.04, uv.y) * smoothstep(1.0, 0.96, uv.y);
-	vec3 panel = panel_color + glow_color * (0.04 + 0.05 * band) * (0.6 + 0.4 * uv.y);
+	vec3 base = FRONT_FACING ? front_panel_color : panel_color;
+	vec3 panel = base + glow_color * (0.04 + 0.05 * band) * (0.6 + 0.4 * uv.y);
 	vec3 light = col * brightness * scan * flick * (1.0 + 0.3 * band);
 	float a_text = clamp(lum * 1.6, 0.0, 1.0);
 	ALBEDO = mix(panel, light, a_text);
-	ALPHA = clamp(max(panel_alpha * scan, a_text), 0.0, 1.0) * edge * (FRONT_FACING ? 1.0 : 0.6);
+	float pa = FRONT_FACING ? front_panel_alpha : panel_alpha;
+	ALPHA = clamp(max(pa * scan, a_text), 0.0, 1.0) * edge * (FRONT_FACING ? 1.0 : 0.6);
 }

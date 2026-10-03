@@ -3,13 +3,16 @@ extends Node
 ## hangar, taxatie, raam, baai), het buitenschip, en de drop.
 ## tools\godot.cmd --path game --resolution 1600x900 -- --scenario=ship_preview --no-steam
 ## --only=naam,naam om enkel bepaalde shots te maken (spawn, laadrek, werkdek, gang, brug,
-## terminal, kade, hangar, taxatie, venster, baai, buiten, onder, planeet, drop, firma).
+## terminal, kade, hangar, taxatie, venster, baai, buiten, onder, planeet, drop, firma, hud).
+## "hud" enkel op vraag: door de ogen van de speler, met de HUD in het schip (doelregel, strook,
+## prompts, het menu na een keuze, het laden, de hendel, de aftelling buiten de Mol, het open luik).
 ## Beelden: logs/ekster_<naam>.png
 
 ## Vaste camera's in de hub (lokaal t.o.v. de hub: de Mol staat op de oorsprong, voren is −z):
 ## naam, van, naar. Op ooghoogte van een robot (1,2 m boven de vloer).
 const HUB_SHOTS := [
-	["laadrek", Vector3(3.0, 1.8, 33.6), Vector3(3.0, 2.2, 21.0)],
+	# Voor de capsules (niet in de spleet tussen 02 en 03).
+	["laadrek", Vector3(3.0, 1.8, 32.9), Vector3(3.0, 2.2, 21.0)],
 	["werkdek", Vector3(5.5, 2.4, 29.5), Vector3(-5.5, 2.2, 24.5)],
 	["gang", Vector3(3.0, 2.4, 23.0), Vector3(2.0, 2.8, 1.0)],
 	["brug", Vector3(9.0, 2.4, 13.0), Vector3(-4.0, 2.6, -6.5)],
@@ -60,10 +63,18 @@ func _run(p: Player) -> void:
 		p.camera.make_current()
 		await _shot("ekster_spawn", 0.5)
 	var hub := ship.global_transform
+	# Vaste camera's: het gereedschap van de speler (aan zijn camera) niet in beeld, en de HUD van
+	# de speler (vizier, strook) is dan weg; de eerste keer even laten uitfaden.
+	for t: Node3D in p.tools:
+		t.visible = false
+	var first := true
 	for s: Array in HUB_SHOTS:
 		if only.is_empty() or s[0] in only:
 			_look(hub, s[1], s[2])
-			await _shot("ekster_" + s[0])
+			await _shot("ekster_" + s[0], 0.9 if first else 0.4)
+			first = false
+	for t: Node3D in p.tools:
+		t.visible = t == p.active_tool
 	if only.is_empty() or "terminal" in only:
 		# Zoals je aan de opdrachttafel staat, kijkend naar het scherm.
 		var use := hub.affine_inverse() * ship.anchor_position("Terminal_Use")
@@ -87,6 +98,8 @@ func _run(p: Player) -> void:
 		_cam.look_at(game.exterior.dock_position())
 		_cam.make_current()
 		await _shot("ekster_vanaf_planeet", 1.0)
+	if "hud" in only:
+		await _hud_shots(p, game, ship, mol)
 	if only.is_empty() or "drop" in only:
 		# In de Mol stappen en droppen; beelden onderweg en na de landing.
 		p.global_position = mol.to_world_mol(Vector3(0.0, -1.45, 0.5))
@@ -113,6 +126,72 @@ func _run(p: Player) -> void:
 		await _shot("ekster_geland", 0.5)
 		await _shot("ekster_geland_binnen", 2.0)
 	get_tree().quit(0)
+
+
+## Door de ogen van de speler, met de HUD in het schip: de doelregel en de strook van spawn tot de
+## drop, het menu na een keuze, het laden, de hendel, de aftelling buiten de Mol, het open luik.
+func _hud_shots(p: Player, game: Game, ship: Ekster, mol: Mol) -> void:
+	var hub := ship.global_transform
+	p.camera.make_current()
+	await _shot("hud_spawn", 0.3)
+	await _stand(p, hub, Vector3(3.0, 1.2, 27.5), Vector3(3.0, 2.4, 15.0))
+	await _shot("hud_werkdek", 0.6)
+	await _stand(p, hub, Vector3(3.0, 1.2, 17.3), hub.affine_inverse() * ship.terminal_target())
+	await _shot("hud_brug", 0.6)
+	# Aan de terminal, kijkend naar de tafel (de richting van het lege punt).
+	var use := hub.affine_inverse() * ship.anchor_position("Terminal_Use")
+	var use_fwd: Vector3 = hub.affine_inverse().basis * (-(ship.anchors["Terminal_Use"] as Node3D).global_basis.z)
+	await _stand(p, hub, use, use + use_fwd * 2.0 + Vector3(0.0, 2.6, 0.0))
+	await _shot("hud_terminal", 0.6)
+	var knob := p.aimed_interactable()
+	if knob:
+		knob.used.emit(p)
+	await _shot("hud_menu", 0.5)
+	var kiezen: Array = main._terminal.find_children("*", "Button", true, false).filter(
+			func(b: Button) -> bool: return b.text == "KIEZEN")
+	if not kiezen.is_empty():
+		(kiezen[1] as Button).pressed.emit()
+	await _shot("hud_menu_gekozen", 0.4)
+	await _wait(1.6)
+	await _shot("hud_laden_terminal", 0.2)
+	await _stand(p, hub, Vector3(0.75, 1.2, 12.6), Vector3(0.0, 1.0, 0.0))
+	await _shot("hud_laden_trap", 0.4)
+	while not game.terrain.is_loaded:
+		await get_tree().process_frame
+	await _shot("hud_geladen_trap", 0.6)
+	await _stand(p, hub, Vector3(0.0, 0.0, 9.2), Vector3(0.0, 1.0, 0.0))
+	await _shot("hud_kade", 0.4)
+	# In de Mol, achteraan: het merkteken op de hendel.
+	p.global_position = mol.to_world_mol(Vector3(0.0, -1.45, 1.6))
+	p.rotation.y = mol.yaw
+	p.head.rotation.x = deg_to_rad(-6.0)
+	await _shot("hud_mol_hendel", 0.6)
+	# Aftellen terwijl je niet in de Mol zit: de banner en de rode doelregel.
+	mol.press(Mol.Cmd.DEPART)
+	await _wait(0.3)
+	await _stand(p, hub, Vector3(-3.0, 0.0, 9.0), Vector3(0.0, 1.0, 0.0))
+	await _shot("hud_aftellen_buiten", 0.8)
+	await _stand(p, hub, Vector3(-3.0, 0.0, 4.0), Vector3(0.0, 1.0, -2.0))
+	await _shot("hud_aftellen_luik", 0.4)
+	while mol.mode == Mol.Mode.DROP_COUNTDOWN:
+		await get_tree().process_frame
+	# De Mol is weg, de luiken open: aan de rand van de baai.
+	await _stand(p, hub, Vector3(-5.2, 0.0, 6.0), Vector3(0.0, -1.0, 3.0))
+	await _shot("hud_open_luik", 1.0)
+	await _stand(p, hub, Vector3(3.0, 1.2, 27.5), Vector3(3.0, 2.4, 15.0))
+	await _shot("hud_dienst_bezig", 0.6)
+
+
+## De speler (echte camera) op `local` zetten, kijkend naar `look`, beide t.o.v. de hub.
+func _stand(p: Player, hub: Transform3D, local: Vector3, look: Vector3) -> void:
+	p.velocity = Vector3.ZERO
+	p.global_position = hub * (local + Vector3(0.0, 0.05, 0.0))
+	await get_tree().physics_frame
+	var eye := p.camera.global_position
+	var to := hub * look - eye
+	p.rotation.y = atan2(-to.x, -to.z)
+	p.head.rotation.x = atan2(to.y, Vector2(to.x, to.z).length())
+	p.camera.make_current()
 
 
 ## Camera op `local_pos`, kijkend naar `local_target`, beide t.o.v. `frame`.

@@ -8,6 +8,10 @@ extends Control
 ##   links         de ploeg (bij meerdere spelers)
 ##   in de Mol     besturing voor de piloot; bij vertrek een grote banner met aftelling
 ##   rechtsonder   in buitenzicht: het sonarbeeld uit de cabine
+## In het schip (De Ekster): geen diepte, laag of gereedschap, maar waar je bent, wat je nu moet
+## doen (opdracht kiezen, wachten, naar de Mol, de hendel) en een doel op de strook; in de Mol een
+## merkteken op de VERTREK-hendel. Tijdens een filmbeeld (Player.cinematic, of een andere camera
+## dan die van de speler) geen vizier, prompt, strook of gereedschap.
 ## main.gd roept elke frame update() aan.
 
 const TOOLS := [["pickaxe", "HOUWEEL", "tool_1"], ["drill", "BOOR T1", "tool_2"]]
@@ -57,6 +61,18 @@ var _last_team := -1
 var _was_seated := false
 var _last_carry: Object = null
 var _started := false
+var objective: HudObjective
+var _marker: HudMarker
+var _result_tween: Tween
+var _result_closing := false
+var _was_loading := false
+## Waar de speler deze frame op mikt (knop, hendel), of null.
+var _aimed: Interactable
+## Deze frame: staat de speler in het schip, in de Mol, en is de wereld-HUD weg (filmbeeld)?
+var _in_hub := false
+var _in_mol := false
+var _world_hidden := false
+var _own_cam := true
 
 
 func _ready() -> void:
@@ -127,6 +143,13 @@ func _build_top() -> void:
 	hazard.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	hazard.position = Vector2(-HudHazard.WIDTH / 2.0, 108)
 	add_child(hazard)
+	# Enkel in het schip (waar de onrust- en magmameter niet staat): wat je nu moet doen.
+	objective = HudObjective.new()
+	objective.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	objective.position = Vector2(-HudObjective.WIDTH / 2.0, 104)
+	add_child(objective)
+	_marker = HudMarker.new()
+	add_child(_marker)
 
 	_host_chip = HudFader.new()
 	_host_chip.hold = 8.0
@@ -575,9 +598,13 @@ func show_result(count: int, value: int, left_behind: int, ore_units := 0, ore_v
 
 func _open_result(seconds: float) -> void:
 	_result.visible = true
+	_result_closing = false
 	_result.modulate.a = 0.0
 	Sfx.ui("open")
+	if _result_tween:
+		_result_tween.kill()
 	var tw := create_tween()
+	_result_tween = tw
 	tw.tween_property(_result, "modulate:a", 1.0, 0.3)
 	tw.tween_interval(seconds)
 	tw.tween_property(_result, "modulate:a", 0.0, 0.8)
@@ -609,7 +636,15 @@ func update(player: Player, game: Game, terrain: TerrainAPI) -> void:
 	if not _started:
 		_started = true
 		compass.poke(6.0) # bij de start: waar ben ik, waar staat de Mol
-	_update_compass(player, mol, terrain)
+	# Filmbeeld (drop, landing): de speler kijkt niet door zijn eigen ogen. Player.cinematic komt van
+	# de drop; ook elke andere camera dan die van de speler (of zijn buitenzicht) telt.
+	var cam := get_viewport().get_camera_3d()
+	_own_cam = cam == player.camera
+	var chase_cam := player.chase != null and cam == player.chase
+	_world_hidden = player.get("cinematic") == true or not (_own_cam or chase_cam)
+	_in_hub = game.ship != null and game.ship.contains(player.global_position)
+	_in_mol = mol != null and mol.body != null and (player.seated or mol.contains_point(player.global_position))
+	_update_compass(player, game, mol, terrain)
 	_update_hazard(player, game)
 	_update_tools(player)
 	_update_carry(player)
@@ -618,12 +653,14 @@ func update(player: Player, game: Game, terrain: TerrainAPI) -> void:
 	_update_pilot(player)
 	_update_sonar(player, mol)
 	_update_banner(mol, game)
+	_update_objective(player, game, mol, cam)
 	_update_team(player, game)
 	_update_host()
 	_update_stats(player, game, terrain)
 
 
 func _update_hazard(player: Player, game: Game) -> void:
+	hazard.blocked = _in_hub or _world_hidden # in het schip geen magma of onrust
 	var dist := INF
 	if game.magma and game.magma.visible and not (game.ship and game.ship.contains(player.global_position)):
 		dist = player.global_position.y - game.magma.level
@@ -635,10 +672,32 @@ func _update_hazard(player: Player, game: Game) -> void:
 	hazard.set_state(dist, frac, phase)
 
 
-func _update_compass(player: Player, mol: Mol, terrain: TerrainAPI) -> void:
+func _update_compass(player: Player, game: Game, mol: Mol, terrain: TerrainAPI) -> void:
 	var p := player.global_position
 	var fwd := -player.camera.global_basis.z
 	compass.heading_deg = fposmod(rad_to_deg(atan2(fwd.x, -fwd.z)), 360.0)
+	compass.blocked = _world_hidden
+	if _in_hub:
+		# In het schip: waar je bent, en het doel (terminal of Mol) uit _hub_state.
+		var ship: Ekster = game.ship
+		compass.set_place("IN DE MOL" if _in_mol else ship.zone_at(p))
+		var s := _hub_state(player, game, mol)
+		compass.mol_visible = s.has_target
+		compass.target_icon = s.icon
+		compass.urgent = s.tone == HudObjective.Tone.URGENT
+		if compass.mol_visible:
+			var to: Vector3 = (s.target as Vector3) - p
+			compass.mol_bearing_deg = fposmod(rad_to_deg(atan2(to.x, -to.z)), 360.0)
+			compass.mol_distance = Vector2(to.x, to.z).length()
+			var rel := absf(wrapf(compass.mol_bearing_deg - compass.heading_deg, -180.0, 180.0))
+			# In beeld zolang het doel niet vlak voor je staat.
+			compass.active = compass.urgent or compass.mol_distance > 6.0 or rel > 40.0
+		else:
+			compass.active = false
+		return
+	compass.set_place("")
+	compass.target_icon = HudCompass.MOL_ICON
+	compass.urgent = false
 	var depth := maxf(0.0, terrain.surface_height_at(p.x, p.z) - p.y)
 	compass.set_depth(depth)
 	compass.set_layer(terrain.layer_at(p))
@@ -651,7 +710,7 @@ func _update_compass(player: Player, mol: Mol, terrain: TerrainAPI) -> void:
 		# ofwel niet voor je (meer dan 50° opzij), of als de Mol vertrekt.
 		var rel := absf(wrapf(compass.mol_bearing_deg - compass.heading_deg, -180.0, 180.0))
 		compass.active = not mol.contains_point(p) and (compass.mol_distance > 25.0 or rel > 50.0
-				or mol.mode == Mol.Mode.COUNTDOWN)
+				or mol.mode in [Mol.Mode.COUNTDOWN, Mol.Mode.DROP_COUNTDOWN])
 
 
 func _update_tools(player: Player) -> void:
@@ -659,7 +718,8 @@ func _update_tools(player: Player) -> void:
 	if idx != _last_tool:
 		_last_tool = idx
 		_hotbar.poke()
-	_hotbar.blocked = player.seated or player.carry.item != null
+	# In het schip valt er niets te graven: geen gereedschapsbalk (ook niet bij wisselen).
+	_hotbar.blocked = player.seated or player.carry.item != null or _in_hub or _world_hidden
 	for i in _slots.size():
 		var on := i == idx
 		var box := StyleBoxFlat.new()
@@ -700,6 +760,10 @@ func _update_prompt(player: Player, game: Game, terrain: TerrainAPI) -> void:
 	var sub := ""
 	var state := HudCrosshair.State.NONE
 	var aim: Pickaxe.Aim = player.active_tool.aim
+	# Vizier en prompt enkel door je eigen ogen (niet in buitenzicht of een filmbeeld).
+	crosshair.blocked = _world_hidden or not _own_cam
+	_prompt.blocked = crosshair.blocked
+	_prompt.position.y = 46.0
 	crosshair.heat = 0.0
 	if player.active_tool == player.drill and not player.seated:
 		var d := player.drill
@@ -708,13 +772,19 @@ func _update_prompt(player: Player, game: Game, terrain: TerrainAPI) -> void:
 		if d.overheated:
 			sub = "Oververhit: even laten afkoelen"
 	var knob := player.aimed_interactable()
+	_aimed = knob
 	if knob:
 		state = HudCrosshair.State.USE
 		var parts := knob.hint.split(": ", true, 1)
 		action = "interact"
 		text = parts[1] if parts.size() == 2 else knob.hint
+		sub = knob.sub
 		if not knob.hint.begins_with("E:"):
 			action = ""
+			state = HudCrosshair.State.NONE # enkel uitleg: E doet hier niets
+		# Aan de terminal staat de tekst van het hologram rond het vizier: de prompt eronder.
+		if game.ship and knob == game.ship.terminal_button():
+			_prompt.position.y = 220.0
 	elif player.seated:
 		pass
 	elif player.carry.item:
@@ -835,6 +905,113 @@ func _update_banner(mol: Mol, game: Game) -> void:
 		_banner_count.visible = false
 	else:
 		_banner.visible = false
+
+
+## Wat er in het schip te doen is: titel en regel eronder, de toon, het doel voor de strook (de
+## terminal of de Mol) en of de hendel een merkteken krijgt.
+func _hub_state(player: Player, game: Game, mol: Mol) -> Dictionary:
+	var s := {"title": "", "sub": "", "tone": HudObjective.Tone.NORMAL, "has_target": false, "target": Vector3.ZERO,
+			"icon": HudCompass.MOL_ICON, "lever": false}
+	var ship: Ekster = game.ship
+	if mol == null or mol.body == null or ship == null:
+		return s
+	var c: Company = game.company
+	var p := player.global_position
+	var mol_pos := mol.body.global_position
+	match mol.mode:
+		Mol.Mode.DOCKED:
+			if c == null or not c.contract_ready():
+				s.title = "Kies een opdracht"
+				s.sub = "aan de terminal op de brug"
+				s.has_target = true
+				s.target = ship.terminal_target()
+				s.icon = HudCompass.TERMINAL_ICON
+			elif game.terrain == null or not game.terrain.is_loaded:
+				var dots := ".".repeat(1 + int(Time.get_ticks_msec() / 400) % 3)
+				s.title = "De Ekster vliegt naar %s%s" % [str(c.contract.get("name", "de concessie")), dots]
+				s.sub = "even geduld · dan trek je aan de hendel" if _in_mol else "loop alvast naar de Mol"
+				s.has_target = not _in_mol
+				s.target = mol_pos
+			elif not _in_mol:
+				s.title = "Stap in de Mol"
+				s.sub = "in de hangar, via de klep achteraan"
+				s.has_target = true
+				s.target = mol_pos
+			else:
+				s.title = "Trek aan de hendel"
+				s.sub = "VERTREK, rechts op de console"
+				s.lever = true
+		Mol.Mode.DROP_COUNTDOWN:
+			if not _in_mol:
+				s.title = "NIET IN DE MOL · DROP OVER %d" % int(ceil(mol.countdown))
+				s.sub = "de luiken gaan open · wie erop staat, valt" if ship.over_bay(p, 0.5) else "snel naar de Mol, of je blijft achter"
+				s.tone = HudObjective.Tone.URGENT
+				s.has_target = true
+				s.target = mol_pos
+		Mol.Mode.COUNTDOWN, Mol.Mode.EXTRACTING, Mol.Mode.GRAPPLE_DOWN, Mol.Mode.LIFTING:
+			if not _in_mol:
+				s.title = "De Mol komt terug"
+				s.sub = "wacht tot hij in de baai staat"
+		_:
+			if not _in_mol:
+				s.title = "De ploeg is op de planeet"
+				s.sub = "de Mol komt terug na de dienst"
+	# Open luiken zonder Mol: een gat van 8 × 14 m in de vloer.
+	if ship.doors_open and not _in_mol and mol.mode != Mol.Mode.DROP_COUNTDOWN and ship.over_bay(p, 1.5):
+		s.title = "OPEN LUIK · %d M VRIJE VAL" % int(round(EksterExterior.ALTITUDE))
+		s.sub = "springen = te voet naar de planeet"
+		s.tone = HudObjective.Tone.URGENT
+	elif ship.doors_open and not _in_mol and mol.mode != Mol.Mode.DROP_COUNTDOWN and s.title == "De ploeg is op de planeet":
+		s.sub = "wie wil volgen, springt door het open luik in de hangar"
+	return s
+
+
+## In het schip: de doelregel onder de strook en het merkteken op de hendel.
+func _update_objective(player: Player, game: Game, mol: Mol, cam: Camera3D) -> void:
+	var s := _hub_state(player, game, mol) if _in_hub else {}
+	# Het incidentrapport (na een dienst) staat op dezelfde plek en gaat even voor.
+	objective.blocked = not _in_hub or _world_hidden or (_result.visible and not _result_closing)
+	# Aangekomen boven de concessie (de nieuwe wereld is geladen): één melding, met geluid.
+	var loading: bool = game.terrain == null or not game.terrain.is_loaded
+	if _was_loading and not loading and _in_hub and game.company and game.company.contract_ready() \
+			and mol and mol.mode == Mol.Mode.DOCKED:
+		toast("De Ekster hangt boven %s. Stap in de Mol en trek aan de hendel." % str(game.company.contract.get("name", "")), "mol", 6.0)
+	_was_loading = loading
+	objective.show_objective(s.get("title", ""), s.get("sub", ""), s.get("tone", HudObjective.Tone.NORMAL))
+	# Onder de vertrekbanner als die er staat (drop-aftelling), anders onder de strook.
+	objective.position.y = 128.0 + _banner.size.y + 10.0 if _banner.visible else 104.0
+	# Het merkteken op de hendel in de Mol (niet als je er al op mikt: dan staat de prompt er).
+	var lever := _find_lever(mol)
+	_marker.shown = s.get("lever", false) and lever != null and _aimed != lever and not _world_hidden and _own_cam
+	if lever:
+		_marker.target = lever.global_position
+		_marker.set_text("HENDEL · VERTREK")
+	_marker.place(cam)
+	# QA-5: het incidentrapport niet over de aftelling van een nieuwe drop.
+	if mol and mol.mode in [Mol.Mode.DROP_COUNTDOWN, Mol.Mode.COUNTDOWN] and _result.visible and not _result_closing:
+		_result_closing = true
+		if _result_tween:
+			_result_tween.kill()
+		_result_tween = create_tween()
+		_result_tween.tween_property(_result, "modulate:a", 0.0, 0.3)
+		_result_tween.tween_callback(func() -> void:
+			_result.visible = false
+			_result_closing = false)
+
+
+var _lever: Interactable
+
+## De VERTREK-hendel van de Mol (de knop met het commando DEPART).
+func _find_lever(mol: Mol) -> Interactable:
+	if _lever and is_instance_valid(_lever):
+		return _lever
+	if mol == null:
+		return null
+	for it: Interactable in mol.find_children("*", "Interactable", true, false):
+		if it.get_meta("mol_cmd", -1) == Mol.Cmd.DEPART:
+			_lever = it
+			return it
+	return null
 
 
 func _update_team(player: Player, game: Game) -> void:

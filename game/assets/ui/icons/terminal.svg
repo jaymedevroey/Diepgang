@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- De opdrachttafel: een ronde tafel met een planeet als hologram erboven. -->
+  <g fill="#ffffff">
+    <circle cx="32" cy="20" r="11"/>
+    <path d="M14 40 L50 40 L56 47 L8 47 Z"/>
+    <rect x="22" y="47" width="20" height="10" rx="2"/>
+    <rect x="17" y="54" width="30" height="5" rx="2"/>
+  </g>
+  <g fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round">
+    <path d="M17 24 Q32 31 47 24"/>
+    <path d="M24 33 L20 39 M40 33 L44 39"/>
+  </g>
+</svg>
