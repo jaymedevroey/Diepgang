@@ -68,9 +68,10 @@ const SCENARIOS := {
 	"magma_preview": preload("res://src/main/scenarios/magma_preview.gd"),
 	"magma_test": preload("res://src/main/scenarios/magma_test.gd"),
 	"company_test": preload("res://src/main/scenarios/company_test.gd"),
+	"interior_preview": preload("res://src/main/scenarios/interior_preview.gd"),
 }
 ## Scenario's die op De Ekster beginnen (de Mol in de dropbaai). De rest begint op de planeet.
-const SCENARIOS_ON_SHIP := ["play", "ship_preview", "ship_test", "net_ship_test", "company_test"]
+const SCENARIOS_ON_SHIP := ["play", "ship_preview", "ship_test", "net_ship_test", "company_test", "interior_preview"]
 ## Scenario's waarin de host ook een eigen speler krijgt.
 const SCENARIOS_WITH_PLAYER := ["play", "ship_preview", "ship_test", "net_ship_test", "net_test", "find_test", "carry_test", "carry_preview", "mol_test", "sonar_test", "mol_edge_test", "stream_test", "ore_test", "drive_perf", "mol_preview", "hud_preview", "ui_test", "tool_preview", "magma_test", "company_test"]
 
