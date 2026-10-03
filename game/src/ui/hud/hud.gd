@@ -474,6 +474,38 @@ func toast(text: String, kind := "info", seconds := 4.5) -> void:
 	tw.tween_callback(chip.queue_free)
 
 
+## Stempel bij de landing (in plaats van een melding): groot, schuin, met een klap, en dan weg.
+## Zoals een stempel op een vrachtbrief: de planeet, de concessie en de dienst.
+func stamp(title: String, sub: String) -> void:
+	var box := VBoxContainer.new()
+	box.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	box.position = Vector2(-360, 150)
+	box.custom_minimum_size = Vector2(720, 0)
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(box)
+	for pair in [[title, 64, UiTheme.YELLOW], [sub, 22, UiTheme.CREAM]]:
+		var l := Label.new()
+		l.text = pair[0]
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		l.add_theme_font_override("font", UiTheme.heading())
+		l.add_theme_font_size_override("font_size", pair[1])
+		l.add_theme_color_override("font_color", pair[2])
+		l.add_theme_color_override("font_outline_color", Color(0.05, 0.04, 0.03, 0.9))
+		l.add_theme_constant_override("outline_size", 10)
+		box.add_child(l)
+	box.pivot_offset = Vector2(360, 50)
+	box.rotation = deg_to_rad(-4.0)
+	box.scale = Vector2(1.8, 1.8)
+	box.modulate.a = 0.0
+	var tw := create_tween()
+	tw.tween_property(box, "modulate:a", 1.0, 0.08)
+	tw.parallel().tween_property(box, "scale", Vector2.ONE, 0.16).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_interval(3.0)
+	tw.tween_property(box, "modulate:a", 0.0, 0.8)
+	tw.tween_callback(box.queue_free)
+
+
 ## Eindoverzicht na de extractie.
 func show_result(count: int, value: int, left_behind: int, ore_units := 0, ore_value := 0) -> void:
 	for c in _result_rows.get_children():

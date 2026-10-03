@@ -22,6 +22,7 @@ var active := false
 func _ready() -> void:
 	multiplayer.peer_connected.connect(func(id: int) -> void:
 		print("[net] peer %d verbonden" % id)
+		_patient(id)
 		peer_joined.emit(id))
 	multiplayer.peer_disconnected.connect(func(id: int) -> void:
 		print("[net] peer %d weg" % id)
@@ -32,6 +33,17 @@ func _ready() -> void:
 		started.emit())
 	multiplayer.connection_failed.connect(func() -> void: _fail("verbinding met de host mislukt"))
 	multiplayer.server_disconnected.connect(func() -> void: _end("de host heeft de sessie beëindigd"))
+
+
+## ENet verbreekt standaard na 5 à 30 s zonder antwoord. Bij het opbouwen van een wereld (of op
+## een drukke pc) kan een peer zo lang haperen: dan niet meteen de verbinding verbreken.
+func _patient(id: int) -> void:
+	var ep := multiplayer.multiplayer_peer as ENetMultiplayerPeer
+	if ep == null:
+		return
+	var pp := ep.get_peer(id)
+	if pp:
+		pp.set_timeout(64, 20000, 60000)
 
 
 func start_solo() -> void:

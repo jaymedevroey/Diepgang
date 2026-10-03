@@ -8,6 +8,7 @@ extends Node3D
 ##   play (standaard)  het spel: op De Ekster beginnen, droppen met de Mol
 ##   ship_preview      screenshots van De Ekster (hangar, terminal, museum, baai, van buiten)
 ##   ship_test         De Ekster en de drop: spawnen op het schip, droppen, landen, ophalen (headless)
+##   net_ship_test     host + client droppen samen en komen samen terug (tools/net_test.py --scenario=net_ship_test)
 ##   concept_preview   ontwerpen van De Ekster (assets/models/concepts/) in de look van de game
 ##   sky_preview       de zes controlebeelden van de hemel (--sky=a|b|c), logs/sky/
 ##   dig_test          headless controle van graven en de TerrainAPI-laag
@@ -63,11 +64,12 @@ const SCENARIOS := {
 	"ship_test": preload("res://src/main/scenarios/ship_test.gd"),
 	"concept_preview": preload("res://src/main/scenarios/concept_preview.gd"),
 	"sky_preview": preload("res://src/main/scenarios/sky_preview.gd"),
+	"net_ship_test": preload("res://src/main/scenarios/net_ship_test.gd"),
 }
 ## Scenario's die op De Ekster beginnen (de Mol in de dropbaai). De rest begint op de planeet.
-const SCENARIOS_ON_SHIP := ["play", "ship_preview", "ship_test"]
+const SCENARIOS_ON_SHIP := ["play", "ship_preview", "ship_test", "net_ship_test"]
 ## Scenario's waarin de host ook een eigen speler krijgt.
-const SCENARIOS_WITH_PLAYER := ["play", "ship_preview", "ship_test", "net_test", "find_test", "carry_test", "carry_preview", "mol_test", "sonar_test", "mol_edge_test", "stream_test", "ore_test", "drive_perf", "mol_preview", "hud_preview", "ui_test", "tool_preview"]
+const SCENARIOS_WITH_PLAYER := ["play", "ship_preview", "ship_test", "net_ship_test", "net_test", "find_test", "carry_test", "carry_preview", "mol_test", "sonar_test", "mol_edge_test", "stream_test", "ore_test", "drive_perf", "mol_preview", "hud_preview", "ui_test", "tool_preview"]
 
 var game: Game
 var player: Player
@@ -195,6 +197,9 @@ func _on_world_loaded(stats: Dictionary) -> void:
 		_mol_connected = true
 		game.mol.message.connect(func(t: String) -> void:
 			hud.toast(t, "warn" if t.begins_with("Harde laag") or t.begins_with("Rand van de put") or t.begins_with("De boorkop") else "mol"))
+		game.mol.landed.connect(func() -> void:
+			if player and game.mol.contains_point(player.global_position):
+				hud.stamp(PlanetType.NAMES[game.planet_type].to_upper(), "CONCESSIE %d · DIENST %d" % [game.pit_seed % 97 + 1, game.shift_number]))
 		game.mol.summary.connect(func(count: int, value: int, left_behind: int) -> void:
 			hud.show_result(count, value, left_behind, game.mol.last_ore_units, game.mol.last_ore_value))
 	print("[diepgang] terrein geladen in %.0f ms (time-out: %s), statisch geheugen %.1f MB, videogeheugen %.1f MB" % [

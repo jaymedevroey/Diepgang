@@ -35,6 +35,8 @@ var _mol_ref := Transform3D()
 var _riding := false
 # Vast in de Mol tijdens de drop en het ophalen: [positie lokaal t.o.v. de Mol, draaiing t.o.v. de Mol].
 var _attached: Variant = null
+# Na een sprong van de Mol: zoveel ticks vast blijven (zijn botsvorm komt pas een tick later aan).
+var _hold_ticks := 0
 var pickaxe: Pickaxe
 var drill: Drill
 var tools: Array[Node3D] = []
@@ -178,7 +180,19 @@ func _setup_local() -> void:
 	game.mol.landed.connect(func() -> void:
 		if game.mol.contains_point(global_position):
 			camera_fx.add_trauma(0.7))
+	game.mol.snapped.connect(_on_mol_snapped)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+## De Mol sprong (hub ↔ buitenschip): wie erin zat, springt mee naar dezelfde plek in de Mol.
+func _on_mol_snapped(old_xf: Transform3D, new_xf: Transform3D) -> void:
+	var local := old_xf.affine_inverse() * global_position
+	if not seated and not Mol.INSIDE.has_point(local):
+		return
+	global_position = new_xf * local
+	_mol_ref = new_xf
+	_attached = [local, rotation.y - game.mol.yaw]
+	_hold_ticks = 4
 
 
 ## Nieuwe wereld (nieuwe dienst): het gereedschap graaft in het nieuwe terrein.
@@ -323,14 +337,19 @@ func _physics_process(delta: float) -> void:
 		return
 	_ride_mol()
 	_rescue_if_fallen()
+	# Door de open baai van de hub gevallen: je valt uit het schip boven de planeet.
+	if game.ship and game.exterior and game.ship.below_floor(global_position):
+		global_position = game.from_hub(global_position)
+		_riding = false
 	# Drop en ophalen: de Mol beweegt snel verticaal, en meerijden met zijn verplaatsing per tick
 	# liep telkens een tick achter (de speler zakte steeds verder door de vloer). Dan zit je vast op
 	# je plek in de Mol: geen zwaartekracht, geen eigen beweging.
 	var mol: Mol = game.mol
-	if mol.mode in [Mol.Mode.DROPPING, Mol.Mode.GRAPPLE_DOWN, Mol.Mode.LIFTING] and (_attached != null or _riding):
+	if mol.mode in [Mol.Mode.DROPPING, Mol.Mode.GRAPPLE_DOWN, Mol.Mode.LIFTING] and (_attached != null or _riding) or _hold_ticks > 0:
 		if _attached == null:
 			_attached = [mol.to_local_mol(global_position), rotation.y - mol.yaw]
 		_follow_attached(mol)
+		_hold_ticks -= 1
 		velocity = Vector3.ZERO
 		return
 	_attached = null
@@ -444,16 +463,15 @@ func _process(delta: float) -> void:
 		_interpolate()
 
 
-## In de Mol tijdens de drop of het ophalen: buitenbeeld. Op het einde van het ophalen (vlak
-## onder het schip) terug naar binnen: de camera zou anders in de romp van het schip hangen.
+## In de Mol tijdens de drop of het ophalen: het heldenshot (DropCam). Bij het ophalen enkel de
+## eerste seconden (de Mol vertrekt van de grond), daarna terug naar binnen tot in de hub.
 func _update_drop_cam(mol: Mol, in_mol: bool) -> void:
-	var want := in_mol and mol.mode in Mol.CINEMATIC_MODES
-	if want and mol.mode == Mol.Mode.LIFTING and game.ship:
-		want = game.ship.dock_transform().origin.y - mol.body.global_position.y > 18.0
+	var want := in_mol and mol.mode in Mol.CINEMATIC_MODES and not drop_cam.lift_shot_over()
 	if want and not drop_cam.current:
 		drop_cam.activate(mol)
 	elif not want and drop_cam.current:
 		camera.make_current()
+		camera_fx.add_trauma(0.3) # knippen in de klap
 
 
 ## Toestand van de authority naar alle anderen. Onbetrouwbaar: een gemiste update

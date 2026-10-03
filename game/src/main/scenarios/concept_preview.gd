@@ -31,7 +31,7 @@ func _run() -> void:
 	cam.make_current()
 	# De gewone Mol op de planeet uit beeld (de schetsen krijgen hun eigen Mol eronder).
 	game.mol.body.visible = false
-	var origin := Ekster.origin_above(game.terrain)
+	var origin := EksterExterior.dock_above(game.terrain)
 	var files: Array = Array(DirAccess.get_files_at(DIR)).map(func(f: String) -> String: return DIR + f)
 	if CmdArgs.has("model"):
 		files = [str(CmdArgs.value("model"))]

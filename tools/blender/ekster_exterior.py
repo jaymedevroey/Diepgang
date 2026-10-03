@@ -218,10 +218,7 @@ def layer_bay(b: Builder, rng):
     for (cx, cz) in ((-w / 2 - 1.4, mz - l / 2 - 1.4), (w / 2 + 1.4, mz - l / 2 - 1.4), (-w / 2 - 1.4, mz + l / 2 + 1.4), (w / 2 + 1.4, mz + l / 2 + 1.4)):
         b.box((cx, keel - 0.35, cz), (1.4, 0.6, 1.4), material="DarkSteel")
         b.box((cx, keel - 0.7, cz), (1.0, 0.12, 1.0), material="Lens")
-    # Grijper boven de Mol (in de baai).
-    b.box((0, my + 3.6, mz), (6.0, 0.8, 4.0), material="Yellow")
-    for s in (-1, 1):
-        b.box((s * 2.6, my + 2.3, mz), (0.6, 2.4, 3.2), material="Hazard")
+    # De grijper zelf hangt in de game (EksterExterior), aan een kabel die kan zakken.
 
 
 def layer_lights(b: Builder, rng):

@@ -57,7 +57,7 @@ func _run(p: Player) -> void:
 		# Vanaf de planeet: het schip in de lucht.
 		var land := game.terrain.focus_world + Vector3(30.0, 2.0, 40.0)
 		_cam.global_position = land
-		_cam.look_at(ship.global_position)
+		_cam.look_at(game.exterior.dock_position())
 		_cam.make_current()
 		await _shot("ekster_vanaf_planeet", 1.0)
 	if only.is_empty() or "drop" in only:
@@ -74,8 +74,9 @@ func _run(p: Player) -> void:
 		await _shot("ekster_luiken", 0.6)
 		while mol.mode != Mol.Mode.DROPPING:
 			await get_tree().process_frame
-		await _shot("ekster_val_1", 1.6)
-		await _shot("ekster_val_2", 3.0)
+		await _shot("ekster_val_0", 0.3)
+		await _shot("ekster_val_1", 1.3)
+		await _shot("ekster_val_2", 2.5)
 		while mol.mode == Mol.Mode.DROPPING and mol.thrust < 0.1:
 			await get_tree().process_frame
 		await _shot("ekster_remmen", 0.8)

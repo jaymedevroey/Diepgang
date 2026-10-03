@@ -14,6 +14,9 @@ signal pilot_changed(peer: int)
 signal summary(count: int, value: int, left_behind: int)
 ## De Mol is na de drop geland (op elk peer; voor camera-schok en tests).
 signal landed
+## De Mol sprong naar een andere plek (hub ↔ buitenschip): wie erin zit, springt mee.
+## Argumenten: oude en nieuwe transform van het lichaam.
+signal snapped(old_xf: Transform3D, new_xf: Transform3D)
 
 ## Erts van de laatste extractie (gezet net voor `summary`).
 var last_ore_units := 0
@@ -24,8 +27,9 @@ enum Mode { PARKED, DRIVING, AUTO_DOWN, COUNTDOWN, EXTRACTING, DOCKED, DROP_COUN
 enum Cmd { SEAT, AUTO, HORN, LIGHTS, RAMP, DEPART, WORKBENCH }
 enum Event { HORN, BLOCKED, DEPART, BEEP, ARRIVED, DOORS, LANDED, GRAPPLED }
 
-## De Mol beweegt zonder piloot (laadruim vastsjorren, enz.).
-const MOVING_MODES := [Mode.AUTO_DOWN, Mode.EXTRACTING, Mode.DROPPING, Mode.GRAPPLE_DOWN, Mode.LIFTING]
+## De Mol beweegt zonder piloot (laadruim vastsjorren, enz.). Ook het aftellen voor de drop: dan
+## stapt de Mol over naar het buitenschip, en de lading moet mee.
+const MOVING_MODES := [Mode.AUTO_DOWN, Mode.EXTRACTING, Mode.DROP_COUNTDOWN, Mode.DROPPING, Mode.GRAPPLE_DOWN, Mode.LIFTING]
 ## Niemand aan het stuur, de klep blijft zoals hij is (vertrek, drop, ophalen).
 const BUSY_MODES := [Mode.COUNTDOWN, Mode.EXTRACTING, Mode.DROP_COUNTDOWN, Mode.DROPPING, Mode.GRAPPLE_DOWN, Mode.LIFTING]
 ## Buitenbeeld voor wie in de Mol zit (zie DropCam).
@@ -375,7 +379,7 @@ func _rpc_summary(count: int, value: int, left_behind: int, ore_units: int, ore_
 func send_state(peer: int) -> void:
 	var ship: Ekster = game.ship
 	_rpc_full.rpc_id(peer, body.global_position, yaw, pitch, mode, pilot, ramp_open, lights_on, fuel,
-			ship != null and ship.doors_open, ship.grapple_depth if ship else 0.0)
+			ship != null and ship.doors_open, game.exterior.grapple_depth if game.exterior else 0.0)
 
 
 @rpc("authority", "reliable")
@@ -389,7 +393,8 @@ func _rpc_full(pos: Vector3, y: float, p: float, m: int, pl: int, ramp: bool, li
 	fuel = f
 	if game.ship:
 		game.ship.doors_open = doors
-		game.ship.grapple_depth = grapple
+	if game.exterior:
+		game.exterior.grapple_depth = grapple
 
 
 # --- Simulatie (host) --------------------------------------------------------------------------
@@ -790,7 +795,17 @@ func _hold_docked() -> void:
 	speed = 0.0
 	thrust = 0.0
 	vertical_speed = 0.0
-	ship.grapple_depth = 0.0
+	game.exterior.grapple_depth = 0.0
+
+
+## Host: de Mol springt naar een andere plek (hub ↔ buitenschip). Iedereen tegelijk, zonder
+## interpolatie ertussen; wie erin zit, springt mee (signaal `snapped`).
+@rpc("authority", "call_local", "reliable")
+func _rpc_snap(pos: Vector3, y: float, p: float) -> void:
+	var old := body.global_transform
+	_snapshots.clear()
+	_place(pos, y, p)
+	snapped.emit(old, body.global_transform)
 
 
 func _drop_countdown(delta: float) -> void:
@@ -808,6 +823,8 @@ func _drop_countdown(delta: float) -> void:
 		_vy = 0.0
 		_braking = false
 		_rpc_event.rpc(Event.DEPART)
+		# Van de baai van de hub naar die van het buitenschip, dan vallen.
+		_rpc_snap.rpc(game.exterior.dock_position(), 0.0, 0.0)
 		_set_mode(Mode.DROPPING, 0)
 
 
@@ -859,15 +876,15 @@ func _land() -> void:
 	_rpc_flags.rpc(true, lights_on)
 	_set_mode(Mode.PARKED, 0)
 	_rpc_event.rpc(Event.LANDED)
-	_rpc_message.rpc("Geland op %s. Veel succes, en denk aan de quota." % PlanetType.NAMES[game.planet_type])
 
 
-## Grijper zakt tot op het dak, klep dicht, dan omhoog tot in de baai.
+## Grijper zakt tot op het dak, klep dicht, dan omhoog tot in de baai van het buitenschip; daar
+## stapt de Mol over naar de hub.
 func _lift(delta: float) -> void:
-	var ship: Ekster = game.ship
+	var ship: EksterExterior = game.exterior
 	var rest := ship.grapple_rest_world()
 	if mode == Mode.GRAPPLE_DOWN:
-		var want := rest.y - Ekster.GRAPPLE_REACH - (body.global_transform * HOOK).y
+		var want := rest.y - EksterExterior.GRAPPLE_REACH - (body.global_transform * HOOK).y
 		ship.grapple_depth = move_toward(ship.grapple_depth, want, Tuning.get_f("ship", "grapple_down_speed", 40.0) * delta)
 		if ship.grapple_depth < want - 0.01:
 			return
@@ -880,7 +897,7 @@ func _lift(delta: float) -> void:
 			_vy = 0.0
 			_set_mode(Mode.LIFTING, 0)
 		return
-	var dock := ship.dock_transform().origin
+	var dock := ship.dock_position()
 	var to := dock - body.global_position
 	var dist := to.length()
 	var accel := Tuning.get_f("ship", "lift_accel", 6.0)
@@ -890,8 +907,9 @@ func _lift(delta: float) -> void:
 	var pos := body.global_position + to.normalized() * minf(_vy * delta, dist)
 	var k := minf(1.0, delta * 1.2)
 	_place(pos, lerp_angle(yaw, 0.0, k), lerpf(pitch, 0.0, k))
-	ship.grapple_depth = maxf(0.0, rest.y - Ekster.GRAPPLE_REACH - (body.global_transform * HOOK).y)
+	ship.grapple_depth = maxf(0.0, rest.y - EksterExterior.GRAPPLE_REACH - (body.global_transform * HOOK).y)
 	if dist < 0.02:
+		_rpc_snap.rpc(game.ship.dock_transform().origin, 0.0, 0.0)
 		_dock()
 
 
@@ -902,7 +920,7 @@ func _dock() -> void:
 	_vy = 0.0
 	vertical_speed = 0.0
 	ship.doors_open = false
-	ship.grapple_depth = 0.0
+	game.exterior.grapple_depth = 0.0
 	_path = []
 	fuel = 1.0
 	_rpc_flags.rpc(true, lights_on)
@@ -940,7 +958,7 @@ func _send_state(delta: float) -> void:
 	_send_timer = 0.0
 	var ship: Ekster = game.ship
 	var flags := int(drilling) | (int(blocked) << 1) | (int(at_edge) << 2) | (int(ship != null and ship.doors_open) << 3)
-	var grapple := ship.grapple_depth if ship else 0.0
+	var grapple: float = game.exterior.grapple_depth if game.exterior else 0.0
 	for peer: int in game.ready_peers:
 		if peer != multiplayer.get_unique_id():
 			_rpc_state.rpc_id(peer, Time.get_ticks_msec(), body.global_position, yaw, pitch, speed, flags, fuel,
@@ -978,8 +996,8 @@ func _interpolate() -> void:
 	vertical_speed = lerpf(vertical_speed, (body.global_position.y - y_was) / maxf(dt, 0.001), 0.3)
 	var extra: Vector2 = (a[5] as Vector2).lerp(b[5], k)
 	thrust = extra.x
-	if game.ship:
-		game.ship.grapple_depth = extra.y
+	if game.exterior:
+		game.exterior.grapple_depth = extra.y
 
 
 func _update_visual() -> void:

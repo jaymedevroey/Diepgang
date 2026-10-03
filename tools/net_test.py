@@ -38,11 +38,12 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--exe", help="geëxporteerde build i.p.v. de editor")
     ap.add_argument("--port", type=int, default=24599)
-    ap.add_argument("--timeout", type=float, default=220.0)
+    ap.add_argument("--timeout", type=float, default=280.0)
+    ap.add_argument("--scenario", default="net_test", help="net_test of net_ship_test")
     args = ap.parse_args()
 
     base = [str(ROOT / args.exe)] if args.exe else [str(GODOT), "--path", "game"]
-    common = ["--headless", "--", "--scenario=net_test", "--no-steam", f"--port={args.port}"]
+    common = ["--headless", "--", f"--scenario={args.scenario}", "--no-steam", f"--port={args.port}"]
     # --headless moet voor `--`, de rest erna.
     host_cmd = base + common[:1] + common[1:] + ["--host"]
     client_cmd = base + common[:1] + common[1:] + ["--join=127.0.0.1"]

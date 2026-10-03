@@ -1,14 +1,16 @@
 class_name Ekster
 extends Node3D
-## De Ekster: moederschip van DIG (GDD v3 §1, §3, §8), model uit tools/blender/ekster.py.
-## Hangt ALTITUDE meter boven de landingsplek, in dezelfde wereld: vanaf het schip zie je de
-## planeet, vanaf de planeet het schip, en de drop is een echte val. Tussen de diensten loop je
-## hier rond (opdrachtterminal, taxatiepoort, museum, werkbank); de Mol staat in de dropbaai.
-## Geen eigen spellogica: de luiken en de grijper volgen wat de Mol (host) doet.
+## De hub van De Ekster: de ruimte waar je tussen de diensten rondloopt (opdrachtterminal,
+## taxatiepoort, museum, werkbank, de Mol in de dropbaai). Model uit tools/blender/ekster.py
+## (tijdelijk: de binnenkant wordt opnieuw ontworpen). Het schip dat je van buiten ziet, is een
+## apart model (EksterExterior) boven de landingsplek; de hub hangt HUB_ABOVE daarboven, als een
+## aparte ruimte. De Mol stapt over tussen beide baaien (drop en ophalen), wie door de open baai
+## valt, valt uit het buitenschip (Game.from_hub).
+## Geen eigen spellogica: de luiken volgen wat de Mol (host) doet.
 
 const MODEL := preload("res://assets/models/ekster.glb")
-## Hoogte van de vloer boven de landingsplek (m).
-const ALTITUDE := 340.0
+## De hub hangt zoveel boven de baai van het buitenschip (een aparte ruimte, ver uit beeld).
+const HUB_ABOVE := 1400.0
 ## Binnenruimte (lokaal): hangar en museumzaal.
 const HANGAR := AABB(Vector3(-11.0, -0.5, -22.0), Vector3(22.0, 9.5, 38.0))
 const MUSEUM := AABB(Vector3(11.0, -0.5, 0.0), Vector3(14.0, 7.5, 16.0))
@@ -70,10 +72,15 @@ LEG VONDSTEN
 OP DE BAND"
 
 
-## Plek van de vloer van de hangar (midden van de baai) boven de landingsplek van een wereld.
-static func origin_above(terrain: TerrainAPI) -> Vector3:
-	var c := terrain.shaft_center_world()
-	return Vector3(c.x, terrain.surface_height_at(c.x, c.z) + ALTITUDE, c.z)
+## Zet de hub zo dat de Mol in zijn baai op `dock` staat.
+func place_dock_at(dock: Vector3) -> void:
+	global_position = dock - (anchors["Mol_Dock"] as Node3D).position
+
+
+## Onder de vloer van de hub (door de open baai gevallen)?
+func below_floor(world: Vector3) -> bool:
+	var l := global_transform.affine_inverse() * world
+	return l.y < -6.0 and l.y > -80.0 and absf(l.x) < 40.0 and absf(l.z) < 60.0
 
 
 ## Staat een wereldpunt binnen in het schip (hangar of museum)?

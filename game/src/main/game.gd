@@ -27,8 +27,9 @@ var surface: PlanetSurface
 ## Type van de huidige planeet (hemel, zon, sfeer).
 var planet_type := PlanetType.Id.ROESTBOL
 var mol: Mol
-## De Ekster (moederschip), enkel als `start_on_ship`.
+## De Ekster: de hub (waar je rondloopt) en het schip boven de planeet, enkel als `start_on_ship`.
 var ship: Ekster
+var exterior: EksterExterior
 ## Het echte spel: spelers beginnen op De Ekster en de Mol staat in de dropbaai (GDD v3 §3).
 ## Uit voor scenario's die meteen op de planeet testen: dan staat de Mol aan de oppervlakte.
 var start_on_ship := false
@@ -38,6 +39,8 @@ var fx: DigFx
 var players: Node3D
 var local_player: Player
 var pit_seed := 1
+## Hoeveelste dienst (telt bij elke drop; wordt deel van de opdrachten, M3 stap 7).
+var shift_number := 1
 ## Solo/host: ook een eigen speler spawnen. Uit voor scenario's zonder speler.
 var spawn_host_player := true
 var is_loaded := false
@@ -110,11 +113,15 @@ func _build_terrain(ops: Array, finds_state: Array = [], ores_state: Array = [])
 	ores.generate(pit_seed)
 	ores.apply_snapshot(ores_state)
 	if start_on_ship and ship == null:
+		exterior = EksterExterior.new()
+		exterior.name = "EksterExterior"
+		add_child(exterior)
+		exterior.place_dock_at(EksterExterior.dock_above(terrain))
 		ship = Ekster.new()
 		ship.name = "Ekster"
 		ship.game = self
 		add_child(ship)
-		ship.global_position = Ekster.origin_above(terrain)
+		ship.place_dock_at(exterior.dock_position() + Vector3(0.0, Ekster.HUB_ABOVE, 0.0))
 	if mol == null:
 		mol = Mol.new()
 		mol.name = "Mol"
@@ -167,6 +174,12 @@ func host_new_world(seed_value: int) -> void:
 @rpc("authority", "reliable")
 func _rpc_new_world(seed_value: int) -> void:
 	_rebuild_world(seed_value)
+
+
+## Van de hub naar dezelfde plek t.o.v. de baai van het buitenschip (wie door de open baai van
+## de hub valt, valt uit het schip boven de planeet).
+func from_hub(world: Vector3) -> Vector3:
+	return exterior.dock_position() + (world - ship.dock_transform().origin)
 
 
 ## Terminal op het schip (lokale speler drukte E).

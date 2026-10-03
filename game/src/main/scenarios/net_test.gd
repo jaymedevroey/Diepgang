@@ -4,7 +4,7 @@ extends Node
 ## positie en terrein-checksum aan de host. Host: vergelijkt met wat hij zelf ziet.
 ## Naam van deze node is "Scenario" op elke peer, zodat de RPC's aankomen.
 
-const TIMEOUT_S := 180.0
+const TIMEOUT_S := 240.0
 const CHIPS := 6
 const DRILL_BITES := 4
 ## Deze vondst schept de boorkop van de Mol op (bij de host), de client moet het zien.

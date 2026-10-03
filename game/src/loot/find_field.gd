@@ -424,6 +424,8 @@ func _stow(it: FindItem, mol: Mol, moving: bool) -> bool:
 		_prev_velocity.erase(it.find_id)
 		return true
 	if stowed:
+		# Nog één keer op zijn plek in de Mol (die kan net gesprongen zijn: hub ↔ buitenschip).
+		it.global_transform = mol.body.global_transform * (_stowed[it.find_id] as Transform3D)
 		_stowed.erase(it.find_id)
 		it.freeze = false
 		it.linear_velocity = Vector3.ZERO
