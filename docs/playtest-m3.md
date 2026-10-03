@@ -1,4 +1,4 @@
-# Diepgang — playtest M3 (de kernlus, eerste versie)
+# Diepgang — playtest M3 (de kernlus, versie 0.6)
 
 **Vraag: voelt een volledige dienst als een spel?** Opdracht kiezen, droppen, graven en delven, het magma voelen komen, op tijd terug, en het rapport lezen.
 
@@ -7,12 +7,12 @@
 1. Start `Diepgang.exe`.
 2. Kies **Solo spelen**, **Hosten** of **Meedoen** (IP van de host). Samen spelen gaat nog via LAN, poort 24565 (UDP), of een virtueel LAN zoals Tailscale. Steam-uitnodigingen komen later.
 
-Je begint op **De Ekster**, in het laadrek achteraan het schip. **Nieuw in 0.5:** de echte binnenkant, zoals de Super Destroyer van Helldivers, met DIG-humor. Loop vooruit: het werkdek (de tv met DIG-nieuws, vier nissen voor latere upgrades), de gang (spuitcabine, firmabord), de brug met de opdrachttafel, en dan de trap af naar de hangar met de Mol voor het grote raam.
+Je begint op **De Ekster**, in het laadrek achteraan het schip. **Sinds 0.5:** de echte binnenkant, zoals de Super Destroyer van Helldivers, met DIG-humor. Loop vooruit: het werkdek (de tv met DIG-nieuws, vier nissen voor latere upgrades), de gang (spuitcabine, firmabord), de brug met de opdrachttafel, en dan de trap af naar de hangar met de Mol voor het grote raam.
 
 ## Een dienst
 
 1. **Opdracht kiezen**: E aan de opdrachttafel op de brug (de ronde tafel met het hologram, op de verhoging). Drie concessies, elk met een risico: meer risico = meer geld, maar het magma stijgt sneller. Kiezen laadt een nieuwe wereld (±10 s).
-2. **Droppen**: stap in de Mol en trek aan de rode hendel. Na het aftellen val je uit het schip (buitenbeeld) en landt de Mol op de planeet.
+2. **Droppen**: stap in de Mol en trek aan de hendel (VERTREK, rechts op de console; de HUD wijst hem aan). Na het aftellen (5 s als iedereen in de Mol zit, anders 8 s) valt de Mol door de lanceerschacht, zie je hem van buiten naar de planeet vallen en remmen, en na de landing krijg je de besturing terug. **Nieuw in 0.6:** de hele drop is een korte sequentie met beeld en geluid; de eerste drop is de lange versie, daarna een kortere. **Spatie** slaat het buitenbeeld over (in co-op moet iedereen in de Mol op spatie drukken).
 3. **Graven en delven**: houweel (stil, veilig voor vondsten), boor (snel, maar luid en beschadigt vondsten). Vondsten naar het laadruim, erts in de trechter van de Mol.
 4. **Het magma** stijgt van onderen: de eerste 2 minuten niet, daarna steeds sneller. Het statusscherm links in de Mol toont hoe ver het onder de Mol staat; dichtbij verschijnt het ook bovenaan in beeld. Wie erin zakt, smelt (een vervanger staat in de Mol, dat kost geld). Op −60 m vertrekt de Mol vanzelf: noodophaling.
 5. **Onrust**: lawaai (boren, de Mol, de sonar-PING) maakt de planeet onrustig. Vol = een **beving**: eerst een waarschuwing, dan vallen er rotsen in de gebarsten zones (net van barsten en stof aan het plafond), en het magma maakt een sprong. Het houweel is stil.
@@ -42,7 +42,7 @@ De firma (kas, kwartaal) wordt bewaard. Het verkopen gebeurt nu nog vanzelf: de 
 2. **Het magma**: voel je de druk? Te traag, te snel, eerlijk? Zie je het komen?
 3. **Bevingen**: zag je de zones? Was de waarschuwing genoeg? Leuk of irritant?
 4. **Sonar en PING**: gebruik je de PING? Is 12 m stil te weinig?
-5. **De drop en het ophalen**: het buitenbeeld, de landing, de grijper.
+5. **De drop en het ophalen**: het aftellen, de val, de landing, de grijper. Voelt het spannend, en wordt het niet saai bij de vijfde keer? Kloppen de geluiden (allemaal met code gemaakt, nog door niemand beluisterd)?
 6. **De binnenkant**: voelt het als een schip waar je graag rondloopt? Vind je de weg (laadrek → brug → Mol)? Lees je de tv en de bordjes? Wat ontbreekt er, wat is te veel?
 7. **Leukste en meest irritante moment.**
 8. Alles wat vreemd liep (vastzitten, zwart beeld, haperingen), graag met wat je deed.

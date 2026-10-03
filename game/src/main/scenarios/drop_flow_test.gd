@@ -364,7 +364,8 @@ func _observe_drop(skip: bool, extra: bool) -> Dictionary:
 						frame, c.name, c.global_position, body_pos, mol.placed.origin])
 				d.mismatch_frames = int(d.mismatch_frames) + 1
 				d.mismatch_s = float(d.mismatch_s) + get_process_delta_time()
-			else:
+			elif not (c.has_method("blacked_out") and c.call("blacked_out")):
+				# Een volledig zwart beeld (de dip bij het overslaan) telt niet: dat ziet niemand.
 				d.cam_far = maxf(d.cam_far, c.global_position.distance_to(body_pos))
 		var f: Variant = _flag()
 		if f == true:

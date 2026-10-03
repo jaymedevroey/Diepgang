@@ -131,6 +131,11 @@ func mol_synced() -> bool:
 	return mol != null and mol.body != null and mol.body.global_position.distance_to(mol.placed.origin) < 3.0 # (een sprong is honderden m; vallen ±1 m per tick)
 
 
+## Is het beeld nu volledig zwart (de dip bij een sprong)? Voor tests: wat dan getekend wordt, ziet niemand.
+func blacked_out() -> bool:
+	return _fade != null and _fade.color.a >= 0.99
+
+
 ## Sprong terwijl de speler binnen meerijdt (naar buiten, terug naar de hub): even zwart tot de Mol
 ## er ook staat, anders zie je een beeld lang de lucht of de hangar zonder de Mol rond je.
 func hold_black() -> void:
@@ -222,6 +227,10 @@ func _update(delta: float) -> void:
 	# Waar de Mol gezet is (Mol.placed), niet waar zijn lichaam nu staat: na een sprong staat dat
 	# lichaam nog een frame op de oude plek (sync_to_physics), en dan zat het eerste beeld in de hub.
 	var m := mol.placed.origin
+	# Net na een sprong (overslaan: ±150 m) staat het model van de Mol nog een tick op de oude plek:
+	# dan volgt de camera wat er getekend wordt, anders is er een beeld zonder de Mol.
+	if not mol_synced():
+		m = mol.body.global_position
 	if shot == Shot.LIFT:
 		global_position = _ground_pos
 		look_at(m + Vector3(0, 2.0, 0), Vector3.UP)
