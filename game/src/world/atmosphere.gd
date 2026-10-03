@@ -8,8 +8,10 @@ extends Node
 ## - kleurgrading: hooglichten warm, schaduwen koel (een kleine LUT, in code gemaakt);
 ## - zwevende stofjes rond de camera, enkel zichtbaar in het licht;
 ## - de helderheid uit de instellingen;
-## - in De Ekster een koeler, binnenlicht; hoog boven de grond minder nevel (de planeet onder je).
-## Alles lokaal per speler: elke client kijkt naar zijn eigen camera.
+## - in De Ekster een koeler, binnenlicht; hoog boven de grond minder nevel (de planeet onder je);
+## - onder de hub een planeetdek (planet_deck.gdshader): door de open baai zie je de planeet ver
+##   onder je, getekend zoals de hemel ze tekent, nooit wat er echt 1,7 km lager ligt.
+## Alles lokaal per speler: elke client kijkt naar zijn eigen camera. Na een cameraknip: snap().
 
 # Per laag (0 kristal · 1 graniet · 2 zandsteen · 3 klei): mist, verstrooiing in lichtbundels, omgevingslicht.
 const FOG := [Color(0.018, 0.022, 0.05), Color(0.03, 0.034, 0.042), Color(0.055, 0.042, 0.026), Color(0.05, 0.03, 0.022)]
@@ -22,12 +24,13 @@ const BOUNCE_REACH := 16.0
 ## In De Ekster: omgevingslicht en mist van een hangar (koel, wat blauw).
 const SHIP_AMBIENT := Color(0.55, 0.6, 0.72)
 const SHIP_FOG := Color(0.03, 0.035, 0.045)
-## Iets meer omgevingslicht dan buiten: de hub heeft donkere wanden en enkel kleine lampen.
-const SHIP_AMBIENT_ENERGY := 0.42
 
 var env: Environment
 var terrain: TerrainAPI
-var ship: Ekster
+var ship: Ekster:
+	set(value):
+		ship = value
+		_place_deck()
 var _ship_k := 0.0
 var _moon: DirectionalLight3D
 var _dust: GPUParticles3D
@@ -40,6 +43,7 @@ var _ambient := Color()
 var _depth := 0.0
 var _ready_once := false
 var _planet: Dictionary = {}
+var _deck: MeshInstance3D
 
 
 func setup(environment: Environment, terrain_api: TerrainAPI, planet := PlanetType.Id.ROESTBOL) -> void:
@@ -49,12 +53,9 @@ func setup(environment: Environment, terrain_api: TerrainAPI, planet := PlanetTy
 	env.background_mode = Environment.BG_SKY
 	var sky_mat := ShaderMaterial.new()
 	sky_mat.shader = preload("res://src/world/planet_sky.gdshader")
-	var sky_params: Dictionary = _planet.sky
-	for k: String in sky_params:
-		sky_mat.set_shader_parameter(k, sky_params[k])
-	# Hoogte van het oppervlak: de hemel rekent zelf hoe hoog de camera hangt (kim, dunnere lucht).
-	var c := terrain.shaft_center_world()
-	sky_mat.set_shader_parameter("surface_y", terrain.surface_height_at(c.x, c.z))
+	var air := _air_params()
+	for k: String in air:
+		sky_mat.set_shader_parameter(k, air[k])
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
 	sky.radiance_size = Sky.RADIANCE_SIZE_128
@@ -96,13 +97,66 @@ func setup(environment: Environment, terrain_api: TerrainAPI, planet := PlanetTy
 	add_child(_bounce)
 
 
+## Wat de hemel en het planeetdek allebei nodig hebben (planet_air.gdshaderinc): de kleuren van de
+## planeet, de hoogte van het oppervlak (de hemel rekent zelf hoe hoog de camera hangt), de straal
+## (zelfde kromming als het verre landschap) en het licht waarmee het echte terrein belicht wordt.
+func _air_params() -> Dictionary:
+	var air: Dictionary = (_planet.sky as Dictionary).duplicate()
+	var c := terrain.shaft_center_world()
+	air["surface_y"] = terrain.surface_height_at(c.x, c.z)
+	air["planet_radius"] = Tuning.get_f("sky", "planet_radius_m", 30000.0)
+	air["sun_light"] = _planet.sun_color
+	air["sun_energy"] = float(_planet.get("sun_energy", 1.0))
+	air["ambient_color"] = _planet.get("ambient", SURFACE_FOG)
+	air["ambient_energy"] = float(_planet.get("ambient_energy", 0.3))
+	return air
+
+
+## Planeetdek onder de hub: een vlak van 4 × 4 km, hub_deck_below_m onder de baai. Het tekent per
+## pixel de planeet zoals de hemel ze tekent (planet_deck.gdshader), dus het verbergt alles wat
+## echt onder de hub ligt (het buitenschip, het voxelterrein van de landingsplek) zonder naad met
+## de hemel. Van onder (de drop, de grond) is het onzichtbaar.
+func _place_deck() -> void:
+	if ship == null or not is_inside_tree() or _planet.is_empty():
+		return
+	if _deck == null:
+		var mat := ShaderMaterial.new()
+		mat.shader = preload("res://src/world/planet_deck.gdshader")
+		var air := _air_params()
+		for k: String in air:
+			mat.set_shader_parameter(k, air[k])
+		mat.set_shader_parameter("sun_dir", _moon.global_basis.z)
+		var plane := PlaneMesh.new()
+		plane.size = Vector2(4000.0, 4000.0)
+		_deck = MeshInstance3D.new()
+		_deck.name = "PlanetDeck"
+		_deck.mesh = plane
+		_deck.material_override = mat
+		_deck.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_deck.extra_cull_margin = 16384.0 # het vlak tekent ook wat erachter "ligt": nooit wegsnijden
+		add_child(_deck)
+	_deck.global_position = ship.dock_transform().origin - Vector3(0.0, Tuning.get_f("sky", "hub_deck_below_m", 250.0), 0.0)
+
+
+## Meteen de doelwaarden (mist, omgevingslicht, de overgang naar het schip) toepassen, zonder de
+## zachte overgang van elke frame. Voor een cameraknip (hub -> drop -> binnen in de Mol).
+func snap() -> void:
+	_update(0.0, true)
+
+
 func _apply_brightness() -> void:
 	if env:
 		env.adjustment_brightness = clampf(Settings.get_f("video/brightness"), 0.5, 2.0)
 
 
 func _process(delta: float) -> void:
-	if env == null or terrain == null or not terrain.is_loaded:
+	_update(delta, false)
+
+
+func _update(delta: float, snap_now: bool) -> void:
+	# Bij een nieuwe wereld is het oude terrein al weg (of nog niet vrijgegeven, maar uit de boom)
+	# tot main het nieuwe zet als het geladen is: dan niets doen (geen straal op het oude terrein).
+	if env == null or not is_instance_valid(terrain) or not terrain.is_inside_tree() or not terrain.is_loaded:
 		return
 	var cam := get_viewport().get_camera_3d()
 	if cam == null:
@@ -111,7 +165,7 @@ func _process(delta: float) -> void:
 	var depth := maxf(0.0, terrain.surface_height_at(p.x, p.z) - p.y)
 	var altitude := maxf(0.0, p.y - terrain.surface_height_at(p.x, p.z))
 	var in_ship := ship != null and ship.contains(p)
-	_ship_k = move_toward(_ship_k, 1.0 if in_ship else 0.0, delta * 2.0)
+	_ship_k = (1.0 if in_ship else 0.0) if snap_now else move_toward(_ship_k, 1.0 if in_ship else 0.0, delta * 2.0)
 	# Laag met een zachte overgang: kijk iets boven en onder je.
 	var y := p.y + Strata.boundary_offset(p.x, p.z, terrain.pit_seed)
 	var f := _layer_blend(y)
@@ -122,7 +176,7 @@ func _process(delta: float) -> void:
 	var surface := 1.0 - smoothstep(2.0, 10.0, depth)
 	fog = fog.lerp(_planet.get("fog", SURFACE_FOG), surface).lerp(SHIP_FOG, _ship_k)
 	ambient = ambient.lerp(_planet.get("ambient", ambient), surface).lerp(SHIP_AMBIENT, _ship_k)
-	var k := 1.0 if not _ready_once else minf(1.0, delta * 1.5)
+	var k := 1.0 if snap_now or not _ready_once else minf(1.0, delta * 1.5)
 	_ready_once = true
 	_fog = _fog.lerp(fog, k)
 	_scatter = _scatter.lerp(scatter, k)
@@ -131,10 +185,13 @@ func _process(delta: float) -> void:
 	env.volumetric_fog_albedo = _scatter
 	env.ambient_light_color = _ambient
 	var under := lerpf(0.16, 0.1, smoothstep(5.0, 60.0, depth)) + 0.07 * float(f[0]) # kristal: wat indigo
-	env.ambient_light_energy = lerpf(lerpf(under, float(_planet.get("ambient_energy", 0.3)), surface), SHIP_AMBIENT_ENERGY, _ship_k)
+	var ship_ambient := Tuning.get_f("sky", "ship_ambient_energy", 0.3) # de hub heeft donkere wanden en kleine lampen
+	env.ambient_light_energy = lerpf(lerpf(under, float(_planet.get("ambient_energy", 0.3)), surface), ship_ambient, _ship_k)
 	env.volumetric_fog_density = lerpf(0.008, 0.022, smoothstep(2.0, 20.0, depth)) * lerpf(1.0, 0.35, surface) * lerpf(1.0, 0.6, _ship_k)
-	# Hoog in de lucht (De Ekster, de drop): dunnere nevel, zodat je de planeet onder je ziet.
-	env.fog_density = lerpf(0.015, float(_planet.get("fog_density", 0.006)), surface) * lerpf(1.0, 0.3, smoothstep(30.0, 250.0, altitude))
+	# Hoog in de lucht (De Ekster, de drop): dunnere nevel, zodat je de planeet onder je ziet. Het
+	# verre landschap aan de horizon (4,6 km op 340 m) verdwijnt er toch voor ±90% in.
+	var high := Tuning.get_f("sky", "fog_altitude_factor", 0.4)
+	env.fog_density = lerpf(0.015, float(_planet.get("fog_density", 0.006)), surface) * lerpf(1.0, high, smoothstep(30.0, 250.0, altitude))
 	# Boven de grond neemt de mist de kleur van de hemel in die richting aan (luchtperspectief);
 	# onder de grond de kleur van de laag. Gloed: matig in de zon, sterker in het donker (lampen, kristal).
 	env.fog_aerial_perspective = 0.85 * surface * (1.0 - _ship_k)
@@ -143,14 +200,14 @@ func _process(delta: float) -> void:
 	# Het zonlicht dooft uit onder de grond (geen schaduw door 100 m rots heen).
 	_moon.light_energy = float(_planet.get("sun_energy", 1.0)) * surface
 	_moon.visible = surface > 0.01
-	_update_bounce(cam, depth, delta)
+	_update_bounce(cam, depth, delta, snap_now)
 	# Stofjes volgen de camera.
 	_dust.global_position = p
 	_dust.emitting = depth > 1.5
 	_depth = depth
 
 
-func _update_bounce(cam: Camera3D, depth: float, delta: float) -> void:
+func _update_bounce(cam: Camera3D, depth: float, delta: float, snap_now := false) -> void:
 	var from := cam.global_position
 	var dir := -cam.global_basis.z
 	var hit := terrain.raycast(from, from + dir * BOUNCE_REACH)
@@ -162,7 +219,7 @@ func _update_bounce(cam: Camera3D, depth: float, delta: float) -> void:
 		want = Tuning.get_f("player", "lamp_bounce_energy", 0.35) * (1.0 - smoothstep(3.0, BOUNCE_REACH, d))
 		var layer := terrain.layer_at(hit.position)
 		_bounce.light_color = (_bounce.light_color as Color).lerp(BOUNCE[layer], minf(1.0, delta * 4.0))
-	_bounce_energy = move_toward(_bounce_energy, want, delta * 2.0)
+	_bounce_energy = want if snap_now else move_toward(_bounce_energy, want, delta * 2.0)
 	_bounce.global_position = _bounce_pos
 	_bounce.light_energy = _bounce_energy
 	_bounce.visible = _bounce_energy > 0.005

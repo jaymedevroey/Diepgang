@@ -11,28 +11,13 @@ shader_type sky;
 // planeet op de ring, en licht dat door de ring valt als de zon erachter staat.
 // Alle kleuren en richtingen per planeettype (PlanetType).
 
-// --- Lucht ---------------------------------------------------------------------------------
-uniform vec3 zenith : source_color = vec3(0.63, 0.44, 0.37);
-uniform vec3 mid_sky : source_color = vec3(0.79, 0.59, 0.48);
-uniform vec3 horizon : source_color = vec3(0.91, 0.77, 0.6);
-uniform vec3 haze_band : source_color = vec3(0.95, 0.85, 0.71);
-uniform vec3 aureole : source_color = vec3(0.66, 0.77, 0.85); // krans rond de zon (stof stuurt blauw naar voren)
+// --- Lucht en grond: planet_air.gdshaderinc (gedeeld met het planeetdek onder de hub) --------
+#include "res://src/world/planet_air.gdshaderinc"
+
 uniform vec3 space : source_color = vec3(0.23, 0.16, 0.29); // wat erachter zit (hoog in de lucht zichtbaar)
-uniform float sky_energy = 1.25;
-uniform float dust_tau = 0.55; // optische dikte recht omhoog, aan de grond
-uniform float haze_height = 900.0; // m: hoe snel de lucht dunner wordt met de hoogte
-uniform float planet_radius = 30000.0; // m, gestileerd (kimdaling van hoog in de lucht)
-uniform float surface_y = 285.0; // hoogte van het oppervlak in de wereld (m)
-uniform vec3 sun_color : source_color = vec3(1.0, 0.96, 0.9);
 uniform float sun_size_deg = 1.4;
 uniform float sun_radiance = 30.0;
 uniform float star_density = 0.0016;
-
-// --- Grond onder de horizon ----------------------------------------------------------------
-uniform vec3 ground_lit : source_color = vec3(0.71, 0.33, 0.18);
-uniform vec3 ground_shadow : source_color = vec3(0.35, 0.18, 0.21);
-uniform float ground_fog_density = 0.005; // per m aan de grond
-uniform float ground_fog_height = 80.0; // m
 
 // --- De reus --------------------------------------------------------------------------------
 uniform vec3 giant_dir = vec3(-0.55, 0.38, -0.74);
@@ -48,42 +33,6 @@ uniform float ring_outer = 2.35;
 uniform vec3 ring_color : source_color = vec3(0.9, 0.84, 0.74);
 uniform vec3 ring_glow : source_color = vec3(0.75, 0.85, 0.91); // van achteren belicht
 
-
-float hash(vec3 p) {
-	p = fract(p * 0.3183099 + 0.1);
-	p *= 17.0;
-	return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
-}
-
-float vnoise(vec3 x) {
-	vec3 i = floor(x);
-	vec3 f = fract(x);
-	f = f * f * (3.0 - 2.0 * f);
-	return mix(
-		mix(mix(hash(i), hash(i + vec3(1, 0, 0)), f.x), mix(hash(i + vec3(0, 1, 0)), hash(i + vec3(1, 1, 0)), f.x), f.y),
-		mix(mix(hash(i + vec3(0, 0, 1)), hash(i + vec3(1, 0, 1)), f.x), mix(hash(i + vec3(0, 1, 1)), hash(i + vec3(1, 1, 1)), f.x), f.y),
-		f.z);
-}
-
-float fbm(vec3 p) {
-	return vnoise(p) * 0.5 + vnoise(p * 2.03) * 0.3 + vnoise(p * 4.1) * 0.2;
-}
-
-// Henyey-Greenstein: hoe sterk licht naar voren verstrooid wordt (g ≈ 0,65 voor stof).
-float hg(float mu, float g) {
-	float g2 = g * g;
-	return (1.0 - g2) / (4.0 * PI * pow(1.0 + g2 - 2.0 * g * mu, 1.5));
-}
-
-// Luchtmassa (Kasten–Young), e = hoogte boven de echte horizon in radialen.
-float airmass(float e) {
-	float deg = max(degrees(e), 0.0);
-	return 1.0 / (sin(max(e, 0.0)) + 0.50572 * pow(deg + 6.07995, -1.6364));
-}
-
-float luminance(vec3 c) {
-	return dot(c, vec3(0.2126, 0.7152, 0.0722));
-}
 
 // Schijf en ring van de reus. Camera in de oorsprong, planeet op afstand 1. Geeft rgb + alfa.
 vec4 giant(vec3 d, vec3 s) {
@@ -185,27 +134,15 @@ void sky() {
 	vec3 s = (LIGHT0_ENABLED && dot(LIGHT0_DIRECTION, LIGHT0_DIRECTION) > 1e-6) ? normalize(LIGHT0_DIRECTION) : vec3(0.0, 1.0, 0.0);
 	float mu = dot(d, s);
 	float alt = max(POSITION.y - surface_y, 0.0);
-	float dip = sqrt(2.0 * alt / planet_radius);
+	float dip = air_dip(alt);
 	float e = asin(clamp(d.y, -1.0, 1.0)) + dip; // hoogte boven de echte horizon
 	float k = exp(-alt / haze_height); // lucht boven de camera
-	vec3 tint = vec3(0.8, 1.0, 1.35); // stof slorpt blauw op
-	float sun_e = asin(clamp(s.y, -1.0, 1.0)) + dip;
-	vec3 t_sun = exp(-dust_tau * k * airmass(sun_e) * tint);
-
-	// Waas (verstrooid licht): verloop van horizon over midden naar zenit, een waasband vlak boven
-	// de horizon, en de gloed rond de zon (twee overgangen tegelijk: van onder en van opzij).
-	float el = clamp(e / (PI * 0.5), 0.0, 1.0);
-	vec3 haze = mix(horizon, mid_sky, smoothstep(0.0, 0.3, el));
-	haze = mix(haze, zenith, smoothstep(0.3, 1.0, el));
-	haze = mix(haze, haze_band, exp(-max(e, 0.0) * 14.0) * 0.6);
-	haze *= mix(0.85, 1.15, smoothstep(-0.6, 1.0, mu)); // zonkant iets lichter
-	haze += aureole * hg(mu, 0.65) * 2.2 * t_sun;
-	haze += sun_color * hg(mu, 0.92) * 0.35 * t_sun;
-	haze *= sky_energy;
+	vec3 t_sun = air_sun_t(s, k, dip);
+	vec3 haze = air_haze(e, mu, t_sun);
 
 	vec3 col;
 	if (e >= 0.0) {
-		vec3 T = exp(-dust_tau * k * airmass(e) * tint);
+		vec3 T = exp(-dust_tau * k * airmass(e) * DUST_TINT);
 		// Achtergrond: de ruimte, sterren, de reus en zijn ringen.
 		vec3 bg = space * 0.35;
 		if (!AT_CUBEMAP_PASS) {
@@ -218,8 +155,9 @@ void sky() {
 		}
 		vec4 g = giant(d, s);
 		bg = mix(bg, g.rgb * 1.6, g.a);
-		// Sterren enkel waar de lucht donker genoeg is (de reus is fel genoeg om er altijd te zijn).
-		float dark = 1.0 - smoothstep(0.03, 0.2, luminance(haze * (1.0 - T)));
+		// Sterren enkel waar de lucht echt donker is: hoog boven het stof (de hub), niet in de lichte
+		// waas van de drop of aan de grond (de reus is fel genoeg om er altijd te zijn).
+		float dark = 1.0 - smoothstep(0.01, 0.06, luminance(haze * (1.0 - T)));
 		vec3 visible_bg = mix(bg * dark, bg, g.a);
 		col = visible_bg * T + (1.0 - T) * haze;
 		// Zon: kleine schijf met randverdonkering, door de atmosfeer.
@@ -229,21 +167,8 @@ void sky() {
 			col += sun_color * sun_radiance * (1.0 - 0.6 * r * r) * t_sun * smoothstep(1.0, 0.85, r);
 		}
 	} else {
-		// Virtuele grond (van hoog in de lucht): roest met donkere vlekken, zon en schaduw, en de
-		// nevel van de stoflaag (exacte integraal over de hoogte, Inigo Quilez).
-		float dy = max(-sin(e), 1e-4);
-		float dist = (alt + 2.0) / dy;
-		vec3 hit = POSITION + d * dist;
-		float patches = fbm(hit * 0.004) * 0.7 + fbm(hit * 0.02) * 0.3;
-		vec3 ground = mix(ground_shadow, ground_lit, smoothstep(0.25, 0.75, patches));
-		ground *= 0.35 + 0.65 * max(s.y, 0.0) * 1.4;
-		float b = 1.0 / ground_fog_height;
-		float tau = ground_fog_density / b * exp(-b * 0.0) * (1.0 - exp(-b * (alt + 2.0))) / dy;
-		vec3 Tg = exp(-tau * tint);
-		vec3 far_haze = mix(horizon, haze_band, 0.5) * sky_energy + aureole * hg(mu, 0.65) * 1.5 * t_sun;
-		col = ground * Tg + (1.0 - Tg) * far_haze;
-		// Net onder de horizon zacht in de waas laten overgaan.
-		col = mix(col, haze, exp(e * 40.0));
+		// De planeet onder je (van hoog in de lucht, of voorbij het verre landschap).
+		col = planet_ground(POSITION, d, s, alt, e, mu, t_sun, haze, !AT_CUBEMAP_PASS);
 	}
 	COLOR = col;
 }
