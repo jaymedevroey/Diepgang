@@ -16,6 +16,7 @@ Objecten (namen gebruikt door de game):
   Monitor    camerascherm (UV 0..1)
   Sonar      sonarscherm achter de frontplaat van de sonarkast (UV 0..1)
   SonarLamp  echolampje op de sonarkast
+  SonarPing  PING-knop op de sonarkast (oorsprong in het midden van de knop)
   Lever      vertrekhendel (draait rond x)
   Glass      patrijspoorten en ramen
   Lege punten (Node3D): lampen, camera, stoel, knoppen, uitlaten.
@@ -634,6 +635,7 @@ SONAR_BOX = (0.92, 0.74, -0.06)  # breedte, hoogte, midden v van kast en frontpl
 SONAR_SCREEN = (0.86, 0.56)  # scherm achter de frontplaat; 1 mm = 1 pixel in de game (860×560)
 SONAR_SCOPE = ((-0.17, 0.0), 0.245)  # ronde opening: midden (u, v) en straal
 SONAR_SLOT = ((0.11, -0.26), (0.415, 0.26))  # rechthoekige opening voor de dieptestrook en de tekst
+SONAR_PING_C = [0.0, 0.0, 0.0]  # midden van de PING-knop (Godot), gezet door build_sonar
 
 
 def sonar_matrix():
@@ -662,7 +664,14 @@ def build_sonar(g):
     for du in (-bw / 2 + 0.025, bw / 2 - 0.025):
         for dv in (bv + bh / 2 - 0.025, bv - bh / 2 + 0.025):
             cyl(0.009, 0.01, (du, dv, 0.038), "Steel", g, axis="z", verts=8, bevel=0.0)
-    for ku, label in ((-0.33, "BEREIK"), (-0.12, "HELDER")):
+    # PING-knop (object SonarPing, de game laat hem branden): oranje drukknop in een kraag met een
+    # gele rand, zoals een noodknop, maar kleiner.
+    pu = -0.33
+    cyl(0.05, 0.016, (pu, knob_v, 0.042), "Yellow", g, axis="z", verts=28, bevel=0.004)
+    cyl(0.043, 0.03, (pu, knob_v, 0.055), "Anthracite", g, axis="z", verts=28, bevel=0.005)
+    cyl(0.034, 0.026, (pu, knob_v, 0.074), "LensOrange", "SonarPing", axis="z", verts=24, bevel=0.009)
+    text("PING", 0.026, (pu, knob_v - 0.075, 0.036), (0, 0, 0), "DecalLight", g, extrude=0.002)
+    for ku, label in ((-0.12, "HELDER"),):
         cyl(0.036, 0.02, (ku, knob_v, 0.045), "Anthracite", g, axis="z", verts=20, bevel=0.006)
         cyl(0.029, 0.03, (ku, knob_v, 0.06), "DarkSteel", g, axis="z", verts=20, bevel=0.006)
         box((0.007, 0.025, 0.006), (ku, knob_v + 0.016, 0.077), "DecalLight", g, bevel=0.0)
@@ -695,6 +704,9 @@ def build_sonar(g):
         for obj in objs[before.get(k, 0):]:
             obj.matrix_world = m @ obj.matrix_world
     bpy.context.view_layer.update()
+    # Midden van de PING-knop (Godot), als oorsprong van zijn object: daar komt de knop in de game.
+    c = m @ G(pu, knob_v, 0.074)
+    SONAR_PING_C[:] = [c.x, c.z, -c.y]
 
 
 def build_monitor():
@@ -802,6 +814,7 @@ def main():
     objects["Monitor"] = join_group("Monitor", "Monitor")
     objects["Sonar"] = join_group("Sonar", "Sonar")
     objects["SonarLamp"] = join_group("SonarLamp", "SonarLamp")
+    objects["SonarPing"] = join_group("SonarPing", "SonarPing", origin=tuple(SONAR_PING_C))
     objects["Lever"] = join_group("Lever", "Lever", origin=lever_base)
     objects["Glass"] = join_group("Glass", "Glass")
     for g, c in NEEDLES:

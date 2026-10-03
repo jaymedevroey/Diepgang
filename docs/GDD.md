@@ -166,7 +166,7 @@ Na Early Access komen nog een eindeloze "diepe dienst" en een wekelijkse planeet
 | **Houweel** (start) | sneller bikken, precisiemodus |
 | **Boor** T1 → T2 | zandsteen, daarna graniet en kristal. Snel en luid, beschadigt buit |
 | **Grijphandschoen** | zwaardere stukken solo, groter bereik, demper tegen botsschade |
-| **Scanner** | T1: blips. T2: waarde en type. **Nooit** "alles zichtbaar". De Mol heeft een vaste sonar (T1, 24 m) in de cabine; de handscanner is voor te voet |
+| **Scanner** | T1: blips. T2: waarde en type. **Nooit** "alles zichtbaar". De Mol heeft een vaste sonar (T1: stil 12 m, PING 24 m maar luid) in de cabine; de handscanner is voor te voet |
 | **Takel en touw** | anker plaatsen en buit door schachten omhoog lieren |
 | **Ladders** | zelf verticale routes maken |
 | **Springlading** (verbruik) | grote kraters, maar een beving en kans op schade |

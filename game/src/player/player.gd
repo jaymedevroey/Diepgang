@@ -317,6 +317,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		flying = not flying
 	elif event.is_action_pressed("horn") and captured and (seated or game.mol.contains_point(global_position)):
 		game.mol.press(Mol.Cmd.HORN)
+	elif event.is_action_pressed("sonar_ping") and captured and (seated or game.mol.contains_point(global_position)):
+		game.mol.press(Mol.Cmd.PING)
 	elif seated:
 		return # geen gereedschap in de stoel
 	elif event.is_action_pressed("tool_1"):

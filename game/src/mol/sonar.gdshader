@@ -3,6 +3,8 @@ render_mode unshaded;
 
 // Sonarbeeld (SonarScreen): ronde scoop met kop boven, draaiende veeg met naloop, blips met een
 // gloed, ▲/▼ voor boven/onder de Mol, haakjes rond het doel, en rechts een dieptestrook.
+// De rand van de scoop is het bereik van een PING; de veeg (stil luisteren) komt maar tot de
+// binnenste cirkel (`quiet`). Daarbuiten blijft het donker, tot een PING-ring uitloopt.
 // Groen fosfor zoals een oude beeldbuis. Pixels = millimeters op het scherm in de Mol.
 
 uniform vec2 size = vec2(860.0, 560.0);
@@ -12,8 +14,10 @@ uniform vec4 strip = vec4(548.0, 60.0, 570.0, 500.0); // x0, y0, x1, y1
 uniform float strip_range = 20.0; // meter boven en onder
 uniform float sweep = 0.0; // radialen, met de klok mee, 0 = vooruit (boven)
 uniform float noise = 0.0; // 0..1
+uniform float quiet = 0.5; // bereik van de veeg, als deel van de straal
+uniform float ping_r = -1.0; // straal van de PING-ring (deel van de straal), of -1
 uniform int count = 0;
-uniform vec4 blips[24]; // xy: -1..1 (x rechts, y vooruit), z: helderheid, w: grootte 0..2
+uniform vec4 blips[24]; // xy: -1..1 (x rechts, y vooruit), z: helderheid, w: grootte 0..2 (+3 = scherp, van een PING)
 uniform float heights[24]; // meter t.o.v. de Mol (+ = boven)
 uniform int target = -1;
 uniform float level = 2.5; // binnen ±level meter: "gelijk", geen pijltje
@@ -40,7 +44,11 @@ vec2 blip_pos(int i) {
 }
 
 float blip_size(int i) {
-	return 7.0 + 4.5 * blips[i].w;
+	return 7.0 + 4.5 * mod(blips[i].w, 3.0);
+}
+
+bool blip_sharp(int i) {
+	return blips[i].w > 2.5;
 }
 
 void fragment() {
@@ -53,10 +61,16 @@ void fragment() {
 	float in_scope = 1.0 - smoothstep(scope_r - 1.0, scope_r + 1.0, r);
 	if (r < scope_r + 6.0) {
 		float a = mod(atan(d.x, -d.y), TAU); // met de klok mee vanaf boven
-		g += 0.045 * (1.0 - 0.6 * r / scope_r) * in_scope;
+		float qr = quiet * scope_r;
+		float in_quiet = 1.0 - smoothstep(qr - 1.0, qr + 1.0, r);
+		g += (0.018 + 0.03 * in_quiet) * (1.0 - 0.6 * r / scope_r) * in_scope;
+		// Ringen om de kwart; de grens van de veeg feller, buiten die grens gestippeld.
 		for (int i = 1; i <= 3; i++) {
-			g += 0.2 * line_aa(abs(r - scope_r * float(i) / 3.0), 1.4) * in_scope;
+			float ri = scope_r * float(i) / 4.0;
+			float dots = ri > qr + 2.0 ? step(0.5, fract(a * ri / 14.0)) : 1.0;
+			g += 0.16 * line_aa(abs(r - ri), 1.4) * in_scope * dots;
 		}
+		g += 0.3 * line_aa(abs(r - qr), 2.0) * in_scope;
 		g += 0.55 * line_aa(abs(r - scope_r + 1.5), 2.0);
 		g += 0.09 * (line_aa(abs(d.x), 1.2) + line_aa(abs(d.y), 1.2)) * in_scope;
 		// Streepjes langs de rand: om de 10°, om de 30° langer.
@@ -64,13 +78,20 @@ void fragment() {
 		float step30 = abs(mod(a + PI / 12.0, PI / 6.0) - PI / 12.0) * r;
 		g += 0.35 * line_aa(step10, 1.3) * step(scope_r - 9.0, r) * in_scope;
 		g += 0.45 * line_aa(step30, 2.0) * step(scope_r - 18.0, r) * in_scope;
-		// Veeg: felle lijn met een naloop erachter.
+		// Veeg: felle lijn met een naloop erachter, tot de grens van het stille bereik.
 		float behind = mod(sweep - a, TAU);
-		g += 0.26 * exp(-behind * 2.4) * in_scope;
+		g += 0.26 * exp(-behind * 2.4) * in_quiet;
 		vec2 dir = vec2(sin(sweep), -cos(sweep));
 		float along = dot(d, dir);
 		float perp = abs(d.x * dir.y - d.y * dir.x);
-		g += 0.75 * line_aa(perp, 2.0) * step(0.0, along) * in_scope;
+		g += 0.75 * line_aa(perp, 2.0) * step(0.0, along) * in_quiet;
+		// PING: een felle ring die uitloopt, met een gloed erachter die uitdooft naar de rand.
+		if (ping_r >= 0.0) {
+			float pr = ping_r * scope_r;
+			float fade = 1.0 - 0.5 * ping_r;
+			g += 1.1 * fade * line_aa(abs(r - pr), 3.0) * in_scope;
+			g += 0.3 * fade * exp(-max(pr - r, 0.0) / 28.0) * step(r, pr) * in_scope;
+		}
 		// Ruis van het eigen lawaai: korrels en vlekjes die meedraaien met de tijd.
 		float speck = rnd(floor(p / 3.0) + floor(TIME * 14.0));
 		g += step(1.0 - noise * 0.022, speck) * 0.6 * in_scope;
@@ -84,7 +105,13 @@ void fragment() {
 		float s = blip_size(i);
 		float b = blips[i].z;
 		float dd = dot(q, q);
-		g += b * (1.3 * exp(-dd / (s * s)) + 0.4 * exp(-dd / (9.0 * s * s)));
+		if (blip_sharp(i)) {
+			// Scherp (PING): een kleine harde kern met een ringetje, geen wolk.
+			float ss = s * 0.6;
+			g += b * (1.5 * (1.0 - smoothstep(ss - 1.0, ss + 1.0, sqrt(dd))) + 0.7 * line_aa(abs(sqrt(dd) - ss - 6.0), 1.6));
+		} else {
+			g += b * (1.3 * exp(-dd / (s * s)) + 0.4 * exp(-dd / (9.0 * s * s)));
+		}
 		// Boven of onder de Mol.
 		float h = heights[i];
 		if (h > level) {

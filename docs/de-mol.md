@@ -56,7 +56,8 @@ De Mol boort een tunnel en moet daar zelf doorheen. Dat bepaalt de vorm, net als
 
 **Sonar:** rechts naast het camerascherm staat een sonarkast met een ronde groene beeldbuis (GDD §4, scanner T1: vage blips, nooit "alles zichtbaar").
 - Kop boven: vooruit is boven op het scherm, rechts is rechts. Een veeg draait rond (2,4 s); waar hij een vondst raakt, licht een blip op die daarna uitdooft. Het echolampje op de kast flitst mee.
-- Bereik 24 m. Vaag: elke echo wijkt wat af (0,5 m + 5 cm per meter afstand), elke veeg anders.
+- Stil luisteren: de veeg komt tot **12 m** (de binnenste felle cirkel). Vaag: elke echo wijkt wat af (0,5 m + 5 cm per meter afstand), elke veeg anders.
+- **PING** (oranje knop op de kast, of F, ook als passagier): een ring loopt uit tot **24 m** (de rand van de scoop) en geeft scherpe blips (een kern met een ringetje, ±15 cm) die 5 s blijven staan. Daarna 8 s opladen: de knop is donker en het scherm toont "PING 7 S". Een PING is luid: hij doet de onrust stijgen (GDD §4).
 - Grootte van de blip = gewicht (klein, middel, groot). ▲ of ▼ naast een blip: meer dan 2,5 m boven of onder de Mol. Rechts een dieptestrook (±20 m) met alle echo's op hun hoogte.
 - Het doel (dichtstbijzijnde echo, met haakjes) staat in tekst: afstand, richting op de klok ("2 UUR"), hoogte ("6 M ONDER" of "GELIJK") en grootte. Dichter dan 8 m: "! DICHTBIJ · STOP HIER".
 - Lawaai: rijden en vooral boren geven ruis op het scherm (RUIS) en onzekerdere echo's. Stilstaan geeft een scherp beeld (STIL).

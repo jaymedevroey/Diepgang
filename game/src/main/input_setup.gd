@@ -18,6 +18,7 @@ const KEYS := {
 	"toggle_tuning": KEY_F1,
 	"horn": KEY_H,
 	"mol_view": KEY_C,
+	"sonar_ping": KEY_F,
 }
 
 

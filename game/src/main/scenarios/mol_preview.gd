@@ -61,6 +61,10 @@ func _run(p: Player) -> void:
 		await _shot("sonar_kijk", 0.6)
 		_look(mol, Vector3(0.95, 0.42, -2.45), Vector3(1.5, 0.37, -3.28))
 		await _shot("sonar_dichtbij", 0.3)
+		# PING: de ring halverwege, en het beeld erna (scherp tot 24 m, de knop laadt op).
+		mol.press(Mol.Cmd.PING)
+		await _shot("sonar_ping_ring", 0.28)
+		await _shot("sonar_ping_na", 0.9)
 		mol.press(Mol.Cmd.RAMP)
 		await _wait(0.5)
 		Input.action_press("move_forward")

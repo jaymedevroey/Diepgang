@@ -159,7 +159,7 @@ func _ready() -> void:
 	sonar_screen = SonarScreen.new()
 	sonar_screen.name = "SonarScreen"
 	add_child(sonar_screen)
-	sonar_screen.setup(anchors["Sonar"], anchors["SonarLamp"])
+	sonar_screen.setup(anchors["Sonar"], anchors["SonarLamp"], anchors["SonarPing"])
 
 
 ## Meters op de console (0..1): diepte, snelheid, brandstof. De naalden lopen er traag naartoe.

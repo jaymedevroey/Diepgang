@@ -185,8 +185,9 @@ Stijl: Deep Rock Galactic + PEAK + Astroneer. Alle modellen in Blender (geen AI-
   - [ ] **9. Magma en onrust:** magma stijgt (de enige klok), onrust door lawaai, bevingen, vallende rotsen in gemarkeerde zones.
     Verificatie: test + screenshots.
   - [ ] **Hemel opnieuw** (onderzoek [hemel](../docs/research/hemel.md)): nieuwe shader (kleuren van een kunstenaar met natuurkundige weging, hemellichamen achter de atmosfeer, geringde reus echt in 3D met schaduwen, virtuele grond onder de horizon), mist neemt de kleur van de hemel aan, minder gloed, AgX-contrast. Drie kleurrichtingen klaar (`--sky=a|b|c`, `sky_preview`, `logs/sky/hemel_richtingen.png`); **Jayme kiest nog**.
-  - [ ] **10. Sonar met PING:** stil 12 m en vaag, PING tot 24 m maar luid.
+  - [x] **10. Sonar met PING:** stil 12 m en vaag, PING tot 24 m maar luid.
     Verificatie: `sonar_test`.
+    - 2026-10-03: de veeg komt nu tot 12 m (binnenste felle cirkel), de rand van de scoop is 24 m. PING met de oranje knop op de sonarkast of de F-toets (ook als passagier): een ring loopt in 0,6 s uit tot 24 m, scherpe blips (kern met ringetje) die 5 s blijven staan, daarna 8 s opladen (knop donker, "PING 7 S"). De host beslist; elke peer laat de ring zelf lopen. Signaal `Mol.noise_made` voor de onrust (stap 9). Nog geen geluid (keuze van Jayme). `sonar_test` 30 controles geslaagd (alles tot 24 m scherp, lawaai, opladen); beelden `logs/sonar_ping_ring.png` en `logs/sonar_ping_na.png` bekeken.
   - [ ] **11. Incidentrapport** na elke dienst (prijzen, waarde, schade).
 - [ ] **M4 Inhoud** (november): Graafworm, gas, alle ±8 items, 3 planeettypes, neergaan en redden, cosmetica, mutators, opdrachten met uitdaging, tutorial-opdracht.
 - [ ] **M5 Samen** (Jayme beslist): Steam-lobby's en uitnodigingen, voice, test met 150 ms vertraging. Poort 2.

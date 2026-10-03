@@ -1,8 +1,10 @@
 extends Node
 ## Test van de sonar in de Mol en van het opscheppen door de boorkop. Solo, headless.
 ## - Richting: 12 uur = vooruit, 3 uur = rechts, ook als de Mol gedraaid staat.
-## - Echo's: binnen bereik verschijnen ze na één veeg, dicht bij de echte plek (vaag, niet exact);
-##   buiten bereik, gedragen of in het laadruim niet.
+## - Echo's: binnen het stille bereik (12 m) verschijnen ze na één veeg, dicht bij de echte plek
+##   (vaag, niet exact); buiten bereik, gedragen of in het laadruim niet.
+## - PING: na de ring staat alles tot 24 m op de sonar, scherp; maakt lawaai (onrust); tijdens het
+##   opladen doet een tweede PING niets.
 ## - Opscheppen: rijdt de boorkop in een vondst die nog in de rots zit, dan ligt hij daarna
 ##   beschadigd in het laadruim (geen korst meer in de tunnel), met een melding.
 ## tools\godot.cmd --headless --path game -- --scenario=sonar_test --no-steam
@@ -54,7 +56,10 @@ func _run(p: Player) -> void:
 		if it.global_position.distance_to(origin.origin) < sonar.range_m - 0.5 and it.carriers.is_empty() \
 				and not mol.contains_point(it.global_position):
 			in_range += 1
-	var seen := sonar.contacts.size()
+	var seen := 0
+	for c: Sonar.Contact in sonar.contacts.values():
+		if c.item.global_position.distance_to(origin.origin) < sonar.range_m - 0.5:
+			seen += 1
 	_expect(in_range > 0 and seen == in_range, "%d van %d vondsten binnen %d m staan op de sonar" % [seen, in_range, int(sonar.range_m)])
 	var worst := 0.0
 	var outside := 0
@@ -78,6 +83,44 @@ func _run(p: Player) -> void:
 		await _wait(0.1)
 		_expect(not sonar.contacts.has(id), "een gedragen vondst verdwijnt van de sonar")
 		target.item.carriers = PackedInt32Array()
+
+	# 2b. PING: alles tot 24 m, scherp, luid, en daarna opladen.
+	var noise := [0]
+	mol.noise_made.connect(func(_a: float, _w: Vector3) -> void: noise[0] += 1)
+	var ping_n := 0
+	var quiet_n := 0
+	for it: FindItem in finds.items:
+		var dd := it.global_position.distance_to(origin.origin)
+		if it.carriers.is_empty() and not mol.contains_point(it.global_position):
+			if dd < sonar.ping_range - 0.5:
+				ping_n += 1
+			if dd < sonar.range_m - 0.5:
+				quiet_n += 1
+	# (Headless kan de muis niet vangen, dus de toets zelf gaat niet door Player; enkel de koppeling.)
+	_expect(InputMap.has_action("sonar_ping") and Settings.key_of("sonar_ping") == "F", "PING op de F-toets")
+	mol.press(Mol.Cmd.PING)
+	await get_tree().process_frame
+	_expect(sonar.pinging(), "de PING-knop start een PING (de ring loopt)")
+	await _wait(sonar.ping_range / Tuning.get_f("mol", "sonar_ping_speed", 40.0) + 0.2)
+	var sharp := 0
+	var far := 0
+	var worst_ping := 0.0
+	for c: Sonar.Contact in sonar.contacts.values():
+		if c.sharp:
+			sharp += 1
+			worst_ping = maxf(worst_ping, c.echo.distance_to(c.item.global_position))
+			if c.item.global_position.distance_to(origin.origin) > sonar.range_m:
+				far += 1
+	_expect(ping_n > quiet_n, "er liggen vondsten tussen 12 en 24 m (%d tegen %d)" % [ping_n, quiet_n])
+	_expect(sharp >= ping_n, "na de PING: %d van %d vondsten binnen %d m scherp op de sonar" % [sharp, ping_n, int(sonar.ping_range)])
+	_expect(far > 0, "ook vondsten voorbij het stille bereik (%d)" % far)
+	_expect(worst_ping < 1.0, "PING-echo's zijn scherp (grootste afwijking %.2f m)" % worst_ping)
+	_expect(noise[0] == 1, "de PING maakte lawaai (voor de onrust)")
+	var cool := sonar.ping_cool
+	_expect(cool > 0.0, "de PING laadt op (%.1f s)" % cool)
+	mol.press(Mol.Cmd.PING)
+	await _wait(0.3)
+	_expect(noise[0] == 1 and sonar.ping_cool < cool, "tijdens het opladen doet een tweede PING niets")
 
 	# 3. Opscheppen: een vondst diep in de rots, de Mol 12 m ervoor in een uitgegraven stuk tunnel.
 	var size := t.world_size()

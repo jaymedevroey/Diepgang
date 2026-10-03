@@ -22,10 +22,12 @@ signal snapped(old_xf: Transform3D, new_xf: Transform3D)
 var last_ore_units := 0
 var last_ore_value := 0
 signal message(text: String)
+## Host: de Mol maakte lawaai (PING, later ook boren en rijden), voor de onrust.
+signal noise_made(amount: float, where: Vector3)
 
 enum Mode { PARKED, DRIVING, AUTO_DOWN, COUNTDOWN, EXTRACTING, DOCKED, DROP_COUNTDOWN, DROPPING, GRAPPLE_DOWN, LIFTING }
-enum Cmd { SEAT, AUTO, HORN, LIGHTS, RAMP, DEPART, WORKBENCH }
-enum Event { HORN, BLOCKED, DEPART, BEEP, ARRIVED, DOORS, LANDED, GRAPPLED }
+enum Cmd { SEAT, AUTO, HORN, LIGHTS, RAMP, DEPART, WORKBENCH, PING }
+enum Event { HORN, BLOCKED, DEPART, BEEP, ARRIVED, DOORS, LANDED, GRAPPLED, PING }
 
 ## De Mol beweegt zonder piloot (laadruim vastsjorren, enz.). Ook het aftellen voor de drop: dan
 ## stapt de Mol over naar het buitenschip, en de lading moet mee.
@@ -122,6 +124,7 @@ var _grab_timer := 0.0
 # Clients.
 var _snapshots: Array = [] # [tijd ms, pos, yaw, pitch, speed]
 var _snap_host_ms := -1 # tijd (host) van de laatste sprong
+var _ping_ready_ms := 0 # host: vanaf wanneer een PING weer mag
 var _pending_snap: Variant = null # client: [pos, yaw, pitch], toegepast in de volgende physics-tick
 var _clock_offset := INF
 
@@ -292,6 +295,12 @@ func _handle(sender: int, button: int, arg: float) -> void:
 		Cmd.HORN:
 			if inside:
 				_rpc_event.rpc(Event.HORN)
+		Cmd.PING:
+			var now := Time.get_ticks_msec()
+			if inside and now >= _ping_ready_ms:
+				_ping_ready_ms = now + int(Tuning.get_f("mol", "sonar_ping_cooldown", 8.0) * 1000.0)
+				_rpc_event.rpc(Event.PING)
+				noise_made.emit(Tuning.get_f("mol", "sonar_ping_noise", 1.0), placed.origin)
 		Cmd.LIGHTS:
 			if inside:
 				_rpc_flags.rpc(ramp_open, not lights_on)
@@ -366,6 +375,8 @@ func _rpc_event(event: int) -> void:
 			visual.play("mol_beep", Vector3(0, 0.5, -2.5), -4.0)
 		Event.ARRIVED:
 			visual.play("mol_hydraulic", Vector3(0, -1.0, 4.0), -4.0)
+		Event.PING:
+			sonar.ping()
 
 
 @rpc("authority", "call_local", "reliable")
@@ -1132,6 +1143,7 @@ func _build_buttons() -> void:
 		var d: float = depths[i]
 		_button(a["Btn_Auto_%d" % i], "E: autopiloot · afdalen tot −%d m" % int(d), Cmd.AUTO, d, 0.16)
 	_button(a["Btn_Horn"], "E: toeteren", Cmd.HORN, 0.0, 0.18)
+	_button(a["SonarPing"], "E: sonar-PING (24 m, maar luid)", Cmd.PING, 0.0, 0.14)
 	_button(a["Btn_Lights"], "E: lampen aan/uit", Cmd.LIGHTS, 0.0, 0.16)
 	_button(a["Btn_Ramp_Cockpit"], "E: laadklep open/dicht", Cmd.RAMP, 0.0, 0.16)
 	_button(a["Btn_Ramp_Back"], "E: laadklep open/dicht", Cmd.RAMP, 0.0, 0.3)

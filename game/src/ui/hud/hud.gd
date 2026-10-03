@@ -291,7 +291,8 @@ func _build_bottom() -> void:
 	ph.add_theme_color_override("font_color", UiTheme.YELLOW)
 	prow.add_child(ph)
 	for part: Array in [[["move_forward", "move_back"], "gas"], [["move_left", "move_right"], "sturen"],
-			[["jump", "crouch"], "neus"], [["mol_view"], "buitenzicht"], [["horn"], "toeter"], [["interact"], "uitstappen"]]:
+			[["jump", "crouch"], "neus"], [["mol_view"], "buitenzicht"], [["sonar_ping"], "ping"], [["horn"], "toeter"],
+			[["interact"], "uitstappen"]]:
 		var sep := Control.new()
 		sep.custom_minimum_size.x = 10
 		prow.add_child(sep)
