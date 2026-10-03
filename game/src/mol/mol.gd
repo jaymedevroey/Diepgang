@@ -1,6 +1,8 @@
 class_name Mol
 extends Node3D
 ## De Mol: rijdende tunnelboormachine en basis (GDD §5A, docs/de-mol.md).
+## Met De Ekster (GDD v3 §3): staat in de dropbaai, valt bij de drop met de ploeg naar de
+## landingsplek (stuwraketten op het einde) en wordt na de extractie door de grijper opgehaald.
 ## - De host simuleert: rijden, boren (grote bol-ops via TerrainSync), steun en vallen,
 ##   brandstof, autopiloot (spiraal naar beneden) en extractie (eigen spoor terug omhoog).
 ## - De piloot (één peer) stuurt enkel invoer. Iedereen interpoleert de toestand van de host.
@@ -10,15 +12,28 @@ extends Node3D
 signal mode_changed(mode: Mode)
 signal pilot_changed(peer: int)
 signal summary(count: int, value: int, left_behind: int)
+## De Mol is na de drop geland (op elk peer; voor camera-schok en tests).
+signal landed
 
 ## Erts van de laatste extractie (gezet net voor `summary`).
 var last_ore_units := 0
 var last_ore_value := 0
 signal message(text: String)
 
-enum Mode { PARKED, DRIVING, AUTO_DOWN, COUNTDOWN, EXTRACTING }
+enum Mode { PARKED, DRIVING, AUTO_DOWN, COUNTDOWN, EXTRACTING, DOCKED, DROP_COUNTDOWN, DROPPING, GRAPPLE_DOWN, LIFTING }
 enum Cmd { SEAT, AUTO, HORN, LIGHTS, RAMP, DEPART, WORKBENCH }
-enum Event { HORN, BLOCKED, DEPART, BEEP, ARRIVED }
+enum Event { HORN, BLOCKED, DEPART, BEEP, ARRIVED, DOORS, LANDED, GRAPPLED }
+
+## De Mol beweegt zonder piloot (laadruim vastsjorren, enz.).
+const MOVING_MODES := [Mode.AUTO_DOWN, Mode.EXTRACTING, Mode.DROPPING, Mode.GRAPPLE_DOWN, Mode.LIFTING]
+## Niemand aan het stuur, de klep blijft zoals hij is (vertrek, drop, ophalen).
+const BUSY_MODES := [Mode.COUNTDOWN, Mode.EXTRACTING, Mode.DROP_COUNTDOWN, Mode.DROPPING, Mode.GRAPPLE_DOWN, Mode.LIFTING]
+## Buitenbeeld voor wie in de Mol zit (zie DropCam).
+const CINEMATIC_MODES := [Mode.DROPPING, Mode.LIFTING]
+## Haakpunt op het dak (lokaal), waar de grijper de Mol vastpakt.
+const HOOK := Vector3(0.0, 2.9, 0.0)
+## Luiken open zoveel seconden voor de drop (de klep gaat dan ook dicht).
+const DOOR_LEAD := 2.5
 
 const TIER := Strata.Tool.BOOR_T1
 const BORE_RADIUS := 3.2
@@ -43,7 +58,8 @@ const HEADROOM_EVERY := 0.3 # meter optillen tussen twee keer vrijmaken
 ## Dikte van buitenmuur + marge (TerrainAPI._clamp_center: 3,5 voxels) in meter.
 const EDGE_MARGIN := 2.25
 ## Binnenruimte (lokaal) voor "staat in de Mol".
-const INSIDE := AABB(Vector3(-2.2, -1.65, -3.75), Vector3(4.4, 3.6, 8.1))
+## Onderkant iets onder de vloer: bij het optrekken (grijper) zakt een speler een paar cm in de vloer.
+const INSIDE := AABB(Vector3(-2.2, -1.8, -3.75), Vector3(4.4, 3.75, 8.1))
 const SEND_INTERVAL := 0.05
 const INTERP_DELAY_MS := 100.0
 
@@ -68,6 +84,10 @@ var lights_on := true
 var fuel := 1.0
 var countdown := 0.0
 var auto_depth := 0.0
+## Stuwraketten bij de landing (0..1). Iedereen kent het (uit de toestand van de host).
+var thrust := 0.0
+## Verticale snelheid (m/s); bij clients geschat uit de toestand (voor de camera).
+var vertical_speed := 0.0
 
 # Host.
 var _input := Vector3.ZERO # throttle, steer, pitch
@@ -86,8 +106,11 @@ var _start_pos := Vector3.ZERO
 var _readout_timer := 0.0
 var _rng := RandomNumberGenerator.new()
 var _ramp_shape: CollisionShape3D
+var _lever_button: Interactable
 var _visual_yaw := 0.0
 var _teleport: Variant = null # [pos, yaw, pitch], toegepast in de volgende physics-tick
+var _braking := false # drop: de stuwraketten remmen
+var _grab_timer := 0.0
 
 # Clients.
 var _snapshots: Array = [] # [tijd ms, pos, yaw, pitch, speed]
@@ -97,11 +120,8 @@ var _clock_offset := INF
 var _pilot_send := 0.0
 
 
-func setup() -> void:
-	var t: TerrainAPI = game.terrain
-	_rng.seed = t.pit_seed * 7919 + 13
-	var c := t.shaft_center_world()
-	_start_pos = Vector3(c.x, t.surface_height_at(c.x, c.z) - TRACK_BOTTOM, c.z)
+## `docked`: in de dropbaai van De Ekster beginnen (anders aan de oppervlakte, bij de landingsplek).
+func setup(docked := false) -> void:
 	body = AnimatableBody3D.new()
 	body.name = "Body"
 	body.sync_to_physics = true
@@ -113,10 +133,24 @@ func setup() -> void:
 	body.add_child(visual)
 	_build_collision()
 	_build_buttons()
+	attach_terrain()
+	if docked:
+		mode = Mode.DOCKED
+		_place(game.ship.dock_transform().origin, 0.0, 0.0)
+		_path = []
+	else:
+		_place(_start_pos, 0.0, 0.0)
+		_path = [_start_pos]
+
+
+## Bij een (nieuwe) wereld: terrein rond de Mol laden en de landingsplek kennen.
+func attach_terrain() -> void:
+	var t: TerrainAPI = game.terrain
+	_rng.seed = t.pit_seed * 7919 + 13
+	var c := t.shaft_center_world()
+	_start_pos = Vector3(c.x, t.surface_height_at(c.x, c.z) - TRACK_BOTTOM, c.z)
 	# Terrein rond de Mol: hij boort en rijdt ook als niemand in de buurt is (autopiloot, extractie).
 	t.add_viewer(body, Tuning.get_f("terrain", "view_m", 110.0), Tuning.get_f("terrain", "collision_m", 48.0))
-	_place(_start_pos, 0.0, 0.0)
-	_path = [_start_pos]
 
 
 # --- Vragen ---------------------------------------------------------------------------
@@ -244,7 +278,7 @@ func _handle(sender: int, button: int, arg: float) -> void:
 	var near := p.global_position.distance_to(body.global_position) < 9.0
 	match button:
 		Cmd.SEAT:
-			if inside and pilot == 0 and mode != Mode.EXTRACTING and mode != Mode.COUNTDOWN:
+			if inside and pilot == 0 and not mode in BUSY_MODES:
 				_set_mode(Mode.DRIVING if mode == Mode.PARKED else mode, sender)
 		Cmd.HORN:
 			if inside:
@@ -253,7 +287,7 @@ func _handle(sender: int, button: int, arg: float) -> void:
 			if inside:
 				_rpc_flags.rpc(ramp_open, not lights_on)
 		Cmd.RAMP:
-			if (inside or near) and absf(speed) < 0.3 and mode != Mode.EXTRACTING:
+			if (inside or near) and absf(speed) < 0.3 and not mode in BUSY_MODES:
 				_rpc_flags.rpc(not ramp_open, lights_on)
 		Cmd.AUTO:
 			if inside and mode in [Mode.PARKED, Mode.DRIVING] and arg > depth() + 2.0:
@@ -263,7 +297,13 @@ func _handle(sender: int, button: int, arg: float) -> void:
 				_set_mode(Mode.AUTO_DOWN, pilot)
 				_rpc_message.rpc("Autopiloot: afdalen tot −%d m" % int(arg))
 		Cmd.DEPART:
-			if inside and mode in [Mode.PARKED, Mode.DRIVING, Mode.AUTO_DOWN] and _path.size() > 1:
+			if inside and mode == Mode.DOCKED and game.terrain.is_loaded:
+				countdown = Tuning.get_f("ship", "drop_countdown_s", 8.0)
+				_beep_timer = 0.0
+				_rpc_event.rpc(Event.HORN)
+				_set_mode(Mode.DROP_COUNTDOWN, 0)
+				_rpc_message.rpc("Drop over %d seconden: iedereen in de Mol!" % int(countdown))
+			elif inside and mode in [Mode.PARKED, Mode.DRIVING, Mode.AUTO_DOWN] and (_path.size() > 1 or game.ship != null):
 				countdown = Tuning.get_f("mol", "countdown_s", 10.0)
 				_beep_timer = 0.0
 				_rpc_event.rpc(Event.HORN)
@@ -300,8 +340,15 @@ func _rpc_flags(new_ramp: bool, new_lights: bool) -> void:
 @rpc("authority", "call_local", "reliable")
 func _rpc_event(event: int) -> void:
 	match event:
-		Event.HORN:
+		Event.HORN, Event.DOORS:
 			visual.play("mol_horn", Vector3(0, 2.3, -3.0), 0.0)
+		Event.LANDED:
+			visual.play("mol_blocked", Vector3(0, -2.0, 0.0), 2.0)
+			visual.play("mol_hydraulic", Vector3(0, -1.0, 4.0), -2.0)
+			visual.landing_burst()
+			landed.emit()
+		Event.GRAPPLED:
+			visual.play("mol_hydraulic", Vector3(0, 2.5, 0.0), 0.0)
 		Event.BLOCKED:
 			visual.play("mol_blocked", Vector3(0, 0, -7.0), -2.0)
 		Event.DEPART:
@@ -326,17 +373,23 @@ func _rpc_summary(count: int, value: int, left_behind: int, ore_units: int, ore_
 
 ## Late joiner: alles wat hij moet weten.
 func send_state(peer: int) -> void:
-	_rpc_full.rpc_id(peer, body.global_position, yaw, pitch, mode, pilot, ramp_open, lights_on, fuel)
+	var ship: Ekster = game.ship
+	_rpc_full.rpc_id(peer, body.global_position, yaw, pitch, mode, pilot, ramp_open, lights_on, fuel,
+			ship != null and ship.doors_open, ship.grapple_depth if ship else 0.0)
 
 
 @rpc("authority", "reliable")
-func _rpc_full(pos: Vector3, y: float, p: float, m: int, pl: int, ramp: bool, lights: bool, f: float) -> void:
+func _rpc_full(pos: Vector3, y: float, p: float, m: int, pl: int, ramp: bool, lights: bool, f: float,
+		doors: bool, grapple: float) -> void:
 	_place(pos, y, p)
 	mode = m
 	pilot = pl
 	ramp_open = ramp
 	lights_on = lights
 	fuel = f
+	if game.ship:
+		game.ship.doors_open = doors
+		game.ship.grapple_depth = grapple
 
 
 # --- Simulatie (host) --------------------------------------------------------------------------
@@ -376,6 +429,18 @@ func _simulate(delta: float) -> void:
 	var now := Time.get_ticks_msec() / 1000.0
 	var inp := _input if now - _input_time < 0.5 else Vector3.ZERO
 	match mode:
+		Mode.DOCKED:
+			_hold_docked()
+			return
+		Mode.DROP_COUNTDOWN:
+			_drop_countdown(delta)
+			return
+		Mode.DROPPING:
+			_drop(delta)
+			return
+		Mode.GRAPPLE_DOWN, Mode.LIFTING:
+			_lift(delta)
+			return
 		Mode.AUTO_DOWN:
 			inp = _autopilot_down(delta)
 		Mode.COUNTDOWN:
@@ -660,6 +725,14 @@ func _autopilot_down(delta: float) -> Vector3:
 
 
 func _extract(delta: float) -> void:
+	if _path_index < 0 and game.ship:
+		speed = 0.0
+		drilling = false
+		_grab_timer = 0.0
+		_rpc_flags.rpc(true, lights_on) # wie nog buiten is, kan instappen tot de grijper vastzit
+		_set_mode(Mode.GRAPPLE_DOWN, 0)
+		_rpc_message.rpc("Op de landingsplek. De grijper van De Ekster komt eraan: iedereen erin!")
+		return
 	if _path_index < 0:
 		speed = 0.0
 		drilling = false
@@ -704,6 +777,154 @@ func _extract(delta: float) -> void:
 	_place(pos, yaw, pitch)
 
 
+# --- De Ekster: dok, drop, ophalen (host) -----------------------------------------------------
+
+## In de dropbaai: vast aan de grijper, op de luiken.
+func _hold_docked() -> void:
+	var ship: Ekster = game.ship
+	if ship == null:
+		return
+	var at := ship.dock_transform().origin
+	if not body.global_position.is_equal_approx(at):
+		_place(at, 0.0, 0.0)
+	speed = 0.0
+	thrust = 0.0
+	vertical_speed = 0.0
+	ship.grapple_depth = 0.0
+
+
+func _drop_countdown(delta: float) -> void:
+	var ship: Ekster = game.ship
+	countdown -= delta
+	_beep_timer -= delta
+	if _beep_timer <= 0.0:
+		_beep_timer = 1.0
+		_rpc_event.rpc(Event.BEEP)
+	if countdown <= DOOR_LEAD and not ship.doors_open:
+		ship.doors_open = true
+		_rpc_flags.rpc(false, lights_on)
+		_rpc_event.rpc(Event.DOORS)
+	if countdown <= 0.0:
+		_vy = 0.0
+		_braking = false
+		_rpc_event.rpc(Event.DEPART)
+		_set_mode(Mode.DROPPING, 0)
+
+
+## Vrije val uit de baai, op het einde remmen met de stuwraketten tot een zachte landing.
+## Is het terrein onder de landingsplek nog niet geladen, dan blijft hij erboven hangen.
+func _drop(delta: float) -> void:
+	var t: TerrainAPI = game.terrain
+	var pos := body.global_position
+	var ground := t.surface_height_at(pos.x, pos.z) - TRACK_BOTTOM
+	var ready := t.collision_ready(Vector3(pos.x, ground + TRACK_BOTTOM, pos.z))
+	var brake := Tuning.get_f("ship", "drop_brake", 14.0)
+	var soft := Tuning.get_f("ship", "drop_touch_speed", 3.0)
+	var to_floor := pos.y - ground - (0.0 if ready else Tuning.get_f("ship", "drop_wait_height", 30.0))
+	if not _braking and to_floor <= _vy * _vy / (2.0 * brake) + 6.0:
+		_braking = true
+	if _braking:
+		# Snelheid volgt een wortelprofiel naar de landingssnelheid (of stilhangen als het terrein
+		# er nog niet is); nooit sneller dan cap, ook niet na het wachten.
+		var cap := Tuning.get_f("ship", "drop_brake_cap", 15.0)
+		var want := -clampf(sqrt(2.0 * brake * maxf(to_floor - 3.0, 0.0)), soft, cap)
+		if not ready and to_floor < 3.0:
+			want = 0.0
+		_vy = move_toward(_vy, want, (brake + 4.0) * delta)
+		thrust = clampf(0.45 + 0.55 * clampf((want - _vy) / 8.0 + absf(_vy) / cap * 0.5, 0.0, 1.0), 0.0, 1.0)
+	else:
+		_vy = maxf(_vy - 9.8 * delta, -Tuning.get_f("ship", "drop_max_speed", 42.0))
+		thrust = 0.0
+	vertical_speed = _vy
+	pos.y += _vy * delta
+	if ready:
+		var gap := INF
+		for p: Vector3 in TRACK_POINTS:
+			gap = minf(gap, t.sdf_at(pos + Vector3(p.x, TRACK_BOTTOM, p.z)))
+		if gap <= 0.05:
+			pos.y += 0.04 - gap
+			_place(pos, yaw, 0.0)
+			_land()
+			return
+	_place(pos, yaw, 0.0)
+
+
+func _land() -> void:
+	_vy = 0.0
+	vertical_speed = 0.0
+	speed = 0.0
+	thrust = 0.0
+	_path = [body.global_position]
+	_start_pos = body.global_position
+	_rpc_flags.rpc(true, lights_on)
+	_set_mode(Mode.PARKED, 0)
+	_rpc_event.rpc(Event.LANDED)
+	_rpc_message.rpc("Geland op %s. Veel succes, en denk aan de quota." % PlanetType.NAMES[game.planet_type])
+
+
+## Grijper zakt tot op het dak, klep dicht, dan omhoog tot in de baai.
+func _lift(delta: float) -> void:
+	var ship: Ekster = game.ship
+	var rest := ship.grapple_rest_world()
+	if mode == Mode.GRAPPLE_DOWN:
+		var want := rest.y - Ekster.GRAPPLE_REACH - (body.global_transform * HOOK).y
+		ship.grapple_depth = move_toward(ship.grapple_depth, want, Tuning.get_f("ship", "grapple_down_speed", 40.0) * delta)
+		if ship.grapple_depth < want - 0.01:
+			return
+		if _grab_timer == 0.0:
+			_rpc_flags.rpc(false, lights_on)
+			_rpc_event.rpc(Event.GRAPPLED)
+			_rpc_message.rpc("Grijper vast. Naar boven!")
+		_grab_timer += delta
+		if _grab_timer > Tuning.get_f("ship", "grapple_hold_s", 2.0):
+			_vy = 0.0
+			_set_mode(Mode.LIFTING, 0)
+		return
+	var dock := ship.dock_transform().origin
+	var to := dock - body.global_position
+	var dist := to.length()
+	var accel := Tuning.get_f("ship", "lift_accel", 6.0)
+	var want_v := clampf(sqrt(2.0 * accel * dist), 0.8, Tuning.get_f("ship", "lift_speed", 24.0))
+	_vy = move_toward(_vy, want_v, accel * delta)
+	vertical_speed = _vy
+	var pos := body.global_position + to.normalized() * minf(_vy * delta, dist)
+	var k := minf(1.0, delta * 1.2)
+	_place(pos, lerp_angle(yaw, 0.0, k), lerpf(pitch, 0.0, k))
+	ship.grapple_depth = maxf(0.0, rest.y - Ekster.GRAPPLE_REACH - (body.global_transform * HOOK).y)
+	if dist < 0.02:
+		_dock()
+
+
+## Terug in de baai: luiken dicht, klep open, en de dienst is voorbij.
+func _dock() -> void:
+	var ship: Ekster = game.ship
+	_place(ship.dock_transform().origin, 0.0, 0.0)
+	_vy = 0.0
+	vertical_speed = 0.0
+	ship.doors_open = false
+	ship.grapple_depth = 0.0
+	_path = []
+	fuel = 1.0
+	_rpc_flags.rpc(true, lights_on)
+	_set_mode(Mode.DOCKED, 0)
+	_rpc_event.rpc(Event.ARRIVED)
+	var items := cargo_contents()
+	var value := 0
+	for it: FindItem in items:
+		value += it.value()
+	# Wie niet in de Mol of op het schip is, bleef achter op de planeet: DIG haalt een vervanger.
+	var left := 0
+	var left_peers: Array = []
+	for pl: Player in game.players.get_children():
+		if not pl.seated and not contains_point(pl.global_position) and not ship.contains(pl.global_position):
+			pl.host_teleport(game.spawn_pos_of(pl.peer_id))
+			left += 1
+			left_peers.append(pl.peer_id)
+	var ores: OreField = game.ores
+	_rpc_summary.rpc(items.size(), value, left, OreField.units(ores.hold), OreField.value(ores.hold))
+	ores.host_after_extraction(left_peers)
+
+
 func _place(pos: Vector3, y: float, p: float) -> void:
 	yaw = y
 	pitch = p
@@ -717,22 +938,27 @@ func _send_state(delta: float) -> void:
 	if _send_timer < SEND_INTERVAL:
 		return
 	_send_timer = 0.0
-	var flags := int(drilling) | (int(blocked) << 1) | (int(at_edge) << 2)
+	var ship: Ekster = game.ship
+	var flags := int(drilling) | (int(blocked) << 1) | (int(at_edge) << 2) | (int(ship != null and ship.doors_open) << 3)
+	var grapple := ship.grapple_depth if ship else 0.0
 	for peer: int in game.ready_peers:
 		if peer != multiplayer.get_unique_id():
-			_rpc_state.rpc_id(peer, Time.get_ticks_msec(), body.global_position, yaw, pitch, speed, flags, fuel)
+			_rpc_state.rpc_id(peer, Time.get_ticks_msec(), body.global_position, yaw, pitch, speed, flags, fuel,
+					Vector2(thrust, grapple))
 
 
 @rpc("authority", "unreliable_ordered")
-func _rpc_state(sent_ms: int, pos: Vector3, y: float, p: float, spd: float, flags: int, f: float) -> void:
+func _rpc_state(sent_ms: int, pos: Vector3, y: float, p: float, spd: float, flags: int, f: float, extra: Vector2) -> void:
 	var now := float(Time.get_ticks_msec())
 	_clock_offset = minf(_clock_offset, now - sent_ms)
-	_snapshots.append([float(sent_ms) + _clock_offset, pos, y, p, spd])
+	_snapshots.append([float(sent_ms) + _clock_offset, pos, y, p, spd, extra])
 	if _snapshots.size() > 30:
 		_snapshots.pop_front()
 	drilling = flags & 1 != 0
 	blocked = flags & 2 != 0
 	at_edge = flags & 4 != 0
+	if game.ship:
+		game.ship.doors_open = flags & 8 != 0
 	fuel = f
 
 
@@ -746,7 +972,14 @@ func _interpolate() -> void:
 	var b: Array = _snapshots[1] if _snapshots.size() > 1 else a
 	var k := 0.0 if b[0] == a[0] else clampf((render_t - a[0]) / (b[0] - a[0]), 0.0, 1.0)
 	speed = lerpf(a[4], b[4], k)
+	var y_was := body.global_position.y
 	_place((a[1] as Vector3).lerp(b[1], k), lerp_angle(a[2], b[2], k), lerp_angle(a[3], b[3], k))
+	var dt := get_physics_process_delta_time()
+	vertical_speed = lerpf(vertical_speed, (body.global_position.y - y_was) / maxf(dt, 0.001), 0.3)
+	var extra: Vector2 = (a[5] as Vector2).lerp(b[5], k)
+	thrust = extra.x
+	if game.ship:
+		game.ship.grapple_depth = extra.y
 
 
 func _update_visual() -> void:
@@ -765,8 +998,11 @@ func _update_visual() -> void:
 	visual.blocked = blocked
 	visual.ramp_open = ramp_open
 	visual.lights_on = lights_on
-	visual.beacons = mode in [Mode.AUTO_DOWN, Mode.COUNTDOWN, Mode.EXTRACTING]
-	visual.lever_pulled = mode in [Mode.COUNTDOWN, Mode.EXTRACTING]
+	visual.beacons = mode in [Mode.AUTO_DOWN, Mode.COUNTDOWN, Mode.EXTRACTING, Mode.DROP_COUNTDOWN, Mode.DROPPING, Mode.GRAPPLE_DOWN, Mode.LIFTING]
+	visual.lever_pulled = mode in [Mode.COUNTDOWN, Mode.EXTRACTING, Mode.DROP_COUNTDOWN, Mode.DROPPING]
+	visual.thrust = thrust
+	if _lever_button:
+		_lever_button.hint = "E: droppen op de planeet" if mode == Mode.DOCKED else "E: vertrekken naar boven (10 s)"
 	if drilling:
 		var layer: Strata.Layer = game.terrain.layer_at(body.global_position + forward() * (BORE_AHEAD + 2.0))
 		visual.dust_color = Strata.DEBRIS_COLORS[layer]
@@ -778,7 +1014,8 @@ func _update_visual() -> void:
 		var value := 0
 		for it: FindItem in cargo:
 			value += it.value()
-		var states := ["GEPARKEERD", "RIJDEN", "AUTOPILOOT", "VERTREK %d" % int(ceil(countdown)), "NAAR BOVEN"]
+		var states := ["GEPARKEERD", "RIJDEN", "AUTOPILOOT", "VERTREK %d" % int(ceil(countdown)), "NAAR BOVEN",
+				"IN DE EKSTER", "DROP %d" % int(ceil(countdown)), "DROP", "GRIJPER KOMT", "NAAR DE EKSTER"]
 		var state: String = ("! RAND PUT" if at_edge else "! TE HARD") if blocked else ("BOREN" if drilling and mode == Mode.DRIVING else states[mode])
 		var ore: PackedInt32Array = game.ores.hold
 		visual.set_readout("%s
@@ -857,7 +1094,7 @@ func _build_buttons() -> void:
 	_button(a["Btn_Lights"], "E: lampen aan/uit", Cmd.LIGHTS, 0.0, 0.16)
 	_button(a["Btn_Ramp_Cockpit"], "E: laadklep open/dicht", Cmd.RAMP, 0.0, 0.16)
 	_button(a["Btn_Ramp_Back"], "E: laadklep open/dicht", Cmd.RAMP, 0.0, 0.3)
-	_button(a["Lever"], "E: vertrekken naar boven (10 s)", Cmd.DEPART, 0.0, 0.3)
+	_lever_button = _button(a["Lever"], "E: vertrekken naar boven (10 s)", Cmd.DEPART, 0.0, 0.3)
 	_button(a["Workbench"], "Werkbank (upgrades komen later)", Cmd.WORKBENCH, 0.0, 0.6)
 	# Ertstrechter: storten gaat rechtstreeks naar het ertsveld (host controleert de afstand).
 	var chute_shape := BoxShape3D.new()
@@ -874,10 +1111,11 @@ func _build_buttons() -> void:
 	_button(seat, "E: de Mol besturen", Cmd.SEAT, 0.0, Vector3(1.2, 1.1, 1.1))
 
 
-func _button(anchor: Node3D, hint: String, button: Cmd, arg: float, size: Variant) -> void:
+func _button(anchor: Node3D, hint: String, button: Cmd, arg: float, size: Variant) -> Interactable:
 	var shape := BoxShape3D.new()
 	shape.size = size if size is Vector3 else Vector3.ONE * float(size)
 	var it := Interactable.make(hint, shape)
 	it.set_meta("mol_cmd", button)
 	anchor.add_child(it)
 	it.used.connect(func(_p: Player) -> void: press(button, arg))
+	return it

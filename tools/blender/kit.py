@@ -64,6 +64,21 @@ PALETTE = {
     "DecalLight": ((0.95, 0.93, 0.88), 0.0, 0.6, None),
     "Bulb": ((1.0, 0.9, 0.7), 0.0, 0.2, ((1.0, 0.82, 0.55), 6.0)),
     "Cyan": ((0.31, 0.89, 0.94), 0.0, 0.2, ((0.31, 0.89, 0.94), 3.0)),
+    "Green": ((0.3, 0.55, 0.22), 0.0, 0.7, None),
+    # Nostromo-stijl (De Ekster): zinkgrijze romp in drie tinten, grijsgroen van een andere fabrikant,
+    # menie voor vakwerk, roet, crème capitonnage binnen, en de lampjes op de buik.
+    "HullGrey": ((0.420, 0.424, 0.408), 0.45, 0.6, None),
+    "HullDark": ((0.298, 0.306, 0.294), 0.45, 0.62, None),
+    "HullLight": ((0.541, 0.541, 0.514), 0.4, 0.58, None),
+    "GreyGreen": ((0.369, 0.4, 0.353), 0.3, 0.62, None),
+    "RedOxide": ((0.482, 0.247, 0.173), 0.2, 0.7, None),
+    "Soot": ((0.169, 0.153, 0.141), 0.1, 0.85, None),
+    "Padded": ((0.851, 0.827, 0.757), 0.0, 0.75, None),
+    "BellyLight": ((1.0, 0.75, 0.48), 0.0, 0.3, ((1.0, 0.72, 0.42), 8.0)),
+    "EngineGlow": ((0.75, 0.88, 1.0), 0.0, 0.2, ((0.7, 0.85, 1.0), 8.0)),
+    "NavRed": ((1.0, 0.15, 0.1), 0.0, 0.2, ((1.0, 0.12, 0.08), 6.0)),
+    "NavGreen": ((0.2, 1.0, 0.4), 0.0, 0.2, ((0.2, 1.0, 0.4), 6.0)),
+    "RunLight": ((0.6, 0.85, 1.0), 0.0, 0.2, ((0.55, 0.8, 1.0), 5.0)),
     "PlayerColor": ((0.95, 0.55, 0.12), 0.1, 0.5, None),  # in Godot vervangen door de spelerskleur
 }
 _MATS = {}

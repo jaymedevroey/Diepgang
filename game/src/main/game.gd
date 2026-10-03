@@ -8,6 +8,8 @@ extends Node3D
 signal world_loaded(stats: Dictionary)
 signal player_spawned(player: Player)
 signal player_removed(peer_id: int)
+## Melding voor de HUD (bv. van het schip).
+signal notice(text: String, kind: String)
 
 ## Eigen kleur per speler (GDD §8).
 const COLORS: Array[Color] = [
@@ -25,6 +27,13 @@ var surface: PlanetSurface
 ## Type van de huidige planeet (hemel, zon, sfeer).
 var planet_type := PlanetType.Id.ROESTBOL
 var mol: Mol
+## De Ekster (moederschip), enkel als `start_on_ship`.
+var ship: Ekster
+## Het echte spel: spelers beginnen op De Ekster en de Mol staat in de dropbaai (GDD v3 §3).
+## Uit voor scenario's die meteen op de planeet testen: dan staat de Mol aan de oppervlakte.
+var start_on_ship := false
+## Viewer boven de landingsplek: het terrein daar laadt al terwijl de ploeg op het schip is.
+var landing_viewer: Node3D
 var fx: DigFx
 var players: Node3D
 var local_player: Player
@@ -84,6 +93,7 @@ func player_node(peer_id: int) -> Player:
 # --- Wereld -------------------------------------------------------------------
 
 func _build_terrain(ops: Array, finds_state: Array = [], ores_state: Array = []) -> void:
+	is_loaded = false
 	terrain = TerrainAPI.new()
 	terrain.name = "Terrain"
 	terrain.pit_seed = pit_seed
@@ -99,17 +109,69 @@ func _build_terrain(ops: Array, finds_state: Array = [], ores_state: Array = [])
 	finds.apply_snapshot(finds_state)
 	ores.generate(pit_seed)
 	ores.apply_snapshot(ores_state)
-	mol = Mol.new()
-	mol.name = "Mol"
-	# Eerst de Mol, dan de spelers: wie meerijdt, volgt de Mol van deze tick (zie Player._ride_mol).
-	mol.process_physics_priority = -10
-	mol.game = self
-	add_child(mol)
-	mol.setup()
+	if start_on_ship and ship == null:
+		ship = Ekster.new()
+		ship.name = "Ekster"
+		ship.game = self
+		add_child(ship)
+		ship.global_position = Ekster.origin_above(terrain)
+	if mol == null:
+		mol = Mol.new()
+		mol.name = "Mol"
+		# Eerst de Mol, dan de spelers: wie meerijdt, volgt de Mol van deze tick (zie Player._ride_mol).
+		mol.process_physics_priority = -10
+		mol.game = self
+		add_child(mol)
+		mol.setup(ship != null)
+	else:
+		mol.attach_terrain()
+	if ship:
+		# Terrein rond de landingsplek laden zolang de ploeg boven is (en voor wie later springt).
+		if landing_viewer == null:
+			landing_viewer = Node3D.new()
+			landing_viewer.name = "LandingViewer"
+			add_child(landing_viewer)
+		landing_viewer.global_position = terrain.focus_world
+		terrain.add_viewer(landing_viewer, Tuning.get_f("terrain", "view_m", 110.0), Tuning.get_f("terrain", "collision_m", 48.0))
+		for p: Player in players.get_children():
+			_add_viewers(p)
 	for op in ops:
 		terrain.apply_op(op)
 	terrain_sync.flush_pending()
 	terrain.loaded.connect(_on_terrain_loaded)
+
+
+## Nieuwe wereld (volgende dienst, nieuwe planeet): terrein, vondsten, erts en het landschap
+## opnieuw uit een andere seed. De Mol, het schip en de spelers blijven.
+func _rebuild_world(seed_value: int) -> void:
+	pit_seed = seed_value
+	for old: Node in [terrain, surface]:
+		if old:
+			remove_child(old)
+			old.queue_free()
+	finds.clear()
+	ores.clear()
+	_build_terrain([])
+	for p: Player in players.get_children():
+		p.on_new_world()
+	print("[game] nieuwe wereld: seed %d" % seed_value)
+
+
+## Host: de volgende dienst gaat naar een nieuwe planeet (bij iedereen dezelfde seed).
+func host_new_world(seed_value: int) -> void:
+	_rebuild_world(seed_value)
+	for peer: int in multiplayer.get_peers():
+		_rpc_new_world.rpc_id(peer, seed_value)
+
+
+@rpc("authority", "reliable")
+func _rpc_new_world(seed_value: int) -> void:
+	_rebuild_world(seed_value)
+
+
+## Terminal op het schip (lokale speler drukte E).
+func ship_terminal_used(_p: Player) -> void:
+	notice.emit("Opdrachten kiezen komt hier. Nu: stap in de Mol en trek aan de hendel om te droppen.", "info")
 
 
 func _on_terrain_loaded(stats: Dictionary) -> void:
@@ -216,21 +278,25 @@ func _spawn(peer_id: int, color_idx: int, pos: Vector3) -> void:
 	p.game = self
 	players.add_child(p)
 	p.global_position = pos
-	var target := terrain.shaft_center_world()
+	var target := mol.body.global_position if ship else terrain.shaft_center_world()
 	target.y = pos.y
-	p.look_at(target) # naar de open laadklep van de Mol
+	p.look_at(target) # naar de Mol (op het schip) of naar de open laadklep
 	p.rotation.x = 0.0
 	if p.is_local:
 		local_player = p
-	# Terrein rond elke speler laden. Collision: de host simuleert buit bij iedereen, een client
-	# enkel bij zichzelf (andere spelers volgt hij via het netwerk).
+	_add_viewers(p)
+	player_spawned.emit(p)
+
+
+## Terrein rond elke speler laden. Collision: de host simuleert buit bij iedereen, een client
+## enkel bij zichzelf (andere spelers volgt hij via het netwerk).
+func _add_viewers(p: Player) -> void:
 	var view := Tuning.get_f("terrain", "view_m", 110.0)
 	var coll := Tuning.get_f("terrain", "collision_m", 48.0)
 	if p.is_local or Net.is_host():
 		terrain.add_viewer(p, view, coll)
 	else:
 		terrain.add_viewer(p, coll)
-	player_spawned.emit(p)
 
 
 func _despawn(peer_id: int) -> void:
@@ -247,13 +313,15 @@ func _free_color() -> int:
 	return 0
 
 
-## Achter de Mol, bij de laadklep, naast elkaar.
-## Host: vaste spawnplek van een speler (achter de Mol aan de oppervlakte).
+## Host: vaste spawnplek van een speler: op het schip, of (zonder schip) achter de Mol aan de
+## oppervlakte, bij de laadklep, naast elkaar.
 func spawn_pos_of(peer_id: int) -> Vector3:
 	return _spawn_pos(_color_of.get(peer_id, 0))
 
 
 func _spawn_pos(idx: int) -> Vector3:
+	if ship:
+		return ship.spawn_point(idx)
 	var sc := terrain.shaft_center_world()
 	# Achter de Mol, in een rij die binnen de breedte van de laadklep (±2,1 m) blijft.
 	var p := sc + Vector3(-1.8 + idx * 1.2, 0.0, 9.5)

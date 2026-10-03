@@ -2,6 +2,18 @@
 
 Wat we onderweg leerden en wat het GDD bijstuurt. Nieuwste bovenaan.
 
+## 2026-10-03 — De Ekster, de drop en de hemel
+
+- **Eerst onderzoek, dan ontwerpen, dan bouwen.** Het schip uit een plattegrond in code (dozen) was een doos, en Jayme walgde ervan. Pas na onderzoek (voorbeelden, vormregels, hoe artiesten het bouwen) en een ontwerp in klei dat hij goedkeurde, werd het iets. Voor elk nieuw groot model: onderzoek in `docs/research/`, dan enkel de vorm (klei) tonen, dan pas details.
+- **Meer details maken een doosvorm niet mooier.** Drie Nostromo-ontwerpen met honderden details bleven "blokken aan elkaar". Wat werkte: verhoudingen afmeten op één sterk voorbeeld (de Super Destroyer, van opzij en van onder), schuine vlakken, lange lijnen, open ruimte tussen massa's.
+- **Ontwerpen tonen in de echte look van de game** (`concept_preview`: machine-shader, hemel, licht, de echte camerahoeken), niet als grijze Workbench-klodders.
+- **Blender start niet in de repo:** een relatief uitvoerpad (`logs/x.png`) kwam in `C:\logs\`. Paden in scripts altijd tegen de repo oplossen.
+- **`kit._MATS` bewaart materialen:** na `read_factory_settings` zijn ze weg (ReferenceError). Leegmaken bij een nieuwe scène.
+- **Een AnimatableBody met `sync_to_physics` loopt een tick achter**: wie meerijdt met de verplaatsing per tick, zakt bij een snel stijgende Mol steeds verder door de vloer. Tijdens drop en ophalen zit je nu vast op een vaste plek in de Mol. Meet in tests na de physics-tick (`process_frame`), anders zie je een tick verschil.
+- **Gaten in het terrein vallen pas op met een lichte hemel.** Waar het voxelterrein nog laadt, zie je de hemel onder de horizon. Met de oude donkerbruine hemel leek dat op een plas, met de nieuwe op een wit meer. Previews wachten nu tot het terrein gemesht is. Het grove raster van het speelgebied valt in de shader weg dichter dan 90 m (daar ligt het echte terrein), zodat het geen gaten of tunnels afsluit.
+- **De hemel is het lichtste vlak** (Carlson). Een donker zenit boven zonnige grond maakt alles bruin. Hemellichamen staan áchter de atmosfeer: `lucht = achtergrond × T + (1 − T) × waas`.
+- **Godot-mist kan geen nevel die met de hoogte van de camera verandert** (de hoogtemist hangt enkel af van de hoogte van het punt). Voorlopig schaalt de dichtheid met de hoogte van de camera. Een eigen mist in de terrein-shader (`FOG`) zet de volumetrische mist in de grotten uit; dat is uitgesteld.
+
 ## 2026-10-03 — Grote planeet met streaming
 
 - **GDScript-lambda's kunnen geen twee waarden teruggeven**: `return p, -1` in een lambda die als argument meegaat, wordt gelezen als een extra argument van de aanroep ("Too many arguments"). Een Array teruggeven.

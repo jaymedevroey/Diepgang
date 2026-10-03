@@ -22,6 +22,9 @@ uniform float facet_strength = 1.0;
 uniform vec4 ore_points[16];
 uniform int ore_count = 0;
 uniform vec4 ore_colors[4];
+// Grof raster van het speelgebied (PlanetSurface): dichter dan dit bij de camera is het echte
+// voxelterrein geladen, dus daar niet tekenen (anders sluit het gaten en tunnels af). 0 = uit.
+uniform float near_cutoff = 0.0;
 
 varying vec3 wpos;
 varying vec3 wnrm;
@@ -105,6 +108,9 @@ void vertex() {
 }
 
 void fragment() {
+	if (near_cutoff > 0.0 && distance(wpos, CAMERA_POSITION_WORLD) < near_cutoff) {
+		discard;
+	}
 	vec3 wn = normalize(wnrm);
 	float offset = 1.5 * sin(wpos.x * 0.13 + seed_f * 0.7) + 1.2 * sin(wpos.z * 0.09 + seed_f * 1.3);
 	float y = wpos.y + offset;
@@ -272,6 +278,9 @@ void fragment() {
 	NORMAL = normalize((VIEW_MATRIX * vec4(n, 0.0)).xyz);
 	ALBEDO = col;
 	ROUGHNESS = rough;
+	// Stof en rots weerkaatsen weinig: zonder dit spiegelen vlakke kratervloeren onder een scherende
+	// hoek de lichte hemel (witte "meren").
+	SPECULAR = 0.18;
 	EMISSION = emit;
 	AO = (1.0 - contact * 0.3) * (1.0 - smoothstep(0.5, 2.2, -curv) * 0.35) * (1.0 - crack * 0.5 * camp * cmask);
 	AO_LIGHT_AFFECT = 0.5;

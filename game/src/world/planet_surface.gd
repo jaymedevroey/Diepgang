@@ -6,12 +6,17 @@ extends Node3D
 ##   horizon toe groeien. Niet te graven, geen collision.
 ## - De concessiegrens van DIG: paaltjes met knipperlichten om de 16 m, en onzichtbare muren
 ##   zodat niemand het speelgebied uit loopt.
+## - Het speelgebied zelf als grof raster, getekend waar het voxelterrein niet geladen is: verder
+##   dan de laadafstand van de camera (van hoog in de lucht: alles). Dichterbij valt het weg in de
+##   shader, zodat het nooit gaten of tunnels afsluit.
 
 const RING := 360.0 # meter voorbij de rand van het speelgebied
 const STEPS_INSIDE := 32 # rasterlijnen over de breedte van het speelgebied (de rand valt op een lijn)
+const AREA_STEPS := 96 # raster van het speelgebied zelf (van ver)
 
 var terrain: TerrainAPI
 var _hills := FastNoiseLite.new()
+var _area: MeshInstance3D
 
 
 func build(t: TerrainAPI, planet_seed: int) -> void:
@@ -22,7 +27,41 @@ func build(t: TerrainAPI, planet_seed: int) -> void:
 	_hills.fractal_type = FastNoiseLite.FRACTAL_RIDGED
 	_hills.fractal_octaves = 3
 	_build_ring()
+	_build_area()
 	_build_boundary()
+
+
+
+## Raster van het speelgebied (gegenereerd oppervlak, zonder gaten), een halve meter lager dan
+## het echte oppervlak: waar het voxelterrein geladen is, ligt dat erover.
+func _build_area() -> void:
+	var size := terrain.world_size()
+	var n := AREA_STEPS + 1
+	var step := size.x / AREA_STEPS
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var h := PackedFloat32Array()
+	h.resize(n * n)
+	for j in n:
+		for i in n:
+			h[j * n + i] = terrain.surface_height_at(i * step, j * step) - 0.5
+	for j in n - 1:
+		for i in n - 1:
+			var a := Vector3(i * step, h[j * n + i], j * step)
+			var b := Vector3((i + 1) * step, h[j * n + i + 1], j * step)
+			var c := Vector3((i + 1) * step, h[(j + 1) * n + i + 1], (j + 1) * step)
+			var d := Vector3(i * step, h[(j + 1) * n + i], (j + 1) * step)
+			for v in [a, b, c, a, c, d]:
+				st.add_vertex(v)
+	st.generate_normals()
+	_area = MeshInstance3D.new()
+	_area.name = "AreaFromAbove"
+	_area.mesh = st.commit()
+	var area_mat := terrain.terrain_material().duplicate() as ShaderMaterial
+	area_mat.set_shader_parameter("near_cutoff", Tuning.get_f("terrain", "view_m", 110.0) - 20.0)
+	_area.material_override = area_mat
+	_area.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_area)
 
 
 ## Hoogte van het verre landschap: het oppervlak van de planeet plus heuvels die groeien met de

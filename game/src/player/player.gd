@@ -28,9 +28,13 @@ var camera: Camera3D
 var camera_fx: CameraFx
 ## Buitenzicht als piloot (C). Enkel bij de lokale speler.
 var chase: MolChaseCam
+## Buitenbeeld tijdens de drop en het ophalen (enkel lokaal, zie DropCam).
+var drop_cam: DropCam
 # Meerijden in de Mol: zijn transform bij de vorige tick (zie _ride_mol).
 var _mol_ref := Transform3D()
 var _riding := false
+# Vast in de Mol tijdens de drop en het ophalen: [positie lokaal t.o.v. de Mol, draaiing t.o.v. de Mol].
+var _attached: Variant = null
 var pickaxe: Pickaxe
 var drill: Drill
 var tools: Array[Node3D] = []
@@ -168,7 +172,20 @@ func _setup_local() -> void:
 	chase.name = "ChaseCam"
 	chase.mol = game.mol
 	add_child(chase)
+	drop_cam = DropCam.new()
+	drop_cam.name = "DropCam"
+	add_child(drop_cam)
+	game.mol.landed.connect(func() -> void:
+		if game.mol.contains_point(global_position):
+			camera_fx.add_trauma(0.7))
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+## Nieuwe wereld (nieuwe dienst): het gereedschap graaft in het nieuwe terrein.
+func on_new_world() -> void:
+	if pickaxe:
+		pickaxe.terrain = game.terrain
+		drill.terrain = game.terrain
 
 
 func _on_pilot_changed(peer: int) -> void:
@@ -259,7 +276,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not is_local:
 		return
 	var captured := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
-	if event is InputEventMouseMotion and captured and seated and chase.current:
+	if event is InputEventMouseMotion and captured and drop_cam.current:
+		drop_cam.look(_mouse(event.relative), _sensitivity())
+	elif event is InputEventMouseMotion and captured and seated and chase.current:
 		chase.look(_mouse(event.relative), _sensitivity())
 	elif event.is_action_pressed("mol_view") and seated:
 		if chase.current:
@@ -304,8 +323,19 @@ func _physics_process(delta: float) -> void:
 		return
 	_ride_mol()
 	_rescue_if_fallen()
+	# Drop en ophalen: de Mol beweegt snel verticaal, en meerijden met zijn verplaatsing per tick
+	# liep telkens een tick achter (de speler zakte steeds verder door de vloer). Dan zit je vast op
+	# je plek in de Mol: geen zwaartekracht, geen eigen beweging.
+	var mol: Mol = game.mol
+	if mol.mode in [Mol.Mode.DROPPING, Mol.Mode.GRAPPLE_DOWN, Mol.Mode.LIFTING] and (_attached != null or _riding):
+		if _attached == null:
+			_attached = [mol.to_local_mol(global_position), rotation.y - mol.yaw]
+		_follow_attached(mol)
+		velocity = Vector3.ZERO
+		return
+	_attached = null
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
-	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and DisplayServer.get_name() != "headless":
+	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and DisplayServer.get_name() != "headless" or drop_cam.current:
 		input = Vector2.ZERO
 	if flying:
 		var fly_speed := Tuning.get_f("player", "fly_speed", 12.0)
@@ -322,6 +352,8 @@ func _physics_process(delta: float) -> void:
 		velocity.z = dir.z * speed
 		if not is_on_floor():
 			velocity += get_gravity() * delta
+			# Wie uit De Ekster springt, valt niet sneller dan dit (geen tunneling door de grond).
+			velocity.y = maxf(velocity.y, -Tuning.get_f("player", "max_fall_speed", 40.0))
 		elif Input.is_action_just_pressed("jump") and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 			velocity.y = Tuning.get_f("player", "jump_velocity", 4.5)
 	move_and_slide()
@@ -347,6 +379,12 @@ func _ride_mol() -> void:
 			velocity.y = minf(velocity.y, 0.0)
 	_mol_ref = now
 	_riding = true
+
+
+func _follow_attached(mol: Mol) -> void:
+	global_position = mol.to_world_mol(_attached[0])
+	rotation.y = mol.yaw + float(_attached[1])
+	_mol_ref = mol.body.global_transform
 
 
 ## Vangnet: wie onder de wereld valt (door een fout of door het terrein), komt terug in de Mol.
@@ -382,7 +420,10 @@ func _process(delta: float) -> void:
 		if seated:
 			_seat_to_mol() # ook tussen physics-ticks, zodat de camera vloeiend meebeweegt
 		var mol: Mol = game.mol
+		if _attached != null:
+			_follow_attached(mol)
 		var in_mol := mol != null and (seated or mol.contains_point(global_position))
+		_update_drop_cam(mol, in_mol)
 		if in_mol and mol.drilling and camera_fx.trauma() < 0.22:
 			camera_fx.add_trauma(delta * 0.6) # de hele Mol trilt als hij boort
 		_send_timer += delta
@@ -401,6 +442,18 @@ func _process(delta: float) -> void:
 					_rpc_state.rpc_id(peer, Time.get_ticks_msec(), pos, yaw, head.rotation.x, in_mol)
 	else:
 		_interpolate()
+
+
+## In de Mol tijdens de drop of het ophalen: buitenbeeld. Op het einde van het ophalen (vlak
+## onder het schip) terug naar binnen: de camera zou anders in de romp van het schip hangen.
+func _update_drop_cam(mol: Mol, in_mol: bool) -> void:
+	var want := in_mol and mol.mode in Mol.CINEMATIC_MODES
+	if want and mol.mode == Mol.Mode.LIFTING and game.ship:
+		want = game.ship.dock_transform().origin.y - mol.body.global_position.y > 18.0
+	if want and not drop_cam.current:
+		drop_cam.activate(mol)
+	elif not want and drop_cam.current:
+		camera.make_current()
 
 
 ## Toestand van de authority naar alle anderen. Onbetrouwbaar: een gemiste update

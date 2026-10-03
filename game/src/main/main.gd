@@ -5,7 +5,11 @@ extends Node3D
 ##   --host [--port=N]       host op poort N (standaard 24565)
 ##   --join=ADRES [--port=N] verbinden met een host
 ## Scenario's (--scenario=…):
-##   play (standaard)  speler op het oppervlak, graven met het houweel
+##   play (standaard)  het spel: op De Ekster beginnen, droppen met de Mol
+##   ship_preview      screenshots van De Ekster (hangar, terminal, museum, baai, van buiten)
+##   ship_test         De Ekster en de drop: spawnen op het schip, droppen, landen, ophalen (headless)
+##   concept_preview   ontwerpen van De Ekster (assets/models/concepts/) in de look van de game
+##   sky_preview       de zes controlebeelden van de hemel (--sky=a|b|c), logs/sky/
 ##   dig_test          headless controle van graven en de TerrainAPI-laag
 ##   stress            4 gesimuleerde gravers + 30 fysica-objecten, frametijden naar logs/
 ##   render            vaste camera in een tunnel, screenshot naar logs/
@@ -55,9 +59,15 @@ const SCENARIOS := {
 	"ui_test": preload("res://src/main/scenarios/ui_test.gd"),
 	"tool_preview": preload("res://src/main/scenarios/tool_preview.gd"),
 	"finds_gallery": preload("res://src/main/scenarios/finds_gallery.gd"),
+	"ship_preview": preload("res://src/main/scenarios/ship_preview.gd"),
+	"ship_test": preload("res://src/main/scenarios/ship_test.gd"),
+	"concept_preview": preload("res://src/main/scenarios/concept_preview.gd"),
+	"sky_preview": preload("res://src/main/scenarios/sky_preview.gd"),
 }
+## Scenario's die op De Ekster beginnen (de Mol in de dropbaai). De rest begint op de planeet.
+const SCENARIOS_ON_SHIP := ["play", "ship_preview", "ship_test"]
 ## Scenario's waarin de host ook een eigen speler krijgt.
-const SCENARIOS_WITH_PLAYER := ["play", "net_test", "find_test", "carry_test", "carry_preview", "mol_test", "sonar_test", "mol_edge_test", "stream_test", "ore_test", "drive_perf", "mol_preview", "hud_preview", "ui_test", "tool_preview"]
+const SCENARIOS_WITH_PLAYER := ["play", "ship_preview", "ship_test", "net_test", "find_test", "carry_test", "carry_preview", "mol_test", "sonar_test", "mol_edge_test", "stream_test", "ore_test", "drive_perf", "mol_preview", "hud_preview", "ui_test", "tool_preview"]
 
 var game: Game
 var player: Player
@@ -102,7 +112,9 @@ func _ready() -> void:
 	game = Game.new()
 	game.name = "Game"
 	game.spawn_host_player = scenario in SCENARIOS_WITH_PLAYER
+	game.start_on_ship = scenario in SCENARIOS_ON_SHIP and not CmdArgs.has("on-planet")
 	add_child(game)
+	game.notice.connect(func(t: String, kind: String) -> void: hud.toast(t, kind))
 	game.world_loaded.connect(_on_world_loaded)
 	game.player_spawned.connect(_on_player_spawned)
 
@@ -163,7 +175,7 @@ func _join(address: String, port: int) -> void:
 func _on_net_started() -> void:
 	if Net.is_host():
 		if scenario == "play":
-			_loading.show_status("DE PUT WORDT KLAARGEMAAKT")
+			_loading.show_status("DE EKSTER MAAKT ZICH KLAAR")
 		game.start_host(int(CmdArgs.value("seed", 1)))
 	else:
 		_loading.show_status("WERELD OPHALEN BIJ DE HOST")
@@ -177,6 +189,8 @@ func _on_world_loaded(stats: Dictionary) -> void:
 		_atmosphere.name = "Atmosphere"
 		add_child(_atmosphere)
 		_atmosphere.setup(($WorldEnvironment as WorldEnvironment).environment, terrain, game.planet_type)
+	_atmosphere.terrain = terrain # nieuwe wereld per dienst
+	_atmosphere.ship = game.ship
 	if not _mol_connected:
 		_mol_connected = true
 		game.mol.message.connect(func(t: String) -> void:

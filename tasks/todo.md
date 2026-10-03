@@ -13,7 +13,9 @@ Afvinkbare taken per mijlpaal. Bron: [docs/GDD.md](../docs/GDD.md) §10 en §13.
 | Windows-build | `tools\export_windows.cmd` → `builds\windows\Diepgang.exe` |
 | Build online zetten (andere toestellen) | build in `builds\Diepgang-windows.zip` (enkel exe, pck, dll's, LEESMIJ), dan `gh release create vX.Y.Z builds/Diepgang-windows.zip --prerelease` op [jaymedevroey/Diepgang](https://github.com/jaymedevroey/Diepgang) (privé) |
 | Nettest (host + client, headless) | `py -3.11 tools/net_test.py` (of `--exe builds/windows/Diepgang.console.exe`) |
-| Vondsten, dragen, de Mol, sonar, tuning, menu's (headless) | `tools\godot.cmd --headless --path game -- --scenario=find_test --no-steam` (ook `carry_test`, `mol_test`, `sonar_test`, `mol_edge_test`, `stream_test`, `ore_test`, `tuning_test`, `ui_test`) |
+| Vondsten, dragen, de Mol, sonar, schip en drop, tuning, menu's (headless) | `tools\godot.cmd --headless --path game -- --scenario=find_test --no-steam` (ook `carry_test`, `mol_test`, `sonar_test`, `mol_edge_test`, `stream_test`, `ore_test`, `ship_test`, `tuning_test`, `ui_test`) |
+| Schip, hemel en ontwerpen (screenshots) | `--scenario=ship_preview` · `--scenario=sky_preview --sky=a\|b\|c` · `--scenario=concept_preview --model=res://assets/models/ekster_exterior.glb --close` |
+| Buitenkant van De Ekster bouwen | `"C:\Program Files\Blender Foundation\Blender 5.2lender.exe" -b --factory-startup --python tools/blender/ekster_exterior.py`, daarna `--import` |
 | Rots per laag (voor/na) | `--scenario=terrain_preview --shot=naam` (tunnel en bekapte wand per laag, met GPU-tijd; `--only=klei,kristal`) |
 | HUD en menu (screenshots) | `--scenario=hud_preview` (korst, vondst, dragen, ver, piloot, vertrek, resultaat, pauze) · `--scenario=ui_preview` · `-- --menu-shot --menu-settings --menu-join` |
 | Screenshots | `-- --autodig --pitch=-30 --shot=naam --frames=60,300` · `--scenario=robot_preview` · `find_preview` · `carry_preview` · `mol_preview` (`--only=buiten,zij,rups,achter,binnen,cabine,afdalen`, of `--only=sonar`) · `--menu-shot` |
@@ -160,16 +162,25 @@ Stijl: Deep Rock Galactic + PEAK + Astroneer. Alle modellen in Blender (geen AI-
     - Open: De Ekster in de lucht komt met stap 4/5 (het schip zelf).
   - [ ] **4. De Ekster:** moederschip in Blender (dropbaai met de Mol, terminal, taxatiepoort, museumzaal, werkbank). Je begint en eindigt hier.
     Verificatie: screenshots, zelf rondgelopen.
+    - 2026-10-03, eerste poging (een doos, zonder onderzoek) afgekeurd door Jayme. Daarna onderzoek: [schip-ontwerp](../docs/research/schip-ontwerp.md), [schip-bouwen-in-blender](../docs/research/schip-bouwen-in-blender.md), [nostromo-stijl](../docs/research/nostromo-stijl.md). Ook vier vormrichtingen en drie Nostromo-ontwerpen werden afgekeurd ("blokken aan elkaar"). Jayme koos de **Helldivers-stijl**.
+    - [x] **Buitenkant**, 2026-10-03: de vorm eerst in klei (verhoudingen afgemeten op de Super Destroyer: hamerkop met kaak, hoog middenstuk, lange rug, twee schuine motorarmen met open ruimte). Jayme keurde de vorm goed ("zo is goed"). Daarna details in lagen ([ekster_exterior.py](../tools/blender/ekster_exterior.py)): panelen in tinten, gele lijnen, zijluiken, de baai met grijper, rijen ramen en looplichten, navigatielichten, bloemmotoren, pantserplaten, containers met gestolen lading op de rug, een kraan, koelvinnen, de buik met lichtjes, DE EKSTER, DIG-0017 en een ekster als embleem. ±170 m lang.
+      Verificatie: `concept_preview --model=res://assets/models/ekster_exterior.glb --close` in de game bekeken (boeg, flank, rug, motoren, buik, van onder, vanaf de planeet, drop). Overzicht: `logs/concepts/ekster_buitenkant.png`.
+    - [ ] **Binnenkant** (een aparte ruimte waar je volledig in rondloopt): eerst met Jayme overleggen voor het begint (zijn vraag).
+    - De oude doos-Ekster ([ekster.py](../tools/blender/ekster.py), klasse `Ekster`) werkt nog als speelbare hub tot de binnenkant er is.
   - [ ] **5. Drop:** de Mol valt met de ploeg erin op de planeet (gloed, stuwraketten, landing); het terrein laadt intussen.
     Verificatie: test: iedereen blijft in de Mol, landing op het oppervlak, terrein geladen bij de landing; nettest; screenshots.
+    - 2026-10-03: werking klaar. Hendel in de Mol (aftellen), luiken open, vrije val tot 42 m/s, remmen met stuwraketten (vlammen, gloed) tot 3 m/s, stofwolk bij de landing. Wacht boven de grond als de collision er nog niet is. Wie in de Mol zit, zit vast op zijn plek (de botsvorm van de Mol loopt een tick achter). Uit het schip springen: je landt op de grond (val begrensd op 40 m/s). `ship_test` (21 controles) dekt drop, landing, springen en ophalen.
+    - Onderzoek: [drop-en-ophalen](../docs/research/drop-en-ophalen.md). Jayme koos het **heldenshot**: één vaste buitencamera achter de Mol, het schip boven in beeld, en bij de landing een knip naar binnen. De huidige draaiende camera moet dus nog vervangen worden, net als de melding "Geland op" (wordt een stempel in de wereld).
   - [ ] **6. Extractie met de grijper:** de Mol rijdt naar boven, De Ekster pikt hem op, terug in de dropbaai; achterblijvers worden vervangen (kosten).
     Verificatie: test met speler binnen en buiten; nettest.
+    - 2026-10-03: werking klaar (grijper zakt, klep dicht, optrekken tot in de baai, luiken dicht, achterblijvers naar het schip). Nog te doen volgens het onderzoek: aankomsttijd en baken, 20 s instappen, de ladder voor wie te laat is, vervangingsfactuur, rustfase in de baai.
   - [ ] **7. Opdracht, quota, teamkas, opslaan:** terminal met 2–3 planeten, kwartaal van 3 diensten, boete, kas, opslaan bij de host.
     Verificatie: test (doel gehaald / gemist / opslaan en laden).
   - [ ] **8. Taxatie en museum:** taxatiepoort met onthulling één voor één, verkopen of schenken, museum met skeletsets, gaten met hints, namen op de bordjes.
     Verificatie: test + screenshots.
   - [ ] **9. Magma en onrust:** magma stijgt (de enige klok), onrust door lawaai, bevingen, vallende rotsen in gemarkeerde zones.
     Verificatie: test + screenshots.
+  - [ ] **Hemel opnieuw** (onderzoek [hemel](../docs/research/hemel.md)): nieuwe shader (kleuren van een kunstenaar met natuurkundige weging, hemellichamen achter de atmosfeer, geringde reus echt in 3D met schaduwen, virtuele grond onder de horizon), mist neemt de kleur van de hemel aan, minder gloed, AgX-contrast. Drie kleurrichtingen klaar (`--sky=a|b|c`, `sky_preview`, `logs/sky/hemel_richtingen.png`); **Jayme kiest nog**.
   - [ ] **10. Sonar met PING:** stil 12 m en vaag, PING tot 24 m maar luid.
     Verificatie: `sonar_test`.
   - [ ] **11. Incidentrapport** na elke dienst (prijzen, waarde, schade).

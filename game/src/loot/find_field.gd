@@ -71,6 +71,19 @@ func generate(pit_seed: int) -> void:
 ## Eén vondst plaatsen. `where` geeft [positie, soort] terug (soort -1 = volgens de laag,
 ## -2 = fossielbed). Tot 40 pogingen voor een plek in de rots, weg van de landingsplek en van
 ## andere vondsten. Altijd evenveel getallen uit de rng per poging: elke peer plaatst hetzelfde.
+## Nieuwe wereld: alle vondsten en korsten weg.
+func clear() -> void:
+	for it in items:
+		it.queue_free()
+	for c: Crust in crusts.values():
+		c.queue_free()
+	items.clear()
+	crusts.clear()
+	_stowed.clear()
+	_parked.clear()
+	_prev_velocity.clear()
+
+
 func _place(rng: RandomNumberGenerator, where: Callable) -> void:
 	var t: TerrainAPI = game.terrain
 	var sc := t.shaft_center_world()
@@ -347,7 +360,7 @@ func _physics_process(delta: float) -> void:
 	if not multiplayer.is_server() or game == null:
 		return
 	var mol_now: Mol = game.mol
-	var mol_moving := mol_now != null and mol_now.body != null and (absf(mol_now.speed) > 0.05 or mol_now.mode in [Mol.Mode.AUTO_DOWN, Mol.Mode.EXTRACTING])
+	var mol_moving := mol_now != null and mol_now.body != null and (absf(mol_now.speed) > 0.05 or mol_now.mode in Mol.MOVING_MODES)
 	for it in items:
 		if not it.freed:
 			continue

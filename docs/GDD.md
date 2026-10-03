@@ -74,7 +74,7 @@ De Ekster (moederschip) → planeet en opdracht kiezen → drop met de Mol → b
 
 ### Een dienst (15–20 minuten)
 1. **Aan boord van De Ekster** kies je op de terminal een planeet: 2–3 keuzes, elk met een opdracht (en later mutators, §4).
-2. **Drop.** Iedereen stapt in de Mol, de piloot trekt aan de drophendel. De Mol valt door de atmosfeer (gloed, schokken, stuwraketten) en landt in een stofwolk. De drop is meteen ook het laadscherm: het terrein laadt terwijl je valt.
+2. **Drop.** Iedereen stapt in de Mol, de piloot trekt aan de drophendel. De Mol valt door de atmosfeer (gloed, schokken, stuwraketten) en landt in een stofwolk. De drop is meteen ook het laadscherm: het terrein laadt terwijl je valt. In beeld: het **heldenshot** (keuze Jayme, [drop-en-ophalen](research/drop-en-ophalen.md)). Eén vaste camera achter de vallende Mol, het schip krimpt boven in beeld, en bij de landing een knip naar binnen in de stofwolk.
 3. **Afdalen.** De Mol boort zich in de grond, zelf gestuurd of met de autopiloot.
 4. **Zoeken.** De sonar luistert stil (kort bereik, vaag). Een **PING** geeft een scherp beeld tot ver, maar maakt lawaai.
 5. **Graven en delven.** Erts gaat in je ertszak en geef je af aan de trechter van de Mol. Vondsten zitten in een **korst**: met het houweel bik je die weg zonder schade, maar traag; boren gaat sneller, maar verlaagt de waarde.
@@ -269,7 +269,7 @@ Een grote rupsvoertuig-drilboor (±10 m lang, ±6 m breed) van DIG: vooraan een 
 **Richting (v2.1, Jayme):** de vibe van **Deep Rock Galactic** (gestileerd, chunky, licht in het donker) met de warmte en speelsheid van **PEAK** en de zachte vormen en voertuigen van **Astroneer**. Gestileerd, niet fotorealistisch. **Alle modellen in Blender** (headless scripts), geen AI-gegenereerde modellen.
 
 - **Drie plekken:**
-  - **De Ekster:** warm, industrieel, druk, zoals de Space Rig van DRG. Dropbaai met de Mol, terminal, taxatiepoort, museum, werkbank.
+  - **De Ekster:** buiten in **Helldivers-stijl** (gekozen door Jayme op 3 oktober 2026, na onderzoek: [schip-ontwerp](research/schip-ontwerp.md), [nostromo-stijl](research/nostromo-stijl.md)). Een lang oorlogsschip van ±170 m met hamerkop en kaak, een lange rug en twee motorarmen. Donker grijs met gele DIG-lijnen, en containers met gestolen lading op de rug. Binnen: een aparte ruimte waar je rondloopt (dropbaai met de Mol, terminal, taxatiepoort, museum, werkbank). De binnenkant wordt ontworpen in overleg met Jayme.
   - **Het oppervlak van een planeet:** kaal en buitenaards, met een sterke hemel (manen, ringen, nevel). Geen bomen of water.
   - **Ondergronds:** donker, de kern van het spel.
 - **Beeld:** donker als bewuste stijlkeuze. Enkel wat verlicht is, heeft detail.

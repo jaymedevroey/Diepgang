@@ -76,6 +76,13 @@ func generate(planet_seed: int) -> void:
 	print("[ore] %d ertsclusters geplaatst (seed %d)" % [clusters.size(), planet_seed])
 
 
+## Nieuwe wereld: alle clusters weg (zakken en laadruim blijven: dat is buit van de ploeg).
+func clear() -> void:
+	for c in clusters:
+		c.queue_free()
+	clusters.clear()
+
+
 ## Een ader: `count` clusters langs een licht kronkelende lijn.
 func _vein(rng: RandomNumberGenerator, start: Vector3, dir: Vector3, count: int) -> void:
 	var p := start

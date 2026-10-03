@@ -7,7 +7,8 @@ extends Node
 ##   die uitdooft zodra je onder de grond zit;
 ## - kleurgrading: hooglichten warm, schaduwen koel (een kleine LUT, in code gemaakt);
 ## - zwevende stofjes rond de camera, enkel zichtbaar in het licht;
-## - de helderheid uit de instellingen.
+## - de helderheid uit de instellingen;
+## - in De Ekster een koeler, binnenlicht; hoog boven de grond minder nevel (de planeet onder je).
 ## Alles lokaal per speler: elke client kijkt naar zijn eigen camera.
 
 # Per laag (0 kristal · 1 graniet · 2 zandsteen · 3 klei): mist, verstrooiing in lichtbundels, omgevingslicht.
@@ -18,9 +19,14 @@ const SURFACE_FOG := Color(0.035, 0.032, 0.04)
 ## Kleur van het teruggekaatste licht per laag (de rots kleurt het licht van de helmlamp).
 const BOUNCE := [Color(0.3, 0.38, 0.62), Color(0.62, 0.62, 0.64), Color(0.9, 0.7, 0.44), Color(0.82, 0.55, 0.38)]
 const BOUNCE_REACH := 16.0
+## In De Ekster: omgevingslicht en mist van een hangar (koel, wat blauw).
+const SHIP_AMBIENT := Color(0.55, 0.6, 0.72)
+const SHIP_FOG := Color(0.03, 0.035, 0.045)
 
 var env: Environment
 var terrain: TerrainAPI
+var ship: Ekster
+var _ship_k := 0.0
 var _moon: DirectionalLight3D
 var _dust: GPUParticles3D
 var _bounce: OmniLight3D
@@ -44,11 +50,19 @@ func setup(environment: Environment, terrain_api: TerrainAPI, planet := PlanetTy
 	var sky_params: Dictionary = _planet.sky
 	for k: String in sky_params:
 		sky_mat.set_shader_parameter(k, sky_params[k])
+	# Hoogte van het oppervlak: de hemel rekent zelf hoe hoog de camera hangt (kim, dunnere lucht).
+	var c := terrain.shaft_center_world()
+	sky_mat.set_shader_parameter("surface_y", terrain.surface_height_at(c.x, c.z))
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
+	sky.radiance_size = Sky.RADIANCE_SIZE_128
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR # geen hemellicht in de grotten
-	env.fog_sky_affect = 0.35
+	# De hemel heeft zijn eigen waas: de mist mag er niet nog eens overheen (docs/research/hemel.md).
+	env.fog_sky_affect = 0.0
+	env.glow_hdr_threshold = 1.2
+	if "tonemap_agx_contrast" in env:
+		env.set("tonemap_agx_contrast", 1.35)
 	env.adjustment_enabled = true
 	env.adjustment_color_correction = _grading_lut()
 	_apply_brightness()
@@ -93,6 +107,9 @@ func _process(delta: float) -> void:
 		return
 	var p := cam.global_position
 	var depth := maxf(0.0, terrain.surface_height_at(p.x, p.z) - p.y)
+	var altitude := maxf(0.0, p.y - terrain.surface_height_at(p.x, p.z))
+	var in_ship := ship != null and ship.contains(p)
+	_ship_k = move_toward(_ship_k, 1.0 if in_ship else 0.0, delta * 2.0)
 	# Laag met een zachte overgang: kijk iets boven en onder je.
 	var y := p.y + Strata.boundary_offset(p.x, p.z, terrain.pit_seed)
 	var f := _layer_blend(y)
@@ -101,8 +118,8 @@ func _process(delta: float) -> void:
 	var ambient: Color = _mix4(AMBIENT, f)
 	# Aan de oppervlakte: de stoffige lucht van de planeet, verder zicht, helder omgevingslicht.
 	var surface := 1.0 - smoothstep(2.0, 10.0, depth)
-	fog = fog.lerp(_planet.get("fog", SURFACE_FOG), surface)
-	ambient = ambient.lerp(_planet.get("ambient", ambient), surface)
+	fog = fog.lerp(_planet.get("fog", SURFACE_FOG), surface).lerp(SHIP_FOG, _ship_k)
+	ambient = ambient.lerp(_planet.get("ambient", ambient), surface).lerp(SHIP_AMBIENT, _ship_k)
 	var k := 1.0 if not _ready_once else minf(1.0, delta * 1.5)
 	_ready_once = true
 	_fog = _fog.lerp(fog, k)
@@ -112,9 +129,15 @@ func _process(delta: float) -> void:
 	env.volumetric_fog_albedo = _scatter
 	env.ambient_light_color = _ambient
 	var under := lerpf(0.16, 0.1, smoothstep(5.0, 60.0, depth)) + 0.07 * float(f[0]) # kristal: wat indigo
-	env.ambient_light_energy = lerpf(under, float(_planet.get("ambient_energy", 0.3)), surface)
-	env.volumetric_fog_density = lerpf(0.008, 0.022, smoothstep(2.0, 20.0, depth)) * lerpf(1.0, 0.35, surface)
-	env.fog_density = lerpf(0.015, float(_planet.get("fog_density", 0.006)), surface)
+	env.ambient_light_energy = lerpf(lerpf(under, float(_planet.get("ambient_energy", 0.3)), surface), 0.3, _ship_k)
+	env.volumetric_fog_density = lerpf(0.008, 0.022, smoothstep(2.0, 20.0, depth)) * lerpf(1.0, 0.35, surface) * lerpf(1.0, 0.6, _ship_k)
+	# Hoog in de lucht (De Ekster, de drop): dunnere nevel, zodat je de planeet onder je ziet.
+	env.fog_density = lerpf(0.015, float(_planet.get("fog_density", 0.006)), surface) * lerpf(1.0, 0.3, smoothstep(30.0, 250.0, altitude))
+	# Boven de grond neemt de mist de kleur van de hemel in die richting aan (luchtperspectief);
+	# onder de grond de kleur van de laag. Gloed: matig in de zon, sterker in het donker (lampen, kristal).
+	env.fog_aerial_perspective = 0.85 * surface * (1.0 - _ship_k)
+	env.fog_sun_scatter = 0.2 * surface
+	env.glow_intensity = lerpf(0.85, 0.45, surface)
 	# Het zonlicht dooft uit onder de grond (geen schaduw door 100 m rots heen).
 	_moon.light_energy = float(_planet.get("sun_energy", 1.0)) * surface
 	_moon.visible = surface > 0.01
@@ -180,7 +203,7 @@ func _grading_lut() -> ImageTexture3D:
 				var o := c * tint
 				# Iets meer verzadiging.
 				var lo := o.dot(Vector3(0.2126, 0.7152, 0.0722))
-				o = Vector3(lo, lo, lo).lerp(o, 0.95) # iets minder verzadigd: de lampen zijn al warm
+				o = Vector3(lo, lo, lo).lerp(o, 1.1) # wat verzadiging terug (AgX haalt ze al weg)
 				img.set_pixel(r, g, Color(clampf(o.x, 0, 1), clampf(o.y, 0, 1), clampf(o.z, 0, 1)))
 		images.append(img)
 	var tex := ImageTexture3D.new()

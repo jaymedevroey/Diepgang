@@ -365,6 +365,12 @@ func waiting_ops() -> int:
 ## `collision_m`: straal waarbinnen ook collision gebouwd wordt (0 = geen). Twee viewers, omdat
 ## collision bouwen het duurste is (hoofdthread) en enkel dichtbij nodig is.
 func add_viewer(target: Node3D, distance_m: float, collision_m := 0.0) -> void:
+	# Een nieuwe wereld (nieuwe dienst) houdt de doelen: oude viewers eerst weg.
+	for n in ["TerrainViewer", "TerrainCollisionViewer"]:
+		var old := target.get_node_or_null(n)
+		if old:
+			target.remove_child(old)
+			old.queue_free()
 	var visual := VoxelViewer.new()
 	visual.name = "TerrainViewer"
 	visual.view_distance = int(distance_m) # wereldeenheden (meter), niet voxels: gemeten
@@ -413,6 +419,9 @@ func data_loaded(world: Vector3) -> bool:
 ## Staat er collision onder dit punt? (Binnen het bereik van een collision-viewer en gemesht.)
 ## Losse buit ver van iedereen bevriest de host, anders valt hij door de wereld.
 func collision_ready(world: Vector3) -> bool:
+	# Boven de rots (De Ekster, in de lucht) is er geen terrein om op te wachten.
+	if world.y > float(dims.y) * VOXEL_SIZE + 2.0:
+		return true
 	for v: Array in _viewers:
 		if not v[3] or not is_instance_valid(v[1]):
 			continue

@@ -47,12 +47,26 @@ const MATS := {
 	"Rock": {"albedo": Color(0.42, 0.37, 0.33), "metallic": 0.0, "roughness": 0.92, "edge": 0.3, "grime": 0.5, "bare": Color(0.6, 0.55, 0.5)},
 	"Quartz": {"albedo": Color(0.92, 0.9, 0.86), "metallic": 0.0, "roughness": 0.35, "edge": 0.0, "grime": 0.3},
 	"Green": {"albedo": Color(0.3, 0.55, 0.22), "metallic": 0.0, "roughness": 0.7, "edge": 0.5, "grime": 0.6, "bare": Color(0.92, 0.9, 0.85)},
+	# De Ekster, Nostromo-stijl (docs/research/nostromo-stijl.md §3).
+	"HullGrey": {"albedo": Color(0.42, 0.424, 0.408), "metallic": 0.45, "roughness": 0.6, "edge": 0.5, "grime": 0.7, "bare": Color(0.66, 0.66, 0.64)},
+	"HullDark": {"albedo": Color(0.298, 0.306, 0.294), "metallic": 0.45, "roughness": 0.62, "edge": 0.5, "grime": 0.7, "bare": Color(0.6, 0.6, 0.58)},
+	"HullLight": {"albedo": Color(0.541, 0.541, 0.514), "metallic": 0.4, "roughness": 0.58, "edge": 0.45, "grime": 0.65, "bare": Color(0.7, 0.7, 0.68)},
+	"GreyGreen": {"albedo": Color(0.369, 0.4, 0.353), "metallic": 0.3, "roughness": 0.62, "edge": 0.55, "grime": 0.7, "bare": Color(0.62, 0.62, 0.6)},
+	"RedOxide": {"albedo": Color(0.482, 0.247, 0.173), "metallic": 0.2, "roughness": 0.7, "edge": 0.5, "grime": 0.7, "bare": Color(0.55, 0.42, 0.36)},
+	"Soot": {"albedo": Color(0.169, 0.153, 0.141), "metallic": 0.1, "roughness": 0.85, "edge": 0.0, "grime": 0.3},
+	"Padded": {"albedo": Color(0.851, 0.827, 0.757), "metallic": 0.0, "roughness": 0.75, "edge": 0.2, "grime": 0.35},
 }
 const EMISSIVE := {
 	"Lens": [Color(1.0, 0.85, 0.6), 3.0],
 	"LensRed": [Color(1.0, 0.15, 0.06), 2.2],
 	"LensOrange": [Color(1.0, 0.45, 0.05), 2.2],
 	"Bulb": [Color(1.0, 0.86, 0.6), 4.0],
+	"BellyLight": [Color(1.0, 0.72, 0.42), 8.0],
+	"Cyan": [Color(0.31, 0.89, 0.94), 2.5],
+	"EngineGlow": [Color(0.7, 0.85, 1.0), 7.0],
+	"NavRed": [Color(1.0, 0.12, 0.08), 5.0],
+	"NavGreen": [Color(0.2, 1.0, 0.4), 5.0],
+	"RunLight": [Color(0.55, 0.8, 1.0), 4.0],
 }
 
 ## Toestand (gezet door Mol).
@@ -65,6 +79,8 @@ var lights_on := true
 var beacons := false
 var lever_pulled := false
 var dust_color := Color(0.55, 0.38, 0.27)
+## Stuwraketten onder de Mol bij de landing na de drop (0..1).
+var thrust := 0.0
 ## True als de lokale speler in de cabine zit of ernaar kijkt: dan draait het camerascherm.
 var feed_active := true
 
@@ -94,6 +110,9 @@ var _dust: GPUParticles3D
 var _grit: GPUParticles3D
 var _sparks: GPUParticles3D
 var _trail: GPUParticles3D
+var _flames: Array[GPUParticles3D] = []
+var _thrust_light: OmniLight3D
+var _landing_dust: GPUParticles3D
 var _feed_label: Label
 var _feed_rec: ColorRect
 ## Tekst onderaan het camerascherm (diepte, laag).
@@ -133,6 +152,7 @@ func _ready() -> void:
 	_build_tracks()
 	_build_lights()
 	_build_particles()
+	_build_thrusters()
 	_build_audio()
 	_build_feed()
 	_label_left = _screen_label("Label_Depth")
@@ -220,6 +240,18 @@ static func machine_material(name: String, inside := false, detail := 1.0, viewm
 
 
 func _make_material(name: String, src: Material, inside := false) -> Material:
+	var m := palette_material(name, src, inside)
+	if EMISSIVE.has(name):
+		if name == "LensOrange":
+			_beacon_mats.append(m)
+		else:
+			_lens_mats.append(m)
+	return m
+
+
+## Materiaal voor een paletnaam uit Blender (kit.py): machine-shader, lampglas, glas of scherm.
+## Ook voor andere modellen (De Ekster). Onbekende namen: het materiaal uit de glb.
+static func palette_material(name: String, src: Material, inside := false) -> Material:
 	if MATS.has(name):
 		return machine_material(name, inside)
 	if EMISSIVE.has(name):
@@ -229,10 +261,6 @@ func _make_material(name: String, src: Material, inside := false) -> Material:
 		e.emission = EMISSIVE[name][0]
 		e.emission_energy_multiplier = EMISSIVE[name][1]
 		e.roughness = 0.2
-		if name == "LensOrange":
-			_beacon_mats.append(e)
-		else:
-			_lens_mats.append(e)
 		return e
 	if name == "Glass":
 		var g := StandardMaterial3D.new()
@@ -437,6 +465,90 @@ func _build_particles() -> void:
 	_sparks = _burst_emitter(head_front, 90, 0.45, spark, 5.0, 11.0, 80.0, Vector3(0, -3.0, 0))
 	(_sparks.process_material as ParticleProcessMaterial).particle_flag_align_y = true
 	(_sparks.process_material as ParticleProcessMaterial).color_ramp = _gradient_tex(Color(1, 0.9, 0.6, 1), Color(1, 0.35, 0.05, 0))
+
+
+## Stuwraketten voor de landing na de drop: vier vlammen onder de romp, een gloed op de grond,
+## en een stofring als hij neerkomt.
+func _build_thrusters() -> void:
+	var flame := QuadMesh.new()
+	flame.size = Vector2(0.9, 0.9)
+	var fm := StandardMaterial3D.new()
+	fm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	fm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	fm.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	fm.vertex_color_use_as_albedo = true
+	fm.albedo_texture = DigFx._puff_texture()
+	flame.material = fm
+	for x: float in [-1.7, 1.7]:
+		for z: float in [-2.6, 2.6]:
+			var p := GPUParticles3D.new()
+			var m := ParticleProcessMaterial.new()
+			m.direction = Vector3(0, -1, 0)
+			m.spread = 7.0
+			m.initial_velocity_min = 16.0
+			m.initial_velocity_max = 22.0
+			m.gravity = Vector3.ZERO
+			m.scale_min = 0.8
+			m.scale_max = 1.3
+			m.scale_curve = _curve_tex([Vector2(0, 1.0), Vector2(1, 2.6)])
+			var g := Gradient.new()
+			g.set_color(0, Color(2.6, 2.2, 1.6, 1.0))
+			g.add_point(0.25, Color(2.2, 0.9, 0.25, 0.9))
+			g.set_color(g.get_point_count() - 1, Color(0.4, 0.3, 0.3, 0.0))
+			var gt := GradientTexture1D.new()
+			gt.gradient = g
+			m.color_ramp = gt
+			p.process_material = m
+			p.draw_pass_1 = flame
+			p.amount = 48
+			p.lifetime = 0.28
+			p.local_coords = false
+			p.emitting = false
+			model.add_child(p)
+			p.position = Vector3(x, -2.5, z)
+			_flames.append(p)
+	_thrust_light = OmniLight3D.new()
+	_thrust_light.light_color = Color(1.0, 0.55, 0.2)
+	_thrust_light.light_energy = 0.0
+	_thrust_light.omni_range = 26.0
+	_thrust_light.shadow_enabled = false
+	model.add_child(_thrust_light)
+	_thrust_light.position = Vector3(0, -4.5, 0)
+	# Stofring bij de landing: plat, naar buiten.
+	_landing_dust = GPUParticles3D.new()
+	var dm := ParticleProcessMaterial.new()
+	dm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_RING
+	dm.emission_ring_axis = Vector3(0, 1, 0)
+	dm.emission_ring_radius = 3.5
+	dm.emission_ring_inner_radius = 2.5
+	dm.emission_ring_height = 0.2
+	dm.direction = Vector3(0, 0.15, 0)
+	dm.spread = 10.0
+	dm.radial_velocity_min = 7.0
+	dm.radial_velocity_max = 13.0
+	dm.damping_min = 3.0
+	dm.damping_max = 5.0
+	dm.gravity = Vector3(0, 0.25, 0)
+	dm.scale_min = 2.2
+	dm.scale_max = 4.0
+	dm.scale_curve = _curve_tex([Vector2(0, 0.5), Vector2(1, 2.0)])
+	dm.color_ramp = _gradient_tex(Color(1, 1, 1, 0.6), Color(1, 1, 1, 0.0))
+	_landing_dust.process_material = dm
+	_landing_dust.draw_pass_1 = _puff_quad()
+	_landing_dust.amount = 90
+	_landing_dust.lifetime = 3.2
+	_landing_dust.one_shot = true
+	_landing_dust.explosiveness = 0.9
+	_landing_dust.local_coords = false
+	_landing_dust.emitting = false
+	model.add_child(_landing_dust)
+	_landing_dust.position = Vector3(0, -2.6, 0)
+
+
+## Stofwolk bij het neerkomen na de drop.
+func landing_burst() -> void:
+	(_landing_dust.draw_pass_1.surface_get_material(0) as StandardMaterial3D).albedo_color = Color(dust_color.lightened(0.2), 0.7)
+	_landing_dust.restart()
 
 
 func _burst_emitter(parent: Node3D, amount: int, lifetime: float, mesh: Mesh, vmin: float, vmax: float,
@@ -652,6 +764,11 @@ func _process(delta: float) -> void:
 		(_trail.draw_pass_1.surface_get_material(0) as StandardMaterial3D).albedo_color = Color(dust_color.lightened(0.15), 1.0)
 	_grit.emitting = drilling
 	_sparks.emitting = blocked
+	for f in _flames:
+		f.emitting = thrust > 0.02
+		f.amount_ratio = clampf(thrust, 0.2, 1.0)
+	_thrust_light.light_energy = move_toward(_thrust_light.light_energy, 5.0 * thrust, delta * 25.0)
+	_thrust_light.visible = _thrust_light.light_energy > 0.01
 	if drilling:
 		var dm := _dust.draw_pass_1.surface_get_material(0) as StandardMaterial3D
 		dm.albedo_color = Color(dust_color.lightened(0.1), 0.55)
