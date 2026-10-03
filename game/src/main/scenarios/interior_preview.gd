@@ -27,8 +27,10 @@ func _run() -> void:
 	var cache := {}
 	var roof: Array[MeshInstance3D] = []
 	for mi: MeshInstance3D in model.find_children("*", "MeshInstance3D", true, false):
-		if mi.name.begins_with("Roof"):
+		if mi.name.begins_with("Roof") or mi.name.contains("_Roof"):
 			roof.append(mi)
+		if mi.name.begins_with("Collision"):
+			mi.visible = false # botsvorm: enkel voor het spel
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF if mi.name.begins_with("Glass") else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		for i in mi.mesh.get_surface_count():
 			var src := mi.mesh.surface_get_material(i)
