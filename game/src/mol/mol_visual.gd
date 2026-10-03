@@ -7,6 +7,7 @@ extends Node3D
 const MODEL := preload("res://assets/models/mol.glb")
 const MACHINE := preload("res://src/mol/machine.gdshader")
 const FEED_SHADER := preload("res://src/mol/feed.gdshader")
+const FLAME_SHADER := preload("res://src/ship/drop_flame.gdshader")
 
 # Rupspad (lokaal rupsframe: x dwars, y omhoog, z langs) — gelijk aan tools/blender/mol.py.
 const TRACK_ZF := -2.8
@@ -97,6 +98,15 @@ var dust_color := Color(0.55, 0.38, 0.27)
 var thrust := 0.0
 ## True als de lokale speler in de cabine zit of ernaar kijkt: dan draait het camerascherm.
 var feed_active := true
+## Drop (gezet door Mol): binnenlicht 0 = gewoon, 1 = amber (aftellen), 2 = rood (laatste tellen,
+## de val); het camerascherm kijkt dan door de buik naar beneden; valsnelheid (m/s); hoogte van
+## de grond onder de Mol, en of hij boven de planeet hangt (niet in de hub).
+var alert := 0
+var belly_cam := false
+var fall_speed := 0.0
+var ground_y := 0.0
+var over_ground := false
+var terrain: TerrainAPI
 
 var model: Node3D
 var ramp_hinge: Node3D
@@ -124,9 +134,23 @@ var _dust: GPUParticles3D
 var _grit: GPUParticles3D
 var _sparks: GPUParticles3D
 var _trail: GPUParticles3D
-var _flames: Array[GPUParticles3D] = []
+var _flames: Array[MeshInstance3D] = []
+var _flame_mats: Array[ShaderMaterial] = []
+var _smoke: Array[GPUParticles3D] = []
 var _thrust_light: OmniLight3D
 var _landing_dust: GPUParticles3D
+var _debris: GPUParticles3D
+var _downwash: GPUParticles3D
+var _shadow: Decal
+var _cage_lights: Array[OmniLight3D] = []
+var _flicker := 0.0
+var _flash := 0.0 # ontsteken: felle gloed die uitdooft
+var _wobble_t := 0.0
+var _sag := 0.0 # veren na de landing (m), enkel het model
+var _sag_v := 0.0
+var _rumble: AudioStreamPlayer3D
+var _duck := 0.0
+var _feed_top: Label
 var _feed_label: Label
 var _feed_rec: ColorRect
 ## Tekst onderaan het camerascherm (diepte, laag).
@@ -393,6 +417,7 @@ func _build_lights() -> void:
 		o.shadow_enabled = false
 		anchors["Cage_%d" % i].add_child(o)
 		_lights.append(o)
+		_cage_lights.append(o)
 	var glow := OmniLight3D.new()
 	glow.light_color = Color(0.5, 0.75, 1.0)
 	glow.light_energy = 0.5
@@ -495,46 +520,60 @@ func _build_particles() -> void:
 	(_sparks.process_material as ParticleProcessMaterial).color_ramp = _gradient_tex(Color(1, 0.9, 0.6, 1), Color(1, 0.35, 0.05, 0))
 
 
-## Stuwraketten voor de landing na de drop: vier vlammen onder de romp, een gloed op de grond,
-## en een stofring als hij neerkomt.
+## Stuwraketten voor de landing na de drop: vier vlammen onder de romp (kegels met een flakkerende
+## shader, in de ruimte van de Mol: deeltjes in wereldruimte vielen trager dan de Mol en stegen dus
+## boven hem uit), rook, een gloed op de grond, het stof dat de straal van de grond blaast, en bij
+## het neerkomen een stofring buiten de romp met brokjes. In de val: een zachte schaduw op de grond
+## (de echte schaduw reikt niet zo ver).
 func _build_thrusters() -> void:
-	var flame := QuadMesh.new()
-	flame.size = Vector2(0.9, 0.9)
-	var fm := StandardMaterial3D.new()
-	fm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	fm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	fm.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-	fm.vertex_color_use_as_albedo = true
-	fm.albedo_texture = DigFx._puff_texture()
-	flame.material = fm
+	var cone := CylinderMesh.new()
+	cone.top_radius = 0.42
+	cone.bottom_radius = 0.06
+	cone.height = 1.0
+	cone.radial_segments = 16
+	cone.rings = 6
+	cone.cap_top = false
+	cone.cap_bottom = false
+	var k := 0
 	for x: float in [-1.7, 1.7]:
 		for z: float in [-2.6, 2.6]:
-			var p := GPUParticles3D.new()
-			var m := ParticleProcessMaterial.new()
-			m.direction = Vector3(0, -1, 0)
-			m.spread = 7.0
-			m.initial_velocity_min = 16.0
-			m.initial_velocity_max = 22.0
-			m.gravity = Vector3.ZERO
-			m.scale_min = 0.8
-			m.scale_max = 1.3
-			m.scale_curve = _curve_tex([Vector2(0, 1.0), Vector2(1, 2.6)])
-			var g := Gradient.new()
-			g.set_color(0, Color(2.6, 2.2, 1.6, 1.0))
-			g.add_point(0.25, Color(2.2, 0.9, 0.25, 0.9))
-			g.set_color(g.get_point_count() - 1, Color(0.4, 0.3, 0.3, 0.0))
-			var gt := GradientTexture1D.new()
-			gt.gradient = g
-			m.color_ramp = gt
-			p.process_material = m
-			p.draw_pass_1 = flame
-			p.amount = 48
-			p.lifetime = 0.28
-			p.local_coords = false
-			p.emitting = false
-			model.add_child(p)
-			p.position = Vector3(x, -2.5, z)
-			_flames.append(p)
+			var mi := MeshInstance3D.new()
+			mi.mesh = cone
+			var sm := ShaderMaterial.new()
+			sm.shader = FLAME_SHADER
+			sm.set_shader_parameter("seed", float(k) * 1.7)
+			sm.set_shader_parameter("intensity", 0.0)
+			mi.material_override = sm
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			mi.visible = false
+			model.add_child(mi)
+			mi.position = Vector3(x, -2.55, z)
+			_flames.append(mi)
+			_flame_mats.append(sm)
+			# Rook uit de straalpijp: in wereldruimte, blijft hangen boven de grond.
+			var smoke := GPUParticles3D.new()
+			var pm := ParticleProcessMaterial.new()
+			pm.direction = Vector3(0, -1, 0)
+			pm.spread = 18.0
+			pm.initial_velocity_min = 9.0
+			pm.initial_velocity_max = 14.0
+			pm.damping_min = 6.0
+			pm.damping_max = 9.0
+			pm.gravity = Vector3(0, 0.6, 0)
+			pm.scale_min = 0.8
+			pm.scale_max = 1.4
+			pm.scale_curve = _curve_tex([Vector2(0, 0.6), Vector2(1, 2.4)])
+			pm.color_ramp = _gradient_tex(Color(0.45, 0.4, 0.36, 0.32), Color(0.5, 0.45, 0.4, 0.0))
+			smoke.process_material = pm
+			smoke.draw_pass_1 = _smoke_quad()
+			smoke.amount = 24
+			smoke.lifetime = 1.4
+			smoke.local_coords = false
+			smoke.emitting = false
+			model.add_child(smoke)
+			smoke.position = Vector3(x, -3.4, z)
+			_smoke.append(smoke)
+			k += 1
 	_thrust_light = OmniLight3D.new()
 	_thrust_light.light_color = Color(1.0, 0.55, 0.2)
 	_thrust_light.light_energy = 0.0
@@ -542,41 +581,158 @@ func _build_thrusters() -> void:
 	_thrust_light.shadow_enabled = false
 	model.add_child(_thrust_light)
 	_thrust_light.position = Vector3(0, -4.5, 0)
-	# Stofring bij de landing: plat, naar buiten.
+	# Stof dat de straal van de grond blaast (onder de Mol, op de grond, naar buiten).
+	_downwash = GPUParticles3D.new()
+	var wm := ParticleProcessMaterial.new()
+	wm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_RING
+	wm.emission_ring_axis = Vector3(0, 1, 0)
+	wm.emission_ring_radius = 5.0
+	wm.emission_ring_inner_radius = 3.0
+	wm.emission_ring_height = 0.3
+	wm.direction = Vector3(0, 0.2, 0)
+	wm.spread = 15.0
+	wm.radial_velocity_min = 10.0
+	wm.radial_velocity_max = 18.0
+	wm.damping_min = 4.0
+	wm.damping_max = 7.0
+	wm.gravity = Vector3(0, 0.4, 0)
+	wm.scale_min = 1.2
+	wm.scale_max = 2.4
+	wm.scale_curve = _curve_tex([Vector2(0, 0.3), Vector2(0.2, 1.0), Vector2(1, 2.2)])
+	wm.color_ramp = _gradient_tex(Color(1, 1, 1, 0.45), Color(1, 1, 1, 0.0))
+	_downwash.process_material = wm
+	_downwash.draw_pass_1 = _puff_quad()
+	_downwash.amount = 80
+	_downwash.lifetime = 1.8
+	_downwash.local_coords = false
+	_downwash.emitting = false
+	_downwash.top_level = true
+	_downwash.visibility_aabb = AABB(Vector3(-30, -5, -30), Vector3(60, 20, 60))
+	add_child(_downwash)
+	# Stofring bij de landing: een ovaal BUITEN de romp (de Mol is langer dan breed), anders
+	# staken de wolken door de vloer de cabine in.
 	_landing_dust = GPUParticles3D.new()
 	var dm := ParticleProcessMaterial.new()
-	dm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_RING
-	dm.emission_ring_axis = Vector3(0, 1, 0)
-	dm.emission_ring_radius = 3.5
-	dm.emission_ring_inner_radius = 2.5
-	dm.emission_ring_height = 0.2
-	dm.direction = Vector3(0, 0.15, 0)
-	dm.spread = 10.0
-	dm.radial_velocity_min = 7.0
-	dm.radial_velocity_max = 13.0
+	_ellipse_emission(dm, 4.6, 7.0, 48)
+	dm.direction = Vector3(0, 0, 1) # langs de normaal: naar buiten
+	dm.spread = 12.0
+	dm.initial_velocity_min = 7.0
+	dm.initial_velocity_max = 13.0
 	dm.damping_min = 3.0
 	dm.damping_max = 5.0
-	dm.gravity = Vector3(0, 0.25, 0)
-	dm.scale_min = 2.2
-	dm.scale_max = 4.0
-	dm.scale_curve = _curve_tex([Vector2(0, 0.5), Vector2(1, 2.0)])
-	dm.color_ramp = _gradient_tex(Color(1, 1, 1, 0.6), Color(1, 1, 1, 0.0))
+	dm.gravity = Vector3(0, 0.3, 0)
+	dm.scale_min = 1.2
+	dm.scale_max = 2.2
+	# Klein bij de romp, groot verder weg (een grote wolk vlak naast de romp stak door de wand).
+	dm.scale_curve = _curve_tex([Vector2(0, 0.3), Vector2(0.15, 0.9), Vector2(1, 2.4)])
+	dm.color_ramp = _gradient_tex(Color(1, 1, 1, 0.65), Color(1, 1, 1, 0.0))
 	_landing_dust.process_material = dm
 	_landing_dust.draw_pass_1 = _puff_quad()
-	_landing_dust.amount = 90
-	_landing_dust.lifetime = 3.2
+	_landing_dust.amount = 110
+	_landing_dust.lifetime = 3.0
 	_landing_dust.one_shot = true
-	_landing_dust.explosiveness = 0.9
+	_landing_dust.explosiveness = 0.92
 	_landing_dust.local_coords = false
 	_landing_dust.emitting = false
 	model.add_child(_landing_dust)
 	_landing_dust.position = Vector3(0, -2.6, 0)
+	# Brokjes die opspatten bij de klap.
+	_debris = GPUParticles3D.new()
+	var bm := ParticleProcessMaterial.new()
+	_ellipse_emission(bm, 3.6, 5.8, 32)
+	bm.direction = Vector3(0, 0.0, 1)
+	bm.spread = 25.0
+	bm.initial_velocity_min = 4.0
+	bm.initial_velocity_max = 9.0
+	bm.gravity = Vector3(0, -9.8, 0)
+	bm.angular_velocity_min = -400.0
+	bm.angular_velocity_max = 400.0
+	bm.scale_min = 0.7
+	bm.scale_max = 1.8
+	_debris.process_material = bm
+	var chunk := DigFx._scaled(FindKinds.chunk(3), 0.16)
+	var cm := StandardMaterial3D.new()
+	cm.vertex_color_use_as_albedo = true
+	cm.roughness = 0.95
+	chunk.surface_set_material(0, cm)
+	_debris.draw_pass_1 = chunk
+	_debris.amount = 28
+	_debris.lifetime = 1.6
+	_debris.one_shot = true
+	_debris.explosiveness = 1.0
+	_debris.local_coords = false
+	_debris.emitting = false
+	model.add_child(_debris)
+	_debris.position = Vector3(0, -2.4, 0)
+	# Zachte schaduw recht onder de Mol, op de grond (de echte reikt pas op ±60 m).
+	_shadow = Decal.new()
+	_shadow.top_level = true
+	_shadow.size = Vector3(5.5, 24.0, 9.5)
+	_shadow.texture_albedo = _blob_texture()
+	_shadow.modulate = Color(0.0, 0.0, 0.0, 0.0)
+	_shadow.upper_fade = 0.2
+	_shadow.lower_fade = 0.2
+	_shadow.cull_mask = ~(1 << 1) & 0xFFFFF
+	_shadow.visible = false
+	add_child(_shadow)
+	_rumble = _loop("drop_rumble", Vector3(0, 0, 0), 9.0, 80.0, -80.0)
 
 
-## Stofwolk bij het neerkomen na de drop.
+## Uitstootpunten op een ovaal rond de Mol (lokaal x/z), met de normaal naar buiten.
+func _ellipse_emission(m: ParticleProcessMaterial, rx: float, rz: float, n: int) -> void:
+	var pts := Image.create(n, 1, false, Image.FORMAT_RGBF)
+	var nrm := Image.create(n, 1, false, Image.FORMAT_RGBF)
+	for i in n:
+		var a := TAU * i / float(n)
+		pts.set_pixel(i, 0, Color(cos(a) * rx, 0.0, sin(a) * rz))
+		var nv := Vector3(cos(a) / rx, 0.0, sin(a) / rz).normalized()
+		nrm.set_pixel(i, 0, Color(nv.x, nv.y, nv.z))
+	m.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_DIRECTED_POINTS
+	m.emission_point_texture = ImageTexture.create_from_image(pts)
+	m.emission_normal_texture = ImageTexture.create_from_image(nrm)
+	m.emission_point_count = n
+
+
+## Zachte ronde vlek (schaduw): donker in het midden, uitlopend naar de rand.
+static func _blob_texture() -> ImageTexture:
+	var s := 64
+	var img := Image.create(s, s, false, Image.FORMAT_RGBA8)
+	for y in s:
+		for x in s:
+			var d := Vector2(x + 0.5 - s * 0.5, y + 0.5 - s * 0.5).length() / (s * 0.5)
+			var a := clampf(1.0 - smoothstep(0.35, 1.0, d), 0.0, 1.0)
+			img.set_pixel(x, y, Color(0.0, 0.0, 0.0, a))
+	return ImageTexture.create_from_image(img)
+
+
+## Stofwolk en brokjes bij het neerkomen na de drop; het model veert even in.
 func landing_burst() -> void:
-	(_landing_dust.draw_pass_1.surface_get_material(0) as StandardMaterial3D).albedo_color = Color(dust_color.lightened(0.2), 0.7)
+	(_landing_dust.draw_pass_1.surface_get_material(0) as StandardMaterial3D).albedo_color = Color(dust_color.lightened(0.2), 0.75)
 	_landing_dust.restart()
+	# Rook en stof van de straal die nog rondhangen, zouden nu door de vloer de cabine in steken.
+	_downwash.visible = false
+	for s in _smoke:
+		s.visible = false
+	(_debris.process_material as ParticleProcessMaterial).color = dust_color.darkened(0.25)
+	_debris.restart()
+	_sag_v = -1.6
+	_flicker = 0.15
+
+
+## De klemmen laten los: de lichten haperen, de motor houdt even de adem in.
+func release() -> void:
+	_flicker = 0.3
+	_duck = 0.45
+
+
+## De stuwraketten ontsteken: een felle flits.
+func ignite() -> void:
+	_flash = 1.0
+
+
+## De lichten haperen zoveel seconden.
+func flicker(seconds: float) -> void:
+	_flicker = maxf(_flicker, seconds)
 
 
 func _burst_emitter(parent: Node3D, amount: int, lifetime: float, mesh: Mesh, vmin: float, vmax: float,
@@ -624,6 +780,13 @@ func _puff_quad() -> QuadMesh:
 	return q
 
 
+## Rook van de stuwraketten: onbelicht (de gloed van de vlammen vlak ernaast blies hem wit op).
+func _smoke_quad() -> QuadMesh:
+	var q := _puff_quad()
+	(q.material as StandardMaterial3D).shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	return q
+
+
 static func _curve_tex(points: Array) -> CurveTexture:
 	var c := Curve.new()
 	c.max_value = 4.0
@@ -652,10 +815,17 @@ func _build_audio() -> void:
 	_snd["interior"] = _loop("mol_interior", Vector3(0, 0, 0), 2.2, 7.0, -6.0)
 
 
+## Geluid uit assets/audio/sfx (de drop-geluiden via DropAudio: die zetten zelf hun loop-vlag).
+static func _stream(name: String) -> AudioStream:
+	if name.begins_with("drop_"):
+		return DropAudio.stream(name)
+	return load("res://assets/audio/sfx/%s.wav" % name)
+
+
 func _loop(name: String, pos: Vector3, unit: float, max_d: float, db: float) -> AudioStreamPlayer3D:
 	var p := AudioStreamPlayer3D.new()
 	p.bus = &"SFX"
-	p.stream = load("res://assets/audio/sfx/%s.wav" % name)
+	p.stream = _stream(name)
 	p.unit_size = unit
 	p.max_distance = max_d
 	p.volume_db = db
@@ -666,9 +836,12 @@ func _loop(name: String, pos: Vector3, unit: float, max_d: float, db: float) -> 
 
 
 func play(name: String, pos := Vector3.ZERO, db := 0.0) -> void:
+	var stream := _stream(name)
+	if stream == null:
+		return
 	var p := AudioStreamPlayer3D.new()
 	p.bus = &"SFX"
-	p.stream = load("res://assets/audio/sfx/%s.wav" % name)
+	p.stream = stream
 	p.unit_size = 10.0
 	p.max_distance = 80.0
 	p.volume_db = db
@@ -701,12 +874,12 @@ func _build_feed() -> void:
 	hud.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_feed_viewport.add_child(hud)
 	var font_col := Color(0.85, 1.0, 0.85, 0.9)
-	var top := Label.new()
-	top.text = "CAM 1  ·  BOORKOP"
-	top.position = Vector2(18, 12)
-	top.add_theme_font_size_override("font_size", 20)
-	top.add_theme_color_override("font_color", font_col)
-	hud.add_child(top)
+	_feed_top = Label.new()
+	_feed_top.text = "CAM 1  ·  BOORKOP"
+	_feed_top.position = Vector2(18, 12)
+	_feed_top.add_theme_font_size_override("font_size", 20)
+	_feed_top.add_theme_color_override("font_color", font_col)
+	hud.add_child(_feed_top)
 	_feed_rec = ColorRect.new()
 	_feed_rec.color = Color(1.0, 0.15, 0.1)
 	_feed_rec.size = Vector2(12, 12)
@@ -769,11 +942,26 @@ func _process(delta: float) -> void:
 		var rest: Transform3D = st[1]
 		(st[0] as Node3D).transform = Transform3D(Basis(Vector3.RIGHT, st[2]) * rest.basis, rest.origin)
 
-	# Licht en zwaailichten.
+	# Licht en zwaailichten. Bij de drop: binnen amber tijdens het aftellen, rood en pulserend de
+	# laatste tellen en in de val; de lichten haperen bij de luiken, het loslaten en de klap.
+	_flicker = maxf(0.0, _flicker - delta)
+	var off := _flicker > 0.0 and fmod(Time.get_ticks_msec() * 0.009, 1.0) < 0.45 # ±9 keer per seconde
 	for l in _lights:
-		l.visible = lights_on
+		l.visible = lights_on and not off
 	for m in _lens_mats:
-		m.emission_energy_multiplier = 3.0 if lights_on else 0.05
+		m.emission_energy_multiplier = 3.0 if lights_on and not off else 0.05
+	var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * TAU * 1.3)
+	var cage_col := Color(1.0, 0.8, 0.55)
+	var cage_e := 1.1
+	if alert == 1:
+		cage_col = Color(1.0, 0.52, 0.14)
+		cage_e = 1.0
+	elif alert == 2:
+		cage_col = Color(1.0, 0.12, 0.05)
+		cage_e = 0.45 + 1.4 * pulse
+	for o in _cage_lights:
+		o.light_color = o.light_color.lerp(cage_col, minf(1.0, delta * 6.0))
+		o.light_energy = lerpf(o.light_energy, cage_e, minf(1.0, delta * 10.0))
 	_beacon_angle += delta * 6.0
 	for i in _beacon_lights.size():
 		var b := _beacon_lights[i]
@@ -792,34 +980,124 @@ func _process(delta: float) -> void:
 		(_trail.draw_pass_1.surface_get_material(0) as StandardMaterial3D).albedo_color = Color(dust_color.lightened(0.15), 1.0)
 	_grit.emitting = drilling
 	_sparks.emitting = blocked
-	for f in _flames:
-		f.emitting = thrust > 0.02
-		f.amount_ratio = clampf(thrust, 0.2, 1.0)
-	_thrust_light.light_energy = move_toward(_thrust_light.light_energy, 5.0 * thrust, delta * 25.0)
-	_thrust_light.visible = _thrust_light.light_energy > 0.01
 	if drilling:
 		var dm := _dust.draw_pass_1.surface_get_material(0) as StandardMaterial3D
 		dm.albedo_color = Color(dust_color.lightened(0.1), 0.55)
 		(_grit.process_material as ParticleProcessMaterial).color = dust_color.darkened(0.2)
+	_update_drop_fx(delta)
 
 	# Geluid.
 	var eng: AudioStreamPlayer3D = _snd.engine
-	eng.pitch_scale = lerpf(eng.pitch_scale, 0.85 + 0.45 * absf(throttle) + (0.15 if drilling else 0.0), delta * 3.0)
+	eng.pitch_scale = lerpf(eng.pitch_scale, 0.85 + 0.45 * absf(throttle) + (0.15 if drilling else 0.0)
+			+ (0.25 if alert > 0 else 0.0), delta * 3.0)
+	_duck = maxf(0.0, _duck - delta)
+	eng.volume_db = -4.0 - 18.0 * clampf(_duck / 0.3, 0.0, 1.0)
 	_fade(_snd.cutter, -2.0 if drilling else -80.0, delta)
 	_fade(_snd.tracks, -6.0 if absf(speed) > 0.15 else -80.0, delta)
 	(_snd.tracks as AudioStreamPlayer3D).pitch_scale = clampf(0.5 + absf(speed) * 0.2, 0.5, 1.8)
 
 	# Trillen bij boren gebeurt met de camera (vloeiend). Het model zelf elk frame willekeurig
-	# verschuiven deed alles in de Mol zinderen.
+	# verschuiven deed alles in de Mol zinderen. (In de val wiebelt het model traag: zie _update_drop_fx.)
 
-	# Camerascherm.
+	# Camerascherm. Bij de drop kijkt het door de buik naar beneden (de luiken, dan de diepte).
 	_feed_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS if feed_active else SubViewport.UPDATE_DISABLED
 	if sonar_screen.active != feed_active:
 		sonar_screen.active = feed_active
 	if feed_active:
-		_feed_camera.global_transform = (anchors["Cam_Feed"] as Node3D).global_transform
+		if belly_cam:
+			_feed_camera.global_transform = global_transform * Transform3D(
+					Basis.looking_at(Vector3.DOWN, Vector3.FORWARD), Vector3(0.0, -2.55, -1.0))
+			_feed_camera.near = 0.05
+			_feed_camera.far = 3000.0
+			_feed_top.text = "CAM 2  ·  BUIK"
+		else:
+			_feed_camera.global_transform = (anchors["Cam_Feed"] as Node3D).global_transform
+			_feed_camera.near = 0.1
+			_feed_camera.far = 60.0
+			_feed_top.text = "CAM 1  ·  BOORKOP"
 		_feed_label.text = feed_text
 		_feed_rec.visible = fmod(Time.get_ticks_msec() / 1000.0, 1.2) < 0.7
+
+
+## De drop van buiten: vlammen, rook, stof van de straal, de zachte schaduw, het
+## wiebelen in de val en het inveren na de landing (enkel het model; de botsvorm blijft recht).
+func _update_drop_fx(delta: float) -> void:
+	_flash = maxf(0.0, _flash - delta * 3.0)
+	var on := thrust > 0.02
+	var now := Time.get_ticks_msec() / 1000.0
+	for i in _flames.size():
+		var fl := _flames[i]
+		fl.visible = on
+		if on:
+			var length := (1.8 + 3.2 * thrust) * (0.92 + 0.16 * sin(now * 47.0 + i * 1.7)) + _flash * 2.5
+			var w := 1.0 + 0.35 * _flash
+			fl.scale = Vector3(w, length, w)
+			fl.position.y = -2.55 - length * 0.5
+			_flame_mats[i].set_shader_parameter("intensity", clampf(0.6 + 0.4 * thrust + _flash * 0.6, 0.0, 1.6))
+	for s in _smoke:
+		s.emitting = on
+		if on:
+			s.visible = true
+		s.amount_ratio = clampf(thrust, 0.25, 1.0)
+	_thrust_light.light_energy = move_toward(_thrust_light.light_energy, 5.0 * thrust + 14.0 * _flash, delta * 40.0)
+	_thrust_light.visible = _thrust_light.light_energy > 0.01
+	var gp := global_position
+	var h := gp.y - 2.73 - ground_y # rupsen boven de grond
+	# Stof dat de straal van de grond blaast.
+	var wash := over_ground and on and h < 28.0 and h > 3.0
+	_downwash.emitting = wash
+	if wash:
+		_downwash.visible = true
+		_downwash.global_position = Vector3(gp.x, ground_y + 0.3, gp.z)
+		_downwash.amount_ratio = clampf(thrust * (1.0 - h / 28.0) * 1.5, 0.15, 1.0)
+		(_downwash.draw_pass_1.surface_get_material(0) as StandardMaterial3D).albedo_color = Color(dust_color.lightened(0.25), 0.85)
+	# Zachte schaduw: waar de zon hem zou werpen, tot de echte schaduw het overneemt (±60 m).
+	var sh_a := 0.5 * smoothstep(35.0, 75.0, h) * (1.0 - smoothstep(180.0, 330.0, h)) if over_ground else 0.0
+	_shadow.visible = sh_a > 0.01
+	if _shadow.visible:
+		var sun := _sun_dir()
+		var p := Vector3(gp.x, ground_y, gp.z)
+		if sun.y < -0.2:
+			p = gp + sun * ((ground_y - gp.y) / sun.y)
+			if terrain:
+				p.y = terrain.surface_height_at(p.x, p.z)
+		_shadow.global_position = p
+		_shadow.global_basis = Basis(Vector3.UP, global_rotation.y)
+		_shadow.modulate = Color(0.0, 0.0, 0.0, sh_a)
+	# Rammelen van de romp in de val.
+	var rk := clampf(fall_speed / 50.0, 0.0, 1.0)
+	_fade(_rumble, linear_to_db(maxf(0.0005, rk * 0.7)) if fall_speed > 1.0 else -80.0, delta)
+	_rumble.pitch_scale = 0.8 + 0.4 * rk
+	# Wiebelen in de val (minder als de stuwraketten hem stabiel houden), inveren na de landing.
+	_wobble_t += delta
+	var wob := clampf(fall_speed / 55.0, 0.0, 1.0) * (1.0 - clampf(thrust * 1.5, 0.0, 1.0)) if over_ground else 0.0
+	var amp := deg_to_rad(2.4) * wob
+	var want := Vector3(amp * (0.8 * sin(_wobble_t * 2.3) + 0.35 * sin(_wobble_t * 5.3)), 0.0, amp * sin(_wobble_t * 1.7 + 0.6))
+	model.rotation = model.rotation.lerp(want, minf(1.0, delta * 4.0))
+	_sag_v += (-_sag * 140.0 - _sag_v * 11.0) * delta
+	_sag += _sag_v * delta
+	if absf(_sag) < 0.0005 and absf(_sag_v) < 0.005:
+		_sag = 0.0
+		_sag_v = 0.0
+	model.position.y = _sag
+
+
+var _sun: DirectionalLight3D
+var _sun_looked := false
+
+
+## Richting van het zonlicht (van de zon weg), of recht omlaag als er geen zon is.
+func _sun_dir() -> Vector3:
+	if not _sun_looked:
+		_sun_looked = true
+		var root := get_tree().current_scene
+		if root:
+			for n in root.find_children("*", "DirectionalLight3D", true, false):
+				_sun = n
+				break
+	if _sun and is_instance_valid(_sun) and _sun.visible:
+		return -_sun.global_basis.z
+	return Vector3.DOWN
 
 
 func _fade(p: AudioStreamPlayer3D, target_db: float, delta: float) -> void:

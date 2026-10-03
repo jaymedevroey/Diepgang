@@ -207,8 +207,12 @@ func _on_world_loaded(stats: Dictionary) -> void:
 		_mol_connected = true
 		game.mol.message.connect(func(t: String) -> void:
 			hud.toast(t, "warn" if t.begins_with("Harde laag") or t.begins_with("Rand van de put") or t.begins_with("De boorkop") else "mol"))
+		# De stempel landt op het moment dat je de besturing terugkrijgt, niet in de klap zelf.
 		game.mol.landed.connect(func() -> void:
 			if player and game.mol.contains_point(player.global_position):
+				await get_tree().create_timer(Tuning.get_f("ship", "drop_handover_s", 0.7)).timeout
+				if player == null:
+					return
 				var c: Company = game.company
 				var where: String = str(c.contract.get("name", "CONCESSIE %d" % (game.pit_seed % 97 + 1)))
 				hud.stamp(PlanetType.NAMES[game.planet_type].to_upper(), "%s · KWARTAAL %d · DIENST %d" % [where, c.quarter, c.shift]))

@@ -27,7 +27,15 @@ signal noise_made(amount: float, where: Vector3)
 
 enum Mode { PARKED, DRIVING, AUTO_DOWN, COUNTDOWN, EXTRACTING, DOCKED, DROP_COUNTDOWN, DROPPING, GRAPPLE_DOWN, LIFTING }
 enum Cmd { SEAT, AUTO, HORN, LIGHTS, RAMP, DEPART, WORKBENCH, PING }
-enum Event { HORN, BLOCKED, DEPART, BEEP, ARRIVED, DOORS, LANDED, GRAPPLED, PING }
+## DOORS: de luiken van de hub gaan open (vlak voor het loslaten). RELEASE: de klemmen laten los,
+## de Mol valt. THRUST: de stuwraketten ontsteken (begin van het remmen).
+enum Event { HORN, BLOCKED, DEPART, BEEP, ARRIVED, DOORS, LANDED, GRAPPLED, PING, RELEASE, THRUST }
+## De drop: de eerste van een sessie helemaal (uit het buitenschip), daarna kort (het buitenbeeld
+## begint lager, al op snelheid). Overslaan maakt van een lange drop een korte.
+enum DropVariant { FULL, SHORT }
+signal skip_changed(votes: int, needed: int)
+## Een moment van de drop (Event.DOORS, RELEASE, THRUST), op elk peer (voor camera en effecten).
+signal drop_event(event: Event)
 
 ## De Mol beweegt zonder piloot (laadruim vastsjorren, enz.). Ook het aftellen voor de drop: dan
 ## stapt de Mol over naar het buitenschip, en de lading moet mee.
@@ -38,8 +46,6 @@ const BUSY_MODES := [Mode.COUNTDOWN, Mode.EXTRACTING, Mode.DROP_COUNTDOWN, Mode.
 const CINEMATIC_MODES := [Mode.DROPPING, Mode.LIFTING]
 ## Haakpunt op het dak (lokaal), waar de grijper de Mol vastpakt.
 const HOOK := Vector3(0.0, 2.9, 0.0)
-## Luiken open zoveel seconden voor de drop (de klep gaat dan ook dicht).
-const DOOR_LEAD := 2.5
 
 const TIER := Strata.Tool.BOOR_T1
 const BORE_RADIUS := 3.2
@@ -97,6 +103,13 @@ var auto_depth := 0.0
 var thrust := 0.0
 ## Verticale snelheid (m/s); bij clients geschat uit de toestand (voor de camera).
 var vertical_speed := 0.0
+## De drop die nu loopt (DropVariant), bij iedereen gelijk (de host kiest bij het loslaten).
+var drop_variant := DropVariant.FULL
+## Host: zoveel drops deze sessie (de eerste is lang, de rest kort).
+var drops_done := 0
+## Overslaan: stemmen van wie in de Mol zit, en hoeveel er nodig zijn (bij iedereen gekend).
+var skip_votes := 0
+var skip_needed := 0
 
 # Host.
 var _input := Vector3.ZERO # throttle, steer, pitch
@@ -119,6 +132,10 @@ var _lever_button: Interactable
 var _visual_yaw := 0.0
 var _teleport: Variant = null # [pos, yaw, pitch], toegepast in de volgende physics-tick
 var _braking := false # drop: de stuwraketten remmen
+var _hub_fall := false # drop: valt nog door de luiken van de hub (voor de sprong naar buiten)
+var _drop_t := 0.0 # drop: seconden sinds het loslaten
+var _skip_voters: Dictionary = {}
+var _all_aboard_said := false
 var _grab_timer := 0.0
 
 # Clients.
@@ -321,10 +338,15 @@ func _handle(sender: int, button: int, arg: float) -> void:
 				_rpc_message.rpc("De Ekster is nog onderweg naar de concessie. Even geduld.")
 			elif inside and mode == Mode.DOCKED and game.terrain.is_loaded:
 				countdown = Tuning.get_f("ship", "drop_countdown_s", 8.0)
+				_all_aboard_said = _all_aboard()
+				if _all_aboard_said:
+					countdown = minf(countdown, Tuning.get_f("ship", "drop_countdown_all_in_s", 5.0))
 				_beep_timer = 0.0
 				_rpc_event.rpc(Event.HORN)
 				_set_mode(Mode.DROP_COUNTDOWN, 0)
-				_rpc_message.rpc("Drop over %d seconden: iedereen in de Mol!" % int(countdown))
+				var solo: bool = game.players.get_child_count() <= 1
+				_rpc_message.rpc(("Drop over %d seconden." if solo else ("Iedereen aan boord: drop over %d seconden."
+						if _all_aboard_said else "Drop over %d seconden: iedereen in de Mol!")) % int(ceil(countdown)))
 			elif inside and mode in [Mode.PARKED, Mode.DRIVING, Mode.AUTO_DOWN] and (_path.size() > 1 or game.ship != null):
 				countdown = Tuning.get_f("mol", "countdown_s", 10.0)
 				_beep_timer = 0.0
@@ -362,11 +384,23 @@ func _rpc_flags(new_ramp: bool, new_lights: bool) -> void:
 @rpc("authority", "call_local", "reliable")
 func _rpc_event(event: int) -> void:
 	match event:
-		Event.HORN, Event.DOORS:
+		Event.HORN:
 			visual.play("mol_horn", Vector3(0, 2.3, -3.0), 0.0)
+		Event.DOORS:
+			visual.play("drop_doors", Vector3(0, -2.6, 0.0), -3.0)
+			visual.flicker(0.12)
+			drop_event.emit(event)
+		Event.RELEASE:
+			visual.play("drop_clamp", Vector3(0, 2.6, 0.0), 0.0)
+			visual.play("drop_whoosh", Vector3(0, -1.0, 0.0), -4.0)
+			visual.release()
+			drop_event.emit(event)
+		Event.THRUST:
+			visual.ignite()
+			drop_event.emit(event)
 		Event.LANDED:
-			visual.play("mol_blocked", Vector3(0, -2.0, 0.0), 2.0)
-			visual.play("mol_hydraulic", Vector3(0, -1.0, 4.0), -2.0)
+			visual.play("drop_impact", Vector3(0, -2.0, 0.0), 0.0)
+			visual.play("drop_settle", Vector3(0, -1.0, 2.0), -4.0)
 			visual.landing_burst()
 			landed.emit()
 		Event.GRAPPLED:
@@ -376,7 +410,11 @@ func _rpc_event(event: int) -> void:
 		Event.DEPART:
 			visual.play("mol_depart", Vector3(0, 2.0, 2.5), 0.0)
 		Event.BEEP:
-			visual.play("mol_beep", Vector3(0, 0.5, -2.5), -4.0)
+			# De laatste drie tellen van de drop: hoger en scherper.
+			if mode == Mode.DROP_COUNTDOWN and countdown < 3.2:
+				visual.play("drop_beep_final", Vector3(0, 0.5, -2.5), -6.0)
+			else:
+				visual.play("mol_beep", Vector3(0, 0.5, -2.5), -4.0)
 		Event.ARRIVED:
 			visual.play("mol_hydraulic", Vector3(0, -1.0, 4.0), -4.0)
 		Event.PING:
@@ -386,6 +424,100 @@ func _rpc_event(event: int) -> void:
 @rpc("authority", "call_local", "reliable")
 func _rpc_message(text: String) -> void:
 	message.emit(text)
+
+
+## Host: het aftellen korter maken (iedereen is aan boord). De clients tellen zelf verder af.
+@rpc("authority", "call_local", "reliable")
+func _rpc_countdown(cd: float) -> void:
+	countdown = cd
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_drop_variant(v: int) -> void:
+	drop_variant = v as DropVariant
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_skip_votes(votes: int, needed: int) -> void:
+	skip_votes = votes
+	skip_needed = needed
+	skip_changed.emit(votes, needed)
+
+
+# --- Drop: overslaan ---------------------------------------------------------------------------
+
+## Kan de drop die nu loopt nog ingekort worden? (Op elk peer: voor de hint.) Enkel de lange drop,
+## zolang de Mol nog boven het beginpunt van de korte zit.
+func drop_skippable() -> bool:
+	if mode != Mode.DROPPING or drop_variant != DropVariant.FULL or body == null or game.terrain == null:
+		return false
+	if in_hub():
+		return true
+	var p := body.global_position
+	var h: float = p.y - game.terrain.surface_height_at(p.x, p.z) + TRACK_BOTTOM
+	return h > Tuning.get_f("ship", "drop_short_height", 150.0) + 15.0 and thrust < 0.01
+
+
+## Lokaal: deze speler wil de drop overslaan (solo meteen, samen als iedereen in de Mol het wil).
+func vote_skip() -> void:
+	if not drop_skippable():
+		return
+	if Net.is_host():
+		_handle_skip(Net.my_id())
+	else:
+		_rpc_vote_skip.rpc_id(1)
+
+
+@rpc("any_peer", "reliable")
+func _rpc_vote_skip() -> void:
+	if multiplayer.is_server():
+		_handle_skip(multiplayer.get_remote_sender_id())
+
+
+func _handle_skip(sender: int) -> void:
+	var p: Player = game.player_node(sender)
+	if p == null or not drop_skippable() or not contains_point(p.global_position):
+		return
+	_skip_voters[sender] = true
+	var needed := 0
+	var votes := 0
+	for pl: Player in game.players.get_children():
+		if contains_point(pl.global_position):
+			needed += 1
+			if _skip_voters.has(pl.peer_id):
+				votes += 1
+	_rpc_skip_votes.rpc(votes, needed)
+	if votes >= needed:
+		_rpc_drop_variant.rpc(DropVariant.SHORT)
+		_rpc_message.rpc("Drop ingekort.")
+		if not _hub_fall:
+			_snap_short_entry()
+
+
+## Host: de Mol naar het beginpunt van de korte drop (boven de landingsplek, al op volle snelheid).
+func _snap_short_entry() -> void:
+	var t: TerrainAPI = game.terrain
+	var c := t.shaft_center_world()
+	var y := t.surface_height_at(c.x, c.z) - TRACK_BOTTOM + Tuning.get_f("ship", "drop_short_height", 150.0)
+	_vy = -Tuning.get_f("ship", "drop_max_speed", 55.0)
+	vertical_speed = _vy
+	_rpc_snap.rpc(Vector3(c.x, y, c.z), yaw, 0.0, Time.get_ticks_msec())
+
+
+## De Mol hangt in de hub (de baai van De Ekster), niet boven de planeet.
+func in_hub() -> bool:
+	return game.ship != null and game.exterior != null and body != null \
+			and placed.origin.y > game.exterior.dock_position().y + Ekster.HUB_ABOVE * 0.5
+
+
+## Host: zit iedereen (die verbonden is) in de Mol?
+func _all_aboard() -> bool:
+	var n := 0
+	for pl: Player in game.players.get_children():
+		if not pl.seated and not contains_point(pl.global_position):
+			return false
+		n += 1
+	return n > 0
 
 
 @rpc("authority", "call_local", "reliable")
@@ -860,49 +992,92 @@ func _apply_snap(pos: Vector3, y: float, p: float) -> void:
 	snapped.emit(old, placed)
 
 
+## Aftellen in de baai van de hub (docs/research/drop-en-ophalen.md, ontwerp B). Iedereen aan boord:
+## korter. Op drop_ramp_close_s de klep dicht (laatste oproep), op drop_door_lead_s de luiken open,
+## op nul laten de klemmen los en valt de Mol door de luiken (zie _drop).
 func _drop_countdown(delta: float) -> void:
 	var ship: Ekster = game.ship
 	countdown -= delta
+	var all_in := Tuning.get_f("ship", "drop_countdown_all_in_s", 5.0)
+	if countdown > all_in + 0.05 and _all_aboard():
+		countdown = all_in
+		_rpc_countdown.rpc(countdown)
+		if not _all_aboard_said:
+			_all_aboard_said = true
+			_rpc_message.rpc("Iedereen aan boord: drop over %d seconden." % int(ceil(countdown)))
 	_beep_timer -= delta
 	if _beep_timer <= 0.0:
 		_beep_timer = 1.0
 		_rpc_event.rpc(Event.BEEP)
-	if countdown <= DOOR_LEAD and not ship.doors_open:
+	if countdown <= Tuning.get_f("ship", "drop_ramp_close_s", 3.0) and ramp_open:
+		_rpc_flags.rpc(false, lights_on)
+	if countdown <= Tuning.get_f("ship", "drop_door_lead_s", 0.9) and not ship.doors_open:
 		ship.doors_open = true
 		_rpc_flags.rpc(false, lights_on)
 		_rpc_event.rpc(Event.DOORS)
 	if countdown <= 0.0:
-		_vy = 0.0
+		# De klemmen laten los: de Mol valt eerst door de luiken van de hub (wie in de hub staat,
+		# ziet hem vallen), daarna springt hij naar de baai van het buitenschip (zie _drop).
+		_vy = -Tuning.get_f("ship", "drop_eject_speed", 2.0)
 		_braking = false
-		_rpc_event.rpc(Event.DEPART)
-		# Van de baai van de hub naar die van het buitenschip, dan vallen.
-		_rpc_snap.rpc(game.exterior.dock_position(), 0.0, 0.0, Time.get_ticks_msec())
+		_hub_fall = true
+		_drop_t = 0.0
+		_skip_voters.clear()
+		_rpc_skip_votes.rpc(0, 0)
+		_rpc_drop_variant.rpc(DropVariant.FULL if drops_done == 0 else DropVariant.SHORT)
+		drops_done += 1
+		# Eerst de toestand, dan het moment: wie het moment krijgt, weet al dat de Mol valt.
 		_set_mode(Mode.DROPPING, 0)
+		_rpc_event.rpc(Event.RELEASE)
+
+
+## De drop die nu zou komen (voor tests): de eerste van een sessie lang, de rest kort.
+func next_drop_variant() -> DropVariant:
+	return DropVariant.FULL if drops_done == 0 else DropVariant.SHORT
 
 
 ## Vrije val uit de baai, op het einde remmen met de stuwraketten tot een zachte landing.
-## Is het terrein onder de landingsplek nog niet geladen, dan blijft hij erboven hangen.
+## Eerst drop_hub_fall_s door de luiken van de hub, dan de sprong naar buiten: met dezelfde
+## afstand onder de baai en dezelfde snelheid (lange drop), of meteen naar het beginpunt van de
+## korte drop. Is het terrein onder de landingsplek nog niet geladen, dan blijft hij erboven hangen.
 func _drop(delta: float) -> void:
+	_drop_t += delta
+	if _hub_fall:
+		var hp := body.global_position
+		_vy = maxf(_vy - 9.8 * delta, -Tuning.get_f("ship", "drop_max_speed", 55.0))
+		vertical_speed = _vy
+		hp.y += _vy * delta
+		if _drop_t < Tuning.get_f("ship", "drop_hub_fall_s", 1.2):
+			_place(hp, yaw, 0.0)
+			return
+		_hub_fall = false
+		if drop_variant == DropVariant.SHORT:
+			_snap_short_entry()
+		else:
+			_rpc_snap.rpc(game.from_hub(hp), yaw, 0.0, Time.get_ticks_msec())
+		return
 	var t: TerrainAPI = game.terrain
 	var pos := body.global_position
 	var ground := t.surface_height_at(pos.x, pos.z) - TRACK_BOTTOM
 	var ready := t.collision_ready(Vector3(pos.x, ground + TRACK_BOTTOM, pos.z))
-	var brake := Tuning.get_f("ship", "drop_brake", 14.0)
-	var soft := Tuning.get_f("ship", "drop_touch_speed", 3.0)
+	var brake := Tuning.get_f("ship", "drop_brake", 22.0)
+	var soft := Tuning.get_f("ship", "drop_touch_speed", 4.0)
+	var touch_h := Tuning.get_f("ship", "drop_touch_height", 1.5)
 	var to_floor := pos.y - ground - (0.0 if ready else Tuning.get_f("ship", "drop_wait_height", 30.0))
 	if not _braking and to_floor <= _vy * _vy / (2.0 * brake) + 6.0:
 		_braking = true
+		_rpc_event.rpc(Event.THRUST)
 	if _braking:
 		# Snelheid volgt een wortelprofiel naar de landingssnelheid (of stilhangen als het terrein
 		# er nog niet is); nooit sneller dan cap, ook niet na het wachten.
-		var cap := Tuning.get_f("ship", "drop_brake_cap", 15.0)
-		var want := -clampf(sqrt(2.0 * brake * maxf(to_floor - 3.0, 0.0)), soft, cap)
+		var cap := Tuning.get_f("ship", "drop_brake_cap", 18.0)
+		var want := -clampf(sqrt(2.0 * brake * maxf(to_floor - touch_h, 0.0)), soft, cap)
 		if not ready and to_floor < 3.0:
 			want = 0.0
 		_vy = move_toward(_vy, want, (brake + 4.0) * delta)
 		thrust = clampf(0.45 + 0.55 * clampf((want - _vy) / 8.0 + absf(_vy) / cap * 0.5, 0.0, 1.0), 0.0, 1.0)
 	else:
-		_vy = maxf(_vy - 9.8 * delta, -Tuning.get_f("ship", "drop_max_speed", 42.0))
+		_vy = maxf(_vy - 9.8 * delta, -Tuning.get_f("ship", "drop_max_speed", 55.0))
 		thrust = 0.0
 	vertical_speed = _vy
 	pos.y += _vy * delta
@@ -919,6 +1094,8 @@ func _drop(delta: float) -> void:
 
 
 func _land() -> void:
+	_hub_fall = false
+	_nudge_from_under()
 	_vy = 0.0
 	vertical_speed = 0.0
 	speed = 0.0
@@ -928,6 +1105,22 @@ func _land() -> void:
 	_rpc_flags.rpc(true, lights_on)
 	_set_mode(Mode.PARKED, 0)
 	_rpc_event.rpc(Event.LANDED)
+
+
+## Host, bij de landing: wie onder de Mol staat (niet erin, bv. uit de hub gesprongen en op de
+## landingsplek gewacht), wordt opzij gezet, naast de rupsen, in plaats van ertussen te belanden.
+func _nudge_from_under() -> void:
+	var t: TerrainAPI = game.terrain
+	for pl: Player in game.players.get_children():
+		if pl.seated or contains_point(pl.global_position):
+			continue
+		var local := placed.affine_inverse() * pl.global_position # (het lichaam staat pas na deze tick op zijn plek)
+		if absf(local.x) > 3.4 or absf(local.z) > 5.2 or local.y < TRACK_BOTTOM - 2.0 or local.y > 3.0:
+			continue
+		var side := 1.0 if local.x >= 0.0 else -1.0
+		var out := placed * Vector3(side * 4.6, 0.0, local.z)
+		out.y = t.surface_height_at(out.x, out.z) + 0.1
+		pl.host_teleport(out)
 
 
 ## Grijper zakt tot op het dak, klep dicht, dan omhoog tot in de baai van het buitenschip; daar
@@ -1076,6 +1269,19 @@ func _update_visual() -> void:
 	visual.beacons = mode in [Mode.AUTO_DOWN, Mode.COUNTDOWN, Mode.EXTRACTING, Mode.DROP_COUNTDOWN, Mode.DROPPING, Mode.GRAPPLE_DOWN, Mode.LIFTING]
 	visual.lever_pulled = mode in [Mode.COUNTDOWN, Mode.EXTRACTING, Mode.DROP_COUNTDOWN, Mode.DROPPING]
 	visual.thrust = thrust
+	# Drop: binnen eerst amber, de laatste tellen rood; de buikcamera op het scherm; in de lucht
+	# wiebelt het model mee met de snelheid (enkel beeld, de botsvorm blijft recht).
+	var red_at := Tuning.get_f("ship", "drop_ramp_close_s", 3.0)
+	visual.alert = 0 if not mode in [Mode.DROP_COUNTDOWN, Mode.DROPPING] else (2 if mode == Mode.DROPPING or countdown <= red_at else 1)
+	visual.belly_cam = mode in [Mode.DROP_COUNTDOWN, Mode.DROPPING]
+	visual.fall_speed = absf(vertical_speed) if mode == Mode.DROPPING else 0.0
+	if mode == Mode.DROPPING and game.terrain:
+		var bp := body.global_position
+		visual.terrain = game.terrain
+		visual.ground_y = game.terrain.surface_height_at(bp.x, bp.z)
+		visual.over_ground = not in_hub()
+	else:
+		visual.over_ground = false
 	if _lever_button:
 		_lever_button.hint = "E: droppen op de planeet" if mode == Mode.DOCKED else "E: vertrekken naar boven (10 s)"
 	if drilling:
@@ -1102,9 +1308,17 @@ LAADRUIM %d · €%d
 ERTS     %d · €%d" % [state, int(depth()), _magma_line(), int(game.unrest.value / maxf(1.0, Tuning.get_f("unrest", "stage", 100.0)) * 100.0),
 				int(fuel * 100.0), cargo.size(), value, OreField.units(ore), OreField.value(ore)])
 		visual.feed_text = "%d M  ·  %s  ·  %.1f M/S" % [int(depth()), Strata.NAMES[front].to_upper(), absf(speed)]
-	# Camerascherm enkel renderen als de lokale speler in de Mol is.
+		if mode == Mode.DROP_COUNTDOWN:
+			visual.feed_text = "LUIKEN  ·  DROP OVER %d S" % int(ceil(countdown))
+		elif mode == Mode.DROPPING:
+			var bp := body.global_position
+			if in_hub():
+				visual.feed_text = "LOSGEKOPPELD  ·  %d M/S" % int(absf(vertical_speed))
+			else:
+				visual.feed_text = "HOOGTE %d M  ·  %d M/S" % [int(maxf(0.0, bp.y + TRACK_BOTTOM - game.terrain.surface_height_at(bp.x, bp.z))), int(absf(vertical_speed))]
+	# Camerascherm enkel renderen als de lokale speler in de Mol is (en niet door het buitenbeeld kijkt).
 	var me: Player = game.player_node(Net.my_id())
-	visual.feed_active = me != null and contains_point(me.global_position)
+	visual.feed_active = me != null and contains_point(me.global_position) and not (me.drop_cam != null and me.drop_cam.current)
 
 
 ## Statusscherm: hoe ver het magma onder de Mol staat, en dichtbij ook wanneer het hier is.

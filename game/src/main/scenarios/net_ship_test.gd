@@ -12,6 +12,7 @@ var _checks := 0
 var _failures := PackedStringArray()
 var _client_ready := false
 var _client_report: Array = []
+var _client_drop: Array = []
 
 
 func _ready() -> void:
@@ -40,17 +41,39 @@ func _run_client(p: Player) -> void:
 	p.global_position = mol.to_world_mol(Vector3(0.6, -1.45, 0.8))
 	await _wait(1.0)
 	_rpc_client_ready.rpc_id(1, in_hub, mol.contains_point(p.global_position))
-	# Wachten op de drop en de landing.
+	# Wachten op de drop en de landing. Onderweg: het buitenbeeld (pas na de sprong naar buiten, dus
+	# niet in de hub), het filmpje, en overslaan: de host stemt eerst, de client 1 s later.
 	while mol.mode != Mol.Mode.DROPPING:
 		await get_tree().process_frame
 	var inside_fall := true
+	var saw_cam := false
+	var first_in_hub := false
+	var cine := true
+	var voted := false
+	var host_vote_ms := -1
+	var frames := 0
 	while mol.mode == Mol.Mode.DROPPING:
 		await get_tree().process_frame
+		frames += 1
 		if not mol.contains_point(p.global_position):
 			inside_fall = false
+		if mol.mode != Mol.Mode.DROPPING:
+			break
+		if frames >= 3: # het moment van loslaten komt net na de toestand
+			cine = cine and p.cinematic
+		if p.drop_cam.current and not saw_cam:
+			saw_cam = true
+			first_in_hub = p.drop_cam.first_frame_pos.y > game.exterior.dock_position().y + 200.0
+		if mol.skip_votes >= 1 and host_vote_ms < 0:
+			host_vote_ms = Time.get_ticks_msec()
+		if not voted and host_vote_ms > 0 and Time.get_ticks_msec() - host_vote_ms > 1000 and mol.drop_skippable():
+			voted = true
+			mol.vote_skip()
+	var short := mol.drop_variant == Mol.DropVariant.SHORT
 	await _wait(1.0)
 	var landed_inside := mol.contains_point(p.global_position)
 	var cam_back := p.camera.current
+	_rpc_client_drop.rpc_id(1, saw_cam, first_in_hub, cine, voted, short)
 	# Ophalen: wachten tot de Mol weer in de hub staat.
 	while mol.mode != Mol.Mode.DOCKED:
 		await get_tree().process_frame
@@ -75,8 +98,27 @@ func _run_host(p: Player) -> void:
 	_expect(remote != null and mol.contains_point(remote.global_position), "host ziet de client in de Mol (in de hub)")
 	game.company.contract = game.company.options[0] # opdracht zonder nieuwe wereld (die test ship_test)
 	mol.press(Mol.Cmd.DEPART)
+	# Overslaan samen: de host stemt in het buitenbeeld; alleen is niet genoeg (1/2), met de stem
+	# van de client wordt het de korte drop.
+	var voted := false
+	var alone_ok := false
+	var cam_ms := -1
 	while mol.mode != Mol.Mode.PARKED:
 		await get_tree().process_frame
+		if p.drop_cam.current and cam_ms < 0:
+			cam_ms = Time.get_ticks_msec()
+		if not voted and cam_ms > 0 and Time.get_ticks_msec() - cam_ms > 500 and mol.drop_skippable():
+			voted = true
+			mol.vote_skip()
+			await _wait(0.4)
+			alone_ok = mol.skip_votes == 1 and mol.skip_needed == 2 and mol.drop_variant == Mol.DropVariant.FULL
+	_expect(voted and alone_ok, "overslaan samen: één stem van de twee is niet genoeg")
+	_expect(mol.drop_variant == Mol.DropVariant.SHORT, "overslaan samen: met beide stemmen werd de drop kort")
+	while _client_drop.is_empty():
+		await get_tree().process_frame
+	_expect(_client_drop[0] and not _client_drop[1], "client: buitenbeeld pas na de sprong naar buiten (niet in de hub)")
+	_expect(_client_drop[2], "client: de hele val een filmpje (geen besturing)")
+	_expect(_client_drop[3] and _client_drop[4], "client: stemde mee en zag de korte drop")
 	await _wait(1.5)
 	remote = _remote_player()
 	_expect(remote != null and mol.contains_point(remote.global_position), "na de landing: host ziet de client in de Mol")
@@ -122,6 +164,11 @@ func _rpc_client_ready(in_hub: bool, in_mol: bool) -> void:
 func _rpc_client_report(inside_fall: bool, landed_inside: bool, cam_back: bool, in_hub: bool, in_mol: bool,
 		player_pos: Vector3, mol_pos: Vector3, cash: int, report_shift: int) -> void:
 	_client_report = [inside_fall, landed_inside, cam_back, in_hub, in_mol, player_pos, mol_pos, cash, report_shift]
+
+
+@rpc("any_peer", "reliable")
+func _rpc_client_drop(saw_cam: bool, first_in_hub: bool, cine: bool, voted: bool, short: bool) -> void:
+	_client_drop = [saw_cam, first_in_hub, cine, voted, short]
 
 
 @rpc("authority", "reliable")
