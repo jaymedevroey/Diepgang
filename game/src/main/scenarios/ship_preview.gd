@@ -1,8 +1,24 @@
 extends Node
-## Screenshots van De Ekster: spawn, hangar, terminal, taxatie, museum, baai, van buiten, en de drop.
-## tools\godot.cmd --path game --resolution 1280x720 -- --scenario=ship_preview --no-steam
-## --only=naam,naam om enkel bepaalde shots te maken (spawn, hangar, terminal, taxatie, museum,
-## baai, buiten, onder, planeet, drop).
+## Screenshots van De Ekster: de hub langs de route (laadrek, werkdek, gang, brug, terminal, kade,
+## hangar, taxatie, raam, baai), het buitenschip, en de drop.
+## tools\godot.cmd --path game --resolution 1600x900 -- --scenario=ship_preview --no-steam
+## --only=naam,naam om enkel bepaalde shots te maken (spawn, laadrek, werkdek, gang, brug,
+## terminal, kade, hangar, taxatie, venster, baai, buiten, onder, planeet, drop, firma).
+## Beelden: logs/ekster_<naam>.png
+
+## Vaste camera's in de hub (lokaal t.o.v. de hub: de Mol staat op de oorsprong, voren is −z):
+## naam, van, naar. Op ooghoogte van een robot (1,2 m boven de vloer).
+const HUB_SHOTS := [
+	["laadrek", Vector3(3.0, 1.8, 33.6), Vector3(3.0, 2.2, 21.0)],
+	["werkdek", Vector3(5.5, 2.4, 29.5), Vector3(-5.5, 2.2, 24.5)],
+	["gang", Vector3(3.0, 2.4, 23.0), Vector3(2.0, 2.8, 1.0)],
+	["brug", Vector3(9.0, 2.4, 13.0), Vector3(-4.0, 2.6, -6.5)],
+	["kade", Vector3(0.75, 1.2, 9.5), Vector3(0.0, 1.6, -2.0)],
+	["hangar", Vector3(11.0, 6.5, 10.5), Vector3(-2.0, 1.0, -5.0)],
+	["taxatie", Vector3(0.5, 1.4, 10.5), Vector3(5.0, 2.4, 9.3)],
+	["venster", Vector3(6.5, 0.6, -6.5), Vector3(4.0, 2.5, -16.0)],
+	["baai", Vector3(11.5, 3.8, -4.5), Vector3(0.0, -0.5, 1.0)],
+]
 
 var main: Node
 var _cam: Camera3D
@@ -19,7 +35,8 @@ func _run(p: Player) -> void:
 	var only := str(CmdArgs.value("only", "")).split(",", false)
 	await _wait(1.5)
 	_cam = Camera3D.new()
-	_cam.fov = 70.0
+	_cam.fov = 75.0
+	_cam.near = 0.05
 	_cam.far = 3000.0
 	main.add_child(_cam)
 
@@ -42,32 +59,26 @@ func _run(p: Player) -> void:
 	if only.is_empty() or "spawn" in only:
 		p.camera.make_current()
 		await _shot("ekster_spawn", 0.5)
-	if only.is_empty() or "hangar" in only:
-		_look(ship, Vector3(9.0, 6.5, 14.0), Vector3(-2.0, 2.0, -8.0))
-		await _shot("ekster_hangar")
-		_look(ship, Vector3(-9.0, 1.7, 13.0), Vector3(0.0, 2.5, -4.0))
-		await _shot("ekster_mol_achter")
+	var hub := ship.global_transform
+	for s: Array in HUB_SHOTS:
+		if only.is_empty() or s[0] in only:
+			_look(hub, s[1], s[2])
+			await _shot("ekster_" + s[0])
 	if only.is_empty() or "terminal" in only:
-		_look(ship, Vector3(1.5, 1.7, -14.0), Vector3(0.0, 2.8, -19.5))
+		# Zoals je aan de opdrachttafel staat, kijkend naar het scherm.
+		var use := hub.affine_inverse() * ship.anchor_position("Terminal_Use")
+		var screen := hub.affine_inverse() * ship.terminal_screen.global_position
+		_look(hub, use + Vector3(0.0, 1.2, 0.3), Vector3(use.x, screen.y - 0.35, screen.z))
 		await _shot("ekster_terminal")
-		_look(ship, Vector3(-6.0, 1.7, -19.0), Vector3(0.0, 4.5, -23.0))
-		await _shot("ekster_venster")
-	if only.is_empty() or "taxatie" in only:
-		_look(ship, Vector3(-2.0, 1.7, 9.0), Vector3(-8.0, 2.0, 12.5))
-		await _shot("ekster_taxatie")
-	if only.is_empty() or "museum" in only:
-		_look(ship, Vector3(12.5, 1.7, 8.5), Vector3(23.0, 1.5, 6.0))
-		await _shot("ekster_museum")
-	if only.is_empty() or "baai" in only:
-		_look(ship, Vector3(5.5, 4.5, -12.5), Vector3(0.0, 0.0, -4.0))
-		await _shot("ekster_baai")
+	# Het buitenschip (een apart model boven de landingsplek), t.o.v. zijn baai.
+	var outside := Transform3D(Basis(), game.exterior.dock_position())
 	if only.is_empty() or "buiten" in only:
-		_look(ship, Vector3(-55.0, 18.0, -60.0), Vector3(6.0, 2.0, -2.0))
+		_look(outside, Vector3(-55.0, 18.0, -60.0), Vector3(6.0, 2.0, -2.0))
 		await _shot("ekster_buiten")
-		_look(ship, Vector3(70.0, 4.0, 40.0), Vector3(6.0, 2.0, -2.0))
+		_look(outside, Vector3(70.0, 4.0, 40.0), Vector3(6.0, 2.0, -2.0))
 		await _shot("ekster_buiten_achter")
 	if only.is_empty() or "onder" in only:
-		_look(ship, Vector3(30.0, -40.0, 20.0), Vector3(0.0, 0.0, -2.0))
+		_look(outside, Vector3(30.0, -40.0, 20.0), Vector3(0.0, 0.0, -2.0))
 		await _shot("ekster_onder")
 	if only.is_empty() or "planeet" in only:
 		# Vanaf de planeet: het schip in de lucht.
@@ -87,7 +98,7 @@ func _run(p: Player) -> void:
 		await _shot("ekster_drop_aftellen", 0.1)
 		while mol.mode == Mol.Mode.DROP_COUNTDOWN and mol.countdown > 1.0:
 			await get_tree().process_frame
-		_look(ship, Vector3(6.0, 4.5, -14.0), Vector3(0.0, -2.0, -2.0))
+		_look(hub, Vector3(11.5, 3.8, -4.5), Vector3(0.0, -1.5, 1.0))
 		await _shot("ekster_luiken", 0.6)
 		while mol.mode != Mol.Mode.DROPPING:
 			await get_tree().process_frame
@@ -104,9 +115,10 @@ func _run(p: Player) -> void:
 	get_tree().quit(0)
 
 
-func _look(ship: Ekster, local_pos: Vector3, local_target: Vector3) -> void:
-	_cam.global_position = ship.global_transform * local_pos
-	_cam.look_at(ship.global_transform * local_target)
+## Camera op `local_pos`, kijkend naar `local_target`, beide t.o.v. `frame`.
+func _look(frame: Transform3D, local_pos: Vector3, local_target: Vector3) -> void:
+	_cam.global_position = frame * local_pos
+	_cam.look_at(frame * local_target)
 	_cam.make_current()
 
 

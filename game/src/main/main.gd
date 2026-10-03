@@ -6,7 +6,7 @@ extends Node3D
 ##   --join=ADRES [--port=N] verbinden met een host
 ## Scenario's (--scenario=…):
 ##   play (standaard)  het spel: op De Ekster beginnen, droppen met de Mol
-##   ship_preview      screenshots van De Ekster (hangar, terminal, museum, baai, van buiten)
+##   ship_preview      screenshots van De Ekster (de hub langs de route, van buiten, de drop)
 ##   ship_test         De Ekster en de drop: spawnen op het schip, droppen, landen, ophalen (headless)
 ##   net_ship_test     host + client droppen samen en komen samen terug (tools/net_test.py --scenario=net_ship_test)
 ##   concept_preview   ontwerpen van De Ekster (assets/models/concepts/) in de look van de game

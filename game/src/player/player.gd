@@ -390,7 +390,35 @@ func _physics_process(delta: float) -> void:
 			velocity.y = maxf(velocity.y, -Tuning.get_f("player", "max_fall_speed", 40.0))
 		elif Input.is_action_just_pressed("jump") and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 			velocity.y = Tuning.get_f("player", "jump_velocity", 4.5)
+		_step_up(delta)
 	move_and_slide()
+
+
+## Lage treden in De Ekster (de ringtreden van de verhoging, drempels): een CharacterBody loopt
+## hellingen op, maar geen treden. Botst de stap van deze tick tegen een lage rand van het schip,
+## dan eerst op de rand gaan staan. Enkel tegen de hub: op de planeet en in de Mol verandert niets.
+func _step_up(delta: float) -> void:
+	var ship: Ekster = game.ship
+	if ship == null or ship.body == null or not is_on_floor():
+		return
+	var motion := Vector3(velocity.x, 0.0, velocity.z) * delta
+	if motion.length_squared() < 1e-8:
+		return
+	var hit := KinematicCollision3D.new()
+	if not test_move(global_transform, motion, hit) or hit.get_collider() != ship.body:
+		return
+	if hit.get_normal().angle_to(Vector3.UP) <= floor_max_angle:
+		return # een helling (trap): daar loopt move_and_slide zelf op
+	var up := Vector3(0.0, Tuning.get_f("player", "step_height", 0.25), 0.0)
+	if up.y <= 0.0 or test_move(global_transform, up):
+		return # uit, of geen plaats boven het hoofd
+	var raised := global_transform.translated(up)
+	if test_move(raised, motion):
+		return # ook hoger nog een muur: geen trede
+	var down := KinematicCollision3D.new()
+	if not test_move(raised.translated(motion), -up, down) or down.get_normal().angle_to(Vector3.UP) > floor_max_angle:
+		return # geen vloer op de rand
+	global_position.y += up.y + down.get_travel().y
 
 
 ## Wie in de Mol staat, beweegt mee met de Mol: positie en kijkrichting volgen exact zijn
