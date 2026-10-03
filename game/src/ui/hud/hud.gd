@@ -617,7 +617,7 @@ func update(player: Player, game: Game, terrain: TerrainAPI) -> void:
 	_update_prompt(player, game, terrain)
 	_update_pilot(player)
 	_update_sonar(player, mol)
-	_update_banner(mol)
+	_update_banner(mol, game)
 	_update_team(player, game)
 	_update_host()
 	_update_stats(player, game, terrain)
@@ -814,12 +814,19 @@ func _update_sonar(player: Player, mol: Mol) -> void:
 		_sonar_view.texture = mol.visual.sonar_screen.texture()
 
 
-func _update_banner(mol: Mol) -> void:
+func _update_banner(mol: Mol, game: Game) -> void:
 	if mol == null:
 		return
-	if mol.mode == Mol.Mode.COUNTDOWN:
+	if mol.mode in [Mol.Mode.COUNTDOWN, Mol.Mode.DROP_COUNTDOWN]:
+		# Wie zit er al in? Zo weet de ploeg op wie ze wacht (onderzoek drop-en-ophalen: "je zit erin").
+		var total := 0
+		var inside := 0
+		for pl: Player in game.players.get_children():
+			total += 1
+			if pl.seated or mol.contains_point(pl.global_position):
+				inside += 1
 		_banner.visible = true
-		_banner_title.text = "DE MOL VERTREKT"
+		_banner_title.text = "%s · IN DE MOL %d/%d" % ["DE MOL VERTREKT" if mol.mode == Mol.Mode.COUNTDOWN else "DROP", inside, total]
 		_banner_count.text = "%d" % int(ceil(mol.countdown))
 		_banner_count.visible = true
 	elif mol.mode == Mol.Mode.EXTRACTING:

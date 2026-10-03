@@ -450,6 +450,9 @@ func _physics_process(delta: float) -> void:
 			_apply_snap(_pending_snap[0], _pending_snap[1], _pending_snap[2])
 			_pending_snap = null
 		_interpolate()
+		# Het aftellen loopt ook bij de clients (de host stuurt enkel de start mee).
+		if mode in [Mode.COUNTDOWN, Mode.DROP_COUNTDOWN]:
+			countdown = maxf(0.0, countdown - delta)
 	_update_visual()
 
 
