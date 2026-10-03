@@ -1,0 +1,49 @@
+# Diepgang — playtest M3 (de kernlus, eerste versie)
+
+**Vraag: voelt een volledige dienst als een spel?** Opdracht kiezen, droppen, graven en delven, het magma voelen komen, op tijd terug, en het rapport lezen.
+
+## Starten
+
+1. Start `Diepgang.exe`.
+2. Kies **Solo spelen**, **Hosten** of **Meedoen** (IP van de host). Samen spelen gaat nog via LAN, poort 24565 (UDP), of een virtueel LAN zoals Tailscale. Steam-uitnodigingen komen later.
+
+Je begint op **De Ekster**, in de hub. De binnenkant is nog de oude, tijdelijke versie: de nieuwe wordt ontworpen.
+
+## Een dienst
+
+1. **Opdracht kiezen**: E op de opdrachtterminal (het blauwe scherm vooraan). Drie concessies, elk met een risico: meer risico = meer geld, maar het magma stijgt sneller. Kiezen laadt een nieuwe wereld (±10 s).
+2. **Droppen**: stap in de Mol en trek aan de rode hendel. Na het aftellen val je uit het schip (buitenbeeld) en landt de Mol op de planeet.
+3. **Graven en delven**: houweel (stil, veilig voor vondsten), boor (snel, maar luid en beschadigt vondsten). Vondsten naar het laadruim, erts in de trechter van de Mol.
+4. **Het magma** stijgt van onderen: de eerste 2 minuten niet, daarna steeds sneller. Het statusscherm links in de Mol toont hoe ver het onder de Mol staat; dichtbij verschijnt het ook bovenaan in beeld. Wie erin zakt, smelt (een vervanger staat in de Mol, dat kost geld). Op −60 m vertrekt de Mol vanzelf: noodophaling.
+5. **Onrust**: lawaai (boren, de Mol, de sonar-PING) maakt de planeet onrustig. Vol = een **beving**: eerst een waarschuwing, dan vallen er rotsen in de gebarsten zones (net van barsten en stof aan het plafond), en het magma maakt een sprong. Het houweel is stil.
+6. **Terug**: de vertrekhendel in de Mol. Hij rijdt zijn spoor terug, de grijper van De Ekster pikt hem op. Wie niet in de Mol zit, blijft achter (en kost een vervanger).
+7. **Incidentrapport**: wat verkocht werd, de bonus van de opdracht, de kosten, en hoe je ervoor staat in het kwartaal. Drie diensten per kwartaal: haal je het doel niet, dan krijg je een boete.
+
+De firma (kas, kwartaal) wordt bewaard. Het verkopen gebeurt nu nog vanzelf; de taxatiepoort en het museum komen met de nieuwe binnenkant.
+
+## Besturing
+
+| Toets | Wat |
+|---|---|
+| ZQSD / muis / spatie | lopen, kijken, springen |
+| Linkermuis (vasthouden) | graven met het actieve gereedschap |
+| 1 / 2 / wieltje | houweel / boor |
+| E | gebruiken: knop, terminal, oppakken, neerzetten, erts storten |
+| Linkermuis (terwijl je draagt) | gooien |
+| **F** | **sonar-PING** (in de Mol): scherp beeld tot 24 m, maar luid |
+| In de stoel | ZQSD gas en draaien, spatie/Ctrl neus, C buitenzicht, H toeter, E uitstappen |
+| V | vliegen aan/uit (om rond te kijken) |
+| F1 / F3 | tuning-menu / infopaneel |
+| Esc | pauze en instellingen |
+
+## Laat na het spelen weten
+
+1. **Opdracht en kas**: begrijp je wat je moet doen en waarom? Is het doel te hoog, te laag?
+2. **Het magma**: voel je de druk? Te traag, te snel, eerlijk? Zie je het komen?
+3. **Bevingen**: zag je de zones? Was de waarschuwing genoeg? Leuk of irritant?
+4. **Sonar en PING**: gebruik je de PING? Is 12 m stil te weinig?
+5. **De drop en het ophalen**: het buitenbeeld, de landing, de grijper.
+6. **Leukste en meest irritante moment.**
+7. Alles wat vreemd liep (vastzitten, zwart beeld, haperingen), graag met wat je deed.
+
+Bewaarde firma: `%APPDATA%\Godot\app_userdata\Diepgang\saves\firma.json` (verwijderen = opnieuw beginnen). Tuning-waarden: `...\Diepgang\tuning\`.
