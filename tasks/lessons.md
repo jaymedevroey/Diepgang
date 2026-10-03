@@ -2,6 +2,18 @@
 
 Wat we onderweg leerden en wat het GDD bijstuurt. Nieuwste bovenaan.
 
+## 2026-10-03 — De binnenkant van De Ekster (met vijf agents)
+
+- **Wacht met bouwen tot het onderzoek af is, en toon eerst de plattegrond.** Ronde 2 (gebouwd vóór het onderzoek klaar was) kreeg een onnodig hoge hangar van 16 m. Ronde 3 ging plan → blokmodel → details, en het plan werd in één keer goedgekeurd.
+- **Wat Jayme schrapt, blijft weg.** Het museum ("hoeft nog niet") dook toch op als skeletten en vitrines in een blokmodel. Een geschrapt idee hoort in de opdracht aan elke agent als expliciet verbod.
+- **Eerst een gedeelde basis, dan parallel werken.** `layout.py` (maten, helpers, en het contract van namen met het spel), `build.py` (overleeft een zone die faalt) en één bestand per zone. Elke agent werkt in een eigen worktree aan enkel zijn bestanden; samenvoegen gaf geen enkel conflict.
+- **Agents vinden elkaars fouten.** De schermagent zag dat het taxatiescherm dwars door de poort stak, het firmabord achter de spanten zat en de tafel het hologram half verborg; de werkingsagent zag dat de ringtreden van de verhoging niet te beklimmen waren. Doorgeven aan de agent die het bestand bezit, terwijl hij nog bezig is (SendMessage), werkt goed.
+- **Een capsule (straal 0,35) klimt geen trede van 0,15 m** zonder stapcode. Trappen in de botsvorm altijd als helling; de speler kan nu ook lage randen opstappen (`step_height` in `player.cfg`), enkel tegen de hub.
+- **Een .cfg schrijven met PowerShell `Set-Content -Encoding utf8` zet er een BOM voor**, en dan laadt het hele tuningbestand niet.
+- **Python op Windows schrijft standaard CRLF** (`open(p, "w")`). Voor bestanden in de repo altijd `newline="\n"`.
+- **Agents delen één scratchpad.** Een testscript van de ene agent overschreef dat van een andere. Elke agent een eigen submap geven.
+- **Drie agents kozen elk een eigen `ScreenAmber`.** Nieuwe paletnamen per zone: in Blender wint de laatste `PALETTE.update`, in Godot staat er één in `MolVisual`. Nieuwe materialen bij het samenvoegen meteen in `MolVisual.MATS`/`EMISSIVE`, anders ziet de game het ruwe glb-materiaal.
+
 ## 2026-10-03 — De Ekster, de drop en de hemel
 
 - **Eerst onderzoek, dan ontwerpen, dan bouwen.** Het schip uit een plattegrond in code (dozen) was een doos, en Jayme walgde ervan. Pas na onderzoek (voorbeelden, vormregels, hoe artiesten het bouwen) en een ontwerp in klei dat hij goedkeurde, werd het iets. Voor elk nieuw groot model: onderzoek in `docs/research/`, dan enkel de vorm (klei) tonen, dan pas details.

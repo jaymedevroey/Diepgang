@@ -148,7 +148,6 @@ func _build_terrain(ops: Array, finds_state: Array = [], ores_state: Array = [])
 		ship.game = self
 		add_child(ship)
 		ship.place_dock_at(exterior.dock_position() + Vector3(0.0, Ekster.HUB_ABOVE, 0.0))
-		company.changed.connect(_update_ship_screens)
 	elif exterior:
 		# Nieuwe wereld: het buitenschip hangt boven de nieuwe landingsplek. De hub blijft waar hij
 		# is (een aparte ruimte; de sprong van de Mol gaat van baai naar baai).
@@ -231,22 +230,6 @@ func notice_all(text: String, kind := "info") -> void:
 @rpc("authority", "call_local", "reliable")
 func _rpc_notice(text: String, kind: String) -> void:
 	notice.emit(text, kind)
-
-
-## Het scherm van de terminal in de hub: de stand van de firma.
-func _update_ship_screens() -> void:
-	if ship == null or ship.terminal_screen == null:
-		return
-	var c := company
-	var chosen := ("OPDRACHT: %s (RISICO %s)" % [c.contract.name, Company.RISK_NAMES[int(c.contract.risk)]]) if c.contract_ready() else "OPDRACHT: NOG NIET GEKOZEN"
-	ship.terminal_screen.text = "DIG · DIEPGANG INTERPLANETAIRE GRONDWERKEN
-
-KAS %s · KWARTAAL %d · DIENST %d/%d
-QUOTA %s / %s
-
-%s
-> E: OPDRACHT KIEZEN" % [
-			UiTheme.euro(c.cash), c.quarter, c.shift, Tuning.get_i("company", "shifts", 3), UiTheme.euro(c.earned), UiTheme.euro(c.quota()), chosen]
 
 
 func _on_terrain_loaded(stats: Dictionary) -> void:

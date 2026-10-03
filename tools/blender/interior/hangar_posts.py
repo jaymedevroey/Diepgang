@@ -417,7 +417,7 @@ def molwerf(ctx, B):
     plate(det, det, "KRAAN MAX 12 T · MOL 14 T", (17.6, 1.8, 9.5), (1, 0, 0), (0, 1, 0), 0.9, 0.16, bg="Cream", fg=DARK_TXT,
           height=0.035, depth=0.004)
     text(det, "NIET OVER NADENKEN", 0.03, (17.605, 1.75, 9.5), (1, 0, 0), (0, 1, 0), "Red", res=1)
-    ctx.anchor("Mol_Werf", (18.2, 1.2, 9.5), -90)
+    ctx.anchor("Mol_Werf", (18.2, 1.2, 9.5), 90)  # kijkt naar de console (−x)
 
 
 # --- Galerij ----------------------------------------------------------------------------------------

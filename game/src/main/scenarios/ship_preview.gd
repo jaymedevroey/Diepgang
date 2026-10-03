@@ -67,7 +67,7 @@ func _run(p: Player) -> void:
 	if only.is_empty() or "terminal" in only:
 		# Zoals je aan de opdrachttafel staat, kijkend naar het scherm.
 		var use := hub.affine_inverse() * ship.anchor_position("Terminal_Use")
-		var screen := hub.affine_inverse() * ship.terminal_screen.global_position
+		var screen := hub.affine_inverse() * (ship.screens[HubScreens.TERMINAL] as Node3D).global_position
 		_look(hub, use + Vector3(0.0, 1.2, 0.3), Vector3(use.x, screen.y - 0.35, screen.z))
 		await _shot("ekster_terminal")
 	# Het buitenschip (een apart model boven de landingsplek), t.o.v. zijn baai.

@@ -56,10 +56,9 @@ var body: StaticBody3D
 var doors_open := false
 var door_amount := 0.0
 ## Schermen uit het contract (MeshInstance3D met UV 0..1): Terminal_Screen, Appraisal_Screen,
-## Company_Board, TV_Screen. Voor wie er later iets op tekent (HubScreens).
+## Company_Board, TV_Screen. HubScreens tekent erop.
 var screens: Dictionary = {}
-var terminal_screen: Label3D
-var appraisal_screen: Label3D
+var hub_screens: HubScreens
 ## De opening van de dropbaai in de vloer (lokaal, x en z), uit de dichte luiken.
 var bay := AABB()
 
@@ -284,53 +283,15 @@ static func _hex_of(node_name: String, fallback: Color) -> Color:
 	return fallback
 
 
-## De schermen. Voorlopig tekst op de terminal en de taxatie; het firmabord en de tv blijven
-## zwart. Een HubScreens-script vervangt dit later (alles wat het nodig heeft: `screens`).
+## De schermen (tv met DIG-nieuws, firmabord, opdrachthologram, taxatie): HubScreens tekent ze
+## en volgt zelf de firma (ook bij clients).
 func _build_screens() -> void:
-	for n: String in ["Terminal_Screen", "Appraisal_Screen", "Company_Board", "TV_Screen"]:
+	for n: String in [HubScreens.TERMINAL, HubScreens.APPRAISAL, HubScreens.BOARD, HubScreens.TV]:
 		if anchors.has(n):
 			screens[n] = anchors[n]
-	if screens.has("Terminal_Screen"):
-		terminal_screen = _screen_label(screens["Terminal_Screen"], Color(0.45, 0.95, 1.0), 9)
-		terminal_screen.text = "DIG · DIEPGANG INTERPLANETAIRE GRONDWERKEN
-
-OPDRACHT: NOG NIET GEKOZEN
-> E: OPDRACHT KIEZEN"
-	if screens.has("Appraisal_Screen"):
-		appraisal_screen = _screen_label(screens["Appraisal_Screen"], Color(1.0, 0.72, 0.3), 2)
-		appraisal_screen.text = "TAXATIE
-KOMT BINNENKORT"
-
-
-## Tekstlabel net voor een schermmesh (een vlak met UV, zie screen_quad in build.py), links
-## boven beginnend; `lines` regels passen op de hoogte van het scherm.
-func _screen_label(mi: MeshInstance3D, color: Color, lines: int) -> Label3D:
-	var arrays := mi.mesh.surface_get_arrays(0)
-	var xf := _local(mi)
-	var normal := (xf.basis * (arrays[Mesh.ARRAY_NORMAL] as PackedVector3Array)[0]).normalized()
-	var up := Vector3.UP if absf(normal.y) < 0.9 else Vector3.FORWARD
-	var right := up.cross(normal).normalized()
-	up = normal.cross(right)
-	var box := xf * mi.get_aabb()
-	var width := absf(right.x) * box.size.x + absf(right.y) * box.size.y + absf(right.z) * box.size.z
-	var height := absf(up.x) * box.size.x + absf(up.y) * box.size.y + absf(up.z) * box.size.z
-	var l := Label3D.new()
-	l.name = mi.name + "Text"
-	l.font = UiTheme.screen()
-	l.font_size = 48
-	l.line_spacing = -8.0
-	l.pixel_size = height * 0.86 / (lines * 47.0)
-	l.modulate = color
-	l.outline_size = 0
-	l.shaded = false
-	l.double_sided = false
-	l.width = width * 0.92 / l.pixel_size
-	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	l.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-	add_child(l)
-	l.transform = Transform3D(Basis(right, up, normal), box.get_center() + normal * 0.01 + up * height * 0.43 - right * width * 0.46)
-	return l
+	hub_screens = HubScreens.new()
+	add_child(hub_screens)
+	hub_screens.setup(game, screens)
 
 
 ## E-knop op de terminal; op de rest een korte uitleg (dat komt later). Een leeg punt kijkt met

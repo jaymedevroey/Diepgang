@@ -55,6 +55,9 @@ const MATS := {
 	"RedOxide": {"albedo": Color(0.482, 0.247, 0.173), "metallic": 0.2, "roughness": 0.7, "edge": 0.5, "grime": 0.7, "bare": Color(0.55, 0.42, 0.36)},
 	"Soot": {"albedo": Color(0.169, 0.153, 0.141), "metallic": 0.1, "roughness": 0.85, "edge": 0.0, "grime": 0.3},
 	"Padded": {"albedo": Color(0.851, 0.827, 0.757), "metallic": 0.0, "roughness": 0.75, "edge": 0.2, "grime": 0.35},
+	# De hub (tools/blender/interior).
+	"DuctTape": {"albedo": Color(0.52, 0.53, 0.55), "metallic": 0.25, "roughness": 0.45, "edge": 0.0, "grime": 0.4},
+	"Cardboard": {"albedo": Color(0.56, 0.42, 0.27), "metallic": 0.0, "roughness": 0.85, "edge": 0.2, "grime": 0.5},
 }
 const EMISSIVE := {
 	"Lens": [Color(1.0, 0.85, 0.6), 3.0],
@@ -69,6 +72,15 @@ const EMISSIVE := {
 	"RunLight": [Color(0.55, 0.8, 1.0), 4.0],
 	"LedWhite": [Color(0.9, 0.95, 1.0), 1.4],
 	"LedAmber": [Color(1.0, 0.62, 0.28), 2.2],
+	"LedGreen": [Color(0.3, 1.0, 0.45), 2.0],
+	"LedCyanSoft": [Color(0.35, 0.85, 0.95), 1.0],
+	"ScreenAmber": [Color(1.0, 0.58, 0.18), 1.0],
+	"ScreenCyan": [Color(0.3, 0.84, 0.95), 1.2],
+	"ScreenGlow": [Color(0.5, 0.78, 0.28), 0.6],
+	"ScreenGreen": [Color(0.32, 0.72, 0.04), 1.0],
+	"ScreenBlue": [Color(0.02, 0.1, 0.8), 1.0],
+	"HoloCyan": [Color(0.1, 0.6, 1.0), 2.0],
+	"HoloCore": [Color(0.02, 0.18, 0.4), 1.0],
 }
 
 ## Toestand (gezet door Mol).
@@ -272,6 +284,20 @@ static func palette_material(name: String, src: Material, inside := false) -> Ma
 		g.metallic = 0.2
 		g.cull_mode = BaseMaterial3D.CULL_DISABLED
 		return g
+	if name == "HoloBeam":
+		var hb := StandardMaterial3D.new()
+		hb.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		hb.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		hb.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		hb.albedo_color = Color(0.1, 0.5, 1.0, 0.16)
+		hb.cull_mode = BaseMaterial3D.CULL_DISABLED
+		return hb
+	if name == "Mirror":
+		var mi := StandardMaterial3D.new()
+		mi.albedo_color = Color(0.62, 0.64, 0.66)
+		mi.metallic = 1.0
+		mi.roughness = 0.1
+		return mi
 	if name == "Screen":
 		var sc := StandardMaterial3D.new()
 		sc.albedo_color = Color(0.02, 0.035, 0.045)

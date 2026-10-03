@@ -62,6 +62,8 @@ Het spel speelt zich grotendeels ondergronds af, en het oppervlak van een planee
 
 De basis is het **moederschip De Ekster**: één interieur (dropbaai, terminal, taxatie, museum), geen gebouwen op de planeet.
 
+> **Bijgestuurd 2026-10-03 (Jayme):** de binnenkant volgt de Super Destroyer van Helldivers 2, met DIG-humor: laadrek → werkdek met upgradenissen en een tv met DIG-nieuws → gang → brug met de opdrachttafel → trap naar de hangar met de Mol voor een raamwand. Eén dek met kleine trappen, geen verdiepingen. **Het museum komt later**, niet in M3 (zie [schip-interieur-niveaus](research/schip-interieur-niveaus.md)).
+
 ---
 
 ## 3. Kernlus
@@ -343,7 +345,7 @@ Een grote rupsvoertuig-drilboor (±10 m lang, ±6 m breed) van DIG: vooraan een 
 | **M0 Opzet** | ✅ 1 oktober 2026 | Repo, Godot 4.7.2, voxel- en GodotSteam-extensies samen, Windows-export, render- en performancetest | Jayme start de build en kan graven |
 | **M1 Graafspeelgoed** | ✅ 1 oktober | First-person robot, graven, korsten uitbikken, dragen, lift. Al met netwerk (ENet, host/join). Tuning-menu | **Poort 1:** voelen graven en slepen goed? |
 | **M2 Uiterlijk** | ✅ 1 oktober | De Mol (model en werking), gereedschap, vondsten en puin in Blender, rots en licht, HUD en menu's, sonar | "Ziet het eruit als een game?" |
-| **M3 Kernlus** | oktober | **De planeet** (±250 × 300 m met streaming, oppervlak en hemel, erts, gespreide vondsten). **De Ekster** (moederschip als basis), **drop** en **extractie met de grijper**. Opdracht en quota, teamkas, taxatie, eerste museum, opslaan. Magma en onrust met bevingen. Sonar met PING | De eerste versie die "een game" is |
+| **M3 Kernlus** | oktober | **De planeet** (±250 × 300 m met streaming, oppervlak en hemel, erts, gespreide vondsten). **De Ekster** (moederschip als basis), **drop** en **extractie met de grijper**. Opdracht en quota, teamkas, taxatie, opslaan (museum uitgesteld, Jayme 2026-10-03). Magma en onrust met bevingen. Sonar met PING | De eerste versie die "een game" is |
 | **M4 Inhoud** | november | Graafworm, gas, alle ±8 items, 3 planeettypes, neergaan en redden, cosmetica, mutators, opdrachten met uitdaging | |
 | **M5 Samen** | Jayme beslist | Steam-lobby's en uitnodigingen, voice, getest met 150 ms vertraging | **Poort 2:** 30 min met drie vrienden zonder problemen, en is het leuk? |
 | **M6 Geluid** | Jayme beslist | Inslagen per materiaal, de Mol, sfeer, muziek | |

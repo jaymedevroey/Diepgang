@@ -57,6 +57,8 @@ func _run(p: Player) -> void:
 	var route := [
 		["het werkdek (de trap op vanuit het laadrek)", Vector3(3.0, 1.2, 29.5)],
 		["de gang", Vector3(3.0, 1.2, 19.0)],
+		# Recht de gang uit (niet schuin langs de stijlen van het schot), dan de verhoging op.
+		["de brug, voor de gang", Vector3(3.0, 1.2, 16.0)],
 		["de terminal, boven op de verhoging", use],
 		["de brug, naast de verhoging", Vector3(2.8, 1.2, 16.6)],
 		["de bovenkant van de trap naar de kade", Vector3(0.75, 1.2, 12.6)],
