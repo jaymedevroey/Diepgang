@@ -58,6 +58,9 @@ const MATS := {
 	# De hub (tools/blender/interior).
 	"DuctTape": {"albedo": Color(0.52, 0.53, 0.55), "metallic": 0.25, "roughness": 0.45, "edge": 0.0, "grime": 0.4},
 	"Cardboard": {"albedo": Color(0.56, 0.42, 0.27), "metallic": 0.0, "roughness": 0.85, "edge": 0.2, "grime": 0.5},
+	"Grating": {"albedo": Color(0.3, 0.31, 0.32), "metallic": 0.55, "roughness": 0.5, "edge": 0.6, "grime": 0.6},
+	"FloorWorn": {"albedo": Color(0.46, 0.46, 0.45), "metallic": 0.6, "roughness": 0.38, "edge": 0.3, "grime": 0.3},
+	"StainOil": {"albedo": Color(0.06, 0.055, 0.05), "metallic": 0.1, "roughness": 0.22, "edge": 0.0, "grime": 0.0},
 }
 const EMISSIVE := {
 	"Lens": [Color(1.0, 0.85, 0.6), 3.0],
@@ -81,6 +84,10 @@ const EMISSIVE := {
 	"ScreenBlue": [Color(0.02, 0.1, 0.8), 1.0],
 	"HoloCyan": [Color(0.1, 0.6, 1.0), 2.0],
 	"HoloCore": [Color(0.02, 0.18, 0.4), 1.0],
+	# De hub: waarschuwingsstroken in de valschacht (Shaft_Lights).
+	"ShaftLight": [Color(1.0, 0.45, 0.15), 2.0],
+	"LedAmberSoft": [Color(1.0, 0.6, 0.26), 0.55],
+	"LedRedSoft": [Color(1.0, 0.18, 0.1), 0.7],
 }
 
 ## Toestand (gezet door Mol).

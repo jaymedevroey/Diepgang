@@ -316,7 +316,7 @@ def niche_supply(ctx, S, R, PN, D, RD, P, rng):
                              "WALKIETALKIE . 150")):
         text(D, row, 0.024, pf.at(2.5, 1.76 - i * 0.075), (0, 0, 1), "ScreenAmber", lift=0.002, max_w=0.66)
     text(D, "ONDER VOORBEHOUD", 0.018, pf.at(2.5, 1.27), (0, 0, 1), "LensRed", lift=0.002)
-    sign(D, D, cf, 2.55, 0.62, 0.62, 0.14, [("KOSTEN VAN DIT BORDJE WORDEN", 0.018), ("INGEHOUDEN OP UW LOON", 0.018)],
+    sign(D, D, cf, 2.55, 0.62, 0.62, 0.14, [("RETOURNEREN KAN NIET", 0.018), ("RUILEN OOK NIET", 0.018)],
          bg="Cream", fg="DecalDark", depth=0.006, gap=0.6, h0=0.05)
     # Loket: stijlen, rolluikkast, half neergelaten rolluik.
     for (za, zb) in ((35.5, 35.62), (38.38, 38.5)):

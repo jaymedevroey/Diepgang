@@ -83,6 +83,13 @@ def build(ctx: Ctx):
 
 # --- Vloer -----------------------------------------------------------------------------------------
 
+def _seg_dist(p, a, b):
+    ax, az = a
+    dx, dz = b[0] - ax, b[1] - az
+    t = max(0.0, min(1.0, ((p[0] - ax) * dx + (p[1] - az) * dz) / (dx * dx + dz * dz)))
+    return math.hypot(p[0] - ax - t * dx, p[1] - az - t * dz)
+
+
 def floor(ctx, g):
     x0, x1, z0, z1 = BRIDGE
     slab(g["shell"], x0, x1, z0, z1, Y - 0.03, "Soot")
@@ -97,8 +104,12 @@ def floor(ctx, g):
     def alt(i, j):
         return "HullDark" if (i * 7 + j * 3) % 11 == 0 else None
 
-    plate_grid(g["deck"], x0, x1, z0, 24.3, Y, 1.25, 1.1, "Floor", skip=skip, alt=alt)
-    plate_grid(g["deck"], 6.25, 15.0, 24.3, z1, Y, 1.25, 0.85, "Floor", skip=skip, alt=alt)
+    def worn(cx, cz):  # looppaden: gang → terminal en gang → trap naar de kade
+        return min(_seg_dist((cx, cz), (10.0, 26.0), (11.8, 24.6)),
+                   _seg_dist((cx, cz), (10.0, 26.0), (7.75, 21.3))) < 0.75
+
+    plate_grid(g["deck"], x0, x1, z0, 24.3, Y, 1.25, 1.1, "Floor", skip=skip, alt=alt, worn=worn)
+    plate_grid(g["deck"], 6.25, 15.0, 24.3, z1, Y, 1.25, 0.85, "Floor", skip=skip, alt=alt, worn=worn)
     # Roosters waar de technici staan (voor de consoles en eronder).
     grating(g["deck"], 0.05, 6.2, 24.32, 25.98, Y, along="x")
     grating(g["deck"], 15.05, 19.95, 24.32, 25.98, Y, along="x")
@@ -276,7 +287,9 @@ def port_console(ctx, g, rng):
             (2.85, 0.42, 0.32, "ScreenBlue", "Anthracite", True, True, False),
             (3.85, 0.56, 0.33, "ScreenGreen", "HullGrey", False, False, True),
             (4.85, 0.36, 0.28, "ScreenGreen", "Cream", True, False, False)):
-        monitor(P, D, fr, -x, 2.3 + 0.17 + hh / 2, 0.42, w, hh, scr, rng, shell=shell, crt=crt, sad=sad, taped=taped)
+        # 10° gekanteld: het midden ligt ±0,25 m boven het oog van een robot (1,2 m boven de vloer).
+        ft = Frame((x, 2.3 + 0.17 + hh / 2, 26.0 - 0.42), (0, 0, -1), tilt=10)
+        monitor(P, D, ft, 0.0, 0.0, 0.0, w, hh, scr, rng, shell=shell, crt=crt, sad=sad, taped=taped)
     for (x, m) in ((1.62, "Cream"), (2.12, "Red"), (4.02, "Blue")):
         mug(D, Frame((x, 2.0, 25.08), (0, 0, -1)), 0, 0, 0, m)
     papers(D, Frame((3.7, 2.0, 25.1), (0, 0, -1)), 0, 0, 0, rng)
@@ -296,11 +309,13 @@ def starboard_console(ctx, g, rng):
     fr = Frame((0.0, 0.0, 26.0), (0, 0, -1))
     # Een groot quotascherm met een dalende grafiek, en een oude ronde radar.
     w, hh, x, h = 1.05, 0.52, 16.75, 2.3 + 0.17 + 0.26
-    monitor(P, D, fr, -x, h, 0.42, w, hh, "ScreenAmber", rng, shell="Anthracite", crt=False)
+    ft = Frame((x, h, 26.0 - 0.42), (0, 0, -1), tilt=10)
+    monitor(P, D, ft, 0.0, 0.0, 0.0, w, hh, "ScreenAmber", rng, shell="Anthracite", crt=False)
     for k in range(7):
-        fr.box(D, -x - w * 0.38 + k * w * 0.12, h - hh * 0.3 + (6 - k) * 0.03, 0.437, 0.07, 0.04 + (6 - k) * 0.06,
+        ft.box(D, -w * 0.38 + k * w * 0.12, -hh * 0.3 + (6 - k) * 0.03, 0.017, 0.07, 0.04 + (6 - k) * 0.06,
                0.002, "DecalDark")
-    monitor(P, D, fr, -17.75, 2.3 + 0.17 + 0.17, 0.42, 0.4, 0.33, "ScreenGreen", rng, shell="Cream", crt=True)
+    ft = Frame((17.75, 2.3 + 0.17 + 0.17, 26.0 - 0.42), (0, 0, -1), tilt=10)
+    monitor(P, D, ft, 0.0, 0.0, 0.0, 0.4, 0.33, "ScreenGreen", rng, shell="Cream", crt=True)
     fr.cyl(P, -18.5, 2.62, 0.34, (0, 0, 1), 0.12, 0.2, 20, "DarkSteel")
     fr.cyl(D, -18.5, 2.62, 0.46, (0, 0, 1), 0.006, 0.16, 20, "ScreenGreen")
     fr.box(D, -18.5 + 0.05, 2.62 + 0.04, 0.468, 0.11, 0.008, 0.002, "Soot", roll=0.7)
@@ -350,15 +365,15 @@ def side_walls(ctx, g, rng):
                gap=0.05, material="HullDark", alt=[("GreyGreen", 0.15), ("Anthracite", 0.15)], thick=0.08)
     for (x0, x1) in ((0.0, 0.1), (19.9, 20.0)):
         block(S, x0, x1, Y, Y + 0.15, 21.0, 23.32, "Anthracite")
-    # "Dagen zonder ongeval" (bakboordwand), met een rood gloeiende nul en een kooilamp erboven.
+    # Koersbord (bakboordwand), met een rood gloeiend doel en een kooilamp erboven. ("Dagen zonder
+    # ongeval" hing hier ook al; dat bord hangt nu enkel bij de baai, waar de ongevallen gebeuren.)
     fr = Frame((0.0, 0.0, 22.3), (1, 0, 0))
     fr.box(P, 0, 2.65, 0.11, 1.3, 0.85, 0.06, "DarkSteel")
     fr.box(D, 0, 2.86, 0.142, 1.2, 0.36, 0.004, "Yellow")
-    fr.text(D, "DAGEN ZONDER", 0.085, 0, 2.93, 0.145, "DecalDark")
-    fr.text(D, "ONGEVAL", 0.085, 0, 2.8, 0.145, "DecalDark")
-    fr.box(D, 0, 2.47, 0.142, 0.5, 0.34, 0.004, "Soot")
-    fr.text(D, "0", 0.3, 0, 2.47, 0.145, "LensRed")
-    fr.text(D, "RECORD: 0", 0.035, 0.45, 2.33, 0.145, "Cream")
+    fr.text(D, "KOERS", 0.11, 0, 2.86, 0.145, "DecalDark")
+    fr.box(D, 0, 2.47, 0.142, 1.1, 0.34, 0.004, "Soot")
+    fr.text(D, "WINST", 0.2, 0, 2.5, 0.145, "LensRed")
+    fr.text(D, "AANKOMST: ALS HET UITKOMT", 0.03, 0, 2.34, 0.145, "Cream")
     fr.box(P, 0, 3.32, 0.12, 0.2, 0.06, 0.1, "DarkSteel")
     fr.box(P, 0, 3.3, 0.24, 0.04, 0.03, 0.2, "DarkSteel")
     fr.cyl(L, 0, 3.24, 0.32, (0, 1, 0), 0.05, 0.05, 10, "Bulb")

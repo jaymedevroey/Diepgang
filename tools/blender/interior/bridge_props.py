@@ -13,11 +13,14 @@ class Frame:
     """Lokaal assenstelsel op een plekpunt: a = naar rechts (gezien van voren), h = omhoog,
     d = naar voren (de kant waar de kijker staat)."""
 
-    def __init__(self, origin, facing):
+    def __init__(self, origin, facing, tilt=0.0):
         self.o = Vector(origin)
         self.f = Vector(facing).normalized()
         self.u = Vector((0.0, 1.0, 0.0))
         self.r = (-self.f).cross(self.u).normalized()
+        if tilt:  # graden: de voorkant kijkt omlaag, de bovenkant leunt naar de kijker
+            t = math.radians(tilt)
+            self.f, self.u = self.f * math.cos(t) - self.u * math.sin(t), self.u * math.cos(t) + self.f * math.sin(t)
 
     def p(self, a, h, d=0.0):
         return tuple(self.o + self.r * a + self.u * h + self.f * d)

@@ -250,13 +250,15 @@ def ceiling(ctx, R, RD, rng):
 def floor(ctx, D, PN, rng):
     """Vloerplaten (loopstrook in het midden), lijnen, het DIG-logo, een reparatieplaat, pijlen."""
     y = Y0
-    # Loopstrook x 7..13: platen 1,5 × 1,2 (licht).
+    # Loopstrook x 7..13: platen 1,5 × 1,2 (licht). De middelste twee rijen zijn glad gesleten: daar
+    # loopt elke robot van het laadrek naar de gang.
     for i in range(4):
         x0 = 7.0 + i * 1.5
         z = 30.2
         while z < 39.5:
             z1 = min(z + 1.22, 39.5)
-            floor_plate(PN, x0 + 0.02, x0 + 1.48, z + 0.02, z1 - 0.02, y, 0.018, 0.012, "Floor")
+            floor_plate(PN, x0 + 0.02, x0 + 1.48, z + 0.02, z1 - 0.02, y, 0.018, 0.012,
+                        "FloorWorn" if i in (1, 2) else "Floor")
             z = z1
     # Zijkanten: grotere platen, af en toe een andere tint.
     for (xa, xb) in ((3.2, 7.0), (13.0, 16.8)):
@@ -453,23 +455,27 @@ def walls(ctx, P, D, PN, rng):
     torus(D, (3.37, 2.35, 39.6), (1, 0, 0), 0.11, 0.015, 12, 5, "Red")
     cyl(D, (3.25, 2.35, 39.6), (1, 0, 0), 0.12, 0.025, 6, "Steel")
 
-    # --- Voorwand rechts: werknemer van het kwartaal, prikklok -------------------------------------
-    # Lijst met een lege foto.
+    # --- Voorwand rechts: laadrooster van de capsules, prikklok ------------------------------------
+    # (De "werknemer van het kwartaal" hangt enkel op de brug: één keer is een grap, drie keer behang.)
     f = Face((3.15, Y0, 30.15), (1, 0, 0), (0, 1, 0))
     a, c = 14.5 - 3.15, 2.95 - Y0
     H = 0.07  # voor de wandplaten
     f.box(P, a, c, H, (1.5, 1.8, 0.05), "Yellow")
     f.box(D, a, c, H + 0.05, (1.36, 1.66, 0.006), "Cream")
-    lines(D, [("WERKNEMER VAN", 0.075), ("HET KWARTAAL", 0.075)], f.at(a, c + 0.66, H + 0.056), (0, 0, 1),
-          "DecalDark", gap=0.4)
-    f.box(D, a, c + 0.05, H + 0.056, (0.78, 0.86, 0.004), "Soot")
-    for k in range(10):  # stippellijn van een robotkop
-        t = k / 10 * math.tau
-        f.box(D, a + 0.24 * math.cos(t), c + 0.12 + 0.24 * math.sin(t), H + 0.06, (0.05, 0.02, 0.003), "DecalLight")
-    f.box(D, a, c - 0.24, H + 0.06, (0.42, 0.03, 0.003), "DecalLight")
-    text(D, "[VACANT]", 0.1, f.at(a, c + 0.05, H + 0.063), (0, 0, 1), "Red", tilt=12)
-    lines(D, [("Q1: VACANT · Q2: VACANT", 0.035), ("Q3: VACANT · Q4: HERZIENING", 0.035),
-              ("AANMELDEN KAN NIET", 0.035)], f.at(a, c - 0.6, H + 0.056), (0, 0, 1), "DecalDark", gap=0.6)
+    lines(D, [("LAADROOSTER", 0.1), ("LAADREK · CAPSULES 01-04", 0.035)], f.at(a, c + 0.62, H + 0.056), (0, 0, 1),
+          "DecalDark", gap=0.5)
+    f.box(D, a, c + 0.4, H + 0.056, (1.2, 0.012, 0.003), "DecalDark")
+    for k, (pod, val, m) in enumerate((("01", "3%  - LADEN NA DE QUOTA", "DecalDark"),
+                                       ("02", "11% - LADEN NA DE QUOTA", "DecalDark"),
+                                       ("03", "DEFECT SINDS KWARTAAL 1", "Red"),
+                                       ("04", "1%  - WACHTLIJST", "DecalDark"))):
+        cy = c + 0.24 - k * 0.2
+        text(D, pod, 0.07, f.at(a - 0.52, cy, H + 0.058), (0, 0, 1), "DecalDark")
+        text(D, val, 0.04, f.at(a + 0.1, cy, H + 0.058), (0, 0, 1), m, max_w=0.95)
+        f.box(D, a, cy - 0.1, H + 0.056, (1.2, 0.006, 0.003), "DecalDark")
+    lines(D, [("STROOM IS DUUR.", 0.035), ("STILSTAAN OOK.", 0.035)], f.at(a, c - 0.66, H + 0.056), (0, 0, 1),
+          "DecalDark", gap=0.6)
+    f.tilted(D, a + 0.5, c - 0.37, H + 0.058, (0.3, 0.07, 0.003), -14, "DuctTape")  # plakband over een cijfer
     for dx in (-0.6, 0.6):
         f.box(D, a + dx, c + 0.92, 0.0, (0.05, 0.08, H + 0.06), "Steel")
     # Prikklok met kaartenrek.

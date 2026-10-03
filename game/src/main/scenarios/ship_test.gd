@@ -134,7 +134,9 @@ func _run(p: Player) -> void:
 	_expect(mol.ramp_open and mol.contains_point(p.global_position), "klep open, speler nog in de Mol")
 
 	# 4. Uit het schip springen: landt op de planeet, niet erdoor.
-	var jumper_start := ship.global_transform * Vector3(2.0, 0.5, 5.0) # boven de open baai, naast waar de Mol stond
+	# Boven de open baai, achter waar de Mol stond. T.o.v. Mol_Dock (Game.from_hub rekent ook vanaf daar),
+	# zodat de springer na een verschuiving van de Mol in het model niet op de geparkeerde Mol landt.
+	var jumper_start := ship.dock_transform().origin + ship.global_transform.basis * Vector3(2.0, -2.23, 5.0)
 	p.global_position = jumper_start
 	p.velocity = Vector3.ZERO
 	var t0 := Time.get_ticks_msec()

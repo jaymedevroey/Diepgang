@@ -45,8 +45,9 @@ def sub_rect(rects, cut):
     return out
 
 
-def plates(b, rng, x0, x1, z0, z1, nx, nz, y=0.0, cuts=(), gap=0.035, t=0.015):
-    """Vloerplaten op een donkere onderlaag: de naden lezen als lijnen, een paar platen zijn vervangen."""
+def plates(b, rng, x0, x1, z0, z1, nx, nz, y=0.0, cuts=(), gap=0.035, t=0.015, worn=()):
+    """Vloerplaten op een donkere onderlaag: de naden lezen als lijnen, een paar platen zijn vervangen.
+    Platen met hun midden in een rechthoek uit `worn` zijn glad gesleten (looppad)."""
     xs = [x0 + (x1 - x0) * i / nx for i in range(nx + 1)]
     zs = [z0 + (z1 - z0) * i / nz for i in range(nz + 1)]
     for i in range(nx):
@@ -55,6 +56,9 @@ def plates(b, rng, x0, x1, z0, z1, nx, nz, y=0.0, cuts=(), gap=0.035, t=0.015):
             for c in cuts:
                 rs = sub_rect(rs, c)
             m = pick(rng, "Floor", (("DarkSteel", 0.1), ("Anthracite", 0.07)))
+            cx, cz = (xs[i] + xs[i + 1]) / 2, (zs[j] + zs[j + 1]) / 2
+            if any(w[0] <= cx <= w[1] and w[2] <= cz <= w[3] for w in worn):
+                m = "FloorWorn"
             for (a0, a1, c0, c1) in rs:
                 if a1 - a0 < 0.15 or c1 - c0 < 0.15:
                     continue
@@ -67,6 +71,8 @@ GRATES = ((1.6, 2.2, 14.8, 15.6), (12.0, 12.6, 14.8, 15.6), (14.6, 15.2, 16.0, 1
 GUTTERS = ((0.64, 0.94, 0.7, 16.4), (15.55, 15.85, 2.6, 16.9))  # roosters langs de wanden (techniek eronder)
 CONVEYOR = (10.3, 13.7, 17.3, 19.3)
 STAIRS_BRIDGE = (6.0, 9.5, 18.6, 21.0)
+# Naast de scharnieren van de luiken is de vloer dun: een open luik draait er met zijn dikte onderdoor.
+HINGE_GAPS = ((2.35, 3.0, 2.0, 16.0), (11.0, 11.65, 2.0, 16.0))
 
 
 def floor(ctx, B, rng):
@@ -75,18 +81,23 @@ def floor(ctx, B, rng):
         rs = [(x0, x1, z0, z1)]
         for g in GUTTERS:  # de goten zijn echt verdiept
             rs = sub_rect(rs, (g[0] - 0.03, g[1] + 0.03, g[2] - 0.03, g[3] + 0.03))
+        for h in HINGE_GAPS:
+            rs = sub_rect(rs, h)
         for (a0, a1, c0, c1) in rs:
             slab(shell, a0, a1, c0, c1, 0.0, "Soot")
         ctx.col_box(x0, x1, -0.6, 0.0, z0, z1)
     for g in GUTTERS:
         slab(shell, g[0] - 0.03, g[1] + 0.03, g[2] - 0.03, g[3] + 0.03, -0.12, "Soot")
+    for (x0, x1, z0, z1) in HINGE_GAPS:  # dun: het scharnierende luik zwaait eronder door
+        slab(shell, x0, x1, z0, z1, 0.0, "Soot", bottom=-0.05)
     bx0, bx1, bz0, bz1 = BAY
     o0, o1, q0, q1 = bx0 - HZ - ST, bx1 + HZ + ST, bz0 - HZ - ST, bz1 + HZ + ST  # 2,35 · 11,65 · 1,35 · 16,65
     grate_cuts = list(GRATES) + list(GUTTERS)
     plates(shell, rng, 0.0, o0, 0.0, q1, 1, 8, cuts=grate_cuts)
     plates(shell, rng, o0, 11.65, 0.0, q0, 4, 1)
     plates(shell, rng, o1, 16.0, 2.5, q1, 2, 7, cuts=grate_cuts)
-    plates(shell, rng, 0.0, 16.0, q1, 21.0, 8, 2, cuts=[STAIRS_BRIDGE, CONVEYOR, (14.85, 16.0, 16.9, 19.7)] + grate_cuts)
+    plates(shell, rng, 0.0, 16.0, q1, 21.0, 8, 2, cuts=[STAIRS_BRIDGE, CONVEYOR, (14.85, 16.0, 16.9, 19.7)] + grate_cuts,
+           worn=[(5.5, 10.5, 16.6, 19.0)])
     plates(shell, rng, 12.2, 16.0, 0.0, 1.3, 2, 1, y=-0.6)
     # Rand van de put: geel-zwart op de vloer, een ledstrook op de muur.
     box(shell, 11.65, 12.0, 0.0, 0.018, 0.0, 2.5, "Hazard")

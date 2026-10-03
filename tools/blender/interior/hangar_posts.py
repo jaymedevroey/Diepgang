@@ -59,7 +59,8 @@ def beacon(b, x, y, z):
 
 # --- Portaalkraan -----------------------------------------------------------------------------------
 
-def crane(ctx, B):
+def crane(ctx, B, zc=9.0):
+    """Portaalkraan; `zc` = waar de kat staat (boven het midden van de Mol)."""
     props, det = B["props"], B["det"]
     # Kraanbanen: I-profiel met een rail. Bakboord op consoles (zie de wand), stuurboord aan hangers.
     for x in (0.6, 15.4):
@@ -74,7 +75,6 @@ def crane(ctx, B):
         for sz in (-1, 1):
             beam(det, (15.4, 7.72, zf + sz * 0.62), (15.4, 8.24, zf + sz * 0.2), 0.07, 0.07, "DarkSteel", up=(1, 0, 0), ch=0)
 
-    zc = 9.0
     # Kopwagens (geel) met wielen, buffers en een zwaailicht.
     for x in (0.6, 15.4):
         beam(props, (x, 8.0, zc - 1.3), (x, 8.0, zc + 1.3), 0.5, 0.5, "Yellow", ch=0.08)
@@ -252,10 +252,10 @@ def sell_booth(ctx, B):
     text(det, "VERKOOP", 0.24, (x0 - 0.2, 3.3, 18.3), (-1, 0, 0), (0, 1, 0), YELLOW_TXT)
     box(det, x0 - 0.21, x0 - 0.18, 3.08, 3.09, z0 + 0.15, z1 - 0.15, "ScreenAmber")
     # Het bordje over het bordje, en de achterdeur (galerijzijde).
-    plate(det, det, "KOSTEN VAN DIT BORDJE", (15.95, 1.78, z0), (0, 0, -1), (0, 1, 0), 0.7, 0.36, bg="Cream", fg=DARK_TXT,
+    plate(det, det, "UW BUIT", (15.95, 1.78, z0), (0, 0, -1), (0, 1, 0), 0.7, 0.36, bg="Cream", fg=DARK_TXT,
           height=0.04, depth=0.006)
-    text(det, "WORDEN INGEHOUDEN", 0.04, (15.95, 1.72, z0 - 0.0065), (0, 0, -1), (0, 1, 0), DARK_TXT, res=1)
-    text(det, "OP UW LOON", 0.04, (15.95, 1.66, z0 - 0.0065), (0, 0, -1), (0, 1, 0), "Red", res=1)
+    text(det, "IS ONZE ZORG", 0.04, (15.95, 1.72, z0 - 0.0065), (0, 0, -1), (0, 1, 0), DARK_TXT, res=1)
+    text(det, "(EN ONZE WINST)", 0.035, (15.95, 1.66, z0 - 0.0065), (0, 0, -1), (0, 1, 0), "Red", res=1)
     hatch_on(det, (x1, 2.05, 18.3), (1, 0, 0), 0.8, 1.6)
     plate(det, det, "PERSONEEL", (x1, 2.62, 18.3), (1, 0, 0), (0, 1, 0), 0.5, 0.12, bg="Cream", fg=DARK_TXT, height=0.05,
           depth=0.006)
@@ -353,6 +353,16 @@ def vending(ctx, B):
           height=0.032, depth=0.004)
     ctx.col_box(0.0, 1.2, 0.0, 2.32, z0 - 0.02, z1 + 0.02)
     ctx.anchor("Vending", (1.8, 0.0, 18.3), 90)
+    # Opstapje voor de bediening: de automaat is op mensenmaat (toetsen op 1,3-1,7 m), een robot meet 1,4 m.
+    for (y0, y1, z0, z1) in ((0.0, 0.18, 18.5, 19.06), (0.18, 0.36, 18.5, 18.8)):
+        box(props, 1.16, 1.62, y0, y1, z0, z1, "Yellow")
+        box(det, 1.18, 1.6, y1, y1 + 0.006, z0 + 0.03, z1 - 0.03, "Rubber")
+    for z in (18.52, 19.04):
+        box(det, 1.155, 1.625, 0.0, 0.04, z - 0.02, z + 0.02, "DarkSteel")
+    text(det, "OPSTAPJE", 0.05, (1.625, 0.12, 18.78), (1, 0, 0), (0, 1, 0), DARK_TXT, res=1)
+    text(det, "1 CR PER STAP", 0.028, (1.625, 0.05, 18.78), (1, 0, 0), (0, 1, 0), DARK_TXT, res=1)
+    ctx.col_box(1.16, 1.62, 0.0, 0.18, 18.5, 19.06)
+    ctx.col_box(1.16, 1.62, 0.0, 0.36, 18.5, 18.8)
     # Vuilnisbak ernaast, overvol.
     cyl(props, (0.48, 0.0, 19.55), (0, 1, 0), 0.68, 0.26, "DarkSteel", segs=14)
     cyl(det, (0.48, 0.66, 19.55), (0, 1, 0), 0.05, 0.285, "Anthracite", segs=14)
@@ -440,10 +450,13 @@ def gallery(ctx, B, rng):
         z += 1.05
     z = 0.53
     while z < gz1 - 0.02:
-        box(det, gx0 + 0.15, gx1, 1.1, 1.2, z - 0.011, z + 0.011, "DarkSteel")
+        box(det, gx0 + 0.15, gx1, 1.1, 1.2, z - 0.011, z + 0.011, "Grating")
         z += 0.075
     for x, m in ((16.8, "Rubber"), (17.5, "Red"), (18.9, "Rubber")):
         cyl(det, (x, 1.085, 0.5), (0, 0, 1), gz1 - 0.5, 0.02, m, segs=6)
+    # Zacht licht onder het rooster (door de spleten te zien): de loopbrug leest als loopbrug, niet als gat.
+    for x in (16.45, 19.6):
+        box(det, x - 0.02, x + 0.02, 1.062, 1.068, 0.6, gz1 - 0.1, "LedCyanSoft")
     rail(rails, (gx0 + 0.05, 0.5), (gx0 + 0.05, 16.9), 1.2, ctx)
     rail(rails, (gx0 + 0.05, 19.7), (gx0 + 0.05, gz1), 1.2, ctx)
     # Voorkant van de galerij (naar de hangar): platen en roosters.
@@ -565,9 +578,9 @@ def signage(ctx, B, rng):
     for z in (6.2, 11.2):
         chevron(det, 14.2, z, 0, 1, 0.5, LIGHT_TXT)
     box(det, 5.6, 8.4, 0.015, 0.019, 16.67, 17.12, "Hazard")
-    floor_strip(det, 7.75, 18.45, 7.75, 17.95, 0.1, LIGHT_TXT)
-    chevron(det, 7.75, 17.8, 0, -1, 0.35, LIGHT_TXT)
-    text(det, "NAAR DE MOL", 0.12, (7.75, 0.016, 17.35), (0, 1, 0), (0, 0, -1), LIGHT_TXT, res=1)
+    floor_strip(det, 7.75, 18.55, 7.75, 18.3, 0.1, LIGHT_TXT)
+    chevron(det, 7.75, 18.15, 0, -1, 0.35, LIGHT_TXT)
+    text(det, "NAAR DE MOL", 0.12, (7.75, 0.016, 17.78), (0, 1, 0), (0, 0, -1), LIGHT_TXT, res=1)
 
     # Spandoeken (bakboord boven de kade, galerij midden).
     banner(B, 0, 17.0, ("DIEPGANG", "INTERPLANETAIRE", "GRONDWERKEN"))
@@ -587,19 +600,24 @@ def signage(ctx, B, rng):
     text(det, "VORIG RECORD: 1", 0.032, (0.115, 1.8, 16.7), N, (0, 1, 0.06), DARK_TXT, res=1)
     tape_strip(det, (0.112, 1.88, 16.98), N, (0, 0.4, -0.9), 0.14)
 
-    # Werknemer van het kwartaal (boven de kisten en de leidingen).
+    # Veiligheidsaffiche over de drop (boven de kisten en de leidingen): de luiken gaan echt open.
     py = 4.45
     c = (0.07, py, 20.1)
     fbox(det, c, N, 1.05, 1.32, 0.006, "Cream")
     for (du, dv, w, h) in ((0, 0.63, 1.05, 0.04), (0, -0.63, 1.05, 0.04), (-0.505, 0, 0.04, 1.3), (0.505, 0, 0.04, 1.3)):
         fbox(det, c, N, w, h, 0.004, "Red", lift=0.006, du=du, dv=dv)
-    text(det, "WERKNEMER VAN", 0.075, (0.08, py + 0.5, 20.1), N, (0, 1, 0), DARK_TXT, res=1)
-    text(det, "HET KWARTAAL", 0.075, (0.08, py + 0.37, 20.1), N, (0, 1, 0), DARK_TXT, res=1)
-    fbox(det, (0.076, py - 0.05, 20.1), N, 0.5, 0.56, 0.01, "DarkSteel")
-    fbox(det, (0.076, py - 0.05, 20.1), N, 0.42, 0.48, 0.004, "Panel", lift=0.01)
-    text(det, "?", 0.22, (0.091, py - 0.05, 20.1), N, (0, 1, 0), "HullGrey")
-    text(det, "[VACANT]", 0.07, (0.08, py - 0.47, 20.1), N, (0, 1, 0), "Red", res=1)
-    text(det, "DIG · KWARTAAL 3", 0.025, (0.08, py - 0.59, 20.1), N, (0, 1, 0), DARK_TXT, res=1)
+    text(det, "BIJ HET AFTELLEN", 0.07, (0.08, py + 0.5, 20.1), N, (0, 1, 0), DARK_TXT, res=1)
+    text(det, "NIET IN DE BAAI", 0.07, (0.08, py + 0.37, 20.1), N, (0, 1, 0), "Red", res=1)
+    # Pictogram: twee luikhelften die openklappen en een robotje (lijf en hoofd) dat erdoor valt.
+    fbox(det, (0.076, py - 0.05, 20.1), N, 0.6, 0.5, 0.004, "DecalDark", lift=0.006)
+    for (dz, s) in ((-0.17, 1), (0.17, -1)):
+        ang = math.radians(55)
+        fbox(det, (0.076, py + 0.06, 20.1 + dz), N, 0.24, 0.035, 0.003, "Yellow", lift=0.01,
+             up=(0, math.cos(ang), s * math.sin(ang)))
+    fbox(det, (0.076, py - 0.12, 20.1), N, 0.11, 0.15, 0.003, "Yellow", lift=0.01)
+    fbox(det, (0.076, py + 0.0, 20.1), N, 0.08, 0.06, 0.003, "Yellow", lift=0.01)
+    text(det, "VALLEN = ONBETAALD VERLOF", 0.03, (0.08, py - 0.43, 20.1), N, (0, 1, 0), DARK_TXT, res=1)
+    text(det, "DIG - AFDELING VEILIGHEID (VACATURE)", 0.02, (0.08, py - 0.56, 20.1), N, (0, 1, 0), DARK_TXT, res=1)
     for (dz, dy) in ((-0.5, 0.64), (0.5, 0.64), (-0.5, -0.64), (0.5, -0.64)):
         tape_strip(det, (0.078, py + dy, 20.1 + dz), N, (0, 0.7, 0.7 if dz * dy > 0 else -0.7), 0.16)
 
@@ -648,3 +666,63 @@ def signage(ctx, B, rng):
     ctx.col_box(12.4, 12.7, -0.6, 0.42, 0.3, 0.6)
     plate(det, det, "UITKIJKPUNT", (18.9, 1.62, 0.45), (0, 0, 1), (0, 1, 0), 0.6, 0.12, bg=DARK_TXT, fg=YELLOW_TXT,
           height=0.05, depth=0.01)
+
+
+# --- Put en galerij: wat er gebeurt op plekken waar je even stilstaat (ART-9) ------------------------
+
+def pit_and_gallery(ctx, B):
+    props, det = B["props"], B["det"]
+    # Put: een leunbalk op borsthoogte van een robot (0,85 m boven de putvloer), met een sticker, en
+    # het uitkijkpunt in de vloer.
+    for x in (12.95, 15.65):
+        box(props, x - 0.04, x + 0.04, -0.6, 0.25, 0.28, 0.36, TRIM)
+        box(props, x - 0.09, x + 0.09, -0.6, -0.57, 0.24, 0.4, "DarkSteel")
+    cyl(props, (12.9, 0.25, 0.32), (1, 0, 0), 2.8, 0.035, "Steel", segs=10)
+    ctx.col_box(12.85, 15.7, -0.6, 0.29, 0.27, 0.37)
+    fbox(det, (14.3, 0.2, 0.355), (0, 0, 1), 0.42, 0.05, 0.003, "Cream", lift=0.004)
+    text(det, "NIET LEUNEN - GLAS IS GEHUURD", 0.013, (14.3, 0.2, 0.362), (0, 0, 1), (0, 1, 0), DARK_TXT, res=1)
+    for (x0, x1, z0, z1) in ((13.2, 15.4, 0.75, 0.8), (13.2, 15.4, 1.55, 1.6), (13.2, 13.25, 0.75, 1.6),
+                             (15.35, 15.4, 0.75, 1.6)):
+        box(det, x0, x1, -0.584, -0.58, z0, z1, YELLOW_TXT)
+    text(det, "UITKIJKPUNT", 0.12, (14.3, -0.581, 1.18), (0, 1, 0), (0, 0, -1), YELLOW_TXT, res=1)
+
+    # Galerij: een betaalde laadpaal (de capsules in het laadrek zijn stuk of leeg), een afgekoppelde
+    # brandslang en een kabelhaspel.
+    N = (-1, 0, 0)
+    zc = 3.2
+    box(props, 19.66, 19.95, 1.55, 2.45, zc - 0.32, zc + 0.32, "GreyGreen")
+    box(props, 19.62, 19.66, 1.6, 2.4, zc - 0.28, zc + 0.28, "DarkSteel")
+    fbox(det, (19.62, 2.22, zc), N, 0.34, 0.16, 0.006, "Screen")
+    text(det, "LADEN: 1 CR/MIN", 0.022, (19.613, 2.24, zc), N, (0, 1, 0), "ScreenGreen", res=1)
+    text(det, "BATTERIJ VOL? +5%", 0.016, (19.613, 2.19, zc), N, (0, 1, 0), "ScreenGreen", res=1)
+    box(det, 19.6, 19.62, 2.0, 2.06, zc - 0.05, zc + 0.05, DARK_TXT)  # muntgleuf
+    plate(det, det, "LAADPUNT", (19.62, 2.56, zc), N, (0, 1, 0), 0.6, 0.12, bg=YELLOW_TXT, fg=DARK_TXT,
+          height=0.05, depth=0.008)
+    text(det, "(BETALEND)", 0.022, (19.61, 2.47, zc), N, (0, 1, 0), "Red", res=1)
+    pipe(det, [(19.64, 1.75, zc + 0.18), (19.5, 1.45, zc + 0.24), (19.45, 1.25, zc + 0.1), (19.52, 1.6, zc - 0.05),
+               (19.6, 1.85, zc - 0.2)], 0.022, "Rubber", segs=6)
+    box(det, 19.55, 19.64, 1.8, 1.95, zc - 0.25, zc - 0.15, YELLOW_TXT)  # stekker in zijn houder
+    for (x0, x1, z0, z1) in ((18.7, 19.5, zc - 0.42, zc - 0.38), (18.7, 19.5, zc + 0.38, zc + 0.42),
+                             (18.7, 18.74, zc - 0.42, zc + 0.42)):
+        box(det, x0, x1, 1.2, 1.205, z0, z1, YELLOW_TXT)
+    ctx.col_box(19.6, 20.0, 1.2, 2.5, zc - 0.33, zc + 0.33)
+    # Brandslang op een haspel: afgekoppeld (water kost geld).
+    zh = 6.7
+    cyl(props, (19.95, 2.3, zh), (-1, 0, 0), 0.08, 0.06, "DarkSteel", segs=10)
+    cyl(props, (19.87, 2.3, zh), (-1, 0, 0), 0.24, 0.32, "Red", segs=20)
+    cyl(det, (19.86, 2.3, zh), (-1, 0, 0), 0.26, 0.25, "RedOxide", segs=20)
+    plate(det, det, "BRANDSLANG", (19.93, 2.78, zh), N, (0, 1, 0), 0.5, 0.1, bg="Red", fg=LIGHT_TXT, height=0.04,
+          depth=0.006)
+    fbox(det, (19.6, 2.3, zh), N, 0.22, 0.1, 0.003, "Cream", up=(0, 1, 0.15))
+    text(det, "AFGEKOPPELD", 0.02, (19.594, 2.31, zh), N, (0, 1, 0.15), "Red", res=1)
+    text(det, "(BESPAART WATER)", 0.013, (19.594, 2.27, zh), N, (0, 1, 0.15), DARK_TXT, res=1)
+    ctx.col_box(19.6, 20.0, 2.0, 2.6, zh - 0.35, zh + 0.35)
+    # Kabelhaspel op het rooster, met een rode verlengkabel die naar de Mol-werf loopt.
+    zr = 13.6
+    for dx in (-0.22, 0.22):
+        cyl(props, (19.12 + dx, 1.62, zr), (1, 0, 0), 0.05, 0.4, "Yellow", segs=16)
+    cyl(props, (18.92, 1.62, zr), (1, 0, 0), 0.4, 0.22, "DarkSteel", segs=14)
+    cyl(det, (18.95, 1.62, zr), (1, 0, 0), 0.34, 0.3, "Red", segs=16)
+    pipe(det, [(18.9, 1.4, zr - 0.2), (18.6, 1.225, zr - 0.8), (18.0, 1.225, zr - 2.0), (17.5, 1.225, 11.0)], 0.02,
+         "Red", segs=6)
+    ctx.col_box(18.65, 19.6, 1.2, 2.05, zr - 0.42, zr + 0.42)
