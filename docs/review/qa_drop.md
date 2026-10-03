@@ -153,4 +153,82 @@ middenklasse-pc, en spelen met toetsenbord en muis in een venster.
 | 10 | P2 | `na_horizon/084`–`091` | Op 1740 m hangt de hub als een klein donker blok in de lucht boven de landingsplek (enkel van de diagnosecamera's, niet in het spel gezien). | — |
 
 Voor de lead: `game/src/world/planet_air.gdshaderinc.uid` en `planet_deck.gdshader.uid` ontstaan bij
-het importeren maar staan niet in main.
+het importeren maar staan niet in main. (Opgelost in 0abdab3.)
+
+## Eindcontrole: voor en na (main 0abdab3, 2026-10-04)
+
+Dezelfde plekken en momenten als de voorset (`logs/drop_seq/voor`, `logs/hub_voor`), opnieuw
+opgenomen in de echte renderer (1600×900): `drop_sequence --tag=final --repeat`, `final_skip`
+(`--skip --repeat`), `final_horizon`, `final_kade`, `final_left`, en `ship_preview` (de elf
+hubshots en `--only=hud`). Elk beeld van "final" bekeken; daarnaast `--diff`, `--horizon` en de
+tijdlijnen. Alle fouten in de log: 0 in elke opname.
+
+**Voor/na-bladen** (in `logs/drop_seq/` en `logs/` van de QA-worktree):
+
+| Blad | Wat |
+| --- | --- |
+| `drop_seq/final_vs_voor_hoogtepunten.png` | twaalf momenten naast elkaar, van de terminal tot de tweede drop |
+| `drop_seq/final_vs_voor_hoogte.png` | het grote vierkant: 340, 160 en 60 m boven de landingsplek, 4 richtingen |
+| `drop_seq/final_vs_voor_drop1.png` | de hele eerste drop, fase per fase |
+| `drop_seq/final_vs_voor_terug.png` | het ophalen tot in de hub |
+| `hub_final_vs_hub_voor_1.png`, `_2.png` | de hub op ooghoogte, met HUD |
+| `drop_seq/final_horizon_horizon_.png` | 4 tot 1740 m in 8 richtingen (enkel na) |
+
+### Tests op 0abdab3
+
+`drop_flow_test` main 89/89, skip 39/39, left_behind 30/30, on_doors 15/15; `net_drop_flow_test`
+25/25 (drie keer na elkaar). Eén aanpassing aan de nettest: een volledig zwart beeld (de dip bij
+het overslaan) telt niet voor de afstand tot de Mol, zoals al in `drop_flow_test`. In dat zwarte
+beeld staat de camera nog op zijn vorige plek, omdat de test vóór de `_process` van de camera meet.
+De hele lijst van CLAUDE.md, `hub_screens_test`, `net_test` en `net_ship_test` slagen.
+
+### Per oorspronkelijke bevinding
+
+| ID | Stand | Bewijs |
+| --- | --- | --- |
+| QA-1 groot vierkant (val, 340 m) | **opgelost** | `final_vs_voor_hoogte.png`; `final/026`–`046`; `final_horizon/069`–`124`: een gebogen planeet in de waas, nergens een rand of hemel onder de horizon |
+| QA-2 de wereld als tegel door de baai | **opgelost** | `final/081`–`083`: een schacht met de grond eronder; `final_left/061`–`063` |
+| QA-3 geen buitenbeeld bij het ophalen | **opgelost** | `final/095`–`106`, `final_vs_voor_terug.png`; test |
+| QA-4 sonar na een nieuwe wereld | **opgelost** | 0 fouten in de log over drie werelden (opnames en tests) |
+| QA-5 rapport over de aftelbanner | **opgelost** | `final/117` (rapport) → `final/118` (meteen weg, enkel de banner) |
+| QA-6 HUD tijdens het filmpje | **opgelost** (rest: zie 4 hieronder) | `final/024`–`046`: geen vizier, geen prompts; tijdlijn: vizier uit tijdens de val |
+| QA-7 graaf-HUD in het schip | **opgelost** | `hub_final_vs_hub_voor_2.png` (spawn, werkdek): geen "0 m KLEI", geen houweel, een doel in de plaats |
+| QA-8 aftellen 8 s stilstaand | **opgelost** | `final/011`–`022`: rood licht, trillen, buikcamera met de luiken, 5 s als iedereen aan boord is |
+| QA-9 één vlak shot, harde knippen | **opgelost** | `final/021`–`049`: val door de hub, shot onder het schip, volgshot met strepen en balken, remmen, stof, binnen in de klap; tweede drop kort (`final/128`–`143`, 5,8 s i.p.v. 10,7 s) |
+| QA-10 geen geluid | **deels** | `drop_*.wav` (14 klanken) bestaan en worden afgespeeld; niet met het oor nagekeken |
+| QA-11 raster op de landingsplek | **grotendeels** | `final/066`–`068`: geen raster meer; zeshoekige platen met lichte voegen die met de afstand wegvallen (leest nog een beetje als tegels, van dichtbij) |
+| QA-12 wit vierkant (concessiegrens) | **opgelost** | `final_vs_voor_hoogte.png` (160 en 60 m) |
+| QA-13 drop terwijl een client laadt | **opgelost** | `net_drop_flow_test`: de hendel weigert met een melding tot de client klaar is |
+| QA-14 eerste buitenbeeld zonder Mol | **opgelost** | tests: 0 beelden; bij de sprong 1 à 2 frames volledig zwart (`final/023`) |
+| QA-15 vallen door dichte luiken | **opgelost** | `on_doors`: steun pas kwijt bij ±50 graden |
+| QA-16 open terminal ververst niet | **opgelost** | test (tekst "De Mol is op weg…", KIEZEN zegt waarom niet) |
+| QA-17 terminal onleesbaar, laden zonder iets | **opgelost** | `hub_final/ekster_terminal.png`, `final/003`–`009` ("DE EKSTER VLIEGT NAAR CONCESSIE …") |
+| QA-18 hemel en hoogte sluiten niet aan | **niet** | `hub_final/ekster_venster.png`: nog steeds zwarte ruimte met sterren, terwijl 1.400 m lager dag is |
+| QA-19 kleine resten | **opgelost** | camerascherm in de hub toont de buik (`final/117`); meldingen niet dubbel; SPATIE = overslaan |
+| QA-22 straal op de oude wereld | **opgelost** | 0 fouten bij host en client (`net_drop_flow_test`, drie keer) |
+
+Overslaan (gevraagd door Jayme): `final_skip/023`–`026`: SPATIE in het shot onder het schip, zwart,
+"Drop ingekort.", de Mol op ±145 m, landing na 6,96 s val i.p.v. 10,65 s; daarna dezelfde
+overdracht. Het aftellen zelf is niet over te slaan. Herhaald kiezen: twee opdrachten kort na
+elkaar (de laatste telt), kiezen terwijl de Mol weg is (gebeurt niet), en een tweede drop naar een
+nieuwe wereld: alles nagekeken in de tests en in `final/116`–`157`.
+
+Camera, besturing, botsing en plek na elke landing en na het ophalen: eigen camera met eigen FOV,
+muis gevangen, de speler los en op de vloer, met echte invoer uit de Mol (12,6–13,8 m) tot op het
+oppervlak, hoofd niet in de rots, binnen het speelgebied, en terug; in de hub met echte invoer de klep
+af tot op de kade. Wie in de hub bleef, ziet geen filmpje en kan later zelf door de baai springen.
+
+### Wat nog zwak is, gerangschikt
+
+| # | Prio | Waar | Wat | Wie |
+| --- | --- | --- | --- | --- |
+| 1 | P2 | `final/030`, `033` (ingezoomd) | Het terrein 150–300 m onder het volgshot heeft nog een fijn dambordpatroon; zachter dan voor, maar in beweging kruipt het. | horizon |
+| 2 | P2 | `final/046`, `final/142` | De echte schaduw van de Mol vlak voor de klap is een groot donker vlak met zaagtandranden (schaduwkaart te grof op die afstand). Valt op in het laatste buitenbeeld. | horizon |
+| 3 | P2 | `final/046`, `final/142` | Twee donkere pluimpjes in de lucht boven de Mol (rook van de uitlaten, tegen de lichte hemel): lijken vuil op de lens. | cine |
+| 4 | P2 | `final/095` | Het vizier staat nog ±0,6 s midden in het buitenbeeld van het ophalen (het vervaagt i.p.v. meteen weg). | level / cine |
+| 5 | P2 | `final/023`, `final_skip/023` | De sprong van de hub naar buiten gaat door 1 à 2 volledig zwarte frames. Bewust (geen beeld zonder Mol), maar in het echt nakijken of het als een flits leest. | cine |
+| 6 | P2 | `hub_final/ekster_venster.png` | QA-18: de ramen van de hub tonen zwarte ruimte met sterren, de planeet eronder is dag. | horizon / art |
+| 7 | P3 | `final_left/082` | Wie na de drop door de baai springt, landt op het dak van de Mol (die staat er recht onder). Hij kan eraf. | — |
+
+Niet zelf nagekeken: het geluid met het oor, een middenklasse-pc, en spelen met toetsenbord en muis
+in een venster.

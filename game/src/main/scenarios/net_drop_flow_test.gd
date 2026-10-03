@@ -151,7 +151,10 @@ func _run_client(p: Player) -> void:
 			if in_hub_still:
 				r.hub_frames += 1
 				r.hub_s += get_process_delta_time()
-			else:
+			elif not (c.has_method("blacked_out") and c.call("blacked_out")):
+				# Een volledig zwart beeld (de dip bij een sprong) telt niet: dat ziet niemand. (Let op:
+				# process_frame komt vóór de _process van de camera; na een sprong is zijn plek hier
+				# nog die van het vorige beeld, maar dan is het beeld ook zwart.)
 				var far := c.global_position.distance_to(mol.body.global_position)
 				if far > 150.0 and float(r.cam_far) <= 150.0:
 					print(TAG, " client: buitenbeeld %.0f m van de Mol (%.1f s in de val): camera op %s, Mol op %s (gezet %s), stemmen %d/%d" % [
