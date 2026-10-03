@@ -3,8 +3,9 @@ extends Node
 ## - de client opent de opdrachten aan de terminal (E), stapt in de Mol en kiest daar de opdracht
 ##   (Enter op de knop); beide laden de nieuwe wereld, maar de client hangt bij het begin van het
 ##   laden even vast (--stall-ms, standaard 12 s: een trage pc of een haperende schijf nabootsen);
-## - de host trekt aan de hendel zodra zijn eigen wereld er is: de drop mag pas vallen als de client
-##   de nieuwe wereld ook heeft (QA-13);
+## - de host trekt aan de hendel zodra zijn eigen wereld er is, en blijft trekken: zolang de client
+##   laadt, weigert de hendel met een melding (QA-13); de client staat dan op de kade (8 s aftellen)
+##   en springt halfweg in de Mol (het aftellen wordt korter);
 ## - tijdens de val: de client blijft in de Mol, zijn buitenbeeld toont nooit de hub (QA-14), en
 ##   overslaan is een stemming (de client alleen is niet genoeg, met de host erbij wel);
 ## - na de landing: de client kijkt weer door zijn eigen camera, stapt uit met echte invoer, en
@@ -108,12 +109,20 @@ func _run_client(p: Player) -> void:
 		_key(KEY_ENTER)
 	r.chose = await _until(func() -> bool: return game.company.contract == want, 30.0)
 	main._terminal.close()
+	# Even uitstappen naar de kade: bij de hendel zit niet iedereen in de Mol (dan 8 s aftellen).
+	p.global_position = ship.global_transform * Vector3(0.75, 0.05, 8.8)
+	p.velocity = Vector3.ZERO
 	_rpc_client_chose.rpc_id(1, r.chose)
 	# 3. Wachten op de drop; noteren of de wereld er al is. (Na het vasthangen kan de client meteen
 	# in DROPPING of zelfs PARKED belanden: dan miste hij de val.)
 	var falling := [Mol.Mode.DROP_COUNTDOWN, Mol.Mode.DROPPING, Mol.Mode.PARKED]
-	await _until(func() -> bool: return mol.mode in falling, 120.0)
+	await _until(func() -> bool: return mol.mode in falling, 150.0)
 	r.loaded_at_countdown = game.terrain.is_loaded
+	# Halfweg het aftellen alsnog in de Mol springen: dan wordt het aftellen korter (iedereen aan boord).
+	await _wait(0.5)
+	if mol.mode == Mol.Mode.DROP_COUNTDOWN:
+		p.global_position = mol.to_world_mol(Vector3(0.6, -1.45, 0.8))
+		p.velocity = Vector3.ZERO
 	await _until(func() -> bool: return mol.mode == Mol.Mode.DROPPING or mol.mode == Mol.Mode.PARKED, 60.0)
 	r.loaded_at_drop = mol.mode == Mol.Mode.DROPPING and game.terrain.is_loaded and game.pit_seed == int(want.seed)
 	r.seed = game.pit_seed
@@ -124,6 +133,7 @@ func _run_client(p: Player) -> void:
 	r.cine_cam = false
 	r.cam_far = 0.0
 	r.hub_frames = 0
+	r.hub_s = 0.0
 	r.voted = false
 	r.jump_seen = false
 	r.jump_before_host = false
@@ -134,13 +144,22 @@ func _run_client(p: Player) -> void:
 		if not mol.contains_point(p.global_position):
 			r.inside = false
 		var c := get_viewport().get_camera_3d()
+		# Wat er getekend wordt: dit buitenbeeld met de Mol waar zijn lichaam (en model) nu staat.
 		var in_hub_still := mol.body.global_position.y > game.exterior.dock_position().y + 200.0
-		if c != p.camera:
+		if c != p.camera and c:
 			r.cine_cam = true
-			r.cam_far = maxf(r.cam_far, c.global_position.distance_to(mol.body.global_position))
 			if in_hub_still:
 				r.hub_frames += 1
+				r.hub_s += get_process_delta_time()
+			else:
+				var far := c.global_position.distance_to(mol.body.global_position)
+				if far > 150.0 and float(r.cam_far) <= 150.0:
+					print(TAG, " client: buitenbeeld %.0f m van de Mol (%.1f s in de val): camera op %s, Mol op %s (gezet %s), stemmen %d/%d" % [
+						far, _gt - start, c.global_position, mol.body.global_position, mol.placed.origin, mol.skip_votes, mol.skip_needed])
+				r.cam_far = maxf(r.cam_far, far)
 		var h := _mol_h(mol)
+		if last_h < 1000.0 and absf(last_h - h) > 40.0:
+			print(TAG, " client: de Mol sprong van %.0f naar %.0f m (%.1f s in de val)" % [last_h, h, _gt - start])
 		if last_h < 1000.0 and last_h - h > 40.0:
 			r.jump_seen = true
 			if not _client_voted_ack:
@@ -186,15 +205,31 @@ func _run_host(p: Player) -> void:
 		await get_tree().process_frame
 	p.global_position = mol.to_world_mol(Vector3(-0.6, -1.45, 0.8))
 	p.velocity = Vector3.ZERO
-	# De hendel zodra de eigen wereld er is (zo snel als een host maar kan).
+	var refused := [false]
+	mol.message.connect(func(t: String) -> void:
+		if t.begins_with("Nog niet iedereen"):
+			refused[0] = true)
+	# De hendel zodra de eigen wereld er is (zo snel als een host maar kan), en dan om de seconde
+	# opnieuw, zoals een ongeduldige speler, tot het aftellen begint.
 	await _until(func() -> bool: return game.company.contract_ready() and game.terrain.is_loaded, 120.0)
 	await _frames(2)
 	var pressed_at := _gt
-	mol.press(Mol.Cmd.DEPART)
-	await _until(func() -> bool: return mol.mode == Mol.Mode.DROP_COUNTDOWN or mol.mode == Mol.Mode.DROPPING, 120.0)
-	print(TAG, " host: aftellen begon %.1f s na de hendel" % (_gt - pressed_at))
-	while mol.mode != Mol.Mode.DROPPING:
+	var started := false
+	while _gt - pressed_at < 120.0:
+		mol.press(Mol.Cmd.DEPART)
+		started = await _until(func() -> bool: return mol.mode != Mol.Mode.DOCKED, 1.0)
+		if started:
+			break
+	print(TAG, " host: aftellen begon %.1f s na de eerste keer aan de hendel" % (_gt - pressed_at))
+	_expect(started and mol.mode == Mol.Mode.DROP_COUNTDOWN, "de hendel start het aftellen (eens iedereen de wereld heeft)")
+	_expect(refused[0], "zolang de client nog laadt, weigert de hendel met een melding (QA-13)")
+	var cd_start := _gt
+	var cd_first := mol.countdown
+	_expect(cd_first > 7.5, "niet iedereen in de Mol bij de hendel: 8 s aftellen (%.1f s)" % cd_first)
+	while mol.mode == Mol.Mode.DROP_COUNTDOWN:
 		await get_tree().process_frame
+	var cd_total := _gt - cd_start
+	_expect(cd_total > 4.5 and cd_total < 7.0, "de client springt erin: het aftellen wordt korter (%.1f s in totaal)" % cd_total)
 	# Stemming: eerst enkel de client, dan de host erbij.
 	var jump_after_client_only := false
 	var jump_after_both := false
@@ -209,6 +244,8 @@ func _run_host(p: Player) -> void:
 			await _tap("skip_cinematic")
 			await _wait(1.0)
 			jump_after_both = h1 - _mol_h(mol) > 60.0
+			print(TAG, " host: na beide stemmen van %.0f naar %.0f m in 1 s (variant %s, stemmen %d/%d)" % [
+				h1, _mol_h(mol), Mol.DropVariant.keys()[mol.drop_variant], mol.skip_votes, mol.skip_needed])
 	while mol.mode != Mol.Mode.PARKED:
 		await get_tree().process_frame
 	while _client_report.is_empty():
@@ -218,8 +255,9 @@ func _run_host(p: Player) -> void:
 	_expect(int(r.get("seed", -1)) == game.pit_seed, "client en host in dezelfde wereld (%d)" % int(r.get("seed", -1)))
 	_expect(bool(r.inside), "client bleef de hele val in de Mol")
 	_expect(bool(r.cine_cam), "client zag een buitenbeeld tijdens de val")
-	_expect(int(r.hub_frames) == 0 and float(r.cam_far) < 150.0,
-			"het buitenbeeld van de client toont nooit de hub (%d beelden, verst %.0f m van de Mol, QA-14)" % [r.hub_frames, r.cam_far])
+	_expect(int(r.hub_frames) == 0, "het buitenbeeld van de client toont de Mol vanaf het eerste beeld (%d beelden, %.3f s waarin het lichaam van de Mol nog in de hub stond, QA-14)" % [
+			r.hub_frames, float(r.hub_s)])
+	_expect(float(r.cam_far) < 150.0, "het buitenbeeld van de client blijft bij de Mol (verst %.0f m)" % float(r.cam_far))
 	if cine_ready:
 		_expect(bool(r.voted) and not jump_after_client_only, "overslaan: de client alleen is niet genoeg (stemming)")
 		_expect(jump_after_both and bool(r.jump_seen), "overslaan: met de host erbij springt de Mol, ook bij de client")

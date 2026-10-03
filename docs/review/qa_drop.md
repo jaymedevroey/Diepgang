@@ -12,7 +12,7 @@ gemeten in een headless test. Fase 3 (na het samenvoegen) vult de kolom "na" aan
 | Contactblad | `py -3.11 tools/contact_sheet.py logs/drop_seq/na [--match=drop1]` |
 | Voor/na naast elkaar | `py -3.11 tools/contact_sheet.py logs/drop_seq/na --compare=logs/drop_seq/voor [--match=drop1] [--samples=6]` |
 | Knippen, zwarte beelden, sprongen | `py -3.11 tools/contact_sheet.py logs/drop_seq/na --diff [--match=drop1]` |
-| Het grote vierkant (hulpmiddel) | `py -3.11 tools/contact_sheet.py logs/drop_seq/na --horizon` (rand van het terrein aan de zijkanten lager dan in het midden, hemel in de onderste hoeken, waas in de baai) |
+| Het grote vierkant (hulpmiddel) | `py -3.11 tools/contact_sheet.py logs/drop_seq/na --horizon` (de rand van het terrein wijkt af van een gladde boog: een vierkant plateau heeft knikken, een planeet niet; hemel in de onderste hoeken; waas in de baai). Een schip of de Mol in beeld geeft valse meldingen: altijd de beelden zelf bekijken |
 | De hele rondgang als speler | `tools\godot.cmd --headless --path game -- --scenario=drop_flow_test [--variant=main\|skip\|left_behind\|on_doors] --no-steam` |
 | De drop als client | `py -3.11 tools/net_test.py --scenario=net_drop_flow_test [--port=N]` |
 
@@ -72,3 +72,85 @@ met echte invoer uit de Mol en terug, op de grond en niet in de rots; de klep af
 hub; twee keer kort na elkaar kiezen (de laatste telt); kiezen terwijl de Mol weg is kan niet; de
 tweede drop landt op de nieuwe landingsplek; wie later door de baai springt, landt veilig.
 Alle bestaande tests slaagden (ship_test 38/38, net_ship_test 11/11).
+
+## Fase 3: na het samenvoegen (main 86301e7)
+
+Opnames in de echte renderer (1600×900): `drop_sequence` met `--repeat`, `--skip`, `--horizon`,
+`--kade`, `--left-behind`, en `ship_preview` (de hub op ooghoogte). Elk beeld bekeken, plus de
+voor/na-bladen (`na_vs_voor_*.png`, `hub_na_vs_hub_voor_1.png`), `--diff` en `--horizon`.
+
+### Wat de tests vonden: fout in het spel of in de test
+
+| Test faalde op | Oordeel | Wie | Oorzaak en kleinste oplossing |
+| --- | --- | --- | --- |
+| buitenbeeld 1425 m van de Mol (main, skip, net) | **spel** (QA-14, kleiner) | cine | Het eerste beeld van het buitenbeeld (1 à 2 frames) staat goed, maar het model van de Mol hangt aan `body`, en dat lichaam staat na de sprong nog één physics-tick in de hub (AnimatableBody, zie lessons.md). Gezien in `na/130_drop2_dropping_t090.7.png`: grond, geen Mol, geen balken. Oplossing: in `Player._update_drop_cam` pas naar buiten knippen als ook `mol.body.global_position` bij `mol.placed.origin` is (of het eerste beeld zwart houden). De test meet dit nu als "beelden waarin het lichaam nog in de hub stond". |
+| overslaan: geen sprong naar 150 m (skip, net, `na_skip`) | **spel** | cine | `_handle_skip` roept `_snap_short_entry()` op vanuit de invoer, buiten de physics-tick. De host zet de Mol op 150 m, maar de volgende `_drop` leest `body.global_position` (nog de oude plek) en zet hem terug. Gevolg: zwart, "Drop ingekort.", en dan valt de Mol gewoon verder vanaf ±300 m, aan 55 m/s (9,3–9,7 s in plaats van 10,7 s; `na_skip/026_drop1_op_300m_t015.0.png`). Bij de client springt de Mol één frame naar 150 m en terug naar 305 m (log van `net_drop_flow_test`). Oplossing: in `_handle_skip` enkel een vlag zetten en de sprong doen in `_drop()` (zoals na de val door de hub), en in `_drop` met `placed.origin` rekenen. |
+| client-buitenbeeld 180 m van de Mol (net) | **spel** | cine | Gevolg van de vorige: het frame waarin de Mol bij de client heen en weer springt. |
+| `!is_inside_tree()` in de log (net, host 1–26×, client 0–8×) | **spel** | lead | Meteen na `[game] nieuwe wereld`, enkel in co-op, zonder scriptspoor (de motor zelf vraagt `get_global_transform` op een node die net uit de boom is). Vermoeden (niet bewezen): het oude terrein wordt in `_rebuild_world` met `remove_child` weggehaald en leeft nog tot het einde van het frame terwijl godot_voxel er nog resultaten voor aflevert. Wisselvallig (0 in de run van de lead). |
+| KIEZEN-knop staat aan terwijl de Mol weg is | **test** | — | Ontwerp van level: de knop blijft aan en het menu zegt waarom het niet kan. De test drukt nu op de knop en controleert dat er niets verandert en dat er "Kan nu niet: de Mol staat niet in de baai." staat. Geslaagd. |
+| hendel start het tweede aftellen niet, en alles daarna | **test** | — | De test opende de terminal en drukte dan E voor de hendel; E sluit nu het menu (level). Nu trekt een "andere speler" aan de hendel terwijl de terminal open staat: precies QA-16. Geslaagd. |
+| volle aftelling 8 s na uitstappen (left_behind) | **test** | — | Ontwerp: 5 s als iedereen aan boord is **bij de hendel**; uitstappen verlengt dat niet. De 8 s test nu de nettest (client op de kade bij de hendel: 8,0 s; springt erin: 5,6 s in totaal). |
+| geland 5,6 m boven het oppervlak (left_behind) | **test** | — | Op het dak van de Mol geland (lokaal y 2,8): de Mol staat recht onder de baai. Mag; de test kent nu grond, klep, dak, onder en cabine, en weigert enkel onder of in de cabine. De speler loopt er gewoon af en de Mol in. |
+| luiken "−100 % open" (on_doors) | **test** | — | Mijn meting nam het verkeerde moment. Nu: de hoek van de luiken als de speler drie ticks geen steun meer heeft: 16–50 graden (de botsvorm draait mee en het luik zwaait sneller weg dan je valt). Vóór: 0–2 % (door dichte luiken). Geslaagd. |
+| de hendel weigert; het aftellen begon nooit (net) | **test** | — | De client laadt nog: de hendel weigert terecht met een melding (QA-13 werkt). De host trok maar één keer. Nu trekt hij elke seconde opnieuw, zoals een speler; het aftellen begint zodra de client klaar is. |
+| tip aan de terminal | **test** | — | De tekst is nu "E: opdracht kiezen". |
+
+Stand na de aanpassingen (de echte fouten blijven falen tot ze opgelost zijn):
+
+| Test | Resultaat |
+| --- | --- |
+| `drop_flow_test` main | 88/89 (QA-14) |
+| `drop_flow_test --variant=skip` | 37/39 (overslaan springt niet) |
+| `drop_flow_test --variant=left_behind` | 30/30 |
+| `drop_flow_test --variant=on_doors` | 15/15 |
+| `net_drop_flow_test` | 20/25 (QA-14, overslaan, 180 m, fouten in de log bij host en client) |
+
+### Wat ik nagekeken heb en klopt
+
+- **Het grote vierkant is weg** (QA-1, QA-2): op elke hoogte van 4 tot 1740 m en in 8 richtingen
+  (`na_horizon/`), tijdens de val (`na/026`–`046`), van de grond (`na/065`–`068`), door de baai van
+  de hub (`na/081`–`083`: een schacht met de grond eronder) en bij de val van wie achterbleef
+  (`na_left/061`–`082`). Van hoog een gebogen planeet in de waas: geen rand, geen hemel onder de horizon.
+- **De drop is een reeks** (QA-8, QA-9): aftellen met rood licht, trillen en de buikcamera die de
+  luiken toont (`na/011`–`020`); 1,2 s val in de cabine; het shot onder het buitenschip
+  (`na/024`–`025`); het volgshot met snelheidsstrepen en balken (`026`–`040`); het remmen met
+  stuwraketten en vooruit over het dak (`041`–`046`); binnen in de klap, stempel, besturing na 0,70 s.
+  De tweede drop is kort: 5,8–6,0 s in plaats van 10,7 s, zonder het shot onder het schip.
+- **Aftellen**: 5,0 s als iedereen aan boord is, 8,0 s als niet; niet over te slaan.
+- **Camera, besturing, botsing, plek** na elke landing (beide drops, ook na overslaan): eigen camera
+  met eigen FOV, los, op de vloer, HUD en vizier terug, met echte invoer uit de Mol (12,6–13,8 m), op
+  het oppervlak, hoofd niet in de rots, binnen het speelgebied, en terug in de Mol.
+- **Toetsen tijdens het buitenbeeld** verplaatsen de speler niet; **Esc** opent en sluit de pauze.
+- **Ophalen** (QA-3): het buitenbeeld bij het vertrek staat er weer (`na/095`–`106`), daarna binnen.
+- **Terug in de hub**: luiken dicht, rapport, met echte invoer de klep af tot op de kade.
+- **Twee keer kiezen** (de laatste telt), **kiezen terwijl de Mol weg is** (gebeurt niet, het menu
+  zegt waarom), **een open terminal bij het vertrek** ververst (QA-16).
+- **QA-4** (sonar): 0 fouten in de log over twee nieuwe werelden (solo).
+- **QA-13**: de hendel weigert zolang een client laadt; de drop vertrekt pas als iedereen de wereld heeft.
+- **QA-5**: het rapport verdwijnt bij het aftellen (na 0,5 s geen overlap meer).
+- **QA-7** deels: geen "0 m KLEI" meer in de hub; een doel ("KIES EEN OPDRACHT") in de plaats.
+- **QA-17**: de tekst van de terminal is leesbaar (`ekster_terminal.png`); tijdens het laden staat er
+  "DE EKSTER VLIEGT NAAR CONCESSIE …" (laden ±3 s).
+- **Stemming in co-op**: de client alleen kan niet overslaan (1/2).
+- Muis: de hele opname gevangen, behalve met de terminal open.
+
+Niet zelf nagekeken: het geluid (enkel dat de bestanden `drop_*.wav` er zijn), een echte
+middenklasse-pc, en spelen met toetsenbord en muis in een venster.
+
+### Visuele bevindingen na, gerangschikt
+
+| # | Prio | Waar | Wat | Wie |
+| --- | --- | --- | --- | --- |
+| 1 | P1 | `na_skip/026` | Overslaan toont zwart en "Drop ingekort.", maar de Mol valt gewoon verder vanaf ±300 m (zie hierboven). | cine |
+| 2 | P1 | `na/130_drop2_dropping_t090.7` | Eén frame buitenbeeld zonder Mol bij de sprong naar buiten (QA-14). | cine |
+| 3 | P2 | `na/030`, `033` (ingezoomd) | Het terrein op 150–300 m onder de camera heeft een fijn dambordpatroon (aliasing van de facetten en ruis op afstand); in beweging kruipt dat. | horizon |
+| 4 | P2 | `na/118_drop2_drop_countdown_t084.7` | Het rapport vervaagt nog 0,3 s over de aftelbanner heen (de teksten lopen door elkaar). Meteen weg, of de banner pas daarna. | level |
+| 5 | P2 | `na/011`, `016` | Tijdens het aftellen staan nog "Stap in de Mol en trek aan de hendel" en twee andere meldingen onderaan: drie regels plus doel, marker en banner. | level |
+| 6 | P2 | `na/067`, `047` | De landingsplek is nu een veld zeshoekige platen met donkere voegen: beter dan het raster, maar het leest als tegels en houdt abrupt op aan de rand. | horizon |
+| 7 | P2 | `na_left/082` | Wie na de drop door de baai springt, landt op het dak van de Mol (die staat er recht onder). Hij kan eraf; enkel ter info. | — |
+| 8 | P2 | `ekster_spawn`, `na/010` | Het houweel blijft in de hand in de hub (rest van QA-7). | level |
+| 9 | P2 | `na/046` | De klap zelf: weinig stof in beeld vlak voor de knip naar binnen. | cine |
+| 10 | P2 | `na_horizon/084`–`091` | Op 1740 m hangt de hub als een klein donker blok in de lucht boven de landingsplek (enkel van de diagnosecamera's, niet in het spel gezien). | — |
+
+Voor de lead: `game/src/world/planet_air.gdshaderinc.uid` en `planet_deck.gdshader.uid` ontstaan bij
+het importeren maar staan niet in main.

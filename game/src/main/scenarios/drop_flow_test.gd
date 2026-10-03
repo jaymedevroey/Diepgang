@@ -105,7 +105,8 @@ func _run_main() -> void:
 	# 4. Uitstappen met echte invoer, en terug.
 	await _walk_out_and_back()
 
-	# 5. Kiezen terwijl de Mol weg is: kan niet, en de knoppen staan uit.
+	# 5. Kiezen terwijl de Mol weg is: gebeurt niet. De knop mag aan staan (ontwerp level): het menu
+	# zegt dan waarom het niet kan.
 	var seed_before := game.pit_seed
 	var contract_before: Dictionary = game.company.contract
 	game.company.choose(1 if game.company.contract != game.company.options[1] else 0)
@@ -113,7 +114,7 @@ func _run_main() -> void:
 	_expect(game.pit_seed == seed_before and game.company.contract == contract_before, "een opdracht kiezen terwijl de Mol weg is: gebeurt niet")
 	main._terminal.open(game.company)
 	await _frames(2)
-	_expect(_enabled_cards() == 0, "de terminal toont geen actieve KIEZEN-knop terwijl de Mol weg is")
+	await _expect_choose_refused("de terminal terwijl de Mol weg is")
 	main._terminal.close()
 
 	# 6. Sonar: echo's opvangen in deze wereld (zo test de volgende wereld QA-4).
@@ -136,14 +137,21 @@ func _run_main() -> void:
 	await _until(func() -> bool: return game.terrain.is_loaded, 60.0)
 	_expect(game.pit_seed == int(opts2[1].seed), "tweede opdracht: nieuwe wereld (%d)" % game.pit_seed)
 	await _walk_into_mol_from_quay()
-	# QA-16: de terminal staat open als de Mol vertrekt. QA-5: het rapport staat nog open (snelle speler).
-	main._terminal.open(game.company)
+	# QA-16: de opdrachten staan open als de Mol vertrekt (zoals bij een speler aan de terminal terwijl
+	# een ander aan de hendel trekt; E zou het menu sluiten, dus de hendel hier via de Mol zelf).
+	# QA-5: het rapport staat nog open (een snelle ploeg).
 	if not game.company.last_report.is_empty():
 		main.hud.show_report(game.company.last_report)
+	main._terminal.open(game.company)
 	await _frames(2)
-	var cd2 := await _pull_lever(Mol.Mode.DROP_COUNTDOWN)
+	mol.press(Mol.Cmd.DEPART)
+	var started := await _until(func() -> bool: return mol.mode == Mol.Mode.DROP_COUNTDOWN, 2.0)
+	_expect(started, "de hendel (andere speler) start DROP_COUNTDOWN")
+	var cd2 := _gt
 	await _frames(3)
-	_expect(_enabled_cards() == 0, "de open terminal zet KIEZEN uit zodra de Mol vertrekt (QA-16)")
+	var note_text: String = (main._terminal._note as Label).text
+	_expect(note_text.contains("op weg"), "de open terminal ververst zodra de Mol vertrekt (QA-16): \"%s\"" % note_text)
+	await _expect_choose_refused("de open terminal na het vertrek")
 	main._terminal.close()
 	await _wait(0.5)
 	var hud: Hud = main.hud
@@ -172,10 +180,14 @@ func _run_skip() -> void:
 	await _check_countdown(cd, true)
 	var d := await _observe_drop(true, false)
 	if _cine_ready:
-		_expect(d.skip_at >= 0.0, "SPATIE in het buitenbeeld: de Mol springt naar het korte stuk (%.0f m lager)" % d.jump)
-		_expect(d.skip_at >= 0.0 and d.skip_at - d.first_press < 0.6, "solo: overslaan gebeurt meteen (%.2f s)" % (d.skip_at - d.first_press))
-		_expect(d.skip_at >= 0.0 and d.h_after < 230.0, "na het overslaan zo'n 150 m boven de grond (%.0f m)" % d.h_after)
-		print(TAG, " val met overslaan: %.1f s speltijd (eerste SPATIE na %.1f s)" % [d.duration, d.first_press - d.start])
+		_expect(float(d.first_press) >= 0.0, "SPATIE gedrukt in het buitenbeeld (%.0f m boven de grond)" % d.h_press)
+		_expect(float(d.short_at) >= 0.0 and float(d.short_at) - float(d.first_press) < 0.3,
+				"solo: de drop wordt meteen de korte (%.2f s)" % (float(d.short_at) - float(d.first_press)))
+		_expect(float(d.skip_at) >= 0.0 and float(d.skip_at) - float(d.first_press) < 0.5 and float(d.jump) > 40.0,
+				"de Mol springt naar het korte stuk (%.0f m lager, na %.2f s)" % [d.jump, float(d.skip_at) - float(d.first_press)])
+		_expect(float(d.h_after) > 120.0 and float(d.h_after) < 230.0, "na het overslaan zo'n 150 m boven de grond (%.0f m)" % d.h_after)
+		_expect(bool(d.dipped), "even zwart bij de sprong (het overslaan is te zien)")
+		print(TAG, " val met overslaan: %.1f s speltijd (SPATIE na %.1f s)" % [d.duration, float(d.first_press) - float(d.start)])
 	else:
 		_na("overslaan met skip_cinematic")
 	await _after_landing("drop met overslaan", d)
@@ -194,9 +206,11 @@ func _run_left_behind() -> void:
 	await _until(func() -> bool: return mol.mode != Mol.Mode.DROP_COUNTDOWN, 20.0)
 	var countdown := _gt - cd
 	if _cine_ready:
-		_expect(countdown > 7.0, "niet iedereen in de Mol: het volle aftellen (%.1f s)" % countdown)
+		# Ontwerp: iedereen aan boord bij de hendel = 5 s; dat wordt niet langer als iemand uitstapt.
+		# (8 s als niet iedereen aan boord is: net_drop_flow_test, met de client buiten de Mol.)
+		_expect(countdown > 4.5 and countdown < 5.6, "de enige speler zat bij de hendel in de Mol: 5 s, ook na uitstappen (%.1f s)" % countdown)
 	else:
-		_na("aftellen 8 s als niet iedereen in de Mol zit (gemeten %.1f s)" % countdown)
+		_na("aftellen na uitstappen (gemeten %.1f s)" % countdown)
 	var stayed := true
 	var own_cam := true
 	var flag_off := true
@@ -234,13 +248,14 @@ func _run_left_behind() -> void:
 	_expect(landed, "na de sprong op de planeet geland (%.1f s)" % (_gt - t0))
 	await _wait(0.5)
 	var ll := mol.to_local_mol(p.global_position)
-	if absf(ll.x) < 2.6 and ll.z >= 4.3 and ll.z < 10.0 and ll.y > -3.0 and ll.y < -0.3:
-		print(TAG, " na de sprong op de open klep van de Mol geland (lokaal %s)" % ll)
-		_expect(p.is_on_floor(), "na de sprong door de baai: staat op de klep")
-	else:
+	var where := _place_name(ll)
+	print(TAG, " na de sprong door de baai geland: %s (lokaal %s)" % [where, ll])
+	if where == "grond":
 		_ground_checks("na de sprong door de baai")
-	# Op de open klep landen mag (dat telt als "in de Mol"); op het dak, eronder of door het dak niet.
-	_expect(not _in_footprint(ll), "naast de Mol of op de klep geland, niet op het dak, eronder of erin (lokaal %s)" % ll)
+	else:
+		_expect(p.is_on_floor(), "na de sprong door de baai: staat op de %s van de Mol" % where)
+	# Naast de Mol, op de klep of op het dak mag; onder de buik of door het dak in de cabine niet.
+	_expect(where in ["grond", "klep", "dak"], "na de sprong niet onder de Mol en niet door het dak in de cabine (%s)" % where)
 	_expect(_cam() == p.camera, "na de sprong de eigen camera")
 	await _walk_to(mol.to_world_mol(Vector3(0.0, -1.5, 13.0)), 0.8, 25.0)
 	await _walk_to(mol.to_world_mol(Vector3(0.0, -1.5, 2.0)), 0.5, 10.0)
@@ -260,27 +275,34 @@ func _run_on_doors() -> void:
 	p.velocity = Vector3.ZERO
 	await _frames(2)
 	_expect(ship.over_bay(p.global_position) and not mol.contains_point(p.global_position), "speler staat op de luiken naast de Mol")
-	var fell_at_doors := -1.0
+	var lost_at_deg := -1.0
 	var start := _gt
+	var airborne := 0
 	while _gt - start < 90.0:
 		await get_tree().physics_frame
-		# Het moment waarop de vloer onder de speler wegvalt: hij begint te vallen boven de baai.
-		if fell_at_doors < 0.0 and ship.contains(p.global_position) and p.velocity.y < -1.0:
-			fell_at_doors = ship.door_amount
-		if fell_at_doors >= 0.0 and mol.mode == Mol.Mode.PARKED and p.is_on_floor() \
+		# Het moment waarop de speler boven de baai zijn steun verliest: drie ticks na elkaar niet meer
+		# op een vloer. (Meezakken op een kantelend luik is nog steun: de botsvorm draait mee.)
+		airborne = airborne + 1 if not p.is_on_floor() else 0
+		if lost_at_deg < 0.0 and airborne >= 3:
+			var hl := ship.global_transform.affine_inverse() * p.global_position
+			lost_at_deg = ship.door_angle_deg() if ship.has_method("door_angle_deg") else ship.door_amount * 100.0
+			print(TAG, " steun kwijt boven de baai: luiken %.0f graden open (lokaal y %.2f)" % [lost_at_deg, hl.y])
+		if lost_at_deg >= 0.0 and mol.mode == Mol.Mode.PARKED and p.is_on_floor() \
 				and p.global_position.y < game.exterior.dock_position().y - 100.0:
 			break
-	_expect(fell_at_doors >= 0.25, "de vloer valt pas weg als de luiken echt open zijn (luiken %.0f%% open, QA-15)" % (fell_at_doors * 100.0))
+	# Ontwerp (level): de botsvorm draait mee met de luiken en valt pas weg voorbij 60 graden. Een luik
+	# dat sneller wegzwaait dan je valt, laat je los (gemeten 16-48 graden, naargelang de belasting):
+	# dat is echt vallen, niet door een dicht luik zakken (vóór: 0-2 %).
+	_expect(lost_at_deg >= 10.0, "geen val door dichte luiken: steun pas kwijt als ze zichtbaar draaien (%.0f graden, QA-15)" % lost_at_deg)
 	await _wait(0.5)
 	_ground_checks("van de luiken gevallen")
 	var lp := mol.to_local_mol(p.global_position)
 	_expect(mol.mode == Mol.Mode.PARKED, "de Mol landde normaal")
-	_expect(not _in_footprint(lp) and not mol.contains_point(p.global_position),
-			"niet onder, op of in de Mol terechtgekomen (lokaal %s)" % lp)
+	_expect(_place_name(lp) == "grond", "naast de Mol terechtgekomen, niet eronder, erop of erin (%s, lokaal %s)" % [_place_name(lp), lp])
 	# Kan hij weg? Opzij lopen met echte invoer.
 	var from := p.global_position
 	await _walk_to(mol.to_world_mol(Vector3(signf(lp.x if absf(lp.x) > 0.1 else 1.0) * 8.0, -2.5, lp.z)), 0.6, 6.0)
-	_expect(p.global_position.distance_to(from) > 2.0 and not _in_footprint(mol.to_local_mol(p.global_position)),
+	_expect(p.global_position.distance_to(from) > 2.0 and _place_name(mol.to_local_mol(p.global_position)) == "grond",
 			"van daar weg kunnen lopen (%.1f m)" % p.global_position.distance_to(from))
 
 
@@ -315,7 +337,8 @@ func _check_countdown(cd_start: float, try_skip: bool) -> void:
 func _observe_drop(skip: bool, extra: bool) -> Dictionary:
 	var d := {"start": _gt, "duration": 0.0, "inside": true, "cine_cam": false, "flag_seen": false,
 		"flag_flicker": false, "skip_at": -1.0, "first_press": -1.0, "jump": 0.0, "h_after": INF,
-		"input_moved": -1.0, "cam_far": 0.0}
+		"input_moved": -1.0, "cam_far": 0.0, "mismatch_s": 0.0, "mismatch_frames": 0, "short_at": -1.0,
+		"h_press": 0.0, "dipped": false}
 	_landed_signal = false
 	var last_h := _mol_h()
 	var flag_was := false
@@ -323,20 +346,26 @@ func _observe_drop(skip: bool, extra: bool) -> Dictionary:
 	var next_try := 0.0
 	var tested := not extra
 	var frame := 0
+	var outside_since := -1.0
 	while mol.mode == Mol.Mode.DROPPING and _gt - float(d.start) < 120.0:
 		await get_tree().process_frame
 		if not mol.contains_point(p.global_position):
 			d.inside = false
 		var c := _cam()
 		frame += 1
-		if c != p.camera:
+		if c != p.camera and c:
 			d.cine_cam = true
-			if c:
-				var far := c.global_position.distance_to(mol.body.global_position)
-				if far > 150.0 and float(d.cam_far) <= 150.0:
-					print(TAG, " buitenbeeld ver van de Mol: frame %d van de val, %s op %s, Mol op %s, speler op %s" % [
-						frame, c.name, c.global_position, mol.body.global_position, p.global_position])
-				d.cam_far = maxf(d.cam_far, far)
+			# Wat er getekend wordt: dit beeld van de buitencamera, met de Mol (het lichaam en zijn model)
+			# waar hij nu staat. Staat dat lichaam nog in de hub, dan toont het buitenbeeld geen Mol.
+			var body_pos := mol.body.global_position
+			if body_pos.y > game.exterior.dock_position().y + 200.0:
+				if int(d.mismatch_frames) == 0:
+					print(TAG, " buitenbeeld zonder de Mol: frame %d van de val, %s op %s, het lichaam van de Mol nog op %s (gezet: %s)" % [
+						frame, c.name, c.global_position, body_pos, mol.placed.origin])
+				d.mismatch_frames = int(d.mismatch_frames) + 1
+				d.mismatch_s = float(d.mismatch_s) + get_process_delta_time()
+			else:
+				d.cam_far = maxf(d.cam_far, c.global_position.distance_to(body_pos))
 		var f: Variant = _flag()
 		if f == true:
 			d.flag_seen = true
@@ -350,10 +379,19 @@ func _observe_drop(skip: bool, extra: bool) -> Dictionary:
 			d.h_after = h
 		last_h = h
 		var outside_cam := c != p.camera and _exterior()
-		if skip and _cine_ready and float(d.skip_at) < 0.0 and tries < 6 and outside_cam and h > 200.0 and _gt >= next_try:
+		if outside_cam and outside_since < 0.0:
+			outside_since = _gt
+		if float(d.first_press) >= 0.0 and float(d.short_at) < 0.0 and mol.drop_variant == Mol.DropVariant.SHORT:
+			d.short_at = _gt
+		if float(d.first_press) >= 0.0 and c is DropCam and (c as DropCam)._fade.color.a > 0.5:
+			d.dipped = true
+		# Overslaan: pas als het buitenbeeld er een tijdje is (het shot onder het schip loopt), hoog genoeg.
+		if skip and _cine_ready and float(d.short_at) < 0.0 and tries < 6 and outside_cam \
+				and _gt - outside_since > 0.3 and h > 200.0 and _gt >= next_try:
 			tries += 1
 			if float(d.first_press) < 0.0:
 				d.first_press = _gt
+				d.h_press = h
 			next_try = _gt + 0.3
 			await _tap("skip_cinematic")
 		if not tested and outside_cam and h > 120.0:
@@ -373,7 +411,9 @@ func _observe_drop(skip: bool, extra: bool) -> Dictionary:
 	_expect(mol.mode == Mol.Mode.PARKED, "de Mol is geland (%.1f s speltijd)" % d.duration)
 	_expect(d.inside, "de speler bleef de hele val in de Mol (ook door de baai van de hub)")
 	_expect(d.cine_cam, "buitenbeeld tijdens de val")
-	_expect(float(d.cam_far) < 150.0, "het buitenbeeld blijft bij de Mol (verst %.0f m, geen beeld vanuit de hub)" % d.cam_far)
+	_expect(int(d.mismatch_frames) == 0, "het buitenbeeld toont de Mol vanaf het eerste beeld (%d beelden, %.3f s speltijd waarin het lichaam van de Mol nog in de hub stond, QA-14)" % [
+			d.mismatch_frames, d.mismatch_s])
+	_expect(float(d.cam_far) < 150.0, "het buitenbeeld blijft bij de Mol (verst %.0f m)" % d.cam_far)
 	if extra:
 		_expect(float(d.input_moved) >= 0.0 and float(d.input_moved) < 0.05,
 				"tijdens het buitenbeeld verplaatsen de toetsen de speler niet (%.3f m)" % d.input_moved)
@@ -524,7 +564,7 @@ func _open_terminal_by_key() -> bool:
 	p.head.rotation.x = 0.0
 	await _frames(4)
 	var knob := p.aimed_interactable()
-	if knob == null or knob.hint != "E: opdrachtterminal":
+	if knob == null or not knob.hint.begins_with("E: opdracht"):
 		print(TAG, " let op: de terminal staat niet in het vizier (%s)" % (knob.hint if knob else "niets"))
 	_key(KEY_E)
 	await _frames(3)
@@ -547,14 +587,6 @@ func _press_card(index: int) -> void:
 		print(TAG, " let op: Enter drukte de knop niet in, dus via het signaal")
 		b.pressed.emit()
 		await _frames(2)
-
-
-func _enabled_cards() -> int:
-	var n := 0
-	for b: Button in main._terminal.find_children("*", "Button", true, false):
-		if not b.is_queued_for_deletion() and b.text == "KIEZEN" and not b.disabled:
-			n += 1
-	return n
 
 
 # --- Hulp ----------------------------------------------------------------------------------------
@@ -624,10 +656,42 @@ func _crosshair_visible() -> bool:
 	return c.is_visible_in_tree() and c.modulate.a > 0.05
 
 
-## Onder, op of in de romp van de Mol (lokaal; de rupsen liggen op ±3,1 m, de neus tot z ≈ −7,5,
-## de klep begint op z ≈ +4,3: op de open klep staan mag).
-func _in_footprint(local: Vector3) -> bool:
-	return absf(local.x) < 3.4 and local.z > -7.5 and local.z < 4.3 and local.y > -3.2 and local.y < 4.0
+## Waar staat iemand t.o.v. de Mol (lokaal)? "cabine" (binnen), "klep" (de open laadklep), "dak",
+## "onder" (tussen de rupsen, onder de buik) of "grond" (ernaast). De rupsen liggen op ±3,1 m, de
+## neus tot z ≈ −7,5, de klep begint op z ≈ +4,3, de vloer van de cabine op y ≈ −1,8.
+func _place_name(local: Vector3) -> String:
+	if Mol.INSIDE.has_point(local):
+		return "cabine"
+	if absf(local.x) < 2.6 and local.z >= 4.3 and local.z < 10.0 and local.y > -3.0 and local.y < -0.3:
+		return "klep"
+	var over := absf(local.x) < 3.4 and local.z > -7.5 and local.z < 4.3
+	if over and local.y >= 1.9:
+		return "dak"
+	if over and local.y > -3.2:
+		return "onder"
+	return "grond"
+
+
+## Een opdracht kiezen (Enter op de eerste vrije KIEZEN-knop) terwijl de Mol niet in de baai staat:
+## er verandert niets, en het menu zegt waarom.
+func _expect_choose_refused(label: String) -> void:
+	var before: Dictionary = game.company.contract
+	var seed_before := game.pit_seed
+	var b: Button = null
+	for n: Button in main._terminal.find_children("*", "Button", true, false):
+		if not n.is_queued_for_deletion() and n.text == "KIEZEN" and not n.disabled:
+			b = n
+			break
+	if b == null:
+		_expect(true, "%s: geen actieve KIEZEN-knop (kiezen kan niet)" % label)
+		return
+	b.grab_focus()
+	await _frames(1)
+	_key(KEY_ENTER)
+	await _wait(0.5)
+	var note_text: String = (main._terminal._note as Label).text
+	_expect(game.company.contract == before and game.pit_seed == seed_before and note_text.contains("Kan nu niet"),
+			"%s: KIEZEN verandert niets en zegt waarom (\"%s\")" % [label, note_text])
 
 
 ## Buiten de hub (het buitenschip of lager).
