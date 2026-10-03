@@ -2,6 +2,8 @@ class_name HudCompass
 extends HudFader
 ## Boven midden: diepte, laag en een kompasstrook met de richting naar de Mol (en de afstand).
 ## Dynamisch: verschijnt bij een andere laag, elke 10 m dieper, ver van de Mol, of als de Mol vertrekt.
+## In het schip (`place` niet leeg): geen windrichtingen en geen diepte, maar waar je bent ("DE
+## EKSTER · BRUG") en een doel op de strook (de terminal of de Mol), met de afstand.
 
 const WIDTH := 520.0
 const STRIP_H := 30.0
@@ -9,17 +11,24 @@ const SPAN_DEG := 180.0 # zichtbaar deel van het kompas
 ## Laagkleuren uit de stijlgids, met de tekstkleur die er het best op leest (contrast ≥ 4,5:1).
 const LAYER_COLORS := [Color("#3A4260"), Color("#9A9EA3"), Color("#D1AD72"), Color("#6E4A35")]
 const LAYER_TEXT_DARK := [false, true, true, false]
+const MOL_ICON := preload("res://assets/ui/icons/mol.svg")
+const TERMINAL_ICON := preload("res://assets/ui/icons/terminal.svg")
 
 var heading_deg := 0.0 # waar de speler naar kijkt (0 = noord = −z)
+## Het doel op de strook (de Mol, of in het schip de terminal).
 var mol_bearing_deg := 0.0
 var mol_distance := 0.0
 var mol_visible := false
+var target_icon: Texture2D = MOL_ICON
+## Rood knipperend doel (bv. de Mol als de drop aftelt en je er niet in zit).
+var urgent := false
 var depth := 0.0
 var layer := 3
+## In het schip: de plek ("BRUG"); leeg = op de planeet (diepte en laag).
+var place := ""
 var _depth_label: Label
 var _layer_label: Label
 var _layer_chip: PanelContainer
-var _mol_icon: Texture2D = preload("res://assets/ui/icons/mol.svg")
 var _font: Font
 
 
@@ -58,7 +67,10 @@ func _ready() -> void:
 func set_layer(index: int) -> void:
 	if index != layer:
 		layer = index
-		poke(5.0)
+		if place == "":
+			poke(5.0)
+	if place != "":
+		return
 	var box := StyleBoxFlat.new()
 	box.bg_color = LAYER_COLORS[layer]
 	box.set_corner_radius_all(5)
@@ -72,10 +84,37 @@ func set_layer(index: int) -> void:
 
 
 func set_depth(m: float) -> void:
-	if floor(m / 10.0) != floor(depth / 10.0):
+	if place == "" and floor(m / 10.0) != floor(depth / 10.0):
 		poke()
 	depth = m
-	_depth_label.text = "%d m" % int(round(m)) if m < 0.5 else "−%d m" % int(round(m))
+	if place == "":
+		_depth_label.text = "%d m" % int(round(m)) if m < 0.5 else "−%d m" % int(round(m))
+
+
+## In het schip: de naam van de plek (leeg = op de planeet). Een nieuwe plek toont de strook even.
+func set_place(where: String) -> void:
+	if where == place:
+		return
+	place = where
+	if place == "":
+		_depth_label.visible = true
+		set_layer(layer)
+		set_depth(depth)
+		return
+	poke(3.0)
+	_depth_label.visible = false
+	var box := StyleBoxFlat.new()
+	box.bg_color = Color(UiTheme.ANTHRACITE_LO, 0.85)
+	box.border_color = Color(UiTheme.YELLOW, 0.8)
+	box.set_border_width_all(2)
+	box.set_corner_radius_all(5)
+	box.content_margin_left = 10
+	box.content_margin_right = 10
+	box.content_margin_top = 2
+	box.content_margin_bottom = 3
+	_layer_chip.add_theme_stylebox_override("panel", box)
+	_layer_label.text = "DE EKSTER · " + place
+	_layer_label.add_theme_color_override("font_color", UiTheme.YELLOW)
 
 
 func _process(delta: float) -> void:
@@ -87,13 +126,14 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	var w := WIDTH
 	var h := STRIP_H
+	var in_ship := place != ""
 	# Strook met zachte randen.
 	var bg := StyleBoxFlat.new()
 	bg.bg_color = Color(UiTheme.ANTHRACITE_LO, 0.62)
 	bg.set_corner_radius_all(8)
 	draw_style_box(bg, Rect2(0, 0, w, h))
 	var px_per_deg := w / SPAN_DEG
-	# Streepjes om de 15°, letters voor de windrichtingen (N O Z W).
+	# Streepjes om de 15°, letters voor de windrichtingen (N O Z W); in het schip enkel streepjes.
 	var start := int(floor((heading_deg - SPAN_DEG / 2.0) / 15.0)) * 15
 	var deg := start
 	while deg <= heading_deg + SPAN_DEG / 2.0:
@@ -101,7 +141,7 @@ func _draw() -> void:
 		var edge := 1.0 - clampf(absf(x - w / 2.0) / (w / 2.0), 0.0, 1.0)
 		var a := smoothstep(0.0, 0.35, edge)
 		var d := posmod(deg, 360)
-		if d % 90 == 0:
+		if d % 90 == 0 and not in_ship:
 			var letter: String = {0: "N", 90: "O", 180: "Z", 270: "W"}[d]
 			var sz := _font.get_string_size(letter, HORIZONTAL_ALIGNMENT_LEFT, -1, 17)
 			draw_string(_font, Vector2(x - sz.x / 2.0, h / 2.0 + 6.0), letter, HORIZONTAL_ALIGNMENT_LEFT, -1, 17,
@@ -112,7 +152,7 @@ func _draw() -> void:
 		deg += 15
 	# Middenstreepje: jouw kijkrichting.
 	draw_colored_polygon(PackedVector2Array([Vector2(w / 2 - 6, h + 1), Vector2(w / 2 + 6, h + 1), Vector2(w / 2, h - 6)]), UiTheme.CREAM)
-	# De Mol: icoon op de strook, of een pijl aan de rand als hij achter je is.
+	# Het doel: icoon op de strook, of een pijl aan de rand als het achter je is.
 	if mol_visible:
 		var rel := wrapf(mol_bearing_deg - heading_deg, -180.0, 180.0)
 		var x := w / 2.0 + rel * px_per_deg
@@ -120,8 +160,10 @@ func _draw() -> void:
 		var off_right := x > w - 18.0
 		x = clampf(x, 18.0, w - 18.0)
 		var col := UiTheme.YELLOW
+		if urgent:
+			col = UiTheme.DANGER if fmod(Time.get_ticks_msec() / 1000.0, 0.6) < 0.4 else UiTheme.YELLOW
 		draw_circle(Vector2(x, h / 2.0), 14.0, Color(0, 0, 0, 0.55))
-		draw_texture_rect(_mol_icon, Rect2(x - 11, h / 2.0 - 11, 22, 22), false, col)
+		draw_texture_rect(target_icon, Rect2(x - 11, h / 2.0 - 11, 22, 22), false, col)
 		if off_left or off_right:
 			var dir := -1.0 if off_left else 1.0
 			var tip := Vector2(x + dir * 22.0, h / 2.0)
@@ -135,4 +177,4 @@ func _draw() -> void:
 		elif off_left:
 			dx = x + 34.0
 		draw_string_outline(_font, Vector2(dx, h / 2.0 + 5.5), dist, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, 5, Color(0, 0, 0, 0.75))
-		draw_string(_font, Vector2(dx, h / 2.0 + 5.5), dist, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, UiTheme.YELLOW)
+		draw_string(_font, Vector2(dx, h / 2.0 + 5.5), dist, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, col)

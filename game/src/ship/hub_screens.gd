@@ -1087,7 +1087,15 @@ func _paint_terminal(s: Screen) -> void:
 		_text(s, "val1", "×" + _num(Company.pay_factor(risk)))
 		_text(s, "cap2", "MAGMA")
 		_text(s, "val2", "×" + _num(Company.magma_factor(risk)))
-		_text(s, "prompt", ("> STAP IN DE MOL EN TREK AAN DE HENDEL" if docked else "> DE MOL IS ONDERWEG") + cursor)
+		# Na het kiezen laadt de nieuwe wereld: De Ekster vliegt erheen (de hendel wacht daarop).
+		var loading: bool = game.terrain == null or not game.terrain.is_loaded
+		var dots := ".".repeat(1 + int(_time * 2.5) % 3)
+		if not docked:
+			_text(s, "prompt", "> DE MOL IS ONDERWEG" + cursor)
+		elif loading:
+			_text(s, "prompt", "> ONDERWEG NAAR DE CONCESSIE" + dots)
+		else:
+			_text(s, "prompt", "> STAP IN DE MOL EN TREK AAN DE HENDEL" + cursor)
 	else:
 		_text(s, "name", "KIES EEN OPDRACHT")
 		name_l.modulate.a = 1.0 if _blink(1.2, 0.7) else 0.6
