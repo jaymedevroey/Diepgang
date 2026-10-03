@@ -100,6 +100,7 @@ func _ready() -> void:
 	add_lights(model)
 	_build_screens()
 	_build_buttons()
+	add_child(HubDropFx.new(self))
 
 
 ## Zet de hub zo dat de Mol in zijn baai op `dock` staat.

@@ -10,6 +10,10 @@ var _checks := 0
 var _failures := PackedStringArray()
 var _summary := Vector3i(-1, -1, -1)
 var _lowest := INF # laagste hoogte t.o.v. de hangarvloer tijdens het lopen
+## Van het loslaten tot de landing, in speltijd: de lange en de korte drop (doel ±11 s en ±7 s
+## van het loslaten tot de besturing, zie docs/research/drop-en-ophalen.md).
+const FULL_MAX_S := 11.5
+const SHORT_MAX_S := 6.8
 
 
 func _ready() -> void:
@@ -103,34 +107,13 @@ func _run(p: Player) -> void:
 	_expect(game.company.contract_ready() and game.pit_seed == want_seed, "opdracht gekozen: nieuwe wereld uit zijn seed (%d)" % game.pit_seed)
 	t = game.terrain # de nieuwe wereld
 	_expect(ship.contains(p.global_position) and mol.contains_point(p.global_position), "de ploeg blijft in de hub, in de Mol")
-	# In de Mol, hendel: aftellen, luiken open, vallen.
-	mol.press(Mol.Cmd.DEPART)
-	await _wait(0.3)
-	_expect(mol.mode == Mol.Mode.DROP_COUNTDOWN, "aftellen voor de drop")
-	while mol.mode == Mol.Mode.DROP_COUNTDOWN:
-		await get_tree().physics_frame
-	_expect(ship.doors_open and not mol.ramp_open, "luiken open, klep dicht bij het vertrek")
-	var always_inside := true
-	var max_down := 0.0
-	var landed_speed := INF
-	var last_vy := 0.0
-	var start := Time.get_ticks_msec()
-	while mol.mode == Mol.Mode.DROPPING and Time.get_ticks_msec() - start < 60000:
-		await get_tree().process_frame
-		if not mol.contains_point(p.global_position):
-			always_inside = false
-		max_down = maxf(max_down, -mol.vertical_speed)
-		last_vy = mol.vertical_speed
-		if mol.mode == Mol.Mode.DROPPING:
-			landed_speed = -last_vy
-	_expect(mol.mode == Mol.Mode.PARKED, "de Mol is geland (%.1f s)" % ((Time.get_ticks_msec() - start) / 1000.0))
-	_expect(always_inside, "speler bleef de hele val in de Mol")
-	_expect(max_down > 25.0, "vrije val haalt snelheid (max %.0f m/s)" % max_down)
-	_expect(landed_speed < 4.5, "zachte landing (%.1f m/s)" % landed_speed)
+	# In de Mol, hendel: aftellen, luiken open, vallen. De eerste drop van de sessie is de lange.
+	_expect(mol.next_drop_variant() == Mol.DropVariant.FULL, "eerste drop van de sessie: de lange")
+	await _drop_and_check(p, mol, game, "lange drop", FULL_MAX_S, 3.0)
+	t = game.terrain
 	var mp := mol.body.global_position
 	var ground := t.surface_height_at(mp.x, mp.z) - Mol.TRACK_BOTTOM
 	_expect(absf(mp.y - ground) < 0.6, "de Mol staat op de grond (%.2f m)" % (mp.y - ground))
-	await _wait(1.5)
 	_expect(mol.ramp_open and mol.contains_point(p.global_position), "klep open, speler nog in de Mol")
 
 	# 4. Uit het schip springen: landt op de planeet, niet erdoor.
@@ -157,9 +140,10 @@ func _run(p: Player) -> void:
 	mol.press(Mol.Cmd.DEPART)
 	await _wait(0.3)
 	_expect(mol.mode == Mol.Mode.COUNTDOWN, "vertrek vanaf de landingsplek")
-	start = Time.get_ticks_msec()
+	var start := Time.get_ticks_msec()
 	var saw_grapple := false
 	var saw_lift := false
+	var saw_lift_shot := false
 	var inside_lift := true
 	while mol.mode != Mol.Mode.DOCKED and Time.get_ticks_msec() - start < 90000:
 		await get_tree().process_frame # na de physics-tick van Mol én speler (anders een tick verschil)
@@ -167,12 +151,15 @@ func _run(p: Player) -> void:
 			saw_grapple = true
 		if mol.mode == Mol.Mode.LIFTING:
 			saw_lift = true
+			saw_lift_shot = saw_lift_shot or p.drop_cam.current
 			if not mol.contains_point(p.global_position):
 				if inside_lift:
 					print("[ship_test] uit de Mol tijdens het ophalen: lokaal %s, Mol op %s, vy %.1f" % [
 						mol.to_local_mol(p.global_position), mol.body.global_position, mol.vertical_speed])
 				inside_lift = false
 	_expect(saw_grapple and saw_lift, "grijper zakte en trok de Mol omhoog")
+	_expect(saw_lift_shot and not p.drop_cam.current and p.camera.current,
+			"buitenbeeld bij het ophalen, en terug door de eigen camera in de hub")
 	_expect(mol.mode == Mol.Mode.DOCKED, "terug in de baai (%.0f s)" % ((Time.get_ticks_msec() - start) / 1000.0))
 	_expect(inside_lift, "speler bleef in de Mol tijdens het ophalen")
 	await _wait(3.0)
@@ -180,10 +167,98 @@ func _run(p: Player) -> void:
 	_expect(_summary.z == 0, "samenvatting: niemand achtergebleven (%d)" % _summary.z)
 	_expect(ship.contains(p.global_position), "speler is terug op het schip")
 
+	# 6. Nog een drop (nieuwe opdracht, nieuwe wereld): nu de korte. Met het gewone aftellen van 8 s:
+	# solo zit iedereen aan boord, dus maar 5 s.
+	Tuning.set_value("ship", "drop_countdown_s", 8.0)
+	game.company.choose(0 if game.company.contract != game.company.options[0] else 2)
+	await get_tree().process_frame
+	while not game.terrain.is_loaded:
+		await get_tree().physics_frame
+	await _wait(0.5)
+	p.global_position = mol.to_world_mol(Vector3(0.0, -1.45, 0.5))
+	await _wait(0.5)
+	_expect(mol.next_drop_variant() == Mol.DropVariant.SHORT, "tweede drop van de sessie: de korte")
+	await _drop_and_check(p, mol, game, "korte drop", SHORT_MAX_S, Tuning.get_f("ship", "drop_countdown_all_in_s", 5.0))
+
 	print("[ship_test] %d controles, %d mislukt → %s" % [_checks, _failures.size(), "GESLAAGD" if _failures.is_empty() else "GEFAALD"])
 	for f in _failures:
 		print("[ship_test] MISLUKT: ", f)
 	get_tree().quit(0 if _failures.is_empty() else 1)
+
+
+## Eén drop vanuit de Mol in de hub: het aftellen (`countdown` verwacht), de val door de luiken, het
+## buitenbeeld, de landing en de overdracht van de besturing. Tijden in speltijd (physics-ticks).
+func _drop_and_check(p: Player, mol: Mol, game: Game, label: String, max_s: float, countdown: float) -> void:
+	var ship: Ekster = game.ship
+	var local_before := mol.to_local_mol(p.global_position)
+	var tool_before := p.active_tool.visible
+	mol.press(Mol.Cmd.DEPART)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_expect(mol.mode == Mol.Mode.DROP_COUNTDOWN and absf(mol.countdown - countdown) < 0.2,
+			"%s: aftellen van %.1f s (verwacht %.1f)" % [label, mol.countdown, countdown])
+	while mol.mode == Mol.Mode.DROP_COUNTDOWN:
+		await get_tree().physics_frame
+	_expect(ship.doors_open and not mol.ramp_open, "%s: luiken open, klep dicht bij het vertrek" % label)
+	var hz := float(Engine.physics_ticks_per_second)
+	var ticks0 := Engine.get_physics_frames()
+	var always_inside := true
+	var max_down := 0.0
+	var landed_speed := INF
+	var hub_fall := 0.0 # zo diep viel de Mol in de hub voor de sprong naar buiten
+	var hub_y := ship.dock_transform().origin.y
+	var saw_cam := false
+	var cam_in_hub := false
+	var cine_all := true
+	var frames := 0
+	var start := Time.get_ticks_msec()
+	while mol.mode == Mol.Mode.DROPPING and Time.get_ticks_msec() - start < 60000:
+		await get_tree().process_frame # na de physics-tick van Mol én speler
+		frames += 1
+		if not mol.contains_point(p.global_position):
+			always_inside = false
+		max_down = maxf(max_down, -mol.vertical_speed)
+		if mol.mode == Mol.Mode.DROPPING:
+			landed_speed = -mol.vertical_speed
+			# Vanaf het tweede frame (headless lopen soms twee ticks in één frame: de speler zag het
+			# loslaten dan nog niet in zijn _process).
+			if frames >= 2:
+				cine_all = cine_all and p.cinematic and not p.active_tool.visible
+			if mol.in_hub():
+				hub_fall = maxf(hub_fall, hub_y - mol.body.global_position.y)
+			if p.drop_cam.current and not saw_cam:
+				saw_cam = true
+				cam_in_hub = p.drop_cam.first_frame_pos.y > game.exterior.dock_position().y + 200.0
+	var fall_s := (Engine.get_physics_frames() - ticks0) / hz
+	print("[ship_test] %s: van het loslaten tot de landing %.2f s speltijd" % [label, fall_s])
+	_expect(mol.mode == Mol.Mode.PARKED and fall_s <= max_s, "%s: geland na %.1f s speltijd (hooguit %.1f)" % [label, fall_s, max_s])
+	_expect(hub_fall > 4.0, "%s: eerst %.1f m door de luiken van de hub gevallen" % [label, hub_fall])
+	_expect(saw_cam and not cam_in_hub, "%s: buitenbeeld na de sprong naar buiten (gezien %s, eerste beeld %.0f m boven de baai buiten)" % [
+			label, saw_cam, p.drop_cam.first_frame_pos.y - game.exterior.dock_position().y])
+	_expect(cine_all, "%s: de hele val een filmpje (geen besturing, geen gereedschap)" % label)
+	_expect(always_inside, "%s: speler bleef de hele val in de Mol" % label)
+	_expect(max_down > 25.0, "%s: vrije val haalt snelheid (max %.0f m/s)" % [label, max_down])
+	_expect(landed_speed < 4.5, "%s: zachte landing (%.1f m/s)" % [label, landed_speed])
+	await get_tree().process_frame
+	_expect(p.camera.current and not p.drop_cam.current, "%s: bij de klap terug door de eigen camera" % label)
+	var hand0 := Engine.get_physics_frames()
+	while p.cinematic and (Engine.get_physics_frames() - hand0) / hz < 3.0:
+		await get_tree().physics_frame
+	var hand_s := (Engine.get_physics_frames() - hand0) / hz
+	_expect(not p.cinematic and hand_s <= Tuning.get_f("ship", "drop_handover_s", 0.7) + 0.3,
+			"%s: besturing terug %.2f s na de landing" % [label, hand_s])
+	_expect(p.active_tool.visible == tool_before, "%s: gereedschap terug in de hand" % label)
+	await _wait(1.0)
+	var moved := mol.to_local_mol(p.global_position).distance_to(local_before)
+	_expect(moved < 0.1 and p.is_on_floor(), "%s: zelfde plek in de Mol (%.3f m), op de vloer" % [label, moved])
+	var before := p.global_position
+	Input.action_press("move_forward")
+	for i in 20:
+		await get_tree().physics_frame
+	Input.action_release("move_forward")
+	_expect(p.global_position.distance_to(before) > 0.3 and mol.contains_point(p.global_position),
+			"%s: lopen kan weer (%.2f m)" % [label, p.global_position.distance_to(before)])
+	await _wait(1.0)
 
 
 func _expect(ok: bool, what: String) -> void:

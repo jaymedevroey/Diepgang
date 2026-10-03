@@ -169,7 +169,7 @@ const BINDABLE := [
 	["move_forward", "Vooruit"], ["move_back", "Achteruit"], ["move_left", "Links"], ["move_right", "Rechts"],
 	["jump", "Springen · neus omhoog"], ["crouch", "Bukken · neus omlaag"], ["interact", "Gebruiken · oppakken"],
 	["dig", "Graven"], ["tool_1", "Houweel"], ["tool_2", "Boor"], ["horn", "Toeter"], ["mol_view", "Buitenzicht (Mol)"],
-	["sonar_ping", "Sonar-PING (Mol)"],
+	["sonar_ping", "Sonar-PING (Mol)"], ["skip_cinematic", "Drop overslaan"],
 ]
 
 

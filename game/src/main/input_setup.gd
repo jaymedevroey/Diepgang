@@ -19,6 +19,7 @@ const KEYS := {
 	"horn": KEY_H,
 	"mol_view": KEY_C,
 	"sonar_ping": KEY_F,
+	"skip_cinematic": KEY_SPACE,
 }
 
 
