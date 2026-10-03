@@ -43,9 +43,22 @@ func _run(p: Player) -> void:
 	await _wait(0.3)
 	_expect(mol.mode == Mol.Mode.DOCKED, "droppen kan enkel vanuit de Mol")
 
-	# 3. In de Mol, hendel: aftellen, luiken open, vallen.
+	# 3. In de Mol, zonder opdracht: niets. Een opdracht kiezen maakt een nieuwe wereld.
 	p.global_position = mol.to_world_mol(Vector3(0.0, -1.45, 0.5))
 	await _wait(0.4)
+	mol.press(Mol.Cmd.DEPART)
+	await _wait(0.3)
+	_expect(mol.mode == Mol.Mode.DOCKED, "zonder opdracht geen drop")
+	var want_seed := int(game.company.options[1].seed)
+	game.company.choose(1)
+	await get_tree().process_frame
+	while not game.terrain.is_loaded:
+		await get_tree().physics_frame
+	await _wait(0.5)
+	_expect(game.company.contract_ready() and game.pit_seed == want_seed, "opdracht gekozen: nieuwe wereld uit zijn seed (%d)" % game.pit_seed)
+	t = game.terrain # de nieuwe wereld
+	_expect(ship.contains(p.global_position) and mol.contains_point(p.global_position), "de ploeg blijft in de hub, in de Mol")
+	# In de Mol, hendel: aftellen, luiken open, vallen.
 	mol.press(Mol.Cmd.DEPART)
 	await _wait(0.3)
 	_expect(mol.mode == Mol.Mode.DROP_COUNTDOWN, "aftellen voor de drop")

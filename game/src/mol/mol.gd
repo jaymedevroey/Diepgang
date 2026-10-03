@@ -315,7 +315,9 @@ func _handle(sender: int, button: int, arg: float) -> void:
 				_set_mode(Mode.AUTO_DOWN, pilot)
 				_rpc_message.rpc("Autopiloot: afdalen tot −%d m" % int(arg))
 		Cmd.DEPART:
-			if inside and mode == Mode.DOCKED and game.terrain.is_loaded:
+			if inside and mode == Mode.DOCKED and not game.company.contract_ready():
+				_rpc_message.rpc("Eerst een opdracht kiezen, aan de terminal in de hub.")
+			elif inside and mode == Mode.DOCKED and game.terrain.is_loaded:
 				countdown = Tuning.get_f("ship", "drop_countdown_s", 8.0)
 				_beep_timer = 0.0
 				_rpc_event.rpc(Event.HORN)
@@ -986,6 +988,7 @@ func _dock() -> void:
 			left_peers.append(pl.peer_id)
 	var ores: OreField = game.ores
 	_rpc_summary.rpc(items.size(), value, left, OreField.units(ores.hold), OreField.value(ores.hold))
+	game.company.host_shift_end(items, OreField.units(ores.hold), OreField.value(ores.hold), left)
 	ores.host_after_extraction(left_peers)
 
 

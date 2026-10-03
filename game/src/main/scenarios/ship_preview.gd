@@ -23,6 +23,22 @@ func _run(p: Player) -> void:
 	_cam.far = 3000.0
 	main.add_child(_cam)
 
+	if "firma" in only:
+		# De opdrachtterminal en het incidentrapport.
+		p.camera.make_current()
+		main._terminal.open(game.company)
+		await _shot("firma_terminal", 0.6)
+		main._terminal.close()
+		main.hud.show_report({"shift_total": 4, "quarter": 2, "shift": 1, "contract": "CONCESSIE 41", "risk": 2,
+				"factor": 1.35, "sold": [["Schedel", 315, 90], ["Dijbeen", 162, 90], ["Geode", 130, 50], ["Oude fles", 40, 100]],
+				"finds_value": 647, "ore_units": 18, "ore_value": 112, "bonus": 266, "left_behind": 1, "melted": 1, "costs": 240,
+				"damage": 175, "quakes": 3, "net": 785, "earned": 785, "quota": 1000, "cash": 1240, "reputation": 1})
+		await _shot("firma_rapport", 0.8)
+		main.hud.show_report({"shift_total": 6, "quarter": 2, "shift": 3, "contract": "CONCESSIE 7", "risk": 0,
+				"factor": 1.0, "sold": [["Wervel", 60, 100]], "finds_value": 60, "ore_units": 0, "ore_value": 0, "bonus": 0,
+				"left_behind": 0, "melted": 0, "costs": 0, "damage": 0, "quakes": 1, "net": 60, "earned": 845, "quota": 1000,
+				"quarter_result": "gemist", "fine": 78, "cash": 1222, "reputation": 0})
+		await _shot("firma_rapport_gemist", 0.8)
 	if only.is_empty() or "spawn" in only:
 		p.camera.make_current()
 		await _shot("ekster_spawn", 0.5)
@@ -65,6 +81,7 @@ func _run(p: Player) -> void:
 		p.global_position = mol.to_world_mol(Vector3(0.0, -1.45, 0.5))
 		await _wait(0.5)
 		p.camera.make_current()
+		game.company.contract = game.company.options[0]
 		mol.press(Mol.Cmd.DEPART)
 		await _wait(0.5)
 		await _shot("ekster_drop_aftellen", 0.1)

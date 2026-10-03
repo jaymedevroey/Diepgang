@@ -42,6 +42,7 @@ var _banner_title: Label
 var _banner_count: Label
 var _banner_strip: HazardStrip
 var _result: PanelContainer
+var _result_title: Label
 var _result_rows: VBoxContainer
 var _team: HudFader
 var _team_rows: VBoxContainer
@@ -428,6 +429,7 @@ func _build_overlays() -> void:
 	rc.add_theme_constant_override("separation", 10)
 	_result.add_child(rc)
 	var rt := Label.new()
+	_result_title = rt
 	rt.text = "DIENST AFGELOPEN"
 	rt.theme_type_variation = &"Heading"
 	rt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -516,10 +518,51 @@ func stamp(title: String, sub: String) -> void:
 	tw.tween_callback(box.queue_free)
 
 
-## Eindoverzicht na de extractie.
+## Incidentrapport van de firma na een dienst (Company): wat verkocht werd, de bonus van de
+## opdracht, de kosten (vervangrobots), de schade, bevingen, en de stand van het kwartaal.
+func show_report(r: Dictionary) -> void:
+	for c in _result_rows.get_children():
+		c.queue_free()
+	_result_title.text = "INCIDENTRAPPORT · DIENST %d" % int(r.get("shift_total", 0))
+	var sold: Array = r.get("sold", [])
+	var shown := 0
+	for e: Array in sold:
+		if shown >= 6:
+			_result_row("… en nog %d" % (sold.size() - shown), "")
+			break
+		_result_row("%s (%d%%)" % [e[0], int(e[2])], UiTheme.euro(int(e[1])), UiTheme.CREAM)
+		shown += 1
+	if sold.is_empty():
+		_result_row("Geen vondsten in het laadruim", UiTheme.euro(0), UiTheme.CREAM_DIM)
+	if int(r.get("ore_units", 0)) > 0:
+		_result_row("Erts (%d)" % int(r.ore_units), UiTheme.euro(int(r.ore_value)), UiTheme.CREAM)
+	if int(r.get("bonus", 0)) != 0:
+		_result_row("Opdracht %s (×%.2f)" % [r.get("contract", ""), float(r.get("factor", 1.0))], "+" + UiTheme.euro(int(r.bonus)), UiTheme.YELLOW)
+	var robots := int(r.get("left_behind", 0)) + int(r.get("melted", 0))
+	if robots > 0:
+		_result_row("Vervangrobots (%d achter, %d gesmolten)" % [int(r.left_behind), int(r.melted)], UiTheme.euro(-int(r.costs)), UiTheme.DANGER)
+	if int(r.get("damage", 0)) > 0:
+		_result_row("Schade aan vondsten (verloren waarde)", UiTheme.euro(int(r.damage)), UiTheme.CREAM_DIM)
+	if int(r.get("quakes", 0)) > 0:
+		_result_row("Bevingen", str(int(r.quakes)), UiTheme.CREAM_DIM)
+	_result_row("NETTO", UiTheme.euro(int(r.get("net", 0))), UiTheme.YELLOW if int(r.get("net", 0)) >= 0 else UiTheme.DANGER)
+	var result: String = r.get("quarter_result", "")
+	if result == "gehaald":
+		_result_row("KWARTAAL %d GEHAALD" % int(r.quarter), UiTheme.euro(int(r.earned)) + " / " + UiTheme.euro(int(r.quota)), UiTheme.GOOD)
+	elif result == "gemist":
+		_result_row("KWARTAAL %d GEMIST (%s / %s) · boete" % [int(r.quarter), UiTheme.euro(int(r.earned)), UiTheme.euro(int(r.quota))],
+				UiTheme.euro(-int(r.get("fine", 0))), UiTheme.DANGER)
+	else:
+		_result_row("Kwartaal %d · dienst %d/%d" % [int(r.quarter), int(r.shift), Tuning.get_i("company", "shifts", 3)], UiTheme.euro(int(r.earned)) + " / " + UiTheme.euro(int(r.quota)), UiTheme.CREAM)
+	_result_row("Kas", UiTheme.euro(int(r.get("cash", 0))), UiTheme.YELLOW if int(r.get("cash", 0)) >= 0 else UiTheme.DANGER)
+	_open_result(12.0)
+
+
+## Eindoverzicht na de extractie (zonder schip; met het schip komt het incidentrapport).
 func show_result(count: int, value: int, left_behind: int, ore_units := 0, ore_value := 0) -> void:
 	for c in _result_rows.get_children():
 		c.queue_free()
+	_result_title.text = "DIENST AFGELOPEN"
 	_result_row("Vondsten in het laadruim", str(count))
 	_result_row("Waarde vondsten", "€%d" % value, UiTheme.YELLOW)
 	if ore_units > 0:
@@ -527,12 +570,16 @@ func show_result(count: int, value: int, left_behind: int, ore_units := 0, ore_v
 	if left_behind > 0:
 		_result_row("Achterblijvers (te voet boven)", str(left_behind), UiTheme.DANGER)
 	_result_row("Brandstof", "bijgetankt")
+	_open_result(7.0)
+
+
+func _open_result(seconds: float) -> void:
 	_result.visible = true
 	_result.modulate.a = 0.0
 	Sfx.ui("open")
 	var tw := create_tween()
 	tw.tween_property(_result, "modulate:a", 1.0, 0.3)
-	tw.tween_interval(7.0)
+	tw.tween_interval(seconds)
 	tw.tween_property(_result, "modulate:a", 0.0, 0.8)
 	tw.tween_callback(func() -> void: _result.visible = false)
 

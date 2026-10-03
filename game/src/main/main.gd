@@ -67,11 +67,12 @@ const SCENARIOS := {
 	"net_ship_test": preload("res://src/main/scenarios/net_ship_test.gd"),
 	"magma_preview": preload("res://src/main/scenarios/magma_preview.gd"),
 	"magma_test": preload("res://src/main/scenarios/magma_test.gd"),
+	"company_test": preload("res://src/main/scenarios/company_test.gd"),
 }
 ## Scenario's die op De Ekster beginnen (de Mol in de dropbaai). De rest begint op de planeet.
-const SCENARIOS_ON_SHIP := ["play", "ship_preview", "ship_test", "net_ship_test"]
+const SCENARIOS_ON_SHIP := ["play", "ship_preview", "ship_test", "net_ship_test", "company_test"]
 ## Scenario's waarin de host ook een eigen speler krijgt.
-const SCENARIOS_WITH_PLAYER := ["play", "ship_preview", "ship_test", "net_ship_test", "net_test", "find_test", "carry_test", "carry_preview", "mol_test", "sonar_test", "mol_edge_test", "stream_test", "ore_test", "drive_perf", "mol_preview", "hud_preview", "ui_test", "tool_preview", "magma_test"]
+const SCENARIOS_WITH_PLAYER := ["play", "ship_preview", "ship_test", "net_ship_test", "net_test", "find_test", "carry_test", "carry_preview", "mol_test", "sonar_test", "mol_edge_test", "stream_test", "ore_test", "drive_perf", "mol_preview", "hud_preview", "ui_test", "tool_preview", "magma_test", "company_test"]
 
 var game: Game
 var player: Player
@@ -86,6 +87,7 @@ var hud: Hud
 var load_ms := 0.0
 var _loading: LoadingScreen
 var _pause: PauseMenu
+var _terminal: TerminalMenu
 var _tuning_menu: TuningMenu
 var _start_menu: StartMenu
 var _backdrop: MenuBackdrop
@@ -117,8 +119,11 @@ func _ready() -> void:
 	game.name = "Game"
 	game.spawn_host_player = scenario in SCENARIOS_WITH_PLAYER
 	game.start_on_ship = scenario in SCENARIOS_ON_SHIP and not CmdArgs.has("on-planet")
+	# De firma bewaren: in het echte spel altijd, in tests enkel met --save=naam.
+	game.company_save = "firma" if scenario == "play" else str(CmdArgs.value("save", ""))
 	add_child(game)
 	game.notice.connect(func(t: String, kind: String) -> void: hud.toast(t, kind))
+	game.terminal_requested.connect(func(_p: Player) -> void: _terminal.open(game.company))
 	game.world_loaded.connect(_on_world_loaded)
 	game.player_spawned.connect(_on_player_spawned)
 
@@ -201,9 +206,13 @@ func _on_world_loaded(stats: Dictionary) -> void:
 			hud.toast(t, "warn" if t.begins_with("Harde laag") or t.begins_with("Rand van de put") or t.begins_with("De boorkop") else "mol"))
 		game.mol.landed.connect(func() -> void:
 			if player and game.mol.contains_point(player.global_position):
-				hud.stamp(PlanetType.NAMES[game.planet_type].to_upper(), "CONCESSIE %d · DIENST %d" % [game.pit_seed % 97 + 1, game.shift_number]))
+				var c: Company = game.company
+				var where: String = str(c.contract.get("name", "CONCESSIE %d" % (game.pit_seed % 97 + 1)))
+				hud.stamp(PlanetType.NAMES[game.planet_type].to_upper(), "%s · KWARTAAL %d · DIENST %d" % [where, c.quarter, c.shift]))
 		game.mol.summary.connect(func(count: int, value: int, left_behind: int) -> void:
-			hud.show_result(count, value, left_behind, game.mol.last_ore_units, game.mol.last_ore_value))
+			if game.ship == null: # met het schip komt het incidentrapport van de firma
+				hud.show_result(count, value, left_behind, game.mol.last_ore_units, game.mol.last_ore_value))
+		game.company.report_ready.connect(hud.show_report)
 	print("[diepgang] terrein geladen in %.0f ms (time-out: %s), statisch geheugen %.1f MB, videogeheugen %.1f MB" % [
 		stats.load_ms, stats.load_timed_out, stats.mem_static_mb, stats.video_mem_mb])
 	print("[diepgang] terrein-statistieken: ", JSON.stringify(stats))
@@ -247,7 +256,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("toggle_stats"):
 		Settings.set_value("hud/stats", Settings.HUD_OFF if int(Settings.get_value("hud/stats")) == Settings.HUD_ALWAYS else Settings.HUD_ALWAYS)
-	elif event.is_action_pressed("ui_cancel") and player and not (_start_menu and _start_menu.visible) and not _tuning_menu.visible:
+	elif event.is_action_pressed("ui_cancel") and player and not (_start_menu and _start_menu.visible) and not _tuning_menu.visible and not _terminal.visible:
 		_pause.open()
 		get_viewport().set_input_as_handled()
 
@@ -285,6 +294,8 @@ func _build_hud() -> void:
 	_pause = PauseMenu.new()
 	_pause.leave_requested.connect(_leave_to_menu)
 	layer.add_child(_pause)
+	_terminal = TerminalMenu.new()
+	layer.add_child(_terminal)
 	_loading = LoadingScreen.new()
 	layer.add_child(_loading)
 

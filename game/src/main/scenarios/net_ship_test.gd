@@ -56,7 +56,8 @@ func _run_client(p: Player) -> void:
 		await get_tree().process_frame
 	await _wait(1.5)
 	_rpc_client_report.rpc_id(1, inside_fall, landed_inside, cam_back, game.ship.contains(p.global_position),
-			mol.contains_point(p.global_position), p.global_position, mol.body.global_position)
+			mol.contains_point(p.global_position), p.global_position, mol.body.global_position,
+			game.company.cash, int(game.company.last_report.get("shift_total", 0)))
 
 
 # --- Host --------------------------------------------------------------------------------------
@@ -72,6 +73,7 @@ func _run_host(p: Player) -> void:
 	await _wait(1.0)
 	var remote := _remote_player()
 	_expect(remote != null and mol.contains_point(remote.global_position), "host ziet de client in de Mol (in de hub)")
+	game.company.contract = game.company.options[0] # opdracht zonder nieuwe wereld (die test ship_test)
 	mol.press(Mol.Cmd.DEPART)
 	while mol.mode != Mol.Mode.PARKED:
 		await get_tree().process_frame
@@ -94,6 +96,7 @@ func _run_host(p: Player) -> void:
 	if remote:
 		var dp: float = remote.global_position.distance_to(r[5])
 		_expect(dp < 0.6, "host ziet de client waar die zelf is (%.2f m)" % dp)
+	_expect(int(r[7]) == game.company.cash and int(r[8]) == 1, "client kreeg het incidentrapport en dezelfde kas (%s)" % UiTheme.euro(int(r[7])))
 	var ok := _failures.is_empty()
 	print("[net_ship_test] host: %d controles, %d mislukt → %s" % [_checks, _failures.size(), "GESLAAGD" if ok else "GEFAALD"])
 	_rpc_finish.rpc(ok)
@@ -117,8 +120,8 @@ func _rpc_client_ready(in_hub: bool, in_mol: bool) -> void:
 
 @rpc("any_peer", "reliable")
 func _rpc_client_report(inside_fall: bool, landed_inside: bool, cam_back: bool, in_hub: bool, in_mol: bool,
-		player_pos: Vector3, mol_pos: Vector3) -> void:
-	_client_report = [inside_fall, landed_inside, cam_back, in_hub, in_mol, player_pos, mol_pos]
+		player_pos: Vector3, mol_pos: Vector3, cash: int, report_shift: int) -> void:
+	_client_report = [inside_fall, landed_inside, cam_back, in_hub, in_mol, player_pos, mol_pos, cash, report_shift]
 
 
 @rpc("authority", "reliable")

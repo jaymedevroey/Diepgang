@@ -30,6 +30,8 @@ var quakes := PackedFloat32Array()
 var level := -INF
 ## Previews en tests: het magma vast op deze diepte onder de landingsplek (negatief = de klok).
 var debug_depth := -1.0
+## Tempo van de klok (opdracht met meer risico: sneller). De host zet het bij de start.
+var speed_factor := 1.0
 
 var _surface_y := 0.0
 var _mesh: MeshInstance3D
@@ -117,7 +119,7 @@ func t_eff() -> float:
 	var t := elapsed
 	for q in quakes:
 		t += adv * clampf((elapsed - q) / wave, 0.0, 1.0)
-	return t
+	return t * speed_factor
 
 
 ## Diepte van het magma onder de landingsplek nu.
@@ -130,7 +132,7 @@ func speed() -> float:
 	if not running:
 		return 0.0
 	var t := t_eff()
-	return risen(t + 1.0) - risen(t)
+	return risen(t + speed_factor) - risen(t)
 
 
 ## Hoe lang (s) tot het magma op hoogte `y` staat, volgens de curve (zonder nieuwe bevingen).
@@ -153,38 +155,40 @@ func seconds_until(y: float) -> float:
 		return INF
 	while risen(t + dt) - base < need:
 		dt += 0.25
-	return dt
+	return dt / speed_factor
 
 
 ## Host: de klok start (bij de landing van de Mol, of meteen als er geen schip is).
-func host_start() -> void:
+func host_start(factor := 1.0) -> void:
 	running = true
 	elapsed = 0.0
+	speed_factor = factor
 	quakes = PackedFloat32Array()
 	_reset_rules()
 	game.unrest.reset()
-	_rpc_clock.rpc(running, elapsed, quakes)
+	_rpc_clock.rpc(running, elapsed, quakes, speed_factor)
 
 
 func host_stop() -> void:
 	running = false
-	_rpc_clock.rpc(running, elapsed, quakes)
+	_rpc_clock.rpc(running, elapsed, quakes, speed_factor)
 
 
 ## Host: een beving zet de klok vooruit (golf over wave_s).
 func host_quake() -> void:
 	quakes.append(elapsed)
-	_rpc_clock.rpc(running, elapsed, quakes)
+	_rpc_clock.rpc(running, elapsed, quakes, speed_factor)
 
 
 ## Late joiner: de klok zoals die nu staat.
 func send_state(peer: int) -> void:
-	_rpc_clock.rpc_id(peer, running, elapsed, quakes)
+	_rpc_clock.rpc_id(peer, running, elapsed, quakes, speed_factor)
 
 
 @rpc("authority", "call_remote", "reliable")
-func _rpc_clock(run: bool, t: float, q: PackedFloat32Array) -> void:
+func _rpc_clock(run: bool, t: float, q: PackedFloat32Array, factor: float) -> void:
 	running = run
+	speed_factor = factor
 	# Kleine verschillen niet laten verspringen (netwerkvertraging): enkel bijsturen.
 	if absf(t - elapsed) > 0.5 or not run:
 		elapsed = t
@@ -337,6 +341,7 @@ func _rule_players() -> void:
 		if mol and mol.body.global_position.y + Mol.TRACK_BOTTOM > level + 2.0 and mol.mode != Mol.Mode.DOCKED:
 			to = mol.to_world_mol(Vector3(0.0, -1.2, 1.2))
 		game.ores.host_lose_bag(pl.peer_id)
+		game.company.host_melted()
 		pl.host_teleport(to)
 		_rpc_melted.rpc(pl.peer_id)
 

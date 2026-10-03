@@ -13,9 +13,9 @@ Afvinkbare taken per mijlpaal. Bron: [docs/GDD.md](../docs/GDD.md) §10 en §13.
 | Windows-build | `tools\export_windows.cmd` → `builds\windows\Diepgang.exe` |
 | Build online zetten (andere toestellen) | build in `builds\Diepgang-windows.zip` (enkel exe, pck, dll's, LEESMIJ), dan `gh release create vX.Y.Z builds/Diepgang-windows.zip --prerelease` op [jaymedevroey/Diepgang](https://github.com/jaymedevroey/Diepgang) (privé) |
 | Nettest (host + client, headless) | `py -3.11 tools/net_test.py` (of `--exe builds/windows/Diepgang.console.exe`) |
-| Vondsten, dragen, de Mol, sonar, schip en drop, tuning, menu's (headless) | `tools\godot.cmd --headless --path game -- --scenario=find_test --no-steam` (ook `carry_test`, `mol_test`, `sonar_test`, `mol_edge_test`, `stream_test`, `ore_test`, `ship_test`, `magma_test`, `tuning_test`, `ui_test`) |
+| Vondsten, dragen, de Mol, sonar, schip en drop, tuning, menu's (headless) | `tools\godot.cmd --headless --path game -- --scenario=find_test --no-steam` (ook `carry_test`, `mol_test`, `sonar_test`, `mol_edge_test`, `stream_test`, `ore_test`, `ship_test`, `magma_test`, `company_test`, `tuning_test`, `ui_test`) |
 | Magma en bevingen (screenshots) | `--scenario=magma_preview` (schacht, tunnel, grot, ver; `--depth=60`) · `--scenario=hud_preview --only=magma` (HUD, zone, beving met rotsen) |
-| Schip, hemel en ontwerpen (screenshots) | `--scenario=ship_preview` · `--scenario=sky_preview --sky=a\|b\|c` · `--scenario=concept_preview --model=res://assets/models/ekster_exterior.glb --close` |
+| Schip, hemel en ontwerpen (screenshots) | `--scenario=ship_preview` (`--only=firma`: terminal en incidentrapport) · `--scenario=sky_preview --sky=a\|b\|c` · `--scenario=concept_preview --model=res://assets/models/ekster_exterior.glb --close` |
 | Buitenkant van De Ekster bouwen | `"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" -b --factory-startup --python tools/blender/ekster_exterior.py`, daarna `--import` |
 | Rots per laag (voor/na) | `--scenario=terrain_preview --shot=naam` (tunnel en bekapte wand per laag, met GPU-tijd; `--only=klei,kristal`) |
 | HUD en menu (screenshots) | `--scenario=hud_preview` (korst, vondst, dragen, ver, piloot, vertrek, resultaat, pauze) · `--scenario=ui_preview` · `-- --menu-shot --menu-settings --menu-join` |
@@ -179,8 +179,11 @@ Stijl: Deep Rock Galactic + PEAK + Astroneer. Alle modellen in Blender (geen AI-
   - [ ] **6. Extractie met de grijper:** de Mol rijdt naar boven, De Ekster pikt hem op, terug in de dropbaai; achterblijvers worden vervangen (kosten).
     Verificatie: test met speler binnen en buiten; nettest.
     - 2026-10-03: werking klaar (grijper zakt, klep dicht, optrekken tot in de baai, luiken dicht, achterblijvers naar het schip). Nog te doen volgens het onderzoek: aankomsttijd en baken, 20 s instappen, de ladder voor wie te laat is, vervangingsfactuur, rustfase in de baai.
-  - [ ] **7. Opdracht, quota, teamkas, opslaan:** terminal met 2–3 planeten, kwartaal van 3 diensten, boete, kas, opslaan bij de host.
+  - [x] **7. Opdracht, quota, teamkas, opslaan:** terminal met 2–3 planeten, kwartaal van 3 diensten, boete, kas, opslaan bij de host.
     Verificatie: test (doel gehaald / gemist / opslaan en laden).
+    - 2026-10-03: `Company` (host beslist, iedereen krijgt de stand). Aan de terminal in de hub kies je één van drie **concessies** op Roestbol, met risico laag/middel/hoog (opbrengst ×1/×1,15/×1,35, magma ×0,85/×1/×1,2). Kiezen maakt een nieuwe wereld uit die seed (de hub blijft staan, het buitenschip schuift mee). Zonder opdracht geen drop. Na de dienst wordt alles in het laadruim **verkocht** (tijdelijk, tot de taxatiepoort er is, stap 8), min €120 per vervangrobot (achtergebleven of gesmolten). **Kwartaal** van 3 diensten, doel €2.000 × (40/65/85/100% voor 1–4 spelers), ×1,25 per kwartaal. Gemist: boete 50% van wat ontbrak (schuld) en reputatie −1. **Bewaren** bij de host in `user://saves/firma.json` na elke keuze en dienst; na laden opnieuw een opdracht kiezen. Het scherm van de terminal toont kas, kwartaal en quota. Getallen in `company.cfg`.
+    - Nog niet: echte andere planeten (enkel Roestbol, M4), reputatie die planeten ontgrendelt, upgrades om geld aan uit te geven, een eigen profiel per speler.
+    - Verificatie: nieuwe `company_test` (22 controles: opdrachten, quota per ploeg, verkopen, bonus, vervanging, schade, rapport, kwartaal gehaald/gemist met boete, bewaren en laden) geslaagd; `ship_test` +3 (zonder opdracht geen drop, kiezen = nieuwe wereld, ploeg blijft in de hub); `net_ship_test` +1 (client krijgt rapport en kas). Beelden `logs/firma_terminal.png`, `firma_rapport.png`, `firma_rapport_gemist.png` bekeken.
   - [ ] **8. Taxatie en museum:** taxatiepoort met onthulling één voor één, verkopen of schenken, museum met skeletsets, gaten met hints, namen op de bordjes.
     Verificatie: test + screenshots.
   - [x] **9. Magma en onrust:** magma stijgt (de enige klok), onrust door lawaai, bevingen, vallende rotsen in gemarkeerde zones.
@@ -197,7 +200,8 @@ Stijl: Deep Rock Galactic + PEAK + Astroneer. Alle modellen in Blender (geen AI-
   - [x] **10. Sonar met PING:** stil 12 m en vaag, PING tot 24 m maar luid.
     Verificatie: `sonar_test`.
     - 2026-10-03: de veeg komt nu tot 12 m (binnenste felle cirkel), de rand van de scoop is 24 m. PING met de oranje knop op de sonarkast of de F-toets (ook als passagier): een ring loopt in 0,6 s uit tot 24 m, scherpe blips (kern met ringetje) die 5 s blijven staan, daarna 8 s opladen (knop donker, "PING 7 S"). De host beslist; elke peer laat de ring zelf lopen. Signaal `Mol.noise_made` voor de onrust (stap 9). Nog geen geluid (keuze van Jayme). `sonar_test` 30 controles geslaagd (alles tot 24 m scherp, lawaai, opladen); beelden `logs/sonar_ping_ring.png` en `logs/sonar_ping_na.png` bekeken.
-  - [ ] **11. Incidentrapport** na elke dienst (prijzen, waarde, schade).
+  - [x] **11. Incidentrapport** na elke dienst (prijzen, waarde, schade).
+    - 2026-10-03: na het ophalen, in de hub: elke verkochte vondst met gaafheid en prijs, erts, de bonus van de opdracht, vervangrobots, verloren waarde door schade, bevingen, netto, de stand van het kwartaal (of gehaald/gemist met boete) en de kas. Wie later binnenkomt, krijgt het laatste rapport. Getest in `company_test` en `net_ship_test`; beelden bekeken (zie stap 7).
 - [ ] **M4 Inhoud** (november): Graafworm, gas, alle ±8 items, 3 planeettypes, neergaan en redden, cosmetica, mutators, opdrachten met uitdaging, tutorial-opdracht.
 - [ ] **M5 Samen** (Jayme beslist): Steam-lobby's en uitnodigingen, voice, test met 150 ms vertraging. Poort 2.
 - [ ] **M6 Geluid** (Jayme beslist).

@@ -233,6 +233,18 @@ func _rpc_swallowed(find_id: int) -> void:
 	game.magma.swallowed.emit(find_id)
 
 
+## Host: een vondst is weg (verkocht), bij iedereen.
+func host_remove(find_id: int) -> void:
+	_rpc_removed.rpc(find_id)
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_removed(find_id: int) -> void:
+	var it := item(find_id)
+	if it:
+		_remove(it)
+
+
 func _remove(it: FindItem) -> void:
 	var crust: Crust = crusts.get(it.find_id)
 	if crust:

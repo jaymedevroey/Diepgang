@@ -10,6 +10,8 @@ signal player_spawned(player: Player)
 signal player_removed(peer_id: int)
 ## Melding voor de HUD (bv. van het schip).
 signal notice(text: String, kind: String)
+## De lokale speler drukte E op de opdrachtterminal.
+signal terminal_requested(player: Player)
 
 ## Eigen kleur per speler (GDD §8).
 const COLORS: Array[Color] = [
@@ -28,6 +30,10 @@ var surface: PlanetSurface
 var magma: Magma
 ## Onrust (lawaai) en bevingen.
 var unrest: Unrest
+## De firma: kas, kwartaal, opdracht, rapport.
+var company: Company
+## Naam van de save van de firma (leeg = niet bewaren, bv. tests). Main zet dit.
+var company_save := ""
 ## Type van de huidige planeet (hemel, zon, sfeer).
 var planet_type := PlanetType.Id.ROESTBOL
 var mol: Mol
@@ -87,6 +93,10 @@ func _ready() -> void:
 	unrest.game = self
 	add_child(unrest)
 	terrain_sync.host_player_op.connect(unrest.host_player_op)
+	company = Company.new()
+	company.name = "Company"
+	company.game = self
+	add_child(company)
 	Net.peer_left.connect(_on_peer_left)
 	Tuning.changed.connect(func(_f: String, _k: String) -> void:
 		if multiplayer.is_server():
@@ -96,6 +106,7 @@ func _ready() -> void:
 func start_host(seed_value: int) -> void:
 	pit_seed = seed_value
 	_build_terrain([])
+	company.host_setup(company_save)
 
 
 func start_client() -> void:
@@ -137,6 +148,11 @@ func _build_terrain(ops: Array, finds_state: Array = [], ores_state: Array = [])
 		ship.game = self
 		add_child(ship)
 		ship.place_dock_at(exterior.dock_position() + Vector3(0.0, Ekster.HUB_ABOVE, 0.0))
+		company.changed.connect(_update_ship_screens)
+	elif exterior:
+		# Nieuwe wereld: het buitenschip hangt boven de nieuwe landingsplek. De hub blijft waar hij
+		# is (een aparte ruimte; de sprong van de Mol gaat van baai naar baai).
+		exterior.place_dock_at(EksterExterior.dock_above(terrain))
 	if mol == null:
 		mol = Mol.new()
 		mol.name = "Mol"
@@ -148,7 +164,7 @@ func _build_terrain(ops: Array, finds_state: Array = [], ores_state: Array = [])
 		# De klok loopt vanaf de landing tot de Mol terug in de baai staat.
 		mol.landed.connect(func() -> void:
 			if multiplayer.is_server():
-				magma.host_start())
+				magma.host_start(company.contract_magma()))
 		mol.noise_made.connect(func(amount: float, _where: Vector3) -> void: unrest.host_add(amount))
 	else:
 		mol.attach_terrain()
@@ -203,8 +219,34 @@ func from_hub(world: Vector3) -> Vector3:
 
 
 ## Terminal op het schip (lokale speler drukte E).
-func ship_terminal_used(_p: Player) -> void:
-	notice.emit("Opdrachten kiezen komt hier. Nu: stap in de Mol en trek aan de hendel om te droppen.", "info")
+func ship_terminal_used(p: Player) -> void:
+	terminal_requested.emit(p)
+
+
+## Host: een melding voor iedereen.
+func notice_all(text: String, kind := "info") -> void:
+	_rpc_notice.rpc(text, kind)
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_notice(text: String, kind: String) -> void:
+	notice.emit(text, kind)
+
+
+## Het scherm van de terminal in de hub: de stand van de firma.
+func _update_ship_screens() -> void:
+	if ship == null or ship.terminal_screen == null:
+		return
+	var c := company
+	var chosen := ("OPDRACHT: %s (RISICO %s)" % [c.contract.name, Company.RISK_NAMES[int(c.contract.risk)]]) if c.contract_ready() else "OPDRACHT: NOG NIET GEKOZEN"
+	ship.terminal_screen.text = "DIG · DIEPGANG INTERPLANETAIRE GRONDWERKEN
+
+KAS %s · KWARTAAL %d · DIENST %d/%d
+QUOTA %s / %s
+
+%s
+> E: OPDRACHT KIEZEN" % [
+			UiTheme.euro(c.cash), c.quarter, c.shift, Tuning.get_i("company", "shifts", 3), UiTheme.euro(c.earned), UiTheme.euro(c.quota()), chosen]
 
 
 func _on_terrain_loaded(stats: Dictionary) -> void:
@@ -264,6 +306,7 @@ func _accept(id: int) -> void:
 	mol.send_state(id)
 	magma.send_state(id)
 	unrest.send_state(id)
+	company.send_state(id)
 	var idx := _free_color()
 	_color_of[id] = idx
 	var pos := _spawn_pos(idx)

@@ -94,6 +94,7 @@ De Ekster (moederschip) → planeet en opdracht kiezen → drop met de Mol → b
     - Een kwartaal is 3 diensten, met een geldoel dat schaalt met het aantal spelers.
     - Wie het doel mist, krijgt een **boete** (schuld) en verliest reputatie.
     - **Upgrades en het museum blijven altijd behouden.** Reputatie bepaalt welke planeten je mag doen.
+    - Eerste versie (M3): drie concessies per dienst met een risico (meer opbrengst, sneller magma), doel €2.000 voor 4 spelers (40/65/85/100% voor 1–4), ×1,25 per kwartaal, boete 50% van het tekort. Cijfers in `company.cfg`.
 
 ### Waarom deze lus werkt
 - De quota met boete zorgt voor spanning: "nog één fossiel of nu naar boven?"
