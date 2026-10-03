@@ -20,6 +20,9 @@ uniform float seed_f = 1.0;
 // Verre landschap (PlanetSurface): altijd klei (het buigt met de planeet weg, dus zijn hoogte zegt
 // niets over de laag), nooit weggesneden.
 uniform bool far_terrain = false;
+// Landingsplek (PlanetSurface): xy = midden (wereld x/z), z = straal van de aangestampte kern,
+// w = waar ze overgaat in het gewone terrein (m). 0 = geen.
+uniform vec4 landing_pad = vec4(0.0);
 uniform float top_kristal = 35.0;
 uniform float top_graniet = 80.0;
 uniform float top_zandsteen = 125.0;
@@ -138,9 +141,17 @@ void fragment() {
 		layer = 3;
 	}
 	float near = 1.0 - smoothstep(12.0, 34.0, dist); // fijne details enkel van dichtbij
-	// Ruis kleiner dan een pixel vervaagt naar zijn gemiddelde (golving van 2 m, stof van 1,25 m).
-	float wave_k = 1.0 - smoothstep(300.0, 900.0, dist);
-	float fine_k = 1.0 - smoothstep(250.0, 700.0, dist);
+	// Hoe groot een pixel hier is (m; gemiddelde van beide assen, zodat scherend kijken over de grond
+	// de facetten niet wegneemt). Wat kleiner is dan een paar pixels, vervaagt naar zijn gemiddelde:
+	// anders kruipt van hoog in de lucht een fijn dambord over het terrein (ruisroosters, de afgeronde
+	// normalen per voxeldriehoek van 0,5 m, en de kromming per 2×2 pixels).
+	vec3 dpx = dFdx(wpos);
+	vec3 dpy = dFdy(wpos);
+	float px = sqrt(length(dpx) * length(dpy));
+	float wave_k = (1.0 - smoothstep(300.0, 900.0, dist)) * (1.0 - smoothstep(0.25, 0.7, px)); // golving, 2 m
+	float fine_k = (1.0 - smoothstep(250.0, 700.0, dist)) * (1.0 - smoothstep(1.2, 3.5, px)); // vlekken, 9 m
+	float dust_k = fine_k * (1.0 - smoothstep(0.15, 0.45, px)); // stof, 1,25 m
+	float aa = smoothstep(0.1, 0.35, px); // facetten en kromming: 0 = scherp, 1 = uitgemiddeld
 
 	vec3 base = lin(PAL_BASE[layer]);
 	vec3 light = lin(PAL_LIGHT[layer]);
@@ -178,15 +189,24 @@ void fragment() {
 	vec3 qv = rot * wn * QUANT[layer];
 	vec3 qi = round(qv);
 	vec3 nq = transpose(rot) * normalize(qi);
-	float facet_id = hash1(qi + cell * 0.0 + vec3(float(layer) * 3.1));
-	float qamt = QUANT_AMT[layer] * facet_strength * mix(0.6, 1.0, near);
+	float facet_id = mix(0.5, hash1(qi + cell * 0.0 + vec3(float(layer) * 3.1)), 1.0 - aa);
+	float qamt = QUANT_AMT[layer] * facet_strength * mix(0.6, 1.0, near) * (1.0 - 0.85 * aa);
 	qamt *= 1.0 - 0.5 * smoothstep(0.55, 0.9, up); // vloeren zijn vlakker (stof vult op)
+	// De landingsplek: aangestampt stof in het midden, dat aan de rand (ruw, niet rond) overgaat in
+	// het gewone terrein. Daar minder platen en barsten, zodat het geen tegelvloer wordt.
+	float pad_k = 0.0;
+	float pad_d = 1e6;
+	if (landing_pad.w > 0.0) {
+		pad_d = distance(wpos.xz, landing_pad.xy);
+		float rough_edge = (vnoise(vec3(wpos.xz * 0.12, 7.0)) - 0.5) * 9.0;
+		pad_k = (1.0 - smoothstep(landing_pad.z, landing_pad.w, pad_d + rough_edge)) * smoothstep(0.8, 0.95, up);
+	}
 	vec3 n = normalize(mix(wn, nq, qamt));
 	// Daarbovenop een kleine willekeurige kanteling per voronoi-cel: breekt grote vlakke wanden.
 	vec3 rv = hash33(cell + vec3(31.7, 5.1, 9.9)) * 2.0 - 1.0;
 	vec3 tilt = rv - dot(rv, n) * n;
 	// Geen afschuining: die tekende een omtrek rond elke cel. Vlakken grenzen hard aan elkaar.
-	n = normalize(n + tilt * FACET_TILT[layer] * 0.35 * facet_strength * near);
+	n = normalize(n + tilt * FACET_TILT[layer] * 0.35 * facet_strength * near * (1.0 - 0.75 * pad_k));
 
 	// 2. Kleur: grote vlekken, een tint per facet, af en toe een lichter of donkerder vlak.
 	float big = mix(0.5, vnoise(wpos * 0.11 + vec3(seed_s)), fine_k);
@@ -199,7 +219,7 @@ void fragment() {
 		col = mix(col, dark * 1.5, smoothstep(0.56, 0.8, lv) * 0.5 * far_k);
 		col = mix(col, light, smoothstep(0.44, 0.22, lv) * 0.3 * far_k);
 	}
-	col *= 0.9 + 0.2 * facet_id; // elk vlak een eigen tint, zoals geschilderd
+	col *= 0.9 + 0.2 * facet_id; // elk vlak een eigen tint, zoals geschilderd (van ver gemiddeld)
 	// Grens tussen twee vlakken: een dun licht lijntje, zoals een afgeschuinde rand die licht vangt.
 	float qedge = step(0.001, dot(fwidth(qi), vec3(1.0)));
 	col = mix(col, light * 1.15, qedge * 0.22 * near * qamt);
@@ -260,7 +280,7 @@ void fragment() {
 	// Enkel in vlekken: overal barstjes leest als tegels.
 	float cw = 0.018;
 	// (Enkel dichtbij uitrekenen: verder dan 34 m is camp nul.)
-	float cmask = near > 0.0 ? smoothstep(0.45, 0.7, vnoise(wpos * 0.33 + vec3(21.0))) * CRACKS[layer] : 0.0;
+	float cmask = near > 0.0 ? smoothstep(0.45, 0.7, vnoise(wpos * 0.33 + vec3(21.0))) * CRACKS[layer] * (1.0 - 0.8 * pad_k) : 0.0;
 	if (layer == 3) {
 		cmask *= smoothstep(0.45, 0.8, up); // klei: enkel droge barsten op de vloer
 	}
@@ -271,18 +291,23 @@ void fragment() {
 
 	// Kromming van de vorm zelf: bolle randen vangen licht, holtes worden donkerder (DRG-trucje).
 	vec3 g_n = normalize(wnrm);
-	vec3 dpx = dFdx(wpos);
-	vec3 dpy = dFdy(wpos);
 	float curv = (dot(dFdx(g_n), dpx) + dot(dFdy(g_n), dpy)) / max(dot(dpx, dpx) + dot(dpy, dpy), 1e-6);
+	curv *= 1.0 - aa; // per 2×2 pixels: van ver enkel ruis
 	col = mix(col, light * 1.12, smoothstep(0.5, 2.2, curv) * 0.35 * near);
 	col *= 1.0 - smoothstep(0.5, 2.2, -curv) * 0.3;
 
 	// 3. Stof op vloeren, donkerder en iets koeler onder overhangen.
-	float dn = fine_k > 0.0 ? mix(0.5, vnoise(wpos * 0.8 + vec3(4.0)), fine_k) : 0.5;
+	float dn = dust_k > 0.0 ? mix(0.5, vnoise(wpos * 0.8 + vec3(4.0)), dust_k) : 0.5;
 	float dust = smoothstep(0.5, 0.88, up) * (0.5 + 0.5 * dn);
 	vec3 dust_col = mix(light, vec3(dot(light, vec3(0.333))), 0.3);
 	col = mix(col, dust_col, dust * 0.45);
 	rough = mix(rough, 1.0, dust);
+	if (pad_k > 0.0) {
+		// Aangestampt stof, en in het midden een vlek die de stuwraketten van de Mol hebben geschroeid.
+		col = mix(col, dust_col * 0.93, 0.35 * pad_k);
+		float burn = (1.0 - smoothstep(2.5, 12.0, pad_d)) * (0.55 + 0.45 * vnoise(vec3(wpos.xz * 0.45, 3.0)));
+		col *= 1.0 - 0.28 * burn * pad_k;
+	}
 	float ceil_k = smoothstep(0.35, 0.85, -up);
 	col *= mix(vec3(1.0), vec3(0.66, 0.7, 0.8), ceil_k);
 
