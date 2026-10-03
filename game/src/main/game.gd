@@ -188,9 +188,14 @@ func _build_terrain(ops: Array, finds_state: Array = [], ores_state: Array = [])
 ## opnieuw uit een andere seed. De Mol, het schip en de spelers blijven.
 func _rebuild_world(seed_value: int) -> void:
 	pit_seed = seed_value
-	for old: Node in [terrain, surface]:
+	# De oude wereld blijft tot het einde van dit beeld in de boom (verborgen, stil, met een andere
+	# naam): godot_voxel werkt zijn terreinen pas later in het beeld bij en vroeg anders de plek op
+	# van een terrein dat al uit de boom was ("!is_inside_tree", vooral in co-op).
+	for old: Node3D in [terrain, surface]:
 		if old:
-			remove_child(old)
+			old.name = String(old.name) + "_oud"
+			old.process_mode = Node.PROCESS_MODE_DISABLED
+			old.visible = false
 			old.queue_free()
 	finds.clear()
 	ores.clear()
