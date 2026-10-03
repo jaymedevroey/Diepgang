@@ -317,6 +317,8 @@ func _handle(sender: int, button: int, arg: float) -> void:
 		Cmd.DEPART:
 			if inside and mode == Mode.DOCKED and not game.company.contract_ready():
 				_rpc_message.rpc("Eerst een opdracht kiezen, aan de terminal in de hub.")
+			elif inside and mode == Mode.DOCKED and not game.terrain.is_loaded:
+				_rpc_message.rpc("De Ekster is nog onderweg naar de concessie. Even geduld.")
 			elif inside and mode == Mode.DOCKED and game.terrain.is_loaded:
 				countdown = Tuning.get_f("ship", "drop_countdown_s", 8.0)
 				_beep_timer = 0.0

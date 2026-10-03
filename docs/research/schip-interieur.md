@@ -127,6 +127,10 @@ Uit de Level Design Book ([layout](https://book.leveldesignbook.com/process/layo
 
 ## Drie plattegrondvoorstellen
 
+Als tekening, op dezelfde schaal (`py -3.11 tools/plans/interior_plans.py`):
+
+![Drie plattegronden](img/interieur_plattegronden.png)
+
 ### A. "Atrium rond de klep" (2 verdiepingen)
 
 ```
