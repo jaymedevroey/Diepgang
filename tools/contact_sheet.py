@@ -223,8 +223,8 @@ def horizon(folder: Path, opts: dict) -> None:
 
     match = opts.get("match", "")
     files = [p for p in frames(folder, match) if match or re.search(r"hoogte_|horizon_|baai|_op_\d", p.stem)]
-    limit = float(opts.get("drop", 0.08))
-    lines = ["beeld | terreinrand midden / links / rechts (fractie van de hoogte) | daling | hemel in de onderste hoeken | oordeel"]
+    limit = float(opts.get("kink", 0.018))
+    lines = ["beeld | terreinrand midden / links / rechts (fractie van de hoogte) | afwijking van een gladde boog | hemel in de onderste hoeken | oordeel"]
     bad = []
     for p in files:
         im = Image.open(p).convert("RGB").resize((400, 225))
@@ -244,19 +244,30 @@ def horizon(folder: Path, opts: dict) -> None:
         c = float(np.median(rows[cx])) / h
         left = float(np.median(rows[:int(0.08 * w)])) / h
         right = float(np.median(rows[int(0.92 * w):])) / h
-        drop = max(left, right) - c
+        # Een gebogen horizon (een planeet) is een gladde boog; de rand van een vierkant plateau is een
+        # trapezium met knikken. Afwijking van een parabool, robuust (een schip of de Mol in beeld
+        # geeft een plaatselijke uitschieter, geen spreiding over de hele rand).
+        xs = np.linspace(-1.0, 1.0, w)
+        r = rows / h
+        ok = (r > 0.02) & (r < 0.98)
+        kink = float("nan")
+        if ok.sum() > 0.8 * w:
+            res = r[ok] - np.polyval(np.polyfit(xs[ok], r[ok], 2), xs[ok])
+            kink = 1.4826 * float(np.median(np.abs(res - np.median(res))))
         corners = np.concatenate([sky[int(0.8 * h):, :int(0.12 * w)].ravel(), sky[int(0.8 * h):, int(0.88 * w):].ravel()])
         corner_sky = float(corners.mean())
         verdict = "ok"
         if c > 0.97:
             verdict = "GEEN GROND IN BEELD (alles waas?)"
-        elif drop > limit or corner_sky > 0.3:
+        elif kink != kink:
+            verdict = "geen volle horizon (iets ervoor?)"
+        elif kink > limit or corner_sky > 0.3:
             verdict = "RAND ZICHTBAAR?"
             bad.append(p.stem)
-        lines.append(f"{p.stem[:40]:40s} {c:5.2f} / {left:5.2f} / {right:5.2f}   {drop:+5.2f}   {corner_sky:4.2f}   {verdict}")
+        lines.append(f"{p.stem[:40]:40s} {c:5.2f} / {left:5.2f} / {right:5.2f}   {kink:6.3f}   {corner_sky:4.2f}   {verdict}")
     lines.append("")
     lines.append(f"verdacht: {len(bad)} van {len(files)}" + (f"  ({', '.join(bad)})" if bad else ""))
-    lines.append("Heuristiek: een daling > %.2f of > 30%% hemel in de onderste hoeken. Altijd de beelden zelf bekijken." % limit)
+    lines.append("Heuristiek: afwijking van een gladde boog > %.3f, of > 30%% hemel in de onderste hoeken. Altijd de beelden zelf bekijken." % limit)
     out = folder.parent / f"{folder.name}_horizon.txt"
     out.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
     print("\n".join(lines[-2:]))

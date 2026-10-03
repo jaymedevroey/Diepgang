@@ -199,6 +199,7 @@ func _drop_once(p: Player, mol: Mol, ship: Ekster, tag: String, skip: bool, stay
 	var start := _gt
 	var landed_at := -1.0
 	var skip_tries := 0
+	var outside_since := -1.0
 	var next_crossing := 0
 	_skip_seen_at = -1.0
 	while _gt - start < 120.0:
@@ -208,9 +209,13 @@ func _drop_once(p: Player, mol: Mol, ship: Ekster, tag: String, skip: bool, stay
 			_kade_camera(ship)
 			await _shot("%s_kade" % tag, 0.0)
 			p.camera.make_current()
-		# Overslaan: enkel in het buitenbeeld, hoog genoeg; een paar keer proberen tot de Mol springt.
-		if skip and _skip_seen_at < 0.0 and skip_tries < 6 and mol.mode == Mol.Mode.DROPPING \
-				and get_viewport().get_camera_3d() is DropCam and _height() > 200.0:
+		# Overslaan: enkel in het buitenbeeld (een tijdje, buiten de hub), hoog genoeg; een paar keer
+		# proberen tot de Mol springt.
+		var outside := mol.mode == Mol.Mode.DROPPING and get_viewport().get_camera_3d() is DropCam and _height() < 1000.0
+		if outside and outside_since < 0.0:
+			outside_since = _gt
+		if skip and _skip_seen_at < 0.0 and skip_tries < 6 and outside and _gt - outside_since > 0.3 and _height() > 200.0 \
+				and mol.drop_variant == Mol.DropVariant.FULL:
 			if InputMap.has_action("skip_cinematic"):
 				skip_tries += 1
 				_press_action("skip_cinematic")
@@ -233,7 +238,9 @@ func _drop_once(p: Player, mol: Mol, ship: Ekster, tag: String, skip: bool, stay
 					next_crossing += 1
 				await _shot("%s_op_%03dm" % [tag, int(CROSSINGS[next_crossing - 1])], 0.0)
 	if skip:
-		print("[drop_sequence] overslaan: %s" % ("gezien op %.2f s" % _skip_seen_at if _skip_seen_at >= 0.0 else "NIET gezien"))
+		print("[drop_sequence] overslaan: sprong van de Mol %s, drop werd %s" % [
+			"gezien op %.2f s" % _skip_seen_at if _skip_seen_at >= 0.0 else "NIET gezien",
+			Mol.DropVariant.keys()[mol.drop_variant]])
 
 
 ## De hub met open luiken (de Mol is op de planeet): door de baai naar beneden kijken, zoals wie
