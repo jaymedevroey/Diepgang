@@ -221,7 +221,7 @@ Een grote rupsvoertuig-drilboor (±10 m lang, ±6 m breed) van DIG: vooraan een 
 
 ## 6. Gevaren en wezens
 
-- **Magma:** een stijgend vlak met shader en een dodelijke zone, de enige klok van een dienst. Geen stromingssimulatie. Het slokt losse buit op.
+- **Magma:** een stijgend vlak met shader en een dodelijke zone, de enige klok van een dienst. Geen stromingssimulatie. Het slokt losse buit op. Eerst 2 min stil, dan steeds sneller (zonder bevingen na ±21 min boven); elke beving zet de klok 40 s vooruit; op −60 m komt de noodophaling ([onderzoek](research/magma-en-onrust.md), cijfers in `magma.cfg`).
 - **Instortingen:** vallende rotsblokken (fysica-objecten) met stof in **gemarkeerde onstabiele zones**. Spannend en vermijdbaar, en het terrein verandert er niet door.
 - **Gasbellen:** een zichtbare gele waas, en de T2-scanner toont ze. Ze ontploffen bij vonken, bijvoorbeeld van de boor.
 - **Graafworm** (het enige wezen in Early Access):

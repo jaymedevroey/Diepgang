@@ -107,6 +107,14 @@ func setup(planet_seed: int, size: Vector3i) -> void:
 
 
 ## Hoogte van het oppervlak (voxels) op kolom x/z, zonder rotsblokken.
+## Grotten in wereldmeters: xyz = midden, w = horizontale straal (de hoogte is w / CAVERN_SQUASH).
+func caverns_world(voxel_size: float) -> Array[Vector4]:
+	var out: Array[Vector4] = []
+	for c in _caverns:
+		out.append(c * voxel_size)
+	return out
+
+
 func surface_at(x: float, z: float) -> float:
 	var d := Vector2(x, z).distance_to(shaft_center)
 	# Landingsplek: vlak in het midden, met een zachte overgang.

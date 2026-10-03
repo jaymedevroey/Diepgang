@@ -769,6 +769,7 @@ func _extract(delta: float) -> void:
 		_rpc_flags.rpc(true, lights_on)
 		_set_mode(Mode.PARKED, 0)
 		_rpc_event.rpc(Event.ARRIVED)
+		game.magma.host_start() # zonder schip: meteen de volgende dienst, de klok opnieuw
 		# Wie niet aan boord was, klom te voet door de tunnel naar boven.
 		var left := 0
 		var left_peers: Array = []
@@ -815,6 +816,19 @@ func _hold_docked() -> void:
 	thrust = 0.0
 	vertical_speed = 0.0
 	game.exterior.grapple_depth = 0.0
+
+
+## Host: de Mol vertrekt vanzelf naar boven (magma: noodophaling of te heet), na `seconds`
+## aftellen. False als hij al vertrekt of niet op de planeet is.
+func host_emergency(seconds: float, text: String) -> bool:
+	if not mode in [Mode.PARKED, Mode.DRIVING, Mode.AUTO_DOWN] or (_path.size() <= 1 and game.ship == null):
+		return false
+	countdown = seconds
+	_beep_timer = 0.0
+	_rpc_event.rpc(Event.HORN)
+	_set_mode(Mode.COUNTDOWN, 0)
+	_rpc_message.rpc(text)
+	return true
 
 
 ## Host: de Mol springt naar een andere plek (hub ↔ buitenschip). Iedereen tegelijk, zonder
@@ -957,6 +971,7 @@ func _dock() -> void:
 	_rpc_flags.rpc(true, lights_on)
 	_set_mode(Mode.DOCKED, 0)
 	_rpc_event.rpc(Event.ARRIVED)
+	game.magma.host_stop()
 	var items := cargo_contents()
 	var value := 0
 	for it: FindItem in items:
@@ -1072,15 +1087,31 @@ func _update_visual() -> void:
 		var ore: PackedInt32Array = game.ores.hold
 		visual.set_readout("%s
 DIEPTE   %4d M
-HELLING  %+4d°
+%s
+ONRUST   %4d%%
 BRANDST. %4d%%
 LAADRUIM %d · €%d
-ERTS     %d · €%d" % [state, int(depth()), int(round(rad_to_deg(pitch))), int(fuel * 100.0), cargo.size(), value,
-				OreField.units(ore), OreField.value(ore)])
+ERTS     %d · €%d" % [state, int(depth()), _magma_line(), int(game.unrest.value / maxf(1.0, Tuning.get_f("unrest", "stage", 100.0)) * 100.0),
+				int(fuel * 100.0), cargo.size(), value, OreField.units(ore), OreField.value(ore)])
 		visual.feed_text = "%d M  ·  %s  ·  %.1f M/S" % [int(depth()), Strata.NAMES[front].to_upper(), absf(speed)]
 	# Camerascherm enkel renderen als de lokale speler in de Mol is.
 	var me: Player = game.player_node(Net.my_id())
 	visual.feed_active = me != null and contains_point(me.global_position)
+
+
+## Statusscherm: hoe ver het magma onder de Mol staat, en dichtbij ook wanneer het hier is.
+func _magma_line() -> String:
+	var magma: Magma = game.magma
+	if not magma.visible:
+		return "MAGMA       -"
+	var gap := body.global_position.y + TRACK_BOTTOM - magma.level
+	if gap <= 0.0:
+		return "! MAGMA: HEET"
+	if gap < Tuning.get_f("magma", "alarm_1", 40.0):
+		var s := magma.seconds_until(body.global_position.y + TRACK_BOTTOM)
+		var eta := "" if s == INF else " %d:%02d" % [int(s) / 60, int(s) % 60]
+		return "MAGMA %3d M%s" % [int(gap), eta]
+	return "MAGMA    %4d M" % int(gap)
 
 
 # --- Botsvormen en knoppen ---------------------------------------------------------------------

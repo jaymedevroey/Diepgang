@@ -28,6 +28,9 @@ var _prev_velocity: Dictionary = {} # host: find_id -> Vector3
 var _stowed := {} # find_id -> Transform3D relatief tot de Mol (laadruim, zie _stow)
 var _parked := {} # find_id -> true: bevroren omdat er geen collision onder ligt (streaming)
 var _send_timer := 0.0
+var _gone := PackedInt32Array() # opgeslokt door het magma (voor wie later binnenkomt)
+var _by_id := {} # find_id -> FindItem (items blijft niet op volgorde: het magma haalt er weg)
+var _next_id := 0
 
 
 func generate(pit_seed: int) -> void:
@@ -79,6 +82,9 @@ func clear() -> void:
 		c.queue_free()
 	items.clear()
 	crusts.clear()
+	_gone.clear()
+	_by_id.clear()
+	_next_id = 0
 	_stowed.clear()
 	_parked.clear()
 	_prev_velocity.clear()
@@ -97,11 +103,13 @@ func _place(rng: RandomNumberGenerator, where: Callable) -> void:
 			continue
 		var kind: FindKinds.Kind = forced if forced >= 0 else FindKinds.pick_kind(rng, pos.y, t.layer_at(pos), forced == -2)
 		var item := FindItem.new()
-		item.setup(items.size(), kind)
+		item.setup(_next_id, kind)
+		_next_id += 1
 		add_child(item)
 		item.global_position = pos
 		item.rotation = rot
 		items.append(item)
+		_by_id[item.find_id] = item
 		var crust := Crust.new()
 		crust.name = "Crust%d" % item.find_id
 		crust.setup(item.find_id, item.half_extents, Tuning.get_f("finds", "crust_hp", 4.0), float(item.find_id) * 3.7)
@@ -120,7 +128,7 @@ func _far_from_others(pos: Vector3) -> bool:
 
 
 func item(id: int) -> FindItem:
-	return items[id] if id >= 0 and id < items.size() else null
+	return _by_id.get(id)
 
 
 # --- Korst raken --------------------------------------------------------------
@@ -203,6 +211,40 @@ func _rpc_freed(find_id: int) -> void:
 		it.freeze = false
 		it.apply_central_impulse(Vector3.UP * Tuning.get_f("finds", "free_impulse", 1.2) * it.mass)
 	find_freed.emit(it)
+
+
+# --- Het magma slokt op ----------------------------------------------------
+
+## Host: een vondst ligt te lang in het magma (los of nog in de rots): weg, bij iedereen.
+func host_swallow(find_id: int) -> void:
+	_rpc_swallowed.rpc(find_id)
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_swallowed(find_id: int) -> void:
+	var it := item(find_id)
+	if it == null:
+		return
+	# Enkel een sisser waar iemand het kan zien (het magma slokt soms tientallen tegelijk op).
+	var cam := get_viewport().get_camera_3d()
+	if cam and cam.global_position.distance_to(it.global_position) < 30.0:
+		game.fx.grit_puff(it.global_position, Vector3.UP, Color(1.0, 0.45, 0.1))
+	_remove(it)
+	game.magma.swallowed.emit(find_id)
+
+
+func _remove(it: FindItem) -> void:
+	var crust: Crust = crusts.get(it.find_id)
+	if crust:
+		crust.queue_free()
+		crusts.erase(it.find_id)
+	items.erase(it)
+	_by_id.erase(it.find_id)
+	_stowed.erase(it.find_id)
+	_parked.erase(it.find_id)
+	_prev_velocity.erase(it.find_id)
+	_gone.append(it.find_id)
+	it.queue_free()
 
 
 # --- De Mol schept op ------------------------------------------------------
@@ -522,6 +564,8 @@ func snapshot() -> Array:
 	for it in items:
 		var crust: Crust = crusts.get(it.find_id)
 		out.append([it.find_id, crust.hp if crust else 0.0, it.condition, it.freed, it.global_transform, it.carriers])
+	for id in _gone:
+		out.append([id]) # weg (magma)
 	return out
 
 
@@ -529,6 +573,9 @@ func apply_snapshot(state: Array) -> void:
 	for s in state:
 		var it := item(s[0])
 		if it == null:
+			continue
+		if s.size() == 1:
+			_remove(it)
 			continue
 		it.condition = s[2]
 		var crust: Crust = crusts.get(it.find_id)

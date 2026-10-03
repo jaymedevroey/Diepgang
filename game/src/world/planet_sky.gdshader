@@ -180,7 +180,9 @@ vec4 giant(vec3 d, vec3 s) {
 
 void sky() {
 	vec3 d = normalize(EYEDIR);
-	vec3 s = normalize(LIGHT0_DIRECTION);
+	// Onder de grond staat de zon uit (Atmosphere): dan is LIGHT0_DIRECTION nul, en normalize(0)
+	// geeft NaN. Een NaN in de hemel zit dan ook in de weerkaatsing van elk materiaal: alles zwart.
+	vec3 s = (LIGHT0_ENABLED && dot(LIGHT0_DIRECTION, LIGHT0_DIRECTION) > 1e-6) ? normalize(LIGHT0_DIRECTION) : vec3(0.0, 1.0, 0.0);
 	float mu = dot(d, s);
 	float alt = max(POSITION.y - surface_y, 0.0);
 	float dip = sqrt(2.0 * alt / planet_radius);

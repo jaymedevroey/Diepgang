@@ -65,11 +65,13 @@ const SCENARIOS := {
 	"concept_preview": preload("res://src/main/scenarios/concept_preview.gd"),
 	"sky_preview": preload("res://src/main/scenarios/sky_preview.gd"),
 	"net_ship_test": preload("res://src/main/scenarios/net_ship_test.gd"),
+	"magma_preview": preload("res://src/main/scenarios/magma_preview.gd"),
+	"magma_test": preload("res://src/main/scenarios/magma_test.gd"),
 }
 ## Scenario's die op De Ekster beginnen (de Mol in de dropbaai). De rest begint op de planeet.
 const SCENARIOS_ON_SHIP := ["play", "ship_preview", "ship_test", "net_ship_test"]
 ## Scenario's waarin de host ook een eigen speler krijgt.
-const SCENARIOS_WITH_PLAYER := ["play", "ship_preview", "ship_test", "net_ship_test", "net_test", "find_test", "carry_test", "carry_preview", "mol_test", "sonar_test", "mol_edge_test", "stream_test", "ore_test", "drive_perf", "mol_preview", "hud_preview", "ui_test", "tool_preview"]
+const SCENARIOS_WITH_PLAYER := ["play", "ship_preview", "ship_test", "net_ship_test", "net_test", "find_test", "carry_test", "carry_preview", "mol_test", "sonar_test", "mol_edge_test", "stream_test", "ore_test", "drive_perf", "mol_preview", "hud_preview", "ui_test", "tool_preview", "magma_test"]
 
 var game: Game
 var player: Player
@@ -208,6 +210,8 @@ func _on_world_loaded(stats: Dictionary) -> void:
 	var overview := $OverviewCamera as Camera3D
 	overview.position = terrain.world_size() * Vector3(0.5, 1.0, 0.5) + Vector3(0, 25, 45)
 	overview.look_at(terrain.shaft_center_world() + Vector3(0, terrain.world_size().y - 15, 0))
+	if not game.spawn_host_player and Net.is_host():
+		_loading.finish() # scenario's zonder speler (previews): anders blijft het laadscherm staan
 	if scenario_node and scenario_node.has_method("on_terrain_loaded"):
 		scenario_node.on_terrain_loaded(stats)
 

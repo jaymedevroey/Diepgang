@@ -26,6 +26,12 @@ func add_trauma(amount: float) -> void:
 	_trauma = clampf(_trauma + amount * Settings.get_f("interface/camera_shake"), 0.0, 1.0)
 
 
+## Minstens zoveel trauma (bevingen): een ondergrens vecht niet tegen het verval, zoals steeds
+## trauma bijtellen dat zou doen (onderzoek magma-en-onrust, E).
+func hold_trauma(amount: float) -> void:
+	_trauma = maxf(_trauma, clampf(amount * Settings.get_f("interface/camera_shake"), 0.0, 1.0))
+
+
 ## Stoot de camera weg (pitch omhoog = positief), veert daarna terug.
 func kick(pitch_deg: float, yaw_deg: float) -> void:
 	_kick_vel += Vector2(deg_to_rad(pitch_deg), deg_to_rad(yaw_deg)) * 40.0 * Settings.get_f("interface/camera_shake")

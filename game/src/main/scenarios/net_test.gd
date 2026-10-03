@@ -145,6 +145,12 @@ func _run_client(p: Player) -> void:
 	p.global_position = back
 	await get_tree().create_timer(0.8).timeout
 	_rpc_tuning_report.rpc_id(1, Tuning.get_f("carry", "throw_speed", 0.0))
+	# Magma en een beving: de host beslist, de client ziet dezelfde klok en hetzelfde rotsplan.
+	_rpc_please_quake.rpc_id(1)
+	await get_tree().create_timer(1.5).timeout
+	var u: Unrest = main.game.unrest
+	var m: Magma = main.game.magma
+	_rpc_quake_report.rpc_id(1, u.phase, u.stage, u._plan.size(), m.elapsed, m.quakes.size(), m.level)
 	var sum := t.checksum(t.focus_world, 40.0) # rond de start: daar graven host en client, en rijdt de Mol
 	print("[net_test] client: %d slagen, vondst vrij: %s, checksum %s" % [done, it.freed, sum])
 	_rpc_report.rpc_id(1, sum, p.global_position, done)
@@ -218,6 +224,25 @@ func _rpc_find_report(id: int, freed: bool, pos: Vector3) -> void:
 	_expect(freed and it.freed, "vondst %d vrij bij client en host" % id)
 	var d := it.global_position.distance_to(pos)
 	_expect(d < 0.3, "vondst ligt bij client en host op dezelfde plek (%.2f m verschil)" % d)
+
+
+@rpc("any_peer", "reliable")
+func _rpc_please_quake() -> void:
+	if multiplayer.is_server():
+		Tuning.set_value("unrest", "min_gap_s", 0.0)
+		main.game.unrest.value = 100.0
+
+
+@rpc("any_peer", "reliable")
+func _rpc_quake_report(phase: int, stage: int, plan_n: int, elapsed: float, quakes_n: int, level: float) -> void:
+	if not multiplayer.is_server():
+		return
+	var u: Unrest = main.game.unrest
+	var m: Magma = main.game.magma
+	_expect(phase != Unrest.Phase.CALM and stage == u.stage and stage >= 1, "client beleeft dezelfde beving (%d / %d)" % [stage, u.stage])
+	_expect(plan_n == u._plan.size(), "zelfde rotsplan bij client en host (%d / %d)" % [plan_n, u._plan.size()])
+	_expect(absf(elapsed - m.elapsed) < 1.0, "magmaklok gelijk (%.2f s verschil)" % absf(elapsed - m.elapsed))
+	_expect(quakes_n == m.quakes.size() and absf(level - m.level) < 0.1, "magma op dezelfde hoogte (%.2f m verschil)" % absf(level - m.level))
 
 
 @rpc("any_peer", "reliable")

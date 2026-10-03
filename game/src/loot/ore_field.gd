@@ -259,6 +259,11 @@ func _rpc_hold(counts: PackedInt32Array) -> void:
 
 
 ## Host: na de extractie. Het laadruim is verkocht; wie achterbleef, is zijn zak kwijt.
+## Host: de ertszak van een speler is weg (zijn robot smolt).
+func host_lose_bag(peer: int) -> void:
+	_rpc_bag.rpc(peer, PackedInt32Array([0, 0, 0, 0]))
+
+
 func host_after_extraction(left_behind: Array) -> void:
 	_rpc_hold.rpc(PackedInt32Array([0, 0, 0, 0]))
 	for peer: int in left_behind:

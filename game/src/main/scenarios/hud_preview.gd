@@ -8,6 +8,7 @@ extends Node
 ##   vertrek    de Mol telt af (banner), met meldingen
 ##   resultaat  eindoverzicht van een dienst
 ##   pauze      pauzemenu met uitnodigen
+##   magma      in een grot: magma dichtbij, onrust hoog, een zone aan het plafond, en een beving
 ## tools\godot.cmd --path game --resolution 1600x900 -- --scenario=hud_preview --no-steam [--only=korst,dragen]
 
 var main: Node
@@ -25,6 +26,10 @@ func _run(p: Player) -> void:
 	var want := func(n: String) -> bool: return only.is_empty() or n in only
 	await _wait(2.0)
 	p.set_physics_process(false)
+	if only.size() == 1 and only[0] == "magma":
+		await _magma(p, t)
+		get_tree().quit(0)
+		return
 
 	# Een vondst met korst die nog in de rots zit: open ruimte ervoor graven en ernaar kijken.
 	var it: FindItem = finds.items[1]
@@ -84,6 +89,31 @@ func _run(p: Player) -> void:
 		await _shot("hud_pauze", 0.6)
 		main._pause.close()
 	get_tree().quit(0)
+
+
+## Grot 20 m diep, het magma 22 m onder de speler, onrust 85%, een zone aan het plafond; dan een beving.
+func _magma(p: Player, t: TerrainAPI) -> void:
+	var game: Game = main.game
+	var sc := t.shaft_center_world()
+	var top := t.surface_height_at(sc.x + 20.0, sc.z + 20.0)
+	var c := Vector3(sc.x + 20.0, top - 20.0, sc.z + 20.0)
+	for k in 10:
+		t.debug_dig(c + Vector3(randf_range(-5, 5), randf_range(-1.5, 2.0), randf_range(-5, 5)), randf_range(3.5, 5.0))
+	t.debug_dig(c + Vector3(0, -3.0, 0), 4.5)
+	var zone := Vector3(c.x + 3.0, c.y + 4.0, c.z - 2.0)
+	game.unrest.zones = [Vector4(zone.x, zone.y, zone.z, 4.0)] as Array[Vector4]
+	game.magma.debug_depth = 20.0 + 1.2 + 22.0
+	game.unrest.value = 85.0
+	_look_at(p, c + Vector3(-4.0, -1.5, 4.0), zone)
+	t.add_viewer(p, 60.0, 30.0)
+	while not t.is_area_ready(c, 20.0):
+		await _wait(0.2)
+	await _shot("hud_magma", 1.5)
+	Tuning.set_value("unrest", "min_gap_s", 0.0)
+	game.unrest.value = 100.0
+	await _shot("hud_beving_komt", 1.0)
+	await _shot("hud_beving", 4.4)
+	await _shot("hud_beving_rotsen", 1.6)
 
 
 func _look_at(p: Player, from: Vector3, target: Vector3) -> void:

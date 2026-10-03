@@ -411,6 +411,20 @@ func set_ore_glints(points: Array[Vector4]) -> void:
 	mat.set_shader_parameter("ore_count", mini(points.size(), 16))
 
 
+## Onstabiele zones (Unrest) in de rotsshader tekenen: barsten en stof waar ze de wand raken.
+func set_hazard_zones(zones: Array[Vector4]) -> void:
+	var mat := _terrain.material_override as ShaderMaterial
+	var arr := PackedVector4Array(zones)
+	arr.resize(16)
+	mat.set_shader_parameter("hazard_zones", arr)
+	mat.set_shader_parameter("hazard_count", mini(zones.size(), 16))
+
+
+## Grotten (wereld): xyz = midden, w = horizontale straal; hoogte = w / PlanetGenerator.CAVERN_SQUASH.
+func caverns() -> Array[Vector4]:
+	return _generator.caverns_world(VOXEL_SIZE)
+
+
 ## Is de voxeldata rond dit punt geladen (los van meshes en collision)?
 func data_loaded(world: Vector3) -> bool:
 	return _terrain.has_data_block(_terrain.voxel_to_data_block(_terrain.to_local(world)))

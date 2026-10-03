@@ -25,6 +25,13 @@ uniform vec4 ore_colors[4];
 // Grof raster van het speelgebied (PlanetSurface): dichter dan dit bij de camera is het echte
 // voxelterrein geladen, dus daar niet tekenen (anders sluit het gaten en tunnels af). 0 = uit.
 uniform float near_cutoff = 0.0;
+// Onstabiele zones (Unrest): xyz = midden, w = straal. Waar de wand in een zone ligt: een net van
+// donkere barsten en fijn stof (en Unrest laat er stof uit het plafond sijpelen).
+uniform vec4 hazard_zones[16];
+uniform int hazard_count = 0;
+// Magma (Magma.gd): hoogte van het oppervlak, en tot hoe hoog de rots erboven opwarmt.
+global uniform float magma_height;
+global uniform float magma_heat_m;
 
 varying vec3 wpos;
 varying vec3 wnrm;
@@ -273,6 +280,49 @@ void fragment() {
 		col = mix(col, ore_c * 0.4, ore_k * ore_k * 0.28);
 		col = mix(col, ore_c, speck * 0.8);
 		emit += ore_c * (speck * twinkle * (0.9 + 1.6 * ore_k) + ore_k * ore_k * 0.04);
+	}
+
+	// Onstabiele zone: een net van donkere barsten, licht stof, en gele krijtstrepen op het plafond.
+	float zone_k = 0.0;
+	for (int i = 0; i < hazard_count; i++) {
+		vec3 dz = wpos - hazard_zones[i].xyz;
+		float r = hazard_zones[i].w;
+		zone_k = max(zone_k, 1.0 - smoothstep(r * 0.75, r * 1.05, length(dz)));
+	}
+	if (zone_k > 0.0) {
+		vec3 zc = wpos * 1.3 + vec3(seed_f * 5.7);
+		vec3 zi = floor(zc);
+		vec3 zf = fract(zc);
+		// Voronoi in 3D (grof), de randen zijn de barsten.
+		float d1 = 8.0;
+		float d2 = 8.0;
+		for (int k = 0; k < 27; k++) {
+			vec3 g = vec3(float(k % 3) - 1.0, float((k / 3) % 3) - 1.0, float(k / 9) - 1.0);
+			vec3 o = vec3(hash1(zi + g), hash1(zi + g + vec3(3.1)), hash1(zi + g + vec3(7.7)));
+			float d = length(g + o - zf);
+			if (d < d1) {
+				d2 = d1;
+				d1 = d;
+			} else if (d < d2) {
+				d2 = d;
+			}
+		}
+		float zcrack = 1.0 - smoothstep(0.0, 0.11, d2 - d1);
+		float ceiling = clamp(-n.y, 0.0, 1.0);
+		col = mix(col, col * 1.3 + vec3(0.07, 0.06, 0.045), zone_k * 0.4); // fijn stof
+		col = mix(col, vec3(0.015, 0.012, 0.01), zcrack * zone_k * (0.7 + 0.3 * ceiling));
+	}
+
+	// Magma eronder: de rots warmt op naar donkerrood, vooral vlakken die naar beneden kijken, met
+	// een felle rand vlak boven het magma. Zo gloeit de plek waar rots en magma elkaar raken.
+	float above_m = wpos.y - magma_height;
+	if (above_m < magma_heat_m && above_m > -3.0) {
+		float heat = 1.0 - smoothstep(0.0, magma_heat_m, max(above_m, 0.0));
+		float down = clamp(0.5 - 0.5 * n.y, 0.0, 1.0);
+		col = mix(col, col * vec3(0.5, 0.22, 0.15), heat * 0.65);
+		emit += vec3(1.0, 0.22, 0.03) * heat * heat * (0.06 + 0.3 * down);
+		float rim = 1.0 - smoothstep(0.0, 0.3, above_m);
+		emit += vec3(1.0, 0.36, 0.05) * rim * rim * 2.2;
 	}
 
 	NORMAL = normalize((VIEW_MATRIX * vec4(n, 0.0)).xyz);

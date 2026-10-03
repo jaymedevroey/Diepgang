@@ -8,6 +8,8 @@ extends Node
 ## Staat op elk peer op hetzelfde pad (Game/TerrainSync) zodat RPC's aankomen.
 
 signal remote_op_applied(op: Dictionary)
+## Host: een speler groef (houweel of boor), na de controle. Voor de onrust (lawaai).
+signal host_player_op(sender: int, op: Dictionary)
 
 const MAX_OP_DISTANCE := 6.0 # meter tussen speler en op-centrum (bereik + marge voor vertraging)
 
@@ -32,6 +34,7 @@ func submit_chip(world_hit: Vector3, normal: Vector3, radius_m: float, depth_m: 
 	t.apply_op(op)
 	if Net.is_host():
 		_broadcast(op, Net.my_id())
+		host_player_op.emit(Net.my_id(), op)
 	else:
 		_rpc_submit.rpc_id(1, op)
 	return true
@@ -47,6 +50,7 @@ func submit_sphere(world_center: Vector3, radius_m: float, tool: Strata.Tool) ->
 	t.apply_op(op)
 	if Net.is_host():
 		_broadcast(op, Net.my_id())
+		host_player_op.emit(Net.my_id(), op)
 	else:
 		_rpc_submit.rpc_id(1, op)
 	return true
@@ -92,6 +96,7 @@ func _rpc_submit(op: Dictionary) -> void:
 	terrain().apply_op(op)
 	remote_op_applied.emit(op)
 	_broadcast(op, sender)
+	host_player_op.emit(sender, op)
 
 
 @rpc("authority", "reliable")

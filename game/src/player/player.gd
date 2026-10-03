@@ -32,6 +32,7 @@ var chase: MolChaseCam
 var drop_cam: DropCam
 # Meerijden in de Mol: zijn transform bij de vorige tick (zie _ride_mol).
 var _mol_ref := Transform3D()
+var _stun := 0.0 # seconden geen controle (geraakt door een rots)
 var _riding := false
 # Vast in de Mol tijdens de drop en het ophalen: [positie lokaal t.o.v. de Mol, draaiing t.o.v. de Mol].
 var _attached: Variant = null
@@ -193,6 +194,15 @@ func _on_mol_snapped(old_xf: Transform3D, new_xf: Transform3D) -> void:
 	_mol_ref = new_xf
 	_attached = [local, rotation.y - game.mol.yaw]
 	_hold_ticks = 4
+
+
+## Geraakt door een vallende rots (Unrest): even geen controle. `knock`: omver (langer, harder).
+func stun(seconds: float, knock: bool) -> void:
+	_stun = maxf(_stun, seconds)
+	camera_fx.add_trauma(0.6 if knock else 0.35)
+	camera_fx.kick(-14.0 if knock else -5.0, randf_range(-6.0, 6.0))
+	if knock and carry and carry.item:
+		carry.drop(false)
 
 
 ## Nieuwe wereld (nieuwe dienst): het gereedschap graaft in het nieuwe terrein.
@@ -358,6 +368,9 @@ func _physics_process(delta: float) -> void:
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and DisplayServer.get_name() != "headless" or drop_cam.current:
 		input = Vector2.ZERO
+	if _stun > 0.0:
+		_stun -= delta
+		input = Vector2.ZERO
 	if flying:
 		var fly_speed := Tuning.get_f("player", "fly_speed", 12.0)
 		var v := head.global_basis * Vector3(input.x, 0.0, input.y) * fly_speed
@@ -367,7 +380,7 @@ func _physics_process(delta: float) -> void:
 			v.y -= fly_speed
 		velocity = v
 	else:
-		var speed: float = Tuning.get_f("player", "move_speed", 4.5) * active_tool.move_multiplier() * (carry.move_multiplier() if carry else 1.0)
+		var speed: float = Tuning.get_f("player", "move_speed", 4.5) * active_tool.move_multiplier() * (carry.move_multiplier() if carry else 1.0) 				* (game.unrest.walk_factor() if game.unrest else 1.0)
 		var dir := (global_basis * Vector3(input.x, 0.0, input.y)).normalized()
 		velocity.x = dir.x * speed
 		velocity.z = dir.z * speed

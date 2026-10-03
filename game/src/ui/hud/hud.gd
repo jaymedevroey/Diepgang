@@ -15,6 +15,7 @@ const TOOLS := [["pickaxe", "HOUWEEL", "tool_1"], ["drill", "BOOR T1", "tool_2"]
 var main: Node
 var crosshair: HudCrosshair
 var compass: HudCompass
+var hazard: HudHazard
 var _prompt: HudFader
 var _prompt_caps: HBoxContainer
 var _prompt_text: Label
@@ -121,6 +122,10 @@ func _build_top() -> void:
 	compass.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	compass.position = Vector2(-HudCompass.WIDTH / 2.0, 18)
 	add_child(compass)
+	hazard = HudHazard.new()
+	hazard.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	hazard.position = Vector2(-HudHazard.WIDTH / 2.0, 108)
+	add_child(hazard)
 
 	_host_chip = HudFader.new()
 	_host_chip.hold = 8.0
@@ -464,11 +469,15 @@ func toast(text: String, kind := "info", seconds := 4.5) -> void:
 	l.add_theme_font_size_override("font_size", 18)
 	row.add_child(l)
 	_toasts.add_child(chip)
+	# Hooguit 3 tegelijk. Meteen weghalen: queue_free alleen laat het kind nog staan, en dan liep
+	# deze lus eindeloos (en het geheugen vol) bij de vierde melding kort na elkaar.
 	while _toasts.get_child_count() > 3:
-		_toasts.get_child(0).queue_free()
+		var old := _toasts.get_child(0)
+		_toasts.remove_child(old)
+		old.queue_free()
 	Sfx.ui("warn" if kind == "warn" else "toast", -4.0)
 	chip.modulate.a = 0.0
-	var tw := create_tween()
+	var tw := chip.create_tween() # sterft mee met de melding
 	tw.tween_property(chip, "modulate:a", 1.0, 0.18)
 	tw.tween_interval(seconds)
 	tw.tween_property(chip, "modulate:a", 0.0, 0.6)
@@ -554,6 +563,7 @@ func update(player: Player, game: Game, terrain: TerrainAPI) -> void:
 		_started = true
 		compass.poke(6.0) # bij de start: waar ben ik, waar staat de Mol
 	_update_compass(player, mol, terrain)
+	_update_hazard(player, game)
 	_update_tools(player)
 	_update_carry(player)
 	_update_ore(player, game)
@@ -564,6 +574,18 @@ func update(player: Player, game: Game, terrain: TerrainAPI) -> void:
 	_update_team(player, game)
 	_update_host()
 	_update_stats(player, game, terrain)
+
+
+func _update_hazard(player: Player, game: Game) -> void:
+	var dist := INF
+	if game.magma and game.magma.visible and not (game.ship and game.ship.contains(player.global_position)):
+		dist = player.global_position.y - game.magma.level
+	var frac := 0.0
+	var phase := Unrest.Phase.CALM
+	if game.unrest:
+		frac = game.unrest.value / maxf(1.0, Tuning.get_f("unrest", "stage", 100.0))
+		phase = game.unrest.phase
+	hazard.set_state(dist, frac, phase)
 
 
 func _update_compass(player: Player, mol: Mol, terrain: TerrainAPI) -> void:

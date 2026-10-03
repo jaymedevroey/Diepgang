@@ -24,6 +24,10 @@ var terrain_sync: TerrainSync
 var finds: FindField
 var ores: OreField
 var surface: PlanetSurface
+## Magma: de klok van een dienst (stijgt van onderen).
+var magma: Magma
+## Onrust (lawaai) en bevingen.
+var unrest: Unrest
 ## Type van de huidige planeet (hemel, zon, sfeer).
 var planet_type := PlanetType.Id.ROESTBOL
 var mol: Mol
@@ -74,6 +78,15 @@ func _ready() -> void:
 	ores.name = "Ores"
 	ores.game = self
 	add_child(ores)
+	magma = Magma.new()
+	magma.name = "Magma"
+	magma.game = self
+	add_child(magma)
+	unrest = Unrest.new()
+	unrest.name = "Unrest"
+	unrest.game = self
+	add_child(unrest)
+	terrain_sync.host_player_op.connect(unrest.host_player_op)
 	Net.peer_left.connect(_on_peer_left)
 	Tuning.changed.connect(func(_f: String, _k: String) -> void:
 		if multiplayer.is_server():
@@ -112,6 +125,8 @@ func _build_terrain(ops: Array, finds_state: Array = [], ores_state: Array = [])
 	finds.apply_snapshot(finds_state)
 	ores.generate(pit_seed)
 	ores.apply_snapshot(ores_state)
+	magma.attach_terrain(terrain)
+	unrest.attach_terrain(terrain)
 	if start_on_ship and ship == null:
 		exterior = EksterExterior.new()
 		exterior.name = "EksterExterior"
@@ -130,6 +145,11 @@ func _build_terrain(ops: Array, finds_state: Array = [], ores_state: Array = [])
 		mol.game = self
 		add_child(mol)
 		mol.setup(ship != null)
+		# De klok loopt vanaf de landing tot de Mol terug in de baai staat.
+		mol.landed.connect(func() -> void:
+			if multiplayer.is_server():
+				magma.host_start())
+		mol.noise_made.connect(func(amount: float, _where: Vector3) -> void: unrest.host_add(amount))
 	else:
 		mol.attach_terrain()
 	if ship:
@@ -190,6 +210,8 @@ func ship_terminal_used(_p: Player) -> void:
 func _on_terrain_loaded(stats: Dictionary) -> void:
 	is_loaded = true
 	world_loaded.emit(stats)
+	if Net.is_host() and ship == null and not magma.running:
+		magma.host_start() # zonder schip begint de dienst meteen
 	if Net.is_host():
 		if spawn_host_player:
 			_color_of[1] = 0
@@ -240,6 +262,8 @@ func _accept(id: int) -> void:
 	_rpc_tuning.rpc_id(id, Tuning.snapshot())
 	_rpc_world_init.rpc_id(id, pit_seed, terrain.op_log(), existing, finds.snapshot(), ores.snapshot())
 	mol.send_state(id)
+	magma.send_state(id)
+	unrest.send_state(id)
 	var idx := _free_color()
 	_color_of[id] = idx
 	var pos := _spawn_pos(idx)
