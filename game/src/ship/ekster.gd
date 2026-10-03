@@ -1,24 +1,52 @@
 class_name Ekster
 extends Node3D
-## De hub van De Ekster: de ruimte waar je tussen de diensten rondloopt (opdrachtterminal,
-## taxatiepoort, museum, werkbank, de Mol in de dropbaai). Model uit tools/blender/ekster.py
-## (tijdelijk: de binnenkant wordt opnieuw ontworpen). Het schip dat je van buiten ziet, is een
-## apart model (EksterExterior) boven de landingsplek; de hub hangt HUB_ABOVE daarboven, als een
-## aparte ruimte. De Mol stapt over tussen beide baaien (drop en ophalen), wie door de open baai
-## valt, valt uit het buitenschip (Game.from_hub).
+## De hub van De Ekster: de ruimte waar je tussen de diensten rondloopt. Model:
+## assets/models/ekster_hub.glb, gebouwd door tools/blender/interior/build.py uit de zones; de
+## namen van de lege punten en meshes zijn het contract in tools/blender/interior/layout.py. Deze
+## code kent enkel dat contract en de zones uit layout.py, geen details van de zones.
+## Eén dek met kleine trappen: hangar 0 (plafond 9 m), uitkijkput −0,6, laadrek +0,6, werkdek,
+## gang, brug en galerij +1,2, verhoging van de terminal +1,8. De route: laadrek → werkdek → gang
+## → brug (terminal) → trap naar de kade → de Mol in de dropbaai.
+## Het schip dat je van buiten ziet, is een apart model (EksterExterior) boven de landingsplek; de
+## hub hangt HUB_ABOVE daarboven, als een aparte ruimte. De Mol stapt over tussen beide baaien
+## (drop en ophalen), wie door de open baai valt, valt uit het buitenschip (Game.from_hub).
 ## Geen eigen spellogica: de luiken volgen wat de Mol (host) doet.
 
-const MODEL := preload("res://assets/models/ekster.glb")
+const MODEL := preload("res://assets/models/ekster_hub.glb")
 ## De hub hangt zoveel boven de baai van het buitenschip (een aparte ruimte, ver uit beeld).
 const HUB_ABOVE := 1400.0
-## Binnenruimte (lokaal): hangar en museumzaal.
-const HANGAR := AABB(Vector3(-11.0, -0.5, -22.0), Vector3(22.0, 9.5, 38.0))
-const MUSEUM := AABB(Vector3(11.0, -0.5, 0.0), Vector3(14.0, 7.5, 16.0))
-## Opening van de dropbaai in de vloer (lokaal x0, x1, z0, z1), gelijk aan BAY in ekster.py.
-const BAY := [-3.8, 3.8, -10.5, 6.0]
+## Midden van de Mol in het plan van layout.py (MOL): plan (x, y, z) = hub (x + 7, y, z + 9).
+const PLAN_ORIGIN := Vector3(7.0, 0.0, 9.0)
+## Binnenruimte in plancoördinaten (zones uit layout.py): x0, x1, y0, y1, z0, z1.
+const ROOMS := [
+	[0.0, 20.0, -1.0, 9.4, 0.0, 26.3], # hangar, uitkijkput, galerij en brug
+	[7.0, 13.0, 0.9, 3.9, 26.0, 30.0], # gang
+	[0.0, 20.0, 0.9, 4.8, 30.0, 40.0], # werkdek met de vier nissen
+	[6.0, 14.0, 0.3, 3.0, 40.0, 44.3], # trap en laadrek
+]
+## Alle namen uit het contract (layout.py). Zonder de Mol-plek, de spawnplekken, de luiken en de
+## botsvorm werkt de hub niet; de rest is optioneel (ontbreekt iets, dan een waarschuwing).
+const CONTRACT := ["Mol_Dock", "Spawn_0", "Spawn_1", "Spawn_2", "Spawn_3", "BayDoor_L", "BayDoor_R", "Collision",
+		"Terminal_Use", "Terminal_Screen", "Appraisal_Gate", "Appraisal_Screen", "Sell_Hatch", "Vending",
+		"Company_Board", "TV_Screen", "Locker", "Niche_Tools", "Niche_Supply", "Niche_Free_A", "Niche_Free_B",
+		"Mol_Werf", "Window_Glass"]
 const DOOR_OPEN_DEG := 100.0
-## Grijperklauwen: van de oorsprong van de grijper tot onder de klauwen (m).
-const GRAPPLE_REACH := 3.0
+## Dikte van de botsvorm van een dicht luik (bovenkant gelijk met de hangarvloer, y = 0).
+const DOOR_THICKNESS := 0.3
+## Lege punten die enkel voor de previews in het model zitten.
+const PREVIEW_ONLY := ["Sign_", "Cam_", "Look_"]
+## Wat je ziet als je mikt op iets dat er nog niet is (geen ": " erin: de HUD knipt daar).
+const HINTS := {
+	"Appraisal_Gate": "Taxatie komt binnenkort · alles wordt na de dienst vanzelf verkocht",
+	"Sell_Hatch": "Verkoopluik komt later · verkopen gaat nu vanzelf na de dienst",
+	"Vending": "Automaat (komt later)",
+	"Locker": "Kast en spuitcabine (komt later)",
+	"Niche_Tools": "Gereedschap (upgrades komen later)",
+	"Niche_Supply": "Uitgifte (upgrades komen later)",
+	"Niche_Free_A": "Lege nis",
+	"Niche_Free_B": "Lege nis",
+	"Mol_Werf": "Mol-werf (upgrades voor de Mol komen later)",
+}
 
 var game: Node # Game
 var model: Node3D
@@ -27,17 +55,18 @@ var body: StaticBody3D
 ## Luiken: 0 = dicht, 1 = open. `doors_open` is het doel (gezet door de Mol op elk peer).
 var doors_open := false
 var door_amount := 0.0
-## Grijper: meter onder zijn rustplek aan het plafond (gezet door de Mol).
-var grapple_depth := 0.0
-var grapple: Node3D
+## Schermen uit het contract (MeshInstance3D met UV 0..1): Terminal_Screen, Appraisal_Screen,
+## Company_Board, TV_Screen. Voor wie er later iets op tekent (HubScreens).
+var screens: Dictionary = {}
 var terminal_screen: Label3D
 var appraisal_screen: Label3D
+## De opening van de dropbaai in de vloer (lokaal, x en z), uit de dichte luiken.
+var bay := AABB()
 
 var _doors: Array[Node3D] = []
 var _door_shapes: Array[CollisionShape3D] = []
-var _cable: Node3D
-var _grapple_rest := Vector3.ZERO
-var _bay_lights: Array[SpotLight3D] = []
+var _rooms: Array[AABB] = []
+var _dock_local := Vector3.ZERO
 
 
 func _ready() -> void:
@@ -45,36 +74,23 @@ func _ready() -> void:
 	add_child(model)
 	for n in model.find_children("*", "Node3D", true, false):
 		anchors[n.name] = n
-	_apply_materials()
-	_build_collision()
-	_build_lights()
-	grapple = anchors["Grapple"]
-	_cable = anchors["GrappleCable"]
-	var dock: Node3D = anchors["Mol_Dock"]
-	var top: Node3D = anchors["Grapple_Top"]
-	_grapple_rest = Vector3(dock.position.x, top.position.y, dock.position.z)
+	for r: Array in ROOMS:
+		_rooms.append(AABB(Vector3(r[0], r[2], r[4]) - PLAN_ORIGIN, Vector3(r[1] - r[0], r[3] - r[2], r[5] - r[4])))
+	if not missing_anchors().is_empty():
+		push_warning("De hub mist punten uit het contract (layout.py): %s" % ", ".join(missing_anchors()))
+	_drop_preview_nodes()
+	apply_materials(model)
+	_dock_local = _local(anchors["Mol_Dock"]).origin
 	_doors = [anchors["BayDoor_L"], anchors["BayDoor_R"]]
-	terminal_screen = _screen("TerminalScreen", 0.0032, Color(0.45, 0.95, 1.0), 900.0)
-	appraisal_screen = _screen("AppraisalScreen", 0.0016, Color(1.0, 0.72, 0.3), 560.0)
+	_build_collision()
+	add_lights(model)
+	_build_screens()
 	_build_buttons()
-	_update_grapple()
-	terminal_screen.text = "DIG · DIEPGANG INTERPLANETAIRE GRONDWERKEN
-
-OPDRACHT: ROESTBOL
-DOEL: ALLES WAT WAARDE HEEFT
-
-> STAP IN DE MOL
-> TREK AAN DE HENDEL
-> NIET VERGETEN TERUG TE KOMEN"
-	appraisal_screen.text = "TAXATIE
-
-LEG VONDSTEN
-OP DE BAND"
 
 
 ## Zet de hub zo dat de Mol in zijn baai op `dock` staat.
 func place_dock_at(dock: Vector3) -> void:
-	global_position = dock - (anchors["Mol_Dock"] as Node3D).position
+	global_position = dock - _dock_local
 
 
 ## Onder de vloer van de hub (door de open baai gevallen)?
@@ -83,16 +99,20 @@ func below_floor(world: Vector3) -> bool:
 	return l.y < -6.0 and l.y > -80.0 and absf(l.x) < 40.0 and absf(l.z) < 60.0
 
 
-## Staat een wereldpunt binnen in het schip (hangar of museum)?
+## Staat een wereldpunt binnen in het schip (een van de ruimtes)?
 func contains(world: Vector3) -> bool:
 	var local := global_transform.affine_inverse() * world
-	return HANGAR.has_point(local) or MUSEUM.has_point(local)
+	for r in _rooms:
+		if r.has_point(local):
+			return true
+	return false
 
 
 ## Boven de open baai (wie hier staat als de luiken opengaan, valt).
 func over_bay(world: Vector3) -> bool:
 	var l := global_transform.affine_inverse() * world
-	return l.x > BAY[0] and l.x < BAY[1] and l.z > BAY[2] and l.z < BAY[3] and l.y < 1.0 and l.y > -4.0
+	return l.x > bay.position.x and l.x < bay.end.x and l.z > bay.position.z and l.z < bay.end.z \
+			and l.y < 1.0 and l.y > -4.0
 
 
 ## Waar de Mol in de baai staat (as van de Mol, zoals Mol.body).
@@ -100,19 +120,23 @@ func dock_transform() -> Transform3D:
 	return (anchors["Mol_Dock"] as Node3D).global_transform
 
 
-## Spawnplek nummer `idx` (vooraan, bij de terminal, kijkend naar de Mol).
+## Spawnplek nummer `idx` (in het laadrek, kijkend naar voren).
 func spawn_point(idx: int) -> Vector3:
 	return (anchors["Spawn_%d" % (idx % 4)] as Node3D).global_position
 
 
-## Wereldpositie van de onderkant van de grijperklauwen.
-func grapple_tip() -> Vector3:
-	return grapple.global_position - global_basis.y * GRAPPLE_REACH
+## Namen uit het contract die niet in het model zitten (leeg = alles in orde).
+func missing_anchors() -> PackedStringArray:
+	var missing := PackedStringArray()
+	for n: String in CONTRACT:
+		if not anchors.has(n):
+			missing.append(n)
+	return missing
 
 
-## Rustplek van de grijper (wereld), zonder kabel.
-func grapple_rest_world() -> Vector3:
-	return global_transform * _grapple_rest
+## Wereldplek van een leeg punt uit het contract (bv. "Terminal_Use"), voor tests en previews.
+func anchor_position(anchor_name: String) -> Vector3:
+	return (anchors[anchor_name] as Node3D).global_position
 
 
 func _process(delta: float) -> void:
@@ -124,35 +148,48 @@ func _process(delta: float) -> void:
 		_doors[1].rotation.z = a
 		for cs in _door_shapes:
 			cs.disabled = door_amount > 0.02
-	_update_grapple()
-
-
-func _update_grapple() -> void:
-	grapple.position = _grapple_rest - Vector3(0.0, grapple_depth, 0.0)
-	_cable.position = _grapple_rest + Vector3(0.0, 0.4, 0.0)
-	_cable.scale = Vector3(1.0, maxf(0.05, grapple_depth + 0.4), 1.0)
 
 
 static func _ease(x: float) -> float:
 	return x * x * (3.0 - 2.0 * x)
 
 
+## Transform van een node uit het model t.o.v. de hub.
+func _local(n: Node3D) -> Transform3D:
+	return global_transform.affine_inverse() * n.global_transform
+
+
 # --- Opbouw ------------------------------------------------------------------------
 
-func _apply_materials() -> void:
+## Namen, camera's en kijkpunten voor de previews horen niet in het spel; de botsvorm is onzichtbaar.
+func _drop_preview_nodes() -> void:
+	for n: String in anchors.keys():
+		for prefix: String in PREVIEW_ONLY:
+			if n.begins_with(prefix):
+				var node: Node = anchors[n]
+				node.get_parent().remove_child(node)
+				node.queue_free()
+				anchors.erase(n)
+				break
+	(anchors["Collision"] as MeshInstance3D).visible = false
+
+
+## Kleuren van het spel (machine-shader, ledstroken, glas, schermen) op elke mesh van de hub.
+## Ook voor interior_preview, zodat de zones daar ogen zoals in het spel.
+static func apply_materials(root: Node3D) -> void:
 	var cache := {}
-	for mi: MeshInstance3D in model.find_children("*", "MeshInstance3D", true, false):
-		var inside := mi.name != "Hull"
-		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	for mi: MeshInstance3D in root.find_children("*", "MeshInstance3D", true, false):
+		var glass := false
 		for i in mi.mesh.get_surface_count():
 			var src := mi.mesh.surface_get_material(i)
 			var mat_name := src.resource_name if src else ""
-			var key := mat_name + ("#in" if inside else "")
-			if not cache.has(key):
-				cache[key] = MolVisual.palette_material(mat_name, src, inside)
-			if cache[key]:
-				mi.set_surface_override_material(i, cache[key])
-	# Het camerascherm-materiaal (zwart) blijft; de tekst komt er als Label3D op.
+			glass = glass or mat_name == "Glass"
+			if not cache.has(mat_name):
+				cache[mat_name] = MolVisual.palette_material(mat_name, src, true)
+			if cache[mat_name]:
+				mi.set_surface_override_material(i, cache[mat_name])
+		# Glas werpt geen schaduw (anders geen licht door het raam).
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF if glass else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 
 
 func _build_collision() -> void:
@@ -162,105 +199,158 @@ func _build_collision() -> void:
 	body.collision_layer = Layers.LIFT
 	body.collision_mask = 0
 	add_child(body)
-	var interior: MeshInstance3D = anchors["Interior"]
+	# De vereenvoudigde botsvorm uit het model (trappen zijn hellingen, zie layout.py).
+	var col: MeshInstance3D = anchors["Collision"]
 	var cs := CollisionShape3D.new()
-	cs.name = "Interior"
-	cs.shape = interior.mesh.create_trimesh_shape()
+	cs.name = "Hull"
+	cs.shape = col.mesh.create_trimesh_shape()
 	body.add_child(cs)
-	cs.global_transform = interior.global_transform
-	# Luiken (dicht): vlakke dozen; open = uitgeschakeld (wie erop staat, valt).
-	var w: float = (BAY[1] - BAY[0]) * 0.5
-	var l: float = BAY[3] - BAY[2]
-	var zc: float = (BAY[2] + BAY[3]) * 0.5
-	for x: float in [BAY[0] + w * 0.5, BAY[1] - w * 0.5]:
-		var box := BoxShape3D.new()
-		box.size = Vector3(w, 0.24, l)
+	cs.transform = _local(col)
+	# Luiken (dicht): een doos per helft, met de bovenkant gelijk met de hangarvloer; open =
+	# uitgeschakeld (wie erop staat, valt). De opening van de baai volgt uit de luiken zelf.
+	bay = AABB()
+	for i in _doors.size():
+		var door: MeshInstance3D = _doors[i]
+		var box := _local(door) * door.get_aabb()
+		bay = box if i == 0 else bay.merge(box)
+		var shape := BoxShape3D.new()
+		shape.size = Vector3(box.size.x, DOOR_THICKNESS, box.size.z)
 		var ds := CollisionShape3D.new()
-		ds.shape = box
-		ds.position = Vector3(x, -0.13, zc)
+		ds.name = "Door_%d" % i
+		ds.shape = shape
+		ds.position = Vector3(box.get_center().x, -DOOR_THICKNESS * 0.5, box.get_center().z)
 		body.add_child(ds)
 		_door_shapes.append(ds)
-	# Boegvenster: glas, niet door te lopen.
-	var glass := BoxShape3D.new()
-	glass.size = Vector3(16.0, 4.4, 0.3)
-	var gs := CollisionShape3D.new()
-	gs.shape = glass
-	gs.position = (anchors["Window_Glass"] as Node3D).position
-	body.add_child(gs)
 
 
-func _build_lights() -> void:
-	for n: String in anchors:
-		if n.begins_with("Lamp_"):
-			var o := OmniLight3D.new()
-			o.light_color = Color(1.0, 0.9, 0.76)
-			o.light_energy = 1.5 if not n.begins_with("Lamp_m") else 1.2
-			o.omni_range = 11.0
-			o.omni_attenuation = 1.1
-			o.shadow_enabled = false
-			o.light_volumetric_fog_energy = 0.0
-			(anchors[n] as Node3D).add_child(o)
-	# Schijnwerpers onder het schip, rond de baai: je ziet de Mol vallen en terugkomen.
-	for i in 4:
+## Lampen uit de lege punten van het model, met een klein budget: geen schaduw, op één na (het
+## licht door het grote raam). Lamp_ = warm, rondom; Glow_RRGGBB_ = rondom in die kleur;
+## Spot_RRGGBB_ = recht naar beneden. Lamp_ en Spot_ hangen aan het plafond: hoe hoger (y t.o.v.
+## de hangarvloer), hoe verder en sterker (het licht valt af met 1/afstand). Ook voor interior_preview.
+static func add_lights(root: Node3D) -> void:
+	for n: Node3D in root.find_children("Lamp_*", "Node3D", true, false):
+		var o := OmniLight3D.new()
+		o.light_color = Color(1.0, 0.86, 0.68)
+		o.omni_range = clampf(n.position.y * 1.6, 6.0, 15.0)
+		o.light_energy = 0.55 * maxf(n.position.y, 2.0)
+		_quiet(o)
+		n.add_child(o)
+	for n: Node3D in root.find_children("Glow_*", "Node3D", true, false):
+		var g := OmniLight3D.new()
+		g.light_color = _hex_of(n.name, Color(1.0, 0.7, 0.4))
+		g.light_energy = 1.4
+		g.omni_range = 7.0
+		_quiet(g)
+		n.add_child(g)
+	for n: Node3D in root.find_children("Spot_*", "Node3D", true, false):
 		var s := SpotLight3D.new()
-		s.light_color = Color(1.0, 0.86, 0.66)
-		s.light_energy = 6.0
-		s.spot_range = 90.0
-		s.spot_angle = 18.0
-		s.spot_attenuation = 0.6
-		s.shadow_enabled = false
-		(anchors["BayLight_%d" % i] as Node3D).add_child(s)
-		_bay_lights.append(s)
-	# Opdrachtterminal: een koel schijnsel van het scherm.
-	var glow := OmniLight3D.new()
-	glow.light_color = Color(0.4, 0.85, 1.0)
-	glow.light_energy = 0.8
-	glow.omni_range = 6.0
-	glow.shadow_enabled = false
-	add_child(glow)
-	glow.position = (anchors["TerminalScreen"] as MeshInstance3D).get_aabb().get_center() + Vector3(0, 0, 1.2)
+		s.light_color = _hex_of(n.name, Color(0.8, 0.9, 1.0))
+		s.light_energy = 0.35 * maxf(n.position.y, 2.0)
+		s.spot_range = maxf(n.position.y * 1.5, 5.0)
+		s.spot_angle = 35.0
+		s.spot_angle_attenuation = 0.8
+		_quiet(s)
+		n.add_child(s)
+		s.rotation = Vector3(-PI / 2.0, 0.0, 0.0)
+	# Het grote raam: koel licht van buiten, schuin naar binnen, met de schaduw van de stijlen.
+	var glass := root.find_child("Window_Glass", true, false) as Node3D
+	if glass:
+		var win := SpotLight3D.new()
+		win.name = "WindowLight"
+		win.light_color = Color(0.72, 0.83, 1.0)
+		win.light_energy = 7.0
+		win.spot_range = 48.0
+		win.spot_angle = 55.0
+		win.spot_angle_attenuation = 0.9
+		win.shadow_enabled = true
+		win.light_volumetric_fog_energy = 0.4
+		glass.get_parent().add_child(win)
+		var from := glass.position + Vector3(0.0, 3.5, -9.0)
+		var to := glass.position + Vector3(0.0, -4.6, 19.0)
+		win.transform = Transform3D(Basis.looking_at(to - from, Vector3.UP), from)
 
 
-## Tekstlabel op een scherm (mesh met UV, zie quad() in ekster.py): midden van de mesh, iets ervoor.
-func _screen(mesh_name: String, pixel: float, color: Color, width: float) -> Label3D:
-	var mi: MeshInstance3D = anchors[mesh_name]
-	var aabb := mi.get_aabb()
+## Kleine lampen: geen schaduw, niet in de mist (dat kost per lamp, en de hub hoort niet te walmen).
+static func _quiet(l: Light3D) -> void:
+	l.shadow_enabled = false
+	l.light_volumetric_fog_energy = 0.0
+
+
+## Kleur uit een naam als "Glow_ffb060_18".
+static func _hex_of(node_name: String, fallback: Color) -> Color:
+	var parts := node_name.split("_")
+	if parts.size() > 1 and parts[1].length() == 6 and parts[1].is_valid_hex_number():
+		return Color(parts[1])
+	return fallback
+
+
+## De schermen. Voorlopig tekst op de terminal en de taxatie; het firmabord en de tv blijven
+## zwart. Een HubScreens-script vervangt dit later (alles wat het nodig heeft: `screens`).
+func _build_screens() -> void:
+	for n: String in ["Terminal_Screen", "Appraisal_Screen", "Company_Board", "TV_Screen"]:
+		if anchors.has(n):
+			screens[n] = anchors[n]
+	if screens.has("Terminal_Screen"):
+		terminal_screen = _screen_label(screens["Terminal_Screen"], Color(0.45, 0.95, 1.0), 9)
+		terminal_screen.text = "DIG · DIEPGANG INTERPLANETAIRE GRONDWERKEN
+
+OPDRACHT: NOG NIET GEKOZEN
+> E: OPDRACHT KIEZEN"
+	if screens.has("Appraisal_Screen"):
+		appraisal_screen = _screen_label(screens["Appraisal_Screen"], Color(1.0, 0.72, 0.3), 2)
+		appraisal_screen.text = "TAXATIE
+KOMT BINNENKORT"
+
+
+## Tekstlabel net voor een schermmesh (een vlak met UV, zie screen_quad in build.py), links
+## boven beginnend; `lines` regels passen op de hoogte van het scherm.
+func _screen_label(mi: MeshInstance3D, color: Color, lines: int) -> Label3D:
+	var arrays := mi.mesh.surface_get_arrays(0)
+	var xf := _local(mi)
+	var normal := (xf.basis * (arrays[Mesh.ARRAY_NORMAL] as PackedVector3Array)[0]).normalized()
+	var up := Vector3.UP if absf(normal.y) < 0.9 else Vector3.FORWARD
+	var right := up.cross(normal).normalized()
+	up = normal.cross(right)
+	var box := xf * mi.get_aabb()
+	var width := absf(right.x) * box.size.x + absf(right.y) * box.size.y + absf(right.z) * box.size.z
+	var height := absf(up.x) * box.size.x + absf(up.y) * box.size.y + absf(up.z) * box.size.z
 	var l := Label3D.new()
-	l.name = mesh_name + "Text"
+	l.name = mi.name + "Text"
 	l.font = UiTheme.screen()
 	l.font_size = 48
 	l.line_spacing = -8.0
-	l.pixel_size = pixel
+	l.pixel_size = height * 0.86 / (lines * 47.0)
 	l.modulate = color
 	l.outline_size = 0
 	l.shaded = false
 	l.double_sided = false
-	l.width = width
+	l.width = width * 0.92 / l.pixel_size
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	l.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-	# Normaal van het scherm: de dunste as van de AABB, weg van het midden van de hangar.
-	var normal := Vector3(0, 0, 1)
-	if aabb.size.x < aabb.size.z:
-		normal = Vector3(1, 0, 0) if aabb.get_center().x < 0.0 else Vector3(-1, 0, 0)
-	model.add_child(l)
-	var c := aabb.get_center()
-	var h := aabb.size.y
-	l.position = c + normal * 0.03 + Vector3(0, h * 0.42, 0)
-	l.basis = Basis.looking_at(-normal, Vector3.UP)
+	add_child(l)
+	l.transform = Transform3D(Basis(right, up, normal), box.get_center() + normal * 0.01 + up * height * 0.43 - right * width * 0.46)
 	return l
 
 
+## E-knop op de terminal; op de rest een korte uitleg (dat komt later). Een leeg punt kijkt met
+## −z naar het ding (zoals de spawnplekken naar voren kijken), de knop staat daar voor je.
 func _build_buttons() -> void:
-	var shape := BoxShape3D.new()
-	shape.size = Vector3(2.4, 1.0, 1.2)
-	var term := Interactable.make("E: opdrachtterminal", shape)
-	term.name = "TerminalButton"
-	(anchors["Terminal_Use"] as Node3D).add_child(term)
-	term.position = Vector3(0, -0.2, -0.8)
-	term.used.connect(func(p: Player) -> void: game.ship_terminal_used(p))
-	var bench_shape := BoxShape3D.new()
-	bench_shape.size = Vector3(1.4, 1.0, 3.0)
-	var bench := Interactable.make("Werkbank (upgrades komen later)", bench_shape)
-	(anchors["Workbench"] as Node3D).add_child(bench)
-	bench.position = Vector3(-0.6, -0.4, 0)
+	if anchors.has("Terminal_Use"):
+		var term_shape := BoxShape3D.new()
+		term_shape.size = Vector3(2.4, 1.6, 1.0)
+		var term := Interactable.make("E: opdrachtterminal", term_shape)
+		term.name = "TerminalButton"
+		(anchors["Terminal_Use"] as Node3D).add_child(term)
+		term.position = Vector3(0.0, 1.2, -0.9)
+		term.used.connect(func(p: Player) -> void: game.ship_terminal_used(p))
+	for n: String in HINTS:
+		if not anchors.has(n):
+			continue
+		var shape := BoxShape3D.new()
+		# De taxatiepoort: het midden van de poort, van alle kanten.
+		shape.size = Vector3(1.6, 2.4, 1.6) if n == "Appraisal_Gate" else Vector3(1.4, 1.8, 1.0)
+		var it := Interactable.make(HINTS[n], shape)
+		it.name = n + "Hint"
+		(anchors[n] as Node3D).add_child(it)
+		it.position = Vector3(0.0, 1.3, 0.0) if n == "Appraisal_Gate" else Vector3(0.0, 1.1, -0.75)

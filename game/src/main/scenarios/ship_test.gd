@@ -9,6 +9,7 @@ var main: Node
 var _checks := 0
 var _failures := PackedStringArray()
 var _summary := Vector3i(-1, -1, -1)
+var _lowest := INF # laagste hoogte t.o.v. de hangarvloer tijdens het lopen
 
 
 func _ready() -> void:
@@ -32,6 +33,12 @@ func _run(p: Player) -> void:
 
 	# 1. Op het schip, de Mol in de baai.
 	_expect(ship != null and ship.contains(p.global_position), "speler spawnt in De Ekster")
+	var missing := ship.missing_anchors()
+	_expect(missing.is_empty(), "het model van de hub heeft alles uit het contract (ontbreekt: %s)" % (", ".join(missing) if not missing.is_empty() else "niets"))
+	var preview_only := ship.model.find_children("Sign_*", "", true, false) + ship.model.find_children("Cam_*", "", true, false) \
+			+ ship.model.find_children("Look_*", "", true, false)
+	_expect(preview_only.is_empty() and not (ship.anchors["Collision"] as Node3D).visible,
+			"botsvorm verborgen, geen previewpunten in het spel (%d)" % preview_only.size())
 	_expect(mol.mode == Mol.Mode.DOCKED and mol.body.global_position.distance_to(ship.dock_transform().origin) < 0.05,
 			"de Mol staat in de dropbaai")
 	var y0 := p.global_position.y
@@ -42,6 +49,42 @@ func _run(p: Player) -> void:
 	mol.press(Mol.Cmd.DEPART)
 	await _wait(0.3)
 	_expect(mol.mode == Mol.Mode.DOCKED, "droppen kan enkel vanuit de Mol")
+
+	# 2b. Te voet door de hub, met echte invoer en de fysica: van het laadrek de trap op naar het
+	# werkdek, door de gang naar de brug, de verhoging op tot aan de terminal (ringtreden), eraf,
+	# de trap af naar de kade en de klep op, de Mol in. Hoogtes t.o.v. de hangarvloer (layout.py).
+	var use := ship.global_transform.affine_inverse() * ship.anchor_position("Terminal_Use")
+	var route := [
+		["het werkdek (de trap op vanuit het laadrek)", Vector3(3.0, 1.2, 29.5)],
+		["de gang", Vector3(3.0, 1.2, 19.0)],
+		["de terminal, boven op de verhoging", use],
+		["de brug, naast de verhoging", Vector3(2.8, 1.2, 16.6)],
+		["de bovenkant van de trap naar de kade", Vector3(0.75, 1.2, 12.6)],
+		["de kade", Vector3(0.75, 0.0, 8.8)],
+		["de Mol, via de klep", ship.global_transform.affine_inverse() * mol.to_world_mol(Vector3(0.0, -1.5, 2.0))],
+	]
+	_lowest = INF
+	var always_in_hub := true
+	for leg: Array in route:
+		var arrived: bool = await _walk_to(p, ship, leg[1], 0.3)
+		var local := ship.global_transform.affine_inverse() * p.global_position
+		always_in_hub = always_in_hub and ship.contains(p.global_position)
+		_expect(arrived and absf(local.y - (leg[1] as Vector3).y) < 0.1,
+				"te voet naar %s (op %.2f m, verwacht %.2f m)" % [leg[0], local.y, (leg[1] as Vector3).y])
+		if leg[1] == use:
+			# Aan de terminal: kijken naar de tafel, E.
+			p.rotation.y = 0.0
+			p.head.rotation.x = 0.0
+			await get_tree().physics_frame
+			var knob := p.aimed_interactable()
+			_expect(knob != null and knob.hint == "E: opdrachtterminal", "aan de terminal: E opent de opdrachten (%s)" % (knob.hint if knob else "niets"))
+			if knob:
+				knob.used.emit(p)
+				await get_tree().process_frame
+				_expect(main._terminal.visible, "het opdrachtenscherm gaat open")
+				main._terminal.close()
+	_expect(always_in_hub and _lowest > -0.1, "onderweg altijd in de hub, nergens door de vloer (laagste %.2f m)" % _lowest)
+	_expect(mol.contains_point(p.global_position), "te voet in de Mol geraakt")
 
 	# 3. In de Mol, zonder opdracht: niets. Een opdracht kiezen maakt een nieuwe wereld.
 	p.global_position = mol.to_world_mol(Vector3(0.0, -1.45, 0.5))
@@ -148,3 +191,26 @@ func _expect(ok: bool, what: String) -> void:
 
 func _wait(seconds: float) -> void:
 	await get_tree().create_timer(seconds).timeout
+
+
+## Te voet naar `local` (t.o.v. de hub) met echte invoer: naar het doel kijken en vooruit. True als
+## hij er binnen de tijd raakt (horizontaal op `reach` m na). Daarna even stilstaan.
+func _walk_to(p: Player, ship: Ekster, local: Vector3, reach: float) -> bool:
+	var target := ship.global_transform * local
+	var start := Time.get_ticks_msec()
+	var limit := 3000.0 + 600.0 * Vector2(target.x - p.global_position.x, target.z - p.global_position.z).length()
+	var arrived := false
+	Input.action_press("move_forward")
+	while Time.get_ticks_msec() - start < limit:
+		var to := Vector2(target.x - p.global_position.x, target.z - p.global_position.z)
+		if to.length() < reach:
+			arrived = true
+			break
+		p.rotation.y = atan2(-to.x, -to.y)
+		_lowest = minf(_lowest, (ship.global_transform.affine_inverse() * p.global_position).y)
+		await get_tree().physics_frame
+	Input.action_release("move_forward")
+	for i in 20:
+		await get_tree().physics_frame
+		_lowest = minf(_lowest, (ship.global_transform.affine_inverse() * p.global_position).y)
+	return arrived

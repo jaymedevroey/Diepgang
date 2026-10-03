@@ -22,6 +22,8 @@ const BOUNCE_REACH := 16.0
 ## In De Ekster: omgevingslicht en mist van een hangar (koel, wat blauw).
 const SHIP_AMBIENT := Color(0.55, 0.6, 0.72)
 const SHIP_FOG := Color(0.03, 0.035, 0.045)
+## Iets meer omgevingslicht dan buiten: de hub heeft donkere wanden en enkel kleine lampen.
+const SHIP_AMBIENT_ENERGY := 0.42
 
 var env: Environment
 var terrain: TerrainAPI
@@ -129,7 +131,7 @@ func _process(delta: float) -> void:
 	env.volumetric_fog_albedo = _scatter
 	env.ambient_light_color = _ambient
 	var under := lerpf(0.16, 0.1, smoothstep(5.0, 60.0, depth)) + 0.07 * float(f[0]) # kristal: wat indigo
-	env.ambient_light_energy = lerpf(lerpf(under, float(_planet.get("ambient_energy", 0.3)), surface), 0.3, _ship_k)
+	env.ambient_light_energy = lerpf(lerpf(under, float(_planet.get("ambient_energy", 0.3)), surface), SHIP_AMBIENT_ENERGY, _ship_k)
 	env.volumetric_fog_density = lerpf(0.008, 0.022, smoothstep(2.0, 20.0, depth)) * lerpf(1.0, 0.35, surface) * lerpf(1.0, 0.6, _ship_k)
 	# Hoog in de lucht (De Ekster, de drop): dunnere nevel, zodat je de planeet onder je ziet.
 	env.fog_density = lerpf(0.015, float(_planet.get("fog_density", 0.006)), surface) * lerpf(1.0, 0.3, smoothstep(30.0, 250.0, altitude))
