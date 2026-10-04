@@ -31,6 +31,8 @@ const LOAD_TIMEOUT_MS := 120000.0
 const SDF_BIT := 1 << VoxelBuffer.CHANNEL_SDF
 
 @export var pit_seed := 1
+## Planeettype (PlanetType.Id): hoeveel kraters en rotsblokken de generator legt.
+var planet := 0
 @export var dims := Vector3i(500, 600, 500)
 ## Het spel kan beginnen zodra het gebied rond dit punt gemesht is (wereld, meter).
 var focus_world := Vector3.ZERO
@@ -74,6 +76,8 @@ func _ready() -> void:
 	_brush_noise.fractal_octaves = 2
 
 	_generator = PlanetGenerator.new()
+	_generator.crater_count = [22, 6, 16][clampi(planet, 0, 2)]
+	_generator.boulder_count = [70, 40, 60][clampi(planet, 0, 2)]
 	_generator.setup(pit_seed, dims)
 
 	_terrain = VoxelTerrain.new()

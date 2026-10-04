@@ -18,15 +18,18 @@ static func ground(id: Id) -> Dictionary:
 	match id:
 		Id.FOSSIELWERELD:
 			# Kalksteen (crème in de zon, koel in de schaduw), mergel en een roestige ijzerband.
-			return {"base": _hex("C9B48C"), "light": _hex("E2CFA8"), "dark": _hex("7C8C8E"),
-					"strata": [_hex("E2CFA8"), _hex("C9A46E"), _hex("B0482A")], "rock": _hex("B9A684")}
+			return {"patch_dark": Color(0.86, 0.78, 0.68, 0.55), "patch_light": Color(1.08, 1.06, 1.03, 0.5), "patch_scale": 80.0,
+					"base": _hex("C9B48C"), "light": _hex("E2CFA8"), "dark": _hex("7C8C8E"),
+					"strata": [_hex("E2CFA8"), _hex("C9A46E"), _hex("8C9AA0")], "rock": _hex("A08E70")}
 		Id.KRISTALMAAN:
 			# Donker violet basalt met lange schaduwen.
-			return {"base": _hex("5A4050"), "light": _hex("8A5A4A"), "dark": _hex("2E2236"),
-					"strata": [_hex("6B4A5A"), _hex("8A5A4A"), _hex("35263F")], "rock": _hex("4A3646")}
+			return {"patch_dark": Color(0.7, 0.68, 0.8, 0.65), "patch_light": Color(1.35, 1.3, 1.45, 0.45), "patch_scale": 70.0,
+					"base": _hex("54446A"), "light": _hex("7C6890"), "dark": _hex("2C2240"),
+					"strata": [_hex("7A6080"), _hex("5A4466"), _hex("2E2440")], "rock": _hex("3E3248")}
 		_:
 			# Roestbol: klei (de stijlgids), lagen in de kraterwand zoals in het onderzoek.
-			return {"base": Color(0.431, 0.290, 0.208), "light": Color(0.604, 0.420, 0.298), "dark": Color(0.243, 0.165, 0.122),
+			return {"patch_dark": Color(0.55, 0.46, 0.46, 0.75), "patch_light": Color(1.16, 1.08, 0.97, 0.55), "patch_scale": 110.0,
+					"base": Color(0.431, 0.290, 0.208), "light": Color(0.604, 0.420, 0.298), "dark": Color(0.243, 0.165, 0.122),
 					"strata": [_hex("E0B48C"), _hex("B86A44"), _hex("7A3A2A")], "rock": _hex("6A3A2B")}
 
 
@@ -47,6 +50,7 @@ static func params(id: Id, style := "") -> Dictionary:
 		style = str(CmdArgs.value("sky", SKY_STYLE[clampi(int(id), 0, SKY_STYLE.size() - 1)])).to_lower()
 	var p := _roestbol(style)
 	p["name"] = NAMES[clampi(int(id), 0, NAMES.size() - 1)]
+	p["ground"] = ground(id)
 	return p
 
 
@@ -85,8 +89,8 @@ static func _roestbol(style: String) -> Dictionary:
 				},
 				"sun_rotation_deg": Vector3(-10.0, 160.0, 0.0),
 				"sun_color": _hex("FFC890"), "sun_energy": 1.4,
-				"ambient": _hex("8A6A8E"), "ambient_energy": 0.38,
-				"fog": _hex("D98F7A"), "fog_density": 0.0015,
+				"ambient": _hex("8A74B0"), "ambient_energy": 0.65,
+				"fog": _hex("9A6A88"), "fog_density": 0.0006,
 			}
 		_:
 			# A: karamel met een blauwe krans (op Mars gebaseerd): lichte warme koepel, koele accenten.

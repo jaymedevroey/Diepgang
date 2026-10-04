@@ -131,6 +131,11 @@ func _air_params() -> Dictionary:
 	air["sun_energy"] = float(_planet.get("sun_energy", 1.0))
 	air["ambient_color"] = _planet.get("ambient", SURFACE_FOG)
 	air["ambient_energy"] = float(_planet.get("ambient_energy", 0.3))
+	# De grond onder de kim (en het planeetdek): in de kleuren van de planeet.
+	if _planet.has("ground"):
+		air["ground_light"] = _planet.ground.light
+		air["ground_base"] = _planet.ground.base
+		air["ground_dark"] = _planet.ground.dark
 	return air
 
 

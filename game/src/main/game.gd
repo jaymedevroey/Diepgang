@@ -125,6 +125,7 @@ func _build_terrain(ops: Array, finds_state: Array = [], ores_state: Array = [])
 	terrain = TerrainAPI.new()
 	terrain.name = "Terrain"
 	terrain.pit_seed = pit_seed
+	terrain.planet = int(planet_type)
 	add_child(terrain)
 	# Het spel begint zodra het terrein rond de Mol (en de spawnplek erachter) er is.
 	terrain.focus_world = terrain.shaft_center_world() + Vector3(0.0, terrain.surface_height_at(

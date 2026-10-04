@@ -2,6 +2,18 @@
 
 Wat we onderweg leerden en wat het GDD bijstuurt. Nieuwste bovenaan.
 
+## 2026-10-04 — Drie planeten (Roestbol, Fossielwereld, Kristalmaan)
+
+- **"Kaal" kwam van een detailsprong aan de rand, niet van te weinig driehoeken.** Binnen het speelgebied kraters en rotsen, erbuiten een glad raster: het oog ziet waar het detail stopt. Daarom staat het speelgebied nu IN een landvorm (kraterwand, klif, bekken met een kristalader), en lopen vlekken in de grondkleur over de rand heen.
+- **Van 300 m was er nergens schaduw** (de zon tekende schaduw tot 140 m). Nu groeit de schaduwafstand mee met de hoogte (sky.cfg drop_shadow_m).
+- **Hoekpuntkleuren zijn 8-bit (0..1):** een tint boven 1 (lichter maken) viel weg. De tint gaat er gehalveerd in en de shader verdubbelt (gevonden door de kristal-agent).
+- **MultiMesh-kleuren met vertex_color_use_as_albedo hebben `vertex_color_is_srgb` nodig**, anders worden ze roze-wit.
+- **GDScript zonder `fract()` en met een ongetypeerde `floor()`:** `x - floorf(x)`; en een variabele uit een ongetypeerde lijst (`for level in [0.25, ...]`) moet je zelf typen.
+- **Een landvorm-functie op een werkthread:** objectaanroepen en allocaties zijn er 10–100× trager dan rekenen (FastNoiseLite-aanroepen, een nieuwe PackedArray per hoekpunt). Ruis vooraf in een tabel, geen allocaties per hoekpunt.
+- **De bouwtijd van een wereld is enkel vergelijkbaar onder dezelfde omstandigheden:** de eerste wereld bij de start (±0,5 s) tegenover een wereld na een opdracht terwijl het voxelterrein streamt (2–9 s, sterk wisselend als er meer Godot-processen draaien).
+- **Concepten met AI-overschilderingen van het echte dropbeeld** (Higgsfield, ±1,5 credit per beeld) gaven Jayme in één keer een richting om op te bouwen.
+- **Drie agents, elk één planeet in een eigen bestand (landform_<planeet>.gd)**, met de gedeelde code (shader, palet, generator) bij de lead: samenvoegen gaf geen enkel conflict, en de agents gaven precieze voorstellen voor de gedeelde bestanden.
+
 ## 2026-10-04 — De verhoging stond pal voor de gang
 
 - **Na uren polijsten vond Jayme in één blik wat wij misten:** de verhoging met de opdrachttafel stond recht voor de uitgang van de gang. Ze is Ø 5,8 m (met de treden) en de brug is maar 5 m diep, dus waar ze staat, vult ze de hele diepte. De level-agent meldde zelfs dat robots daar vastliepen, en de lead verschoof toen de terminalplek in plaats van de verhoging zelf.

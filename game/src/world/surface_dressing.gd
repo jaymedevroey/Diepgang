@@ -64,6 +64,7 @@ static func _commit_rocks(root: Node3D, rocks: Array, tints: PackedColorArray, f
 	var mesh := rock_mesh(4242)
 	var mat := StandardMaterial3D.new()
 	mat.vertex_color_use_as_albedo = true
+	mat.vertex_color_is_srgb = true # de kleuren per rots zijn sRGB (anders roze-wit)
 	mat.albedo_color = Color.WHITE
 	mat.roughness = 0.95
 	mesh.surface_set_material(0, mat)

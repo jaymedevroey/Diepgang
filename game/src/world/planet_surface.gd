@@ -98,10 +98,19 @@ func build(t: TerrainAPI, planet_seed: int, planet_id := PlanetType.Id.ROESTBOL)
 		var col: Color = strata[i]
 		mat.set_shader_parameter(["strata_light", "strata_mid", "strata_dark"][i], Vector3(col.r, col.g, col.b))
 	landform.setup(planet_seed, Vector2(c.x, c.z), Vector2(_size.x, _size.z))
+	var pd: Color = g.patch_dark
+	var pl: Color = g.patch_light
+	mat.set_shader_parameter("patch_dark", Vector4(pd.r, pd.g, pd.b, pd.a))
+	mat.set_shader_parameter("patch_light", Vector4(pl.r, pl.g, pl.b, pl.a))
+	mat.set_shader_parameter("patch_scale", float(g.patch_scale))
+	mat.set_shader_parameter("surface_world_y", _surface_y)
+	var sp := landform.shader_params(_surface_y)
+	for k: String in sp:
+		mat.set_shader_parameter(k, sp[k])
 	_place_craters()
 	_build_boundary()
 	# Het zware werk (±50k hoogtes) op een werkthread; de scène enkel op de hoofdthread.
-	_task = WorkerThreadPool.add_task(_compute, false, "PlanetSurface")
+	_task = WorkerThreadPool.add_task(_compute, true, "PlanetSurface") # voorrang: het voxelterrein streamt intussen ook
 	_main_us = Time.get_ticks_usec() - _t0
 
 
@@ -363,7 +372,9 @@ func _far_arrays() -> Array:
 	var colors := PackedColorArray()
 	colors.resize(verts.size())
 	for i in verts.size():
-		colors[i] = landform.tint(verts[i].x, verts[i].z)
+		# Hoekpuntkleuren zijn 8-bit (0..1): de tint (1 = neutraal, tot 2 = lichter) gaat er gehalveerd in.
+		var tc := landform.tint(verts[i].x, verts[i].z)
+		colors[i] = Color(tc.r * 0.5, tc.g * 0.5, tc.b * 0.5, tc.a)
 	return _with_normals(verts, idx, colors)
 
 

@@ -31,6 +31,22 @@ uniform vec3 surf_dark = vec3(0.243, 0.165, 0.122);
 uniform vec3 strata_light = vec3(0.878, 0.706, 0.549);
 uniform vec3 strata_mid = vec3(0.722, 0.416, 0.267);
 uniform vec3 strata_dark = vec3(0.478, 0.227, 0.165);
+// Per planeet (Landform.shader_params): dikte van een laag (m), grenzen tussen licht/midden/donker,
+// hoe sterk, vanaf welke helling (normaal.y: volop .. niets), en een sleutellaag (bv. een ijzerband):
+// x = hoogte (wereld, m), y = dikte (m), z = sterkte (0 = uit).
+// Grote lichte en donkere vlekken in de bovenste laag, in de kleuren van de planeet (rgb = maal de
+// kleur, a = hoeveel), over de rand van het speelgebied heen: van boven geen effen vierkant meer.
+// Enkel aan de oppervlakte (tot een paar meter onder surface_world_y), niet in de tunnels.
+uniform vec4 patch_dark = vec4(1.0, 1.0, 1.0, 0.0);
+uniform vec4 patch_light = vec4(1.0, 1.0, 1.0, 0.0);
+uniform float patch_scale = 100.0;
+uniform float surface_world_y = 1e6;
+uniform float strata_scale = 18.0;
+uniform vec2 strata_cuts = vec2(0.45, 0.8);
+uniform float strata_strength = 0.5;
+uniform vec2 strata_steep = vec2(0.55, 0.85);
+uniform vec3 strata_key = vec3(0.0);
+uniform vec3 strata_key_color = vec3(0.69, 0.282, 0.165);
 uniform float top_kristal = 35.0;
 uniform float top_graniet = 80.0;
 uniform float top_zandsteen = 125.0;
@@ -361,17 +377,30 @@ void fragment() {
 		emit += ore_c * (speck * twinkle * (0.9 + 1.6 * ore_k) + ore_k * ore_k * 0.04);
 	}
 
+	// Vlekken in de bovenste laag (binnen en buiten het speelgebied, zodat de rand wegvalt).
+	if (layer == 3 && (patch_dark.a > 0.0 || patch_light.a > 0.0)) {
+		float top_k = far_terrain ? 1.0 : smoothstep(surface_world_y - 9.0, surface_world_y - 3.0, wpos.y) * smoothstep(0.2, 0.6, n.y);
+		vec3 pp = vec3(wpos.x / patch_scale, 0.0, wpos.z / patch_scale);
+		float pm = vnoise(pp) * 0.7 + vnoise(pp * 2.7 + vec3(4.1, 0.0, 9.3)) * 0.3;
+		col *= mix(vec3(1.0), patch_dark.rgb, smoothstep(0.58, 0.72, pm) * patch_dark.a * top_k);
+		col *= mix(vec3(1.0), patch_light.rgb, (1.0 - smoothstep(0.3, 0.44, pm)) * patch_light.a * top_k);
+	}
+
 	// Verre landschap: de kleur van de landvorm (stof op de kraterbodem, donkere duinen, de put) en
 	// lagen in de wanden, op hoogte (zoals gelaagd gesteente), licht golvend.
 	if (far_terrain) {
-		col *= vtint.rgb;
+		col *= vtint.rgb * 2.0; // gehalveerd opgeslagen (8-bit): 1 = neutraal, tot 2 = lichter
 		if (vtint.a > 0.01) {
 			// Dikke, onregelmatige lagen (±18 m), enkel op de steile delen: op richels ligt stof.
-			float sb = wpos.y / 18.0 + 0.45 * vnoise(vec3(wpos.x * 0.004, 0.0, wpos.z * 0.004));
+			float sb = wpos.y / strata_scale + 0.45 * vnoise(vec3(wpos.x * 0.004, 0.0, wpos.z * 0.004));
 			float band = fract(sb + 0.25 * vnoise(vec3(0.0, wpos.y * 0.09, 0.0)));
-			vec3 sc = band < 0.45 ? strata_light : (band < 0.8 ? strata_mid : strata_dark);
-			float steep = 1.0 - smoothstep(0.55, 0.85, n.y);
-			col = mix(col, lin(sc) * 0.92, vtint.a * steep * 0.5);
+			vec3 sc = band < strata_cuts.x ? strata_light : (band < strata_cuts.y ? strata_mid : strata_dark);
+			if (strata_key.z > 0.0) {
+				float ky = abs(wpos.y + 1.5 * vnoise(vec3(wpos.x * 0.01, 3.0, wpos.z * 0.01)) - strata_key.x);
+				sc = mix(sc, strata_key_color, (1.0 - smoothstep(strata_key.y * 0.5, strata_key.y * 0.5 + 0.8, ky)) * strata_key.z);
+			}
+			float steep = 1.0 - smoothstep(strata_steep.x, strata_steep.y, n.y);
+			col = mix(col, lin(sc) * 0.92, vtint.a * steep * strata_strength);
 		}
 	}
 

@@ -61,6 +61,14 @@ func rock_scale(_p: Vector2) -> float:
 	return 1.0
 
 
+## Uniforms voor de rotsshader van het verre landschap (dikte, verdeling en sterkte van de lagen,
+## een sleutellaag). `surface_y` = hoogte van het oppervlak in het speelgebied. Een planeet die iets
+## wil, voegt toe aan deze standaardwaarden (die zetten ook terug wat een vorige planeet zette).
+func shader_params(_surface_y: float) -> Dictionary:
+	return {"strata_scale": 18.0, "strata_cuts": Vector2(0.45, 0.8), "strata_strength": 0.5,
+			"strata_steep": Vector2(0.55, 0.85), "strata_key": Vector3.ZERO}
+
+
 ## Op de werkthread: waar de eigen dingen van de planeet staan. `s` geeft far_height en outside.
 func compute_props(_s: PlanetSurface) -> Dictionary:
 	return {}

@@ -31,6 +31,9 @@ var _detail := FastNoiseLite.new()
 ## Ruwheid van grotwanden, gangen en rotsblokken (3D, enkel in hun buurt).
 var _rough := FastNoiseLite.new()
 const ROUGH_AMP := 1.8
+## Per planeet (TerrainAPI zet ze voor setup): Fossielwereld is een vlakke kalkbodem met weinig kraters.
+var crater_count := 22
+var boulder_count := 70
 var _craters: Array[Vector4] = [] # x, z, straal, diepte (voxels)
 var _boulders: Array[Vector4] = [] # x, y, z, straal
 var _caverns: Array[Vector4] = [] # x, y, z, horizontale straal
@@ -60,7 +63,7 @@ func setup(planet_seed: int, size: Vector3i) -> void:
 	# Kraters: niet op de landingsplek.
 	_craters.clear()
 	var tries := 0
-	while _craters.size() < 22 and tries < 400:
+	while _craters.size() < crater_count and tries < 400:
 		tries += 1
 		var r := rng.randf_range(16.0, 62.0)
 		var c := Vector2(rng.randf_range(r, size.x - r), rng.randf_range(r, size.z - r))
@@ -71,7 +74,7 @@ func setup(planet_seed: int, size: Vector3i) -> void:
 	# Rotsblokken op het oppervlak, niet op de landingsplek.
 	_boulders.clear()
 	tries = 0
-	while _boulders.size() < 70 and tries < 600:
+	while _boulders.size() < boulder_count and tries < 600:
 		tries += 1
 		var p := Vector2(rng.randf_range(12.0, size.x - 12.0), rng.randf_range(12.0, size.z - 12.0))
 		if p.distance_to(shaft_center) < landing_radius + 8.0:
@@ -139,15 +142,40 @@ static func _crater_profile(d: float) -> float:
 	return bowl + rim
 
 
+## Vlakken van een gehakte rots (eenheidsnormalen; x/z draaien per rots). Een rots is het snijpunt
+## van deze halfruimtes: een veelvlak met een vlakke top en schuine flanken. Zo leest hij van ver
+## als gehakte steen (een afgeplatte bol leek op een brood).
+const BOULDER_N: Array[Vector3] = [Vector3(0.12, 0.99, 0.08), Vector3(0.83, 0.42, 0.37), Vector3(-0.2, 0.45, 0.87),
+		Vector3(-0.86, 0.38, 0.34), Vector3(-0.55, 0.4, -0.73), Vector3(0.36, 0.44, -0.82), Vector3(0.95, -0.1, -0.3),
+		Vector3(-0.3, -0.2, -0.93)]
+
+
+## Afstand tot een gehakte rots (b = x, y, z, straal). Draaiing en verhoudingen volgen uit zijn plek.
+static func _boulder_sdf(p: Vector3, b: Vector4) -> float:
+	var hseed := absf(sin(b.x * 12.9898 + b.z * 78.233) * 43758.5453)
+	var yaw := (hseed - floorf(hseed)) * TAU
+	var c := cos(yaw)
+	var sn := sin(yaw)
+	var q := p - Vector3(b.x, b.y, b.z)
+	q = Vector3(q.x * c - q.z * sn, q.y, q.x * sn + q.z * c)
+	var d := -INF
+	for i in BOULDER_N.size():
+		var k := 0.82 + 0.3 * fposmod(hseed * (1.7 + i * 0.37), 1.0) # elke flank een eigen afstand
+		if i == 0:
+			k *= 0.62 # vlakkere top
+		d = maxf(d, q.dot(BOULDER_N[i]) - b.w * k)
+	return d
+
+
 func _sdf(p: Vector3, h: float, boulders: Array[Vector4], caverns: Array[Vector4], tunnels: Array) -> float:
 	var s := p.y - h
 	var rough := NAN # 3D-ruis pas uitrekenen als een vorm in de buurt is (duur in GDScript)
 	for b in boulders:
-		var db := Vector3(p.x - b.x, (p.y - b.y) * 1.25, p.z - b.z).length() / 1.25 - b.w
+		var db := _boulder_sdf(p, b)
 		if db < 3.0:
 			if is_nan(rough):
 				rough = _rough.get_noise_3dv(p) * ROUGH_AMP
-			db += rough * 0.5
+			db += rough * 0.25
 		s = minf(s, db)
 	for c in caverns:
 		var d := Vector3(p.x - c.x, (p.y - c.y) * CAVERN_SQUASH, p.z - c.z).length()
