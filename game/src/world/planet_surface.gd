@@ -37,6 +37,8 @@ const SKIRT := 30.0
 const LANDING_PAD := Vector2(11.0, 30.0)
 
 var terrain: TerrainAPI
+## Grote landvormen rond het speelgebied (krater, put, duinen), per planeettype.
+var landform := Landform.new()
 var is_built := false
 var _seed := 0
 var _size := Vector3.ZERO
@@ -82,6 +84,7 @@ func build(t: TerrainAPI, planet_seed: int) -> void:
 	# De landingsplek in de rotsshader: aangestampt in het midden, tot 30 m overgaand in het terrein
 	# (de vlakke plek van de generator is 22 m breed, met 20 m overgang).
 	t.terrain_material().set_shader_parameter("landing_pad", Vector4(c.x, c.z, LANDING_PAD.x, LANDING_PAD.y))
+	landform.setup(planet_seed, Vector2(c.x, c.z), Vector2(_size.x, _size.z))
 	_place_craters()
 	_build_boundary()
 	# Het zware werk (±50k hoogtes) op een werkthread; de scène enkel op de hoofdthread.
@@ -134,8 +137,9 @@ func far_height(x: float, z: float) -> float:
 	if o <= 0.0:
 		return h
 	# Heuvels en laagtes (geen rand rond het speelgebied: anders ligt het vierkant in een kom).
-	var amp := 5.0 * smoothstep(0.0, 80.0, o) + 40.0 * smoothstep(80.0, 600.0, o)
+	var amp := (5.0 * smoothstep(0.0, 80.0, o) + 40.0 * smoothstep(80.0, 600.0, o)) * landform.hills_factor(x, z)
 	h += amp * (_hills.get_noise_2d(x, z) * 0.5 + 0.5 - 0.35)
+	h += landform.height(x, z, o)
 	# Grote vormen; naar de buitenrand toe weer vlak, zodat die rand zeker achter de kim valt.
 	var fade := 1.0 - smoothstep(_horizon - 2600.0, _horizon - 1100.0, o)
 	var big := smoothstep(300.0, 2500.0, o) * fade
@@ -217,17 +221,21 @@ static func _craters_in(cells: Dictionary, size: float, x: float, z: float) -> f
 func _compute() -> void:
 	var ts := Time.get_ticks_usec()
 	_out = {"area": _area_arrays(), "far": _far_arrays(), "skirt": _skirt_arrays()}
+	_out.merge(SurfaceDressing.compute(self))
 	_compute_us = Time.get_ticks_usec() - ts
 	# Klaar: op de hoofdthread in de scène hangen (call_deferred is veilig vanaf een werkthread).
 	finish.call_deferred()
 
 
 ## Normalen uit de driehoeken (vloeiend: hoekpunten op dezelfde plek delen hun normaal).
-static func _with_normals(verts: PackedVector3Array, idx: PackedInt32Array) -> Array:
+## `colors`: per hoekpunt de tint van de landvorm (de rotsshader leest ze in het verre landschap).
+static func _with_normals(verts: PackedVector3Array, idx: PackedInt32Array, colors := PackedColorArray()) -> Array:
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = verts
 	arrays[Mesh.ARRAY_INDEX] = idx
+	if colors.size() == verts.size():
+		arrays[Mesh.ARRAY_COLOR] = colors
 	var st := SurfaceTool.new()
 	st.create_from_arrays(arrays)
 	st.generate_normals()
@@ -339,7 +347,11 @@ func _far_arrays() -> Array:
 	var idx := PackedInt32Array()
 	for q in quads:
 		idx.append_array(q)
-	return _with_normals(verts, idx)
+	var colors := PackedColorArray()
+	colors.resize(verts.size())
+	for i in verts.size():
+		colors[i] = landform.tint(verts[i].x, verts[i].z)
+	return _with_normals(verts, idx, colors)
 
 
 ## Rok langs de rand van het speelgebied: hangt 30 m naar beneden en kijkt naar binnen, zodat je
@@ -421,6 +433,7 @@ func _commit() -> void:
 	far.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	far.visibility_range_end = FAR_HIDE_M
 	add_child(far)
+	SurfaceDressing.commit(self, _out)
 	_out.clear()
 	is_built = true
 	_main_us += Time.get_ticks_usec() - commit_t0

@@ -165,6 +165,9 @@ func _update(delta: float, snap_now: bool) -> void:
 	var depth := maxf(0.0, terrain.surface_height_at(p.x, p.z) - p.y)
 	var altitude := maxf(0.0, p.y - terrain.surface_height_at(p.x, p.z))
 	var in_ship := ship != null and ship.contains(p)
+	# Schaduw tot ver weg als je hoog hangt (de drop): anders is het reliëf van boven vlak (de
+	# schaduw stopte op 140 m). Aan de grond blijft hij kort en scherp.
+	_moon.directional_shadow_max_distance = lerpf(140.0, Tuning.get_f("sky", "drop_shadow_m", 900.0), smoothstep(25.0, 260.0, altitude))
 	_ship_k = (1.0 if in_ship else 0.0) if snap_now else move_toward(_ship_k, 1.0 if in_ship else 0.0, delta * 2.0)
 	# Laag met een zachte overgang: kijk iets boven en onder je.
 	var y := p.y + Strata.boundary_offset(p.x, p.z, terrain.pit_seed)

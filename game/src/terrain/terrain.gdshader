@@ -23,6 +23,10 @@ uniform bool far_terrain = false;
 // Landingsplek (PlanetSurface): xy = midden (wereld x/z), z = straal van de aangestampte kern,
 // w = waar ze overgaat in het gewone terrein (m). 0 = geen.
 uniform vec4 landing_pad = vec4(0.0);
+// Lagen in een wand van het verre landschap (Landform: COLOR.a = hoeveel), sRGB: licht, midden, donker.
+uniform vec3 strata_light = vec3(0.878, 0.706, 0.549);
+uniform vec3 strata_mid = vec3(0.722, 0.416, 0.267);
+uniform vec3 strata_dark = vec3(0.478, 0.227, 0.165);
 uniform float top_kristal = 35.0;
 uniform float top_graniet = 80.0;
 uniform float top_zandsteen = 125.0;
@@ -45,6 +49,7 @@ global uniform float magma_heat_m;
 
 varying vec3 wpos;
 varying vec3 wnrm;
+varying vec4 vtint; // verre landschap: tint van de landvorm (rgb maal de rotskleur, a = lagen)
 
 // Palet in sRGB (stijlgids), per laag: 0 kristal, 1 graniet, 2 zandsteen, 3 klei.
 const vec3 PAL_BASE[4] = vec3[](vec3(0.137, 0.157, 0.220), vec3(0.373, 0.392, 0.420), vec3(0.690, 0.541, 0.333), vec3(0.431, 0.290, 0.208));
@@ -122,6 +127,7 @@ vec2 voronoi(vec3 p, out vec3 cell) {
 void vertex() {
 	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	wnrm = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
+	vtint = COLOR;
 }
 
 void fragment() {
@@ -344,6 +350,20 @@ void fragment() {
 		col = mix(col, ore_c * 0.4, ore_k * ore_k * 0.28);
 		col = mix(col, ore_c, speck * 0.8);
 		emit += ore_c * (speck * twinkle * (0.9 + 1.6 * ore_k) + ore_k * ore_k * 0.04);
+	}
+
+	// Verre landschap: de kleur van de landvorm (stof op de kraterbodem, donkere duinen, de put) en
+	// lagen in de wanden, op hoogte (zoals gelaagd gesteente), licht golvend.
+	if (far_terrain) {
+		col *= vtint.rgb;
+		if (vtint.a > 0.01) {
+			// Dikke, onregelmatige lagen (±18 m), enkel op de steile delen: op richels ligt stof.
+			float sb = wpos.y / 18.0 + 0.45 * vnoise(vec3(wpos.x * 0.004, 0.0, wpos.z * 0.004));
+			float band = fract(sb + 0.25 * vnoise(vec3(0.0, wpos.y * 0.09, 0.0)));
+			vec3 sc = band < 0.45 ? strata_light : (band < 0.8 ? strata_mid : strata_dark);
+			float steep = 1.0 - smoothstep(0.55, 0.85, n.y);
+			col = mix(col, lin(sc) * 0.92, vtint.a * steep * 0.5);
+		}
 	}
 
 	// Onstabiele zone: een net van donkere barsten, licht stof, en gele krijtstrepen op het plafond.
