@@ -1,7 +1,7 @@
 """Zone BRUG + GANG: de brug met de opdrachttafel op een verhoging, en de lage gang naar het werkdek.
 
 Plan: brug x 0..20, z 21..26 op +1,2; plafond 4 m vooraan, luifel op 3 m vanaf z 23,5. De trap van
-8 treden van de kade (x 6..9,5, z 18,6..21). Verhoging Ø 4 m op +1,8 (4 ringtreden) rond (13, 23,4).
+8 treden van de kade (x 6..9,5, z 18,6..21). Verhoging Ø 4 m op +1,8 (4 ringtreden) rond (3,3, 23,4), bakboord: weg uit de looplijn gang → trap.
 Gang x 7..13, z 26,3..30 op +1,2, plafond 2,6, afgeschuind (achtkantig), met de kast (cosmetica) en
 het firmabord. Zie layout.py voor het contract (ankerpunten) met het spel.
 
@@ -99,20 +99,20 @@ def floor(ctx, g):
     def skip(cx, cz):
         if math.hypot(cx - dx, cz - dz) < 2.0:
             return True
-        return cz > 24.3 and (cx < 6.25 or cx > 15.0)
+        return cz > 24.3 and cx > 13.2
 
     def alt(i, j):
         return "HullDark" if (i * 7 + j * 3) % 11 == 0 else None
 
     def worn(cx, cz):  # looppaden: gang → terminal en gang → trap naar de kade
-        return min(_seg_dist((cx, cz), (10.0, 26.0), (11.8, 24.6)),
+        use = bridge_table.USE
+        return min(_seg_dist((cx, cz), (10.0, 26.0), (use[0] + 0.6, use[2] + 0.4)),
                    _seg_dist((cx, cz), (10.0, 26.0), (7.75, 21.3))) < 0.75
 
     plate_grid(g["deck"], x0, x1, z0, 24.3, Y, 1.25, 1.1, "Floor", skip=skip, alt=alt, worn=worn)
-    plate_grid(g["deck"], 6.25, 15.0, 24.3, z1, Y, 1.25, 0.85, "Floor", skip=skip, alt=alt, worn=worn)
+    plate_grid(g["deck"], x0, 13.2, 24.3, z1, Y, 1.25, 0.85, "Floor", skip=skip, alt=alt, worn=worn)
     # Roosters waar de technici staan (voor de consoles en eronder).
-    grating(g["deck"], 0.05, 6.2, 24.32, 25.98, Y, along="x")
-    grating(g["deck"], 15.05, 19.95, 24.32, 25.98, Y, along="x")
+    grating(g["deck"], 13.25, 19.95, 24.32, 25.98, Y, along="x")
     # Geel-zwart aan de trapkop, en pijlen naar de trap.
     block(g["detail"], 6.0, 9.5, Y - 0.005, Y + 0.004, 21.02, 21.3, "Hazard")
     for k in range(3):
@@ -276,9 +276,14 @@ def console_bank(ctx, g, x0, x1, rng, wedges):
         keyboard(D, Frame((xc, 2.0, 25.06), (0, 0, -1)), 0, 0, 0, min(0.42, xb - xa - 0.1))
 
 
+# De consoles staan aan stuurboord tegen de achterwand (waar eerst de verhoging stond): OX schuift de
+# vroegere bakboordconsole op.
+OX = 12.9
+
+
 def port_console(ctx, g, rng):
-    x0, x1 = 0.45, 5.45
-    console_bank(ctx, g, x0, x1, rng, [(0.55, 1.35), (2.45, 3.25), (4.35, 5.15)])
+    x0, x1 = 0.45 + OX, 5.45 + OX
+    console_bank(ctx, g, x0, x1, rng, [(0.55 + OX, 1.35 + OX), (2.45 + OX, 3.25 + OX), (4.35 + OX, 5.15 + OX)])
     P, D = g["props"], g["detail"]
     fr = Frame((0.0, 0.0, 26.0), (0, 0, -1))
     for (x, w, hh, scr, shell, crt, sad, taped) in (
@@ -288,41 +293,24 @@ def port_console(ctx, g, rng):
             (3.85, 0.56, 0.33, "ScreenGreen", "HullGrey", False, False, True),
             (4.85, 0.36, 0.28, "ScreenGreen", "Cream", True, False, False)):
         # 10° gekanteld: het midden ligt ±0,25 m boven het oog van een robot (1,2 m boven de vloer).
-        ft = Frame((x, 2.3 + 0.17 + hh / 2, 26.0 - 0.42), (0, 0, -1), tilt=10)
+        ft = Frame((x + OX, 2.3 + 0.17 + hh / 2, 26.0 - 0.42), (0, 0, -1), tilt=10)
         monitor(P, D, ft, 0.0, 0.0, 0.0, w, hh, scr, rng, shell=shell, crt=crt, sad=sad, taped=taped)
     for (x, m) in ((1.62, "Cream"), (2.12, "Red"), (4.02, "Blue")):
-        mug(D, Frame((x, 2.0, 25.08), (0, 0, -1)), 0, 0, 0, m)
-    papers(D, Frame((3.7, 2.0, 25.1), (0, 0, -1)), 0, 0, 0, rng)
+        mug(D, Frame((x + OX, 2.0, 25.08), (0, 0, -1)), 0, 0, 0, m)
+    papers(D, Frame((3.7 + OX, 2.0, 25.1), (0, 0, -1)), 0, 0, 0, rng)
     # Klok: tijd is geld.
-    fr.cyl(P, -2.85, 3.62, 0.07, (0, 0, 1), 0.05, 0.2, 24, "DarkSteel")
-    fr.cyl(D, -2.85, 3.62, 0.12, (0, 0, 1), 0.006, 0.17, 24, "Cream")
-    fr.box(D, -2.85 + 0.03, 3.62 + 0.04, 0.13, 0.012, 0.11, 0.006, "DecalDark", roll=-0.6)
-    fr.box(D, -2.85 - 0.04, 3.62 + 0.0, 0.13, 0.08, 0.012, 0.006, "DecalDark", roll=0.3)
-    fr.box(D, -2.85, 3.355, 0.09, 0.42, 0.07, 0.01, "Cream")
-    fr.text(D, "TIJD IS GELD", 0.04, -2.85, 3.355, 0.0965, "DecalDark")
+    cxk = -(2.85 + OX)
+    fr.cyl(P, cxk, 3.62, 0.07, (0, 0, 1), 0.05, 0.2, 24, "DarkSteel")
+    fr.cyl(D, cxk, 3.62, 0.12, (0, 0, 1), 0.006, 0.17, 24, "Cream")
+    fr.box(D, cxk + 0.03, 3.62 + 0.04, 0.13, 0.012, 0.11, 0.006, "DecalDark", roll=-0.6)
+    fr.box(D, cxk - 0.04, 3.62 + 0.0, 0.13, 0.08, 0.012, 0.006, "DecalDark", roll=0.3)
+    fr.box(D, cxk, 3.355, 0.09, 0.42, 0.07, 0.01, "Cream")
+    fr.text(D, "TIJD IS GELD", 0.04, cxk, 3.355, 0.0965, "DecalDark")
 
 
 def starboard_console(ctx, g, rng):
-    x0, x1 = 15.8, 18.95
-    console_bank(ctx, g, x0, x1, rng, [(15.9, 16.7), (17.95, 18.85)])
+    """Naast de consoles: de koffieautomaat (de consolebank zelf is de verschoven bakboordconsole)."""
     P, D = g["props"], g["detail"]
-    fr = Frame((0.0, 0.0, 26.0), (0, 0, -1))
-    # Een groot quotascherm met een dalende grafiek, en een oude ronde radar.
-    w, hh, x, h = 1.05, 0.52, 16.75, 2.3 + 0.17 + 0.26
-    ft = Frame((x, h, 26.0 - 0.42), (0, 0, -1), tilt=10)
-    monitor(P, D, ft, 0.0, 0.0, 0.0, w, hh, "ScreenAmber", rng, shell="Anthracite", crt=False)
-    for k in range(7):
-        ft.box(D, -w * 0.38 + k * w * 0.12, -hh * 0.3 + (6 - k) * 0.03, 0.017, 0.07, 0.04 + (6 - k) * 0.06,
-               0.002, "DecalDark")
-    ft = Frame((17.75, 2.3 + 0.17 + 0.17, 26.0 - 0.42), (0, 0, -1), tilt=10)
-    monitor(P, D, ft, 0.0, 0.0, 0.0, 0.4, 0.33, "ScreenGreen", rng, shell="Cream", crt=True)
-    fr.cyl(P, -18.5, 2.62, 0.34, (0, 0, 1), 0.12, 0.2, 20, "DarkSteel")
-    fr.cyl(D, -18.5, 2.62, 0.46, (0, 0, 1), 0.006, 0.16, 20, "ScreenGreen")
-    fr.box(D, -18.5 + 0.05, 2.62 + 0.04, 0.468, 0.11, 0.008, 0.002, "Soot", roll=0.7)
-    fr.box(P, -18.5, 2.36, 0.36, 0.1, 0.12, 0.1, "DarkSteel")
-    for (xx, m) in ((17.0, "Red"), (17.65, "Cream")):
-        mug(D, Frame((xx, 2.0, 25.08), (0, 0, -1)), 0, 0, 0, m)
-    papers(D, Frame((17.35, 2.0, 25.12), (0, 0, -1)), 0, 0, 0, rng, n=6)
     # Koffieautomaat (buiten gebruik).
     cx0, cx1 = 19.05, 19.88
     block(P, cx0, cx1, Y, 2.75, 25.35, 26.0, "Cream")

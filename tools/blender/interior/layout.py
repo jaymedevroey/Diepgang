@@ -72,7 +72,10 @@ BAY = (3.0, 11.0, 2.0, 16.0)  # baaideuren
 PIT = (12.0, 16.0, 0.0, 2.5)  # uitkijkput −0,6
 GALLERY = (16.0, 20.0, 0.0, 21.0)  # +1,2, open naar de hangar
 BRIDGE = (0.0, 20.0, 21.0, 26.0)  # +1,2, plafond 4 (3 onder de luifel vanaf z 23,5)
-DAIS = (13.0, 23.4, 2.0)  # midden x, z en straal van de verhoging (+1,8)
+# Bakboord, tussen de wand en de trap naar de kade: Ø 5,8 m met de treden, dieper dan de brug (5 m),
+# dus waar hij staat vult hij de hele diepte. Stond eerst op x 13, pal voor de uitgang van de gang
+# (Jayme, 2026-10-04: "staat pal in het midden van de gang"). Nu vrij: gang → trap en brug → galerij.
+DAIS = (3.3, 23.4, 2.0)  # midden x, z en straal van de verhoging (+1,8)
 CORRIDOR = (7.0, 13.0, 26.3, 30.0)  # +1,2, plafond 2,6
 WORKDECK = (3.0, 17.0, 30.0, 40.0)  # +1,2, plafond 3,6 (3,0 aan de zijkant)
 NICHES = {  # +1,2, plafond 2,6

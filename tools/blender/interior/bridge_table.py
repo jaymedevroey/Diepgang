@@ -126,8 +126,8 @@ def build_table(ctx, g):
         box(H, (px, (ym + hy) / 2, pz), (0.005, hy - ym - 0.06, 0.005), "HoloCyan")
         band(H, (px, ym + 0.01, pz), 0.07, 0.004, 0.008, 16, "LensOrange")
     # Projector en bundel. Het planeethologram staat volledig ACHTER het vlak van Terminal_Screen (gezien
-    # vanaf Terminal_Use, op 225°), op ooghoogte net onder de onderrand: het scherm blijft leesbaar.
-    hx, hz = cx + 0.53, cz - 0.53
+    # vanaf Terminal_Use, op 135°), op ooghoogte net onder de onderrand: het scherm blijft leesbaar.
+    hx, hz = cx - 0.53, cz - 0.53
     D.cyl(G(hx, ym, hz), (0, 1, 0), 0.06, 0.15, 24, "Steel")
     ring(H, (hx, 0, hz), 0.08, 0.13, ym + 0.06, ym + 0.065, 24, "HoloCyan")
     cone_open(H, (hx, ym + 0.065, hz), (0, 1, 0), 0.11, 0.085, 0.2, 24, "HoloBeam")
@@ -148,10 +148,10 @@ def build_table(ctx, g):
     band(H, pc, 0.4, 0.006, 0.006, 48, "HoloCyan", axis=orbit_axis)
     sphere(H, ring_point(pc, orbit_axis, 0.4, math.radians(125)), 0.035, "LensOrange", 1)
     band(H, (cx, ym + 0.17, cz), 1.02, 0.006, 0.006, 48, "HoloCyan")
-    # Consoles op de rand, schuin naar wie ervoor staat; de grote met de rode knop bij Terminal_Use (225°).
+    # Consoles op de rand, schuin naar wie ervoor staat; de grote met de rode knop bij Terminal_Use (135°).
     rim_y = y + 0.92
-    for deg, w, scr in ((225, 0.52, "ScreenAmber"), (115, 0.34, "ScreenGreen"), (170, 0.34, "ScreenGreen"),
-                        (50, 0.3, "ScreenGreen"), (300, 0.3, "ScreenAmber")):
+    for deg, w, scr in ((135, 0.52, "ScreenAmber"), (245, 0.34, "ScreenGreen"), (190, 0.34, "ScreenGreen"),
+                        (310, 0.3, "ScreenGreen"), (60, 0.3, "ScreenAmber")):
         t = math.radians(deg)
         tang = (math.cos(t), 0.0, math.sin(t))
         out = (math.sin(t), 0.0, -math.cos(t))
@@ -172,7 +172,7 @@ def build_table(ctx, g):
             box(D, on(-0.02 * j, 0.06 - j * 0.025, 0.026), (w * (0.5 - 0.1 * j), 0.008, 0.002), "Soot", u=tang, v=v)
         for j, m in enumerate(("LensRed", "Cyan", "LensOrange", "LedWhite")):
             box(D, on(-w / 2 + 0.07 + j * 0.05, -0.065, 0.025), (0.026, 0.026, 0.012), m, u=tang, v=v)
-        if deg == 225:  # de grote rode knop, onder een geel klepje
+        if deg == 135:  # de grote rode knop, onder een geel klepje
             box(D, on(w / 2 - 0.08, -0.06, 0.03), (0.07, 0.06, 0.012), "Yellow", u=tang, v=v)
             D.cyl(G(*on(w / 2 - 0.08, -0.06, 0.035)), n, 0.02, 0.022, 12, "LensRed")
     # Botsvorm (tafel) staat al in de oude vorm: cilinder tot boven de rand.
@@ -180,11 +180,12 @@ def build_table(ctx, g):
 
 
 # Opdrachtscherm en de plek waar je ervoor staat (LVL-1, door de level-agent nagemeten: vanaf elke
-# aanlooproute bereikbaar). De plek ligt op 225° op de verhoging, het scherm kijkt ernaar.
-USE = (11.763, 1.8, 24.637)  # polar(1,75, 225°) rond DAIS
-SCREEN = (13.21, 3.55, 23.19)  # midden; 2,05 m van het oog, net achter de naaf van de lichtkroon
-SCREEN_N = (-0.7071, 0.0, 0.7071)  # naar de gebruiksplek (en de gang)
-SCREEN_R = (0.7071, 0.0, 0.7071)  # rechts op het scherm, gezien vanaf de gebruiksplek
+# aanlooproute bereikbaar). De plek ligt op 135° op de verhoging (naar de gang en de trap toe), het
+# scherm kijkt ernaar. Alles relatief tot DAIS, zodat de verhoging kan verhuizen.
+USE = (DAIS[0] + 1.237, 1.8, DAIS[1] + 1.237)  # polar(1,75, 135°) rond DAIS
+SCREEN = (DAIS[0] - 0.21, 3.55, DAIS[1] - 0.21)  # midden; 2,05 m van het oog, achter de naaf van de kroon
+SCREEN_N = (0.7071, 0.0, 0.7071)  # naar de gebruiksplek (en de gang)
+SCREEN_R = (0.7071, 0.0, -0.7071)  # rechts op het scherm, gezien vanaf de gebruiksplek
 
 
 def build_screen(ctx, g):
@@ -197,10 +198,10 @@ def build_screen(ctx, g):
     sx, sy, sz = SCREEN
     n, r = Vector(SCREEN_N), Vector(SCREEN_R)
     ctx.shared["screens"].append(("Terminal_Screen", SCREEN, SCREEN_N, w, h))
-    ctx.anchor("Terminal_Use", USE, -45)
+    ctx.anchor("Terminal_Use", USE, 45)
     # Glad gesleten plek op de verhoging, waar elke robot voor de tafel staat.
     from hangar_wear import blot
-    wx, wz = polar(1.6, math.radians(225))
+    wx, wz = polar(1.6, math.radians(135))
     blot(D, wx, 1.8035, wz, 0.24, "FloorWorn", random.Random(5), squash=0.8)
     c = Vector((sx, sy + h / 2 + 0.055, sz))  # midden van de emitterrail
     ex = w / 2 + 0.1
@@ -233,9 +234,9 @@ def build_crown(ctx, g):
     a = math.radians(22.5)
     revolve(R, c, [(1.46, 3.98), (1.66, 3.98), (1.7, 4.03), (1.7, 4.12), (1.42, 4.12), (1.42, 4.03)], 8,
             "DarkSteel", a, a + 2 * math.pi)
-    # Ledring: onderaan op de helft aan de kant van Terminal_Use (225°); op de verre helft zit hij op de
+    # Ledring: onderaan op de helft aan de kant van Terminal_Use (135°); op de verre helft zit hij op de
     # buitenkant, zodat hij vanaf de terminal niet achter het (doorzichtige) hologram oplicht.
-    near0 = math.radians(157.5)
+    near0 = math.radians(22.5)
     revolve(L, c, [(1.5, 3.972), (1.6, 3.972), (1.6, 3.98), (1.5, 3.98)], 4, "LedAmber", near0, near0 + math.pi)
     revolve(L, c, [(1.7, 4.05), (1.708, 4.05), (1.708, 4.1), (1.7, 4.1)], 4, "LedAmber", near0 - math.pi, near0)
     for k in range(4):

@@ -141,6 +141,9 @@ func _hud_shots(p: Player, game: Game, ship: Ekster, mol: Mol) -> void:
 	await _shot("hud_spawn", 0.3)
 	await _stand(p, hub, Vector3(3.0, 1.2, 27.5), Vector3(3.0, 2.4, 15.0))
 	await _shot("hud_werkdek", 0.6)
+	# Uit de gang de brug op, recht vooruit: de looplijn naar de trap en de Mol moet vrij zijn.
+	await _stand(p, hub, Vector3(3.0, 1.2, 17.6), Vector3(2.0, 1.6, 5.0))
+	await _shot("hud_gang_uit", 0.6)
 	await _stand(p, hub, Vector3(3.0, 1.2, 17.3), hub.affine_inverse() * ship.terminal_target())
 	await _shot("hud_brug", 0.6)
 	# Aan de terminal, kijkend naar de tafel (de richting van het lege punt).

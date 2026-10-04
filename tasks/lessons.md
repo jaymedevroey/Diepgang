@@ -2,6 +2,13 @@
 
 Wat we onderweg leerden en wat het GDD bijstuurt. Nieuwste bovenaan.
 
+## 2026-10-04 — De verhoging stond pal voor de gang
+
+- **Na uren polijsten vond Jayme in één blik wat wij misten:** de verhoging met de opdrachttafel stond recht voor de uitgang van de gang. Ze is Ø 5,8 m (met de treden) en de brug is maar 5 m diep, dus waar ze staat, vult ze de hele diepte. De level-agent meldde zelfs dat robots daar vastliepen, en de lead verschoof toen de terminalplek in plaats van de verhoging zelf.
+- **Eerst de looproute, dan pas details.** Voor elke ronde: vanuit elke deuropening op ooghoogte recht vooruit kijken langs de hoofdroute (laadrek → werkdek → gang → brug → trap → Mol). Wat de route blokkeert, verplaats je bij de bron, je loopt er niet omheen.
+- **Meld een agent "vast bij X", vraag dan of X zelf op de verkeerde plek staat.**
+- Opgelost: de verhoging staat nu aan bakboord (x 3,3), tussen de wand en de trap naar de kade. Gang → trap en brug → galerij zijn vrij. Alles op de verhoging (terminalplek, scherm, hologram, kroon) is nu relatief tot `DAIS`, zodat ze nog eens kan verhuizen.
+
 ## 2026-10-03 — Kritische ronde: interieur en drop (vijf agents: art, level, cine, horizon, QA)
 
 - **Eerst onderzoeken met beelden, dan pas bouwen.** Een opnamescenario (`drop_sequence`) legde de hele overgang vast (terminal → kiezen → aftellen → val → landing → besturing, plus vaste camera's op 340/160/60 m). Pas daarmee werd "het grote vierkant" meetbaar: het verre landschap hield op 492–696 m van de landingsplek op, en van hoger dan ±55 m zag je de hemel eronder.
