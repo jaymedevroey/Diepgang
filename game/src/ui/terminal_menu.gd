@@ -239,7 +239,7 @@ func _option_card(index: int, o: Dictionary, chosen: bool) -> Control:
 	h.theme_type_variation = &"SubHeading"
 	v.add_child(h)
 	var planet := Label.new()
-	planet.text = PlanetType.NAMES[company.game.planet_type].to_upper()
+	planet.text = PlanetType.NAMES[clampi(int(o.get("planet", 0)), 0, PlanetType.NAMES.size() - 1)].to_upper()
 	planet.theme_type_variation = &"Caption"
 	v.add_child(planet)
 	var r := Label.new()

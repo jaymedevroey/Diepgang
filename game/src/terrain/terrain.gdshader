@@ -23,6 +23,10 @@ uniform bool far_terrain = false;
 // Landingsplek (PlanetSurface): xy = midden (wereld x/z), z = straal van de aangestampte kern,
 // w = waar ze overgaat in het gewone terrein (m). 0 = geen.
 uniform vec4 landing_pad = vec4(0.0);
+// Kleuren van de bovenste laag per planeet (PlanetType.ground), sRGB. Standaard: klei (Roestbol).
+uniform vec3 surf_base = vec3(0.431, 0.290, 0.208);
+uniform vec3 surf_light = vec3(0.604, 0.420, 0.298);
+uniform vec3 surf_dark = vec3(0.243, 0.165, 0.122);
 // Lagen in een wand van het verre landschap (Landform: COLOR.a = hoeveel), sRGB: licht, midden, donker.
 uniform vec3 strata_light = vec3(0.878, 0.706, 0.549);
 uniform vec3 strata_mid = vec3(0.722, 0.416, 0.267);
@@ -162,6 +166,11 @@ void fragment() {
 	vec3 base = lin(PAL_BASE[layer]);
 	vec3 light = lin(PAL_LIGHT[layer]);
 	vec3 dark = lin(PAL_DARK[layer]);
+	if (layer == 3) { // de bovenste laag: per planeet (PlanetType.ground)
+		base = lin(surf_base);
+		light = lin(surf_light);
+		dark = lin(surf_dark);
+	}
 
 	// Grote golving in de wand (één ruisgradiënt): breekt de gladheid van de voxels.
 	if (wave_k > 0.0) {

@@ -1,14 +1,33 @@
 class_name PlanetType
 extends RefCounted
-## Planeettypes (GDD v3 §4): hemel, zon en sfeer aan de oppervlakte. De lagen en hun kleuren staan
-## (nog) in Strata en de rots-shader; dit is wat boven de grond anders is per planeet.
-## In Early Access: Roestbol, Fossielwereld, Kristalmaan (enkel Roestbol is nu uitgewerkt).
-## Roestbol heeft drie voorgestelde kleurrichtingen (docs/research/hemel.md §5); met --sky=a|b|c
-## kies je er een (voor de vergelijking), standaard A.
+## Planeettypes (GDD v3 §4, docs/research/planeten.md): hemel, zon, sfeer aan de oppervlakte, de
+## kleuren van de bovenste laag en de landvorm rond het speelgebied (Landform.create).
+## De drie hemelrichtingen uit docs/research/hemel.md §5 zijn drie planeten (Jayme, 2026-10-04):
+## Roestbol = A (karamel met een blauwe krans), Fossielwereld = B (teal boven roest),
+## Kristalmaan = C (paars gouden uur). Met --sky=a|b|c forceer je een hemel (voor vergelijkingen).
 
-enum Id { ROESTBOL }
+enum Id { ROESTBOL, FOSSIELWERELD, KRISTALMAAN }
 
-const NAMES: Array[String] = ["Roestbol"]
+const NAMES: Array[String] = ["Roestbol", "Fossielwereld", "Kristalmaan"]
+const SKY_STYLE: Array[String] = ["a", "b", "c"]
+
+
+## Kleuren van de bovenste laag (de rots aan de oppervlakte en het verre landschap), sRGB: basis,
+## licht, donker, de lagen in steile wanden (licht, midden, donker), en de losse rotsblokken.
+static func ground(id: Id) -> Dictionary:
+	match id:
+		Id.FOSSIELWERELD:
+			# Kalksteen (crème in de zon, koel in de schaduw), mergel en een roestige ijzerband.
+			return {"base": _hex("C9B48C"), "light": _hex("E2CFA8"), "dark": _hex("7C8C8E"),
+					"strata": [_hex("E2CFA8"), _hex("C9A46E"), _hex("B0482A")], "rock": _hex("B9A684")}
+		Id.KRISTALMAAN:
+			# Donker violet basalt met lange schaduwen.
+			return {"base": _hex("5A4050"), "light": _hex("8A5A4A"), "dark": _hex("2E2236"),
+					"strata": [_hex("6B4A5A"), _hex("8A5A4A"), _hex("35263F")], "rock": _hex("4A3646")}
+		_:
+			# Roestbol: klei (de stijlgids), lagen in de kraterwand zoals in het onderzoek.
+			return {"base": Color(0.431, 0.290, 0.208), "light": Color(0.604, 0.420, 0.298), "dark": Color(0.243, 0.165, 0.122),
+					"strata": [_hex("E0B48C"), _hex("B86A44"), _hex("7A3A2A")], "rock": _hex("6A3A2B")}
 
 
 ## Richting (eenheidsvector) uit een kompasrichting en hoogte in graden. Azimut 0 = +z, 90 = +x.
@@ -25,10 +44,10 @@ static func _hex(s: String) -> Color:
 ## Parameters van een type: hemel (shader-uniforms), zon (licht) en sfeer aan de oppervlakte.
 static func params(id: Id, style := "") -> Dictionary:
 	if style == "":
-		style = str(CmdArgs.value("sky", "a")).to_lower()
-	match id:
-		_:
-			return _roestbol(style)
+		style = str(CmdArgs.value("sky", SKY_STYLE[clampi(int(id), 0, SKY_STYLE.size() - 1)])).to_lower()
+	var p := _roestbol(style)
+	p["name"] = NAMES[clampi(int(id), 0, NAMES.size() - 1)]
+	return p
 
 
 static func _roestbol(style: String) -> Dictionary:

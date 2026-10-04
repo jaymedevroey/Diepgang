@@ -132,7 +132,7 @@ func _build_terrain(ops: Array, finds_state: Array = [], ores_state: Array = [])
 	surface = PlanetSurface.new()
 	surface.name = "Surface"
 	add_child(surface)
-	surface.build(terrain, pit_seed)
+	surface.build(terrain, pit_seed, planet_type)
 	finds.generate(pit_seed)
 	finds.apply_snapshot(finds_state)
 	ores.generate(pit_seed)
@@ -186,8 +186,10 @@ func _build_terrain(ops: Array, finds_state: Array = [], ores_state: Array = [])
 
 ## Nieuwe wereld (volgende dienst, nieuwe planeet): terrein, vondsten, erts en het landschap
 ## opnieuw uit een andere seed. De Mol, het schip en de spelers blijven.
-func _rebuild_world(seed_value: int) -> void:
+func _rebuild_world(seed_value: int, planet := -1) -> void:
 	pit_seed = seed_value
+	if planet >= 0:
+		planet_type = planet as PlanetType.Id
 	# De oude wereld blijft tot het einde van dit beeld in de boom (verborgen, stil, met een andere
 	# naam): godot_voxel werkt zijn terreinen pas later in het beeld bij en vroeg anders de plek op
 	# van een terrein dat al uit de boom was ("!is_inside_tree", vooral in co-op).
@@ -210,15 +212,15 @@ func _rebuild_world(seed_value: int) -> void:
 
 
 ## Host: de volgende dienst gaat naar een nieuwe planeet (bij iedereen dezelfde seed).
-func host_new_world(seed_value: int) -> void:
-	_rebuild_world(seed_value)
+func host_new_world(seed_value: int, planet := -1) -> void:
+	_rebuild_world(seed_value, planet)
 	for peer: int in multiplayer.get_peers():
-		_rpc_new_world.rpc_id(peer, seed_value)
+		_rpc_new_world.rpc_id(peer, seed_value, int(planet_type))
 
 
 @rpc("authority", "reliable")
-func _rpc_new_world(seed_value: int) -> void:
-	_rebuild_world(seed_value)
+func _rpc_new_world(seed_value: int, planet: int) -> void:
+	_rebuild_world(seed_value, planet)
 
 
 ## Van de hub naar dezelfde plek t.o.v. de baai van het buitenschip (wie door de open baai van
@@ -313,7 +315,7 @@ func _accept(id: int) -> void:
 	for p: Player in players.get_children():
 		existing.append([p.peer_id, _color_of.get(p.peer_id, 0), p.global_position])
 	_rpc_tuning.rpc_id(id, Tuning.snapshot())
-	_rpc_world_init.rpc_id(id, pit_seed, terrain.op_log(), existing, finds.snapshot(), ores.snapshot())
+	_rpc_world_init.rpc_id(id, pit_seed, int(planet_type), terrain.op_log(), existing, finds.snapshot(), ores.snapshot())
 	mol.send_state(id)
 	magma.send_state(id)
 	unrest.send_state(id)
@@ -328,8 +330,9 @@ func _accept(id: int) -> void:
 
 
 @rpc("authority", "reliable")
-func _rpc_world_init(seed_value: int, ops: Array, existing: Array, finds_state: Array, ores_state: Array) -> void:
+func _rpc_world_init(seed_value: int, planet: int, ops: Array, existing: Array, finds_state: Array, ores_state: Array) -> void:
 	pit_seed = seed_value
+	planet_type = planet as PlanetType.Id
 	_pending_spawns.append_array(existing)
 	_build_terrain(ops, finds_state, ores_state)
 	print("[game] wereld ontvangen: seed %d, %d ops, %d spelers" % [seed_value, ops.size(), existing.size()])

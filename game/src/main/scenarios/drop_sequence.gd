@@ -104,7 +104,13 @@ func _run(p: Player) -> void:
 	await _shot("terminal_menu", 0.6)
 	main._terminal.close()
 	# 2. Kiezen: de nieuwe wereld laadt (wat ziet de speler intussen?).
-	game.company.choose(1)
+	# --planet=roestbol|fossielwereld|kristalmaan: de opdracht op die planeet (anders de middelste).
+	var pick := 1
+	var want := str(CmdArgs.value("planet", "")).to_lower()
+	for i in game.company.options.size():
+		if want != "" and PlanetType.NAMES[int(game.company.options[i].get("planet", 0))].to_lower() == want:
+			pick = i
+	game.company.choose(pick)
 	for k in 6:
 		await _shot("na_kiezen_%d" % k, 0.5)
 	while not game.terrain.is_loaded:

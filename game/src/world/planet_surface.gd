@@ -37,8 +37,9 @@ const SKIRT := 30.0
 const LANDING_PAD := Vector2(11.0, 30.0)
 
 var terrain: TerrainAPI
-## Grote landvormen rond het speelgebied (krater, put, duinen), per planeettype.
-var landform := Landform.new()
+## Planeettype van deze wereld, en zijn grote landvormen rond het speelgebied (Landform.create).
+var planet := PlanetType.Id.ROESTBOL
+var landform: Landform = Landform.new()
 var is_built := false
 var _seed := 0
 var _size := Vector3.ZERO
@@ -57,10 +58,12 @@ var _main_us := 0 # µs op de hoofdthread (build + in de scène hangen)
 var _compute_us := 0 # µs op de werkthread
 
 
-func build(t: TerrainAPI, planet_seed: int) -> void:
+func build(t: TerrainAPI, planet_seed: int, planet_id := PlanetType.Id.ROESTBOL) -> void:
 	_t0 = Time.get_ticks_usec()
 	terrain = t
 	_seed = planet_seed
+	planet = planet_id
+	landform = Landform.create(planet_id)
 	_size = t.world_size()
 	var c := t.shaft_center_world()
 	_surface_y = t.surface_height_at(c.x, c.z)
@@ -84,6 +87,16 @@ func build(t: TerrainAPI, planet_seed: int) -> void:
 	# De landingsplek in de rotsshader: aangestampt in het midden, tot 30 m overgaand in het terrein
 	# (de vlakke plek van de generator is 22 m breed, met 20 m overgang).
 	t.terrain_material().set_shader_parameter("landing_pad", Vector4(c.x, c.z, LANDING_PAD.x, LANDING_PAD.y))
+	# De kleuren van de bovenste laag en de lagen in de wanden: per planeet (ook het voxelterrein).
+	var g := PlanetType.ground(planet_id)
+	var mat := t.terrain_material()
+	for k: String in ["base", "light", "dark"]:
+		var col: Color = g[k]
+		mat.set_shader_parameter("surf_" + k, Vector3(col.r, col.g, col.b))
+	var strata: Array = g.strata
+	for i in 3:
+		var col: Color = strata[i]
+		mat.set_shader_parameter(["strata_light", "strata_mid", "strata_dark"][i], Vector3(col.r, col.g, col.b))
 	landform.setup(planet_seed, Vector2(c.x, c.z), Vector2(_size.x, _size.z))
 	_place_craters()
 	_build_boundary()

@@ -92,9 +92,16 @@ func _make_options() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = _company_seed * 7349 + shifts_total * 131 + 17
 	options = []
+	# Drie opdrachten op drie verschillende planeten (in een andere volgorde per dienst).
+	var planets := [PlanetType.Id.ROESTBOL, PlanetType.Id.FOSSIELWERELD, PlanetType.Id.KRISTALMAAN]
+	for i in range(planets.size() - 1, 0, -1):
+		var j := rng.randi_range(0, i)
+		var tmp: int = planets[i]
+		planets[i] = planets[j]
+		planets[j] = tmp
 	for r in [Risk.LOW, Risk.MID, Risk.HIGH]:
 		var s := rng.randi_range(1, 999999)
-		options.append({"seed": s, "risk": r, "name": "CONCESSIE %d" % (s % 97 + 1)})
+		options.append({"seed": s, "risk": r, "planet": int(planets[r]), "name": "CONCESSIE %d" % (s % 97 + 1)})
 
 
 func state() -> Dictionary:
@@ -155,7 +162,7 @@ func _host_choose(index: int) -> void:
 		return
 	contract = options[index]
 	_broadcast()
-	game.host_new_world(int(contract.seed))
+	game.host_new_world(int(contract.seed), int(contract.get("planet", 0)))
 	game.notice_all("Opdracht gekozen: %s (risico %s)." % [contract.name, RISK_NAMES[int(contract.risk)]], "info")
 	_save()
 

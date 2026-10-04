@@ -97,6 +97,28 @@ func setup(environment: Environment, terrain_api: TerrainAPI, planet := PlanetTy
 	add_child(_bounce)
 
 
+## Andere planeet (een nieuwe opdracht): de hemel, de zon en de sfeer van die planeet.
+func set_planet(planet: PlanetType.Id) -> void:
+	var p := PlanetType.params(planet)
+	if env == null or str(p.get("name", "")) == str(_planet.get("name", "")):
+		return
+	_planet = p
+	var air := _air_params()
+	var sky_mat := env.sky.sky_material as ShaderMaterial if env.sky else null
+	if sky_mat:
+		for k: String in air:
+			sky_mat.set_shader_parameter(k, air[k])
+	_moon.light_color = _planet.sun_color
+	var rot: Vector3 = _planet.sun_rotation_deg
+	_moon.rotation = Vector3(deg_to_rad(rot.x), deg_to_rad(rot.y), deg_to_rad(rot.z))
+	if _deck:
+		var mat := _deck.material_override as ShaderMaterial
+		for k: String in air:
+			mat.set_shader_parameter(k, air[k])
+		mat.set_shader_parameter("sun_dir", _moon.global_basis.z)
+	snap()
+
+
 ## Wat de hemel en het planeetdek allebei nodig hebben (planet_air.gdshaderinc): de kleuren van de
 ## planeet, de hoogte van het oppervlak (de hemel rekent zelf hoe hoog de camera hangt), de straal
 ## (zelfde kromming als het verre landschap) en het licht waarmee het echte terrein belicht wordt.

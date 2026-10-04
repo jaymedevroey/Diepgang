@@ -208,6 +208,7 @@ func _on_world_loaded(stats: Dictionary) -> void:
 		add_child(_atmosphere)
 		_atmosphere.setup(($WorldEnvironment as WorldEnvironment).environment, terrain, game.planet_type)
 	_atmosphere.terrain = terrain # nieuwe wereld per dienst
+	_atmosphere.set_planet(game.planet_type) # andere planeet: andere hemel, zon en sfeer
 	_atmosphere.ship = game.ship
 	if not _mol_connected:
 		_mol_connected = true
