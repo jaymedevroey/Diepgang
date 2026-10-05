@@ -35,6 +35,9 @@ extends Node3D
 ##   hub_screens_test  de schermen in de hub (tv, firmabord, terminal, taxatie) volgen de firma (headless)
 ##   surface_bench     bouwtijd van het verre landschap per planeet (--contended: terwijl het terrein laadt)
 ##   feel_bench        metingen en filmpjes van lopen, gereedschap, dragen en vondsten (--part=…)
+##   threat_test       dreiging (F2): worm, bakens, gas, neergaan en redden, instortingen, climax (headless)
+##   net_threat_test   neergaan, dragen en redden, en de worm in co-op (tools/net_test.py --scenario=net_threat_test)
+##   threat_film       films en beelden van de dreiging (--take=model|worm|lunge|gas|rescue|collapse|hud)
 ## Extra in play (voor controle door de agent):
 ##   --shot=naam --frames=90,140   screenshots N frames na het spawnen, dan afsluiten
 ##   --autodig                     gereedschap werkt vanzelf (houweel zwaait, boor boort)
@@ -81,11 +84,14 @@ const SCENARIOS := {
 	"hub_screens_test": preload("res://src/main/scenarios/hub_screens_test.gd"),
 	"surface_bench": preload("res://src/main/scenarios/surface_bench.gd"),
 	"feel_bench": preload("res://src/main/scenarios/feel_bench.gd"),
+	"threat_test": preload("res://src/main/scenarios/threat_test.gd"),
+	"net_threat_test": preload("res://src/main/scenarios/net_threat_test.gd"),
+	"threat_film": preload("res://src/main/scenarios/threat_film.gd"),
 }
 ## Scenario's die op De Ekster beginnen (de Mol in de dropbaai). De rest begint op de planeet.
 const SCENARIOS_ON_SHIP := ["play", "ship_preview", "drop_sequence", "drop_flow_test", "net_drop_flow_test", "ship_test", "net_ship_test", "company_test", "interior_preview", "surface_bench"]
 ## Scenario's waarin de host ook een eigen speler krijgt.
-const SCENARIOS_WITH_PLAYER := ["play", "ship_preview", "drop_sequence", "drop_flow_test", "net_drop_flow_test", "ship_test", "net_ship_test", "net_test", "find_test", "carry_test", "carry_preview", "mol_test", "sonar_test", "mol_edge_test", "stream_test", "ore_test", "drive_perf", "mol_preview", "hud_preview", "ui_test", "tool_preview", "magma_test", "company_test", "surface_bench", "feel_bench"]
+const SCENARIOS_WITH_PLAYER := ["play", "ship_preview", "drop_sequence", "drop_flow_test", "net_drop_flow_test", "ship_test", "net_ship_test", "net_test", "find_test", "carry_test", "carry_preview", "mol_test", "sonar_test", "mol_edge_test", "stream_test", "ore_test", "drive_perf", "mol_preview", "hud_preview", "ui_test", "tool_preview", "magma_test", "company_test", "surface_bench", "feel_bench", "threat_test", "net_threat_test", "threat_film"]
 
 var game: Game
 var player: Player

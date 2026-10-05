@@ -5,8 +5,9 @@ extends Node
 ## - Onrust: de boor en een PING maken lawaai, het houweel niet; na een stille periode zakt ze.
 ## - Beving: bij een volle trap aankondiging en hoofdschok, het magma maakt een sprong, rotsen
 ##   vallen in een zone in de buurt (en raken wie eronder staat), minstens min_gap_s ertussen.
-## - Regels: losse buit in het magma is weg, een speler die erin zakt smelt (vervanger in de Mol),
-##   de Mol krijgt alarmen, en bij recall_depth vertrekt hij vanzelf.
+## - Regels: losse buit in het magma is weg, een speler die erin zakt smelt (pakket F2: kapot, een
+##   spookdrone tot de dienst voorbij is; solo vertrekt de Mol dan vanzelf), de Mol krijgt alarmen,
+##   en bij recall_depth vertrekt hij vanzelf.
 ## tools\godot.cmd --headless --path game -- --scenario=magma_test --no-steam
 
 var main: Node
@@ -114,7 +115,7 @@ func _run(p: Player) -> void:
 	await _wait(3.0)
 	# Een rots recht boven de speler: hij wankelt.
 	p.velocity = Vector3.ZERO
-	unrest._spawn_rock(p.global_position + Vector3(0.0, 4.0, 0.0), 1.0)
+	unrest.spawn_rock(unrest.host_rock_entry(p.global_position + Vector3(0.0, 4.0, 0.0), 1.0, 0.0))
 	var hit := false
 	for i in 120:
 		await get_tree().physics_frame
@@ -156,6 +157,9 @@ func _late(p: Player, game: Game, magma: Magma, mol: Mol) -> void:
 	magma.melted.connect(func(_id: int) -> void: melted[0] += 1)
 	magma.melting.connect(func(_id: int) -> void: melting[0] += 1)
 	magma.debug_depth = 30.0
+	# Een spoor om terug te rijden (zonder schip kan de Mol enkel langs zijn eigen spoor naar boven).
+	mol._path.assign([mol.body.global_position + Vector3(0.0, 0.0, -8.0), mol.body.global_position])
+	magma._recalled = true # de noodophaling hier niet: enkel "iedereen kapot" mag de Mol doen vertrekken
 	await _wait(0.2)
 	p.set_physics_process(false)
 	var sunk := Vector3(p.global_position.x, magma.level - 1.0, p.global_position.z)
@@ -167,7 +171,17 @@ func _late(p: Player, game: Game, magma: Magma, mol: Mol) -> void:
 	p.set_physics_process(true)
 	_expect(melting[0] == 1, "één keer gesmolten, niet opnieuw tijdens het smelten")
 	_expect(melted[0] == 1, "de speler smolt in het magma")
-	_expect(mol.contains_point(p.global_position), "en staat als vervanger in de Mol")
+	# Pakket F2 (ontwerp-7): smelten zet je niet meer in de Mol (dat was de snelste weg naar huis).
+	# Je robot is kapot: een spookdrone boven het magma tot de dienst voorbij is.
+	_expect(game.rescue.life_of(p.peer_id) == Rescue.Life.BROKEN and p.global_position.y > magma.level,
+			"en is kapot: een spookdrone boven het magma")
+	await _wait(1.5)
+	_expect(mol.mode == Mol.Mode.COUNTDOWN, "solo kapot: de Mol vertrekt vanzelf")
+	# Verder testen met een gewone robot in een geparkeerde Mol.
+	game.rescue._rpc_reset.rpc(p.peer_id, mol.to_world_mol(Vector3(0.0, -1.2, 1.2)), true)
+	game.rescue._wipe_called = false
+	mol._set_mode(Mol.Mode.PARKED, 0)
+	await _wait(0.3)
 
 	# 7. De Mol: alarm, en de noodophaling op recall_depth.
 	_messages.clear()
