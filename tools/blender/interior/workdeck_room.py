@@ -195,7 +195,7 @@ def ceiling(ctx, R, RD, rng):
     for a in range(4):  # beugels
         t = a * math.pi / 2 + math.pi / 4
         box(RD, (10.0 + 0.3 * math.cos(t), 4.62, 35.0 + 0.3 * math.sin(t)), (0.06, 0.18, 0.06), m="Steel")
-    ctx.spot("dfe8ff", (10.0, 4.38, 35.0))
+    ctx.spot("e9f2df", (10.0, 4.38, 35.0))
     # Lichtbakken langs z (wit), aan stangen; de diffusor onderaan.
     for x in (7.6, 12.4):
         profile_beam(RD, (x, 4.36, 30.5), (x, 4.36, 39.5), chamfer_profile(0.26, 0.13, 0.04), "Anthracite")

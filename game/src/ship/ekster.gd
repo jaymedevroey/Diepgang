@@ -236,22 +236,27 @@ func _drop_preview_nodes() -> void:
 	(anchors["Collision"] as MeshInstance3D).visible = false
 
 
-## Kleuren van het spel (machine-shader, ledstroken, glas, schermen) op elke mesh van de hub.
-## Ook voor interior_preview, zodat de zones daar ogen zoals in het spel.
+## Kleuren van het spel (hub-materiaal met slijtage, ledstroken per zone, glas, schermen; HubLook) op
+## elke mesh van de hub. Ook voor interior_preview, zodat de zones daar ogen zoals in het spel.
 static func apply_materials(root: Node3D) -> void:
 	var cache := {}
 	for mi: MeshInstance3D in root.find_children("*", "MeshInstance3D", true, false):
 		var glass := false
+		var part := HubLook.is_part(mi.name)
 		for i in mi.mesh.get_surface_count():
 			var src := mi.mesh.surface_get_material(i)
 			var mat_name := src.resource_name if src else ""
 			glass = glass or mat_name == "Glass"
-			if not cache.has(mat_name):
-				cache[mat_name] = MolVisual.palette_material(mat_name, src, true)
-			if cache[mat_name]:
-				mi.set_surface_override_material(i, cache[mat_name])
+			var am := mi.mesh as ArrayMesh
+			var baked: bool = am != null and (am.surface_get_format(i) & Mesh.ARRAY_FORMAT_COLOR) != 0
+			var key := "%s|%s|%s" % [mat_name, part, baked]
+			if not cache.has(key):
+				cache[key] = HubLook.material(mat_name, src, part, baked)
+			if cache[key]:
+				mi.set_surface_override_material(i, cache[key])
 		# Glas werpt geen schaduw (anders geen licht door het raam).
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF if glass else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		mi.layers |= HubLook.LAYER # enkel de hub krijgt de decals (vuil, voetsporen)
 
 
 func _build_collision() -> void:
@@ -338,6 +343,9 @@ static func add_lights(root: Node3D) -> void:
 		var from := glass.position + Vector3(0.0, 3.5, -9.0)
 		var to := glass.position + Vector3(0.0, -4.6, 19.0)
 		win.transform = Transform3D(Basis.looking_at(to - from, Vector3.UP), from)
+	HubLook.add_haze(root)
+	HubLook.add_probes(root)
+	HubLook.add_decals(root)
 
 
 ## Kleine lampen: geen schaduw, niet in de mist (dat kost per lamp, en de hub hoort niet te walmen).

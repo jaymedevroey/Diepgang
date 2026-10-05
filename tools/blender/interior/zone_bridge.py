@@ -325,7 +325,7 @@ def starboard_console(ctx, g, rng):
               "LensOrange" if j else "LensRed")
     text(D, "COFFEE", 0.11, (19.465, 2.58, 25.315), (0, 0, -1), "Red")
     block(D, cx0 + 0.12, cx1 - 0.12, 2.04, 2.1, 25.317, 25.322, "Yellow")
-    text(D, "2 CR + CUP 1 CR", 0.026, (19.465, 2.07, 25.314), (0, 0, -1), "DecalDark")
+    text(D, "€2 + CUP €1", 0.026, (19.465, 2.07, 25.314), (0, 0, -1), "DecalDark")
     fr2 = Frame((19.47, 1.82, 25.30), (0, 0, -1))
     fr2.box(D, 0.08, 0.0, 0.0, 0.3, 0.17, 0.003, "Cream", roll=0.08)
     fr2.text(D, "OUT OF", 0.045, 0.08, 0.03, 0.002, "DecalDark")
@@ -417,16 +417,16 @@ def overhang(ctx, g):
     # Armaturen boven de consoles.
     for x in (2.55, 5.15, 18.25, 15.7):
         block(RD, x - 0.45, x + 0.45, 3.8, 3.86, 24.55, 24.85, "Anthracite")
-        block(L, x - 0.4, x + 0.4, 3.792, 3.8, 24.59, 24.81, "Lens")
+        block(L, x - 0.4, x + 0.4, 3.792, 3.8, 24.59, 24.81, "LedCool")  # brug: koud wit
         for xx in (x - 0.35, x + 0.35):
             block(RD, xx - 0.012, xx + 0.012, 3.86, 4.2, 24.69, 24.71, "Steel")
-    ctx.glow("ffb060", (3.85, 3.7, 24.9))
-    ctx.glow("ffb060", (17.2, 3.7, 24.9))
+    ctx.glow("d6e6ff", (3.85, 3.7, 24.9))
+    ctx.glow("d6e6ff", (17.2, 3.7, 24.9))
     sx, sz = 8.4, 23.75
     block(RD, sx - 0.03, sx + 0.03, 3.98, 4.2, sz - 0.03, sz + 0.03, "Steel")
     RD.cyl(G(sx, 3.98, sz), (0, -1, 0), 0.22, 0.13, 12, "Anthracite", r2=0.17)
-    RD.cyl(G(sx, 3.755, sz), (0, -1, 0), 0.006, 0.15, 12, "Lens")
-    ctx.spot("ffe2c4", (sx, 3.72, sz))
+    RD.cyl(G(sx, 3.755, sz), (0, -1, 0), 0.006, 0.15, 12, "LedCool")
+    ctx.spot("d8e8ff", (sx, 3.72, sz))
 
 
 # --- Wand boven de luifel (naar de hangar) -------------------------------------------------------------

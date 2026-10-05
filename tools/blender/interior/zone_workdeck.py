@@ -46,7 +46,8 @@ def build(ctx: Ctx):
     build_niches(ctx, S, R, PN, D, RD, P, rng)
     build_rack(ctx, S, R, ST, P, PN, D, RD, rng)
 
-    # Licht op het dek: koel wit onder de lichtbakken (de spot op het logo staat in ceiling()).
-    ctx.glow("e6eeff", (7.6, 4.1, 32.6))
-    ctx.glow("e6eeff", (12.4, 4.1, 32.6))
-    ctx.glow("e6eeff", (10.0, 4.1, 38.4))
+    # Licht op het dek: tl-wit (groenig, nostromo-stijl §3) onder de lichtbakken (de spot op het logo
+    # staat in ceiling()). Elke zone een eigen lichttemperatuur (release-audit binnen-12).
+    ctx.glow("e9f2df", (7.6, 4.1, 32.6))
+    ctx.glow("e9f2df", (12.4, 4.1, 32.6))
+    ctx.glow("e9f2df", (10.0, 4.1, 38.4))
