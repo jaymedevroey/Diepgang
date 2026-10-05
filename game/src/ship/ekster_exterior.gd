@@ -109,10 +109,11 @@ func _build_grapple() -> void:
 	add_child(_cable)
 	var wire := MeshInstance3D.new()
 	var cyl := CylinderMesh.new()
-	cyl.top_radius = 0.12
-	cyl.bottom_radius = 0.12
+	# Dik genoeg om van ver te lezen als een kabel, geen draadje (buiten-5).
+	cyl.top_radius = 0.22
+	cyl.bottom_radius = 0.22
 	cyl.height = 1.0
-	cyl.radial_segments = 8
+	cyl.radial_segments = 10
 	wire.mesh = cyl
 	wire.material_override = MolVisual.machine_material("Steel")
 	wire.position = Vector3(0, -0.5, 0) # van 0 tot −1: de schaal van de node rekt hem uit
