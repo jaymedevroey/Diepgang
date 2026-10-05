@@ -8,7 +8,7 @@ signal host_chosen
 signal join_chosen(address: String)
 
 const LAST_IP_FILE := "user://last_ip.txt"
-const VERSION := "Playtest 0.3 · October 2026"
+const VERSION := "Playtest 0.9 · October 2026"
 
 var backdrop: MenuBackdrop
 var _ip: LineEdit
