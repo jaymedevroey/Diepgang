@@ -56,7 +56,7 @@ const PALETTE := [
 ## de verkleuring rond de ader, a = hoe sterk. Koper groen-turkoois (malachiet) op rode klei,
 ## ijzer roestrood-zwart, zilver donker blauwgrijs, lichtkristal cyaan.
 const ORE_STAIN: Array[Color] = [
-	Color(0.035, 0.30, 0.20, 0.8),
+	Color(0.02, 0.16, 0.11, 0.7),
 	Color(0.11, 0.018, 0.012, 0.75),
 	Color(0.05, 0.06, 0.085, 0.7),
 	Color(0.02, 0.2, 0.28, 0.7),
