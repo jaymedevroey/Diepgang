@@ -24,6 +24,8 @@ const DECOR_SHADER := preload("res://src/terrain/cave_decor.gdshader")
 enum Kind { FUNGUS, CRYSTAL, STRAW }
 
 var terrain: TerrainAPI
+## De langste bouwtijd van één grot (ms), voor de prestatiecontrole.
+var build_ms_max := 0.0
 var _caverns: Array[Vector4] = [] # wereld: midden, horizontale straal
 var _built := {} # index -> Node3D
 var _items := {} # index -> Array[[kind, multimesh, instance, anchor, normal, light]]
@@ -57,7 +59,9 @@ func _process(delta: float) -> void:
 				_built.erase(i)
 				_items.erase(i)
 		elif d < BUILD_M and not built_one and terrain.data_loaded(Vector3(c.x, c.y, c.z)):
+			var t0 := Time.get_ticks_usec()
 			_build(i)
+			build_ms_max = maxf(build_ms_max, (Time.get_ticks_usec() - t0) / 1000.0)
 			built_one = true # één grot per keer: geen hapering
 
 

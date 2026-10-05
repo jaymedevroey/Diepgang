@@ -171,6 +171,9 @@ func _color_arg(key: String, fallback: Color) -> Color:
 
 func _next() -> void:
 	if _queue.is_empty():
+		var decor: Node = main.terrain.get_node_or_null("CaveDecor")
+		if decor:
+			print("[preview] langste bouwtijd van een grot (CaveDecor): %.1f ms" % float(decor.get("build_ms_max")))
 		get_tree().quit(0)
 		return
 	var item: Array = _queue.pop_front()

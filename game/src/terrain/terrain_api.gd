@@ -71,6 +71,12 @@ var _tick := 0
 var _load_start_us := 0
 var _wake_shape := SphereShape3D.new()
 var _brush_noise := FastNoiseLite.new()
+## Verse sneden (release-audit binnen-09, gevoel-19): de recente graafacties, zodat de rotsshader
+## een vers gegraven wand donkerder en vochtiger tekent dan de oude. [wereld, straal_m, tijd_s].
+const FRESH_MAX := 24
+const FRESH_FADE_S := 35.0
+var _fresh: Array = []
+var _fresh_timer := 0.0
 
 
 func _ready() -> void:
@@ -118,7 +124,8 @@ func _ready() -> void:
 	_load_start_us = Time.get_ticks_usec()
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_update_fresh(delta)
 	if is_loaded:
 		return
 	var elapsed_ms := (Time.get_ticks_usec() - _load_start_us) / 1000.0
@@ -160,6 +167,8 @@ func _physics_process(delta: float) -> void:
 		var world := _terrain.to_global(c)
 		_wake_bodies(world, reach * VOXEL_SIZE)
 		dug.emit(world, reach * VOXEL_SIZE)
+		if is_loaded:
+			_note_fresh(world, reach * VOXEL_SIZE) # (bij het laden: het logboek, niet vers)
 		op_applied.emit(op)
 	ops_applied_total += ops_applied_last_tick
 	_queue.clear()
@@ -710,6 +719,52 @@ func _make_material() -> ShaderMaterial:
 	Strata.DEBRIS_COLORS = Underground.debris_colors(clampi(planet, 0, 2))
 	_set_surface_height(mat)
 	return mat
+
+
+# --- Verse sneden ----------------------------------------------------------------------------
+
+func _note_fresh(world: Vector3, radius_m: float) -> void:
+	var now := Time.get_ticks_msec() / 1000.0
+	for e: Array in _fresh:
+		if (e[0] as Vector3).distance_to(world) < 0.6:
+			e[1] = maxf(float(e[1]), radius_m)
+			e[2] = now
+			return
+	_fresh.append([world, radius_m, now])
+	if _fresh.size() > 96:
+		_fresh.pop_front()
+
+
+## De verste sneden van de camera en de oudste vallen weg; de shader krijgt de recentste dichtbij,
+## elk met een gewicht dat in FRESH_FADE_S uitdooft.
+func _update_fresh(delta: float) -> void:
+	_fresh_timer -= delta
+	if _fresh_timer > 0.0 or _terrain == null:
+		return
+	_fresh_timer = 0.2
+	var now := Time.get_ticks_msec() / 1000.0
+	_fresh = _fresh.filter(func(e: Array) -> bool: return now - float(e[2]) < FRESH_FADE_S)
+	var cam := get_viewport().get_camera_3d()
+	var near: Array = []
+	if cam:
+		for e: Array in _fresh:
+			if (e[0] as Vector3).distance_to(cam.global_position) < 45.0:
+				near.append(e)
+	near.sort_custom(func(a: Array, b: Array) -> bool: return float(a[2]) > float(b[2]))
+	var ops := PackedVector4Array()
+	var weights := PackedFloat32Array()
+	for e: Array in near.slice(0, FRESH_MAX):
+		var w: Vector3 = e[0]
+		ops.append(Vector4(w.x, w.y, w.z, float(e[1])))
+		var k := 1.0 - clampf((now - float(e[2])) / FRESH_FADE_S, 0.0, 1.0)
+		weights.append(k * k * (3.0 - 2.0 * k))
+	var count := ops.size()
+	ops.resize(FRESH_MAX)
+	weights.resize(FRESH_MAX)
+	var mat := _terrain.material_override as ShaderMaterial
+	mat.set_shader_parameter("fresh_ops", ops)
+	mat.set_shader_parameter("fresh_w", weights)
+	mat.set_shader_parameter("fresh_count", count)
 
 
 ## Hoogte van het oppervlak op een raster (SURF_TEX_STEP m) als textuur voor de rotsshader: zo

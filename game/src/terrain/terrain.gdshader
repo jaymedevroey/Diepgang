@@ -86,6 +86,12 @@ uniform int ore_count = 0;
 uniform vec4 ore_colors[4];
 // Verkleuring rond een ader per soort (Underground.ORE_STAIN), lineair; a = hoe sterk.
 uniform vec4 ore_stain[4];
+// Verse sneden (TerrainAPI._update_fresh): xyz = midden van een recente graafactie, w = straal (m),
+// met een gewicht dat in ±35 s uitdooft. Daar is de rots donkerder, vochtiger en zonder stof, met
+// een lichte breukrand: zo zie je bij elke slag hoe ver je bent (release-audit binnen-09, gevoel-19).
+uniform vec4 fresh_ops[24];
+uniform float fresh_w[24];
+uniform int fresh_count = 0;
 // Grof raster van het speelgebied (PlanetSurface): dichter dan dit bij de camera is het echte
 // voxelterrein geladen, dus daar niet tekenen (anders sluit het gaten en tunnels af). 0 = uit.
 uniform float near_cutoff = 0.0;
@@ -635,9 +641,30 @@ void fragment() {
 	col = mix(col, light * 1.12, smoothstep(0.5, 2.2, curv) * 0.35 * near);
 	col *= 1.0 - smoothstep(0.5, 2.2, -curv) * 0.3;
 
-	// 4. Stof op vloeren, donkerder en iets koeler onder overhangen.
+	// Verse snede: donkerder, verzadigder (vochtig), wat glans, holtes dieper, en een lichte rand
+	// waar het oude oppervlak afbrak.
+	float fresh = 0.0;
+	float flip = 0.0;
+	for (int i = 0; i < fresh_count; i++) {
+		vec4 f = fresh_ops[i];
+		float d = distance(wpos, f.xyz);
+		fresh = max(fresh, (1.0 - smoothstep(f.w * 0.9, f.w * 1.2 + 0.12, d)) * fresh_w[i]);
+		// Enkel bij kleine sneden (houweel, boor): bij een grote (de Mol) werd de rand een cirkel op de wand.
+		flip = max(flip, (1.0 - smoothstep(0.0, 0.07, abs(d - f.w * 1.2 - 0.16))) * fresh_w[i] * (1.0 - smoothstep(0.7, 1.3, f.w)));
+	}
+	if (fresh > 0.0 || flip > 0.0) {
+		float lum = dot(col, vec3(0.3, 0.59, 0.11));
+		vec3 wet = mix(vec3(lum), col, 1.3) * 0.62;
+		col = mix(col, wet, fresh * 0.85);
+		col *= 1.0 - smoothstep(0.3, 1.6, -curv) * 0.3 * fresh;
+		rough = mix(rough, 0.5, fresh);
+		flip *= (1.0 - fresh) * smoothstep(0.35, 0.65, vnoise(wpos * 7.0)) * near;
+		col = mix(col, light * 1.2, flip * 0.45);
+	}
+
+	// 4. Stof op vloeren, donkerder en iets koeler onder overhangen (niet op een verse snede).
 	float dn = dust_k > 0.0 ? mix(0.5, vnoise(wpos * 0.8 + vec3(4.0)), dust_k) : 0.5;
-	float dust = smoothstep(0.5, 0.88, up) * (0.5 + 0.5 * dn) * (1.0 - 0.4 * under_k);
+	float dust = smoothstep(0.5, 0.88, up) * (0.5 + 0.5 * dn) * (1.0 - 0.4 * under_k) * (1.0 - fresh);
 	vec3 dust_col = mix(light, vec3(dot(light, vec3(0.333))), 0.3);
 	col = mix(col, dust_col, dust * 0.45);
 	rough = mix(rough, 1.0, dust);

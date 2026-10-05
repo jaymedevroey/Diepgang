@@ -413,9 +413,12 @@ func _spawn_rock(pos: Vector3, size: float) -> void:
 	_tint_dust(trail, Strata.DEBRIS_COLORS[game.terrain.layer_at(pos)], 0.45)
 	rb.add_child(trail)
 	trail.emitting = true
+	# Vloeiend tussen de physics-ticks (physics-interpolatie staat in het project aan, per node).
+	rb.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_ON
 	add_child(rb)
 	rb.rotation = Vector3(_rng.randf() * TAU, _rng.randf() * TAU, 0.0)
 	rb.global_position = pos
+	rb.reset_physics_interpolation() # niet van de oorsprong naar hier glijden
 	rb.angular_velocity = Vector3(_rng.randf_range(-2, 2), _rng.randf_range(-2, 2), _rng.randf_range(-2, 2))
 	rb.set_meta("size", size)
 	rb.set_meta("hit", false)
@@ -586,8 +589,10 @@ func _spawn_pebble(pos: Vector3, size: float) -> void:
 	mat.vertex_color_use_as_albedo = true
 	mi.material_override = mat
 	rb.add_child(mi)
+	rb.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_ON
 	add_child(rb)
 	rb.global_position = pos
+	rb.reset_physics_interpolation()
 	rb.angular_velocity = Vector3(_rng.randf_range(-6, 6), _rng.randf_range(-6, 6), _rng.randf_range(-6, 6))
 	var tw := rb.create_tween()
 	tw.tween_interval(6.0)
@@ -629,10 +634,10 @@ func _update_flicker(delta: float) -> void:
 			(e[0] as SpotLight3D).light_energy = float(e[1]) * k
 
 
-static var _dot: Texture2D
+var _dot: Texture2D
 
 
-static func _soft_dot() -> Texture2D:
+func _soft_dot() -> Texture2D:
 	if _dot == null:
 		var t := GradientTexture2D.new()
 		t.fill = GradientTexture2D.FILL_RADIAL
