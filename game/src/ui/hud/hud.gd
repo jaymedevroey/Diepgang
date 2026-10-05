@@ -14,7 +14,7 @@ extends Control
 ## dan die van de speler) geen vizier, prompt, strook of gereedschap.
 ## main.gd roept elke frame update() aan.
 
-const TOOLS := [["pickaxe", "HOUWEEL", "tool_1"], ["drill", "BOOR T1", "tool_2"]]
+const TOOLS := [["pickaxe", "PICKAXE", "tool_1"], ["drill", "DRILL T1", "tool_2"]]
 
 var main: Node
 var crosshair: HudCrosshair
@@ -221,7 +221,7 @@ func _build_bottom() -> void:
 	col.add_child(_tool_hint)
 	_tool_hint.add_child(KeyCap.make("dig", 14))
 	var hl := Label.new()
-	hl.text = "graven (vasthouden)"
+	hl.text = "dig (hold)"
 	hl.add_theme_font_size_override("font_size", 16)
 	_tool_hint.add_child(hl)
 
@@ -292,12 +292,12 @@ func _build_bottom() -> void:
 	keys.add_theme_constant_override("separation", 6)
 	cc.add_child(keys)
 	keys.add_child(KeyCap.make("interact", 14))
-	keys.add_child(_small("neerzetten"))
+	keys.add_child(_small("put down"))
 	var gap := Control.new()
 	gap.custom_minimum_size.x = 10
 	keys.add_child(gap)
 	keys.add_child(KeyCap.make("dig", 14))
-	keys.add_child(_small("gooien"))
+	keys.add_child(_small("throw"))
 
 	# Besturing van de Mol (piloot): onderaan, verschijnt bij het instappen.
 	_pilot = HudFader.new()
@@ -318,14 +318,14 @@ func _build_bottom() -> void:
 	prow.add_theme_constant_override("separation", 6)
 	pchip.add_child(prow)
 	var ph := Label.new()
-	ph.text = "DE MOL"
+	ph.text = "THE MOLE"
 	ph.add_theme_font_override("font", UiTheme.heading())
 	ph.add_theme_font_size_override("font_size", 17)
 	ph.add_theme_color_override("font_color", UiTheme.YELLOW)
 	prow.add_child(ph)
-	for part: Array in [[["move_forward", "move_back"], "gas"], [["move_left", "move_right"], "sturen"],
-			[["jump", "crouch"], "neus"], [["mol_view"], "buitenzicht"], [["sonar_ping"], "ping"], [["horn"], "toeter"],
-			[["interact"], "uitstappen"]]:
+	for part: Array in [[["move_forward", "move_back"], "throttle"], [["move_left", "move_right"], "steer"],
+			[["jump", "crouch"], "nose"], [["mol_view"], "outside view"], [["sonar_ping"], "ping"], [["horn"], "horn"],
+			[["interact"], "get out"]]:
 		var sep := Control.new()
 		sep.custom_minimum_size.x = 10
 		prow.add_child(sep)
@@ -377,7 +377,7 @@ func _build_bottom() -> void:
 	orow.add_theme_constant_override("separation", 10)
 	ochip.add_child(orow)
 	var oh := Label.new()
-	oh.text = "ERTSZAK"
+	oh.text = "ORE BAG"
 	oh.add_theme_font_override("font", UiTheme.heading())
 	oh.add_theme_font_size_override("font_size", 15)
 	oh.add_theme_color_override("font_color", UiTheme.YELLOW)
@@ -457,7 +457,7 @@ func _build_overlays() -> void:
 	_result.add_child(rc)
 	var rt := Label.new()
 	_result_title = rt
-	rt.text = "DIENST AFGELOPEN"
+	rt.text = "SHIFT OVER"
 	rt.theme_type_variation = &"Heading"
 	rt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	rc.add_child(rt)
@@ -558,38 +558,38 @@ func stamp(title: String, sub: String) -> void:
 func show_report(r: Dictionary) -> void:
 	for c in _result_rows.get_children():
 		c.queue_free()
-	_result_title.text = "INCIDENTRAPPORT · DIENST %d" % int(r.get("shift_total", 0))
+	_result_title.text = "INCIDENT REPORT · SHIFT %d" % int(r.get("shift_total", 0))
 	var sold: Array = r.get("sold", [])
 	var shown := 0
 	for e: Array in sold:
 		if shown >= 6:
-			_result_row("… en nog %d" % (sold.size() - shown), "")
+			_result_row("… and %d more" % (sold.size() - shown), "")
 			break
 		_result_row("%s (%d%%)" % [e[0], int(e[2])], UiTheme.euro(int(e[1])), UiTheme.CREAM)
 		shown += 1
 	if sold.is_empty():
-		_result_row("Geen vondsten in het laadruim", UiTheme.euro(0), UiTheme.CREAM_DIM)
+		_result_row("No finds in the cargo hold", UiTheme.euro(0), UiTheme.CREAM_DIM)
 	if int(r.get("ore_units", 0)) > 0:
-		_result_row("Erts (%d)" % int(r.ore_units), UiTheme.euro(int(r.ore_value)), UiTheme.CREAM)
+		_result_row("Ore (%d)" % int(r.ore_units), UiTheme.euro(int(r.ore_value)), UiTheme.CREAM)
 	if int(r.get("bonus", 0)) != 0:
-		_result_row("Opdracht %s (×%.2f)" % [r.get("contract", ""), float(r.get("factor", 1.0))], "+" + UiTheme.euro(int(r.bonus)), UiTheme.YELLOW)
+		_result_row("Contract %s (×%.2f)" % [r.get("contract", ""), float(r.get("factor", 1.0))], "+" + UiTheme.euro(int(r.bonus)), UiTheme.YELLOW)
 	var robots := int(r.get("left_behind", 0)) + int(r.get("melted", 0))
 	if robots > 0:
-		_result_row("Vervangrobots (%d achter, %d gesmolten)" % [int(r.left_behind), int(r.melted)], UiTheme.euro(-int(r.costs)), UiTheme.DANGER)
+		_result_row("Replacement robots (%d left behind, %d melted)" % [int(r.left_behind), int(r.melted)], UiTheme.euro(-int(r.costs)), UiTheme.DANGER)
 	if int(r.get("damage", 0)) > 0:
-		_result_row("Schade aan vondsten (verloren waarde)", UiTheme.euro(int(r.damage)), UiTheme.CREAM_DIM)
+		_result_row("Damage to finds (value lost)", UiTheme.euro(int(r.damage)), UiTheme.CREAM_DIM)
 	if int(r.get("quakes", 0)) > 0:
-		_result_row("Bevingen", str(int(r.quakes)), UiTheme.CREAM_DIM)
-	_result_row("NETTO", UiTheme.euro(int(r.get("net", 0))), UiTheme.YELLOW if int(r.get("net", 0)) >= 0 else UiTheme.DANGER)
+		_result_row("Quakes", str(int(r.quakes)), UiTheme.CREAM_DIM)
+	_result_row("NET", UiTheme.euro(int(r.get("net", 0))), UiTheme.YELLOW if int(r.get("net", 0)) >= 0 else UiTheme.DANGER)
 	var result: String = r.get("quarter_result", "")
 	if result == "gehaald":
-		_result_row("KWARTAAL %d GEHAALD" % int(r.quarter), UiTheme.euro(int(r.earned)) + " / " + UiTheme.euro(int(r.quota)), UiTheme.GOOD)
+		_result_row("QUARTER %d: QUOTA MET" % int(r.quarter), UiTheme.euro(int(r.earned)) + " / " + UiTheme.euro(int(r.quota)), UiTheme.GOOD)
 	elif result == "gemist":
-		_result_row("KWARTAAL %d GEMIST (%s / %s) · boete" % [int(r.quarter), UiTheme.euro(int(r.earned)), UiTheme.euro(int(r.quota))],
+		_result_row("QUARTER %d MISSED (%s / %s) · fine" % [int(r.quarter), UiTheme.euro(int(r.earned)), UiTheme.euro(int(r.quota))],
 				UiTheme.euro(-int(r.get("fine", 0))), UiTheme.DANGER)
 	else:
-		_result_row("Kwartaal %d · dienst %d/%d" % [int(r.quarter), int(r.shift), Tuning.get_i("company", "shifts", 3)], UiTheme.euro(int(r.earned)) + " / " + UiTheme.euro(int(r.quota)), UiTheme.CREAM)
-	_result_row("Kas", UiTheme.euro(int(r.get("cash", 0))), UiTheme.YELLOW if int(r.get("cash", 0)) >= 0 else UiTheme.DANGER)
+		_result_row("Quarter %d · shift %d/%d" % [int(r.quarter), int(r.shift), Tuning.get_i("company", "shifts", 3)], UiTheme.euro(int(r.earned)) + " / " + UiTheme.euro(int(r.quota)), UiTheme.CREAM)
+	_result_row("Funds", UiTheme.euro(int(r.get("cash", 0))), UiTheme.YELLOW if int(r.get("cash", 0)) >= 0 else UiTheme.DANGER)
 	_open_result(12.0)
 
 
@@ -597,14 +597,14 @@ func show_report(r: Dictionary) -> void:
 func show_result(count: int, value: int, left_behind: int, ore_units := 0, ore_value := 0) -> void:
 	for c in _result_rows.get_children():
 		c.queue_free()
-	_result_title.text = "DIENST AFGELOPEN"
-	_result_row("Vondsten in het laadruim", str(count))
-	_result_row("Waarde vondsten", "€%d" % value, UiTheme.YELLOW)
+	_result_title.text = "SHIFT OVER"
+	_result_row("Finds in the cargo hold", str(count))
+	_result_row("Value of finds", "€%d" % value, UiTheme.YELLOW)
 	if ore_units > 0:
-		_result_row("Erts (%d)" % ore_units, "€%d" % ore_value, UiTheme.YELLOW)
+		_result_row("Ore (%d)" % ore_units, "€%d" % ore_value, UiTheme.YELLOW)
 	if left_behind > 0:
-		_result_row("Achterblijvers (te voet boven)", str(left_behind), UiTheme.DANGER)
-	_result_row("Brandstof", "bijgetankt")
+		_result_row("Left behind (walking up)", str(left_behind), UiTheme.DANGER)
+	_result_row("Fuel", "refuelled")
 	_open_result(7.0)
 
 
@@ -693,7 +693,7 @@ func _update_compass(player: Player, game: Game, mol: Mol, terrain: TerrainAPI) 
 	if _in_hub:
 		# In het schip: waar je bent, en het doel (terminal of Mol) uit _hub_state.
 		var ship: Ekster = game.ship
-		compass.set_place("IN DE MOL" if _in_mol else ship.zone_at(p))
+		compass.set_place("IN THE MOLE" if _in_mol else ship.zone_at(p))
 		var s := _hub_state(player, game, mol)
 		compass.mol_visible = s.has_target
 		compass.target_icon = s.icon
@@ -761,7 +761,7 @@ func _update_carry(player: Player) -> void:
 	_carry_name.text = it.display_name()
 	_carry_value.text = "€%d" % it.value()
 	var others := it.carriers.size() - 1
-	_carry_note.text = "samen gedragen" if others > 0 else ("zwaar: samen dragen gaat sneller" if it.mass >= 10.0 else "%d kg" % int(round(it.mass)))
+	_carry_note.text = "carried together" if others > 0 else ("heavy: faster with a buddy" if it.mass >= 10.0 else "%d kg" % int(round(it.mass)))
 	_carry_bar.anchor_right = clampf(it.condition, 0.0, 1.0)
 	_carry_bar.offset_right = 0
 	_carry_bar.color = UiTheme.GOOD if it.condition > 0.66 else (UiTheme.AMBER if it.condition > 0.4 else UiTheme.DANGER)
@@ -783,7 +783,7 @@ func _update_prompt(player: Player, game: Game, terrain: TerrainAPI) -> void:
 		crosshair.heat = clampf(d.heat / Tuning.get_f("drill", "heat_max", 5.5), 0.0, 1.0)
 		crosshair.overheated = d.overheated
 		if d.overheated:
-			sub = "Oververhit: even laten afkoelen"
+			sub = "Overheated: let it cool down"
 	var knob := player.aimed_interactable()
 	_aimed = knob
 	if knob:
@@ -804,7 +804,7 @@ func _update_prompt(player: Player, game: Game, terrain: TerrainAPI) -> void:
 		pass # het draagkaartje linksonder toont de toetsen
 	elif game.mol and game.mol.in_cockpit(player.global_position) and game.mol.pilot == 0:
 		action = "interact"
-		text = "De Mol besturen"
+		text = "Drive the Mole"
 		state = HudCrosshair.State.USE
 	else:
 		var cam := player.camera
@@ -815,24 +815,24 @@ func _update_prompt(player: Player, game: Game, terrain: TerrainAPI) -> void:
 			state = HudCrosshair.State.CRUST
 			crosshair.crust_hp = c.hp
 			crosshair.crust_max = c.max_hp
-			text = "Korst: uitbikken"
-			sub = "houweel is veilig · boor is sneller, maar schaadt de vondst"
+			text = "Crust: chip it away"
+			sub = "pickaxe is safe · drill is faster, but damages the find"
 		elif not hit.is_empty() and hit.collider is OreCluster:
 			var o: OreCluster = hit.collider
 			state = HudCrosshair.State.CRUST
 			crosshair.crust_hp = o.hp
 			crosshair.crust_max = o.max_hp
-			text = "Erts: %s" % OreKinds.NAMES[o.kind]
-			sub = "€%d per stuk · %d over · houweel of boor" % [OreKinds.VALUES[o.kind], int(ceil(o.hp))]
+			text = "Ore: %s" % OreKinds.NAMES[o.kind]
+			sub = "€%d each · %d left · pickaxe or drill" % [OreKinds.VALUES[o.kind], int(ceil(o.hp))]
 		elif not hit.is_empty() and hit.collider is FindItem:
 			var f: FindItem = hit.collider
 			state = HudCrosshair.State.USE if f.freed else HudCrosshair.State.NONE
 			if f.freed and f.carriers.size() < 2:
 				action = "interact"
-				text = "Oppakken: %s" % f.display_name()
+				text = "Pick up: %s" % f.display_name()
 			else:
 				text = f.display_name()
-			sub = "€%d · gaaf %d%%" % [f.value(), int(round(f.condition * 100))]
+			sub = "€%d · condition %d%%" % [f.value(), int(round(f.condition * 100))]
 		elif aim == Pickaxe.Aim.TOO_HARD:
 			state = HudCrosshair.State.HARD
 			text = player.active_tool.hint_too_hard()
@@ -866,7 +866,7 @@ func _update_ore(player: Player, game: Game) -> void:
 	if not _ore_connected:
 		_ore_connected = true
 		ores.bag_full.connect(func() -> void:
-			toast("Ertszak vol: stort hem in de trechter van de Mol", "warn"))
+			toast("Ore bag full: empty it into the Mole's hopper", "warn"))
 	var bag := ores.bag_of(player.peer_id)
 	var n := OreField.units(bag)
 	_ore.active = n > 0 and int(Settings.get_value("hud/prompts")) == Settings.HUD_ALWAYS
@@ -909,12 +909,12 @@ func _update_banner(mol: Mol, game: Game) -> void:
 			if pl.seated or mol.contains_point(pl.global_position):
 				inside += 1
 		_banner.visible = true
-		_banner_title.text = "%s · IN DE MOL %d/%d" % ["DE MOL VERTREKT" if mol.mode == Mol.Mode.COUNTDOWN else "DROP", inside, total]
+		_banner_title.text = "%s · ABOARD %d/%d" % ["THE MOLE IS LEAVING" if mol.mode == Mol.Mode.COUNTDOWN else "DROP", inside, total]
 		_banner_count.text = "%d" % int(ceil(mol.countdown))
 		_banner_count.visible = true
 	elif mol.mode == Mol.Mode.EXTRACTING:
 		_banner.visible = true
-		_banner_title.text = "DE MOL RIJDT NAAR BOVEN"
+		_banner_title.text = "THE MOLE IS HEADING UP"
 		_banner_count.visible = false
 	else:
 		_banner.visible = false
@@ -934,48 +934,48 @@ func _hub_state(player: Player, game: Game, mol: Mol) -> Dictionary:
 	match mol.mode:
 		Mol.Mode.DOCKED:
 			if c == null or not c.contract_ready():
-				s.title = "Kies een opdracht"
-				s.sub = "aan de terminal op de brug"
+				s.title = "Pick a contract"
+				s.sub = "at the terminal on the bridge"
 				s.has_target = true
 				s.target = ship.terminal_target()
 				s.icon = HudCompass.TERMINAL_ICON
 			elif not game.world_ready():
 				var dots := ".".repeat(1 + int(Time.get_ticks_msec() / 400) % 3)
-				s.title = "De Ekster vliegt naar %s%s" % [str(c.contract.get("name", "de concessie")), dots]
-				s.sub = "even geduld · dan trek je aan de hendel" if _in_mol else "loop alvast naar de Mol"
+				s.title = "The Magpie is flying to %s%s" % [str(c.contract.get("name", "the claim")), dots]
+				s.sub = "hang on · then pull the lever" if _in_mol else "head over to the Mole"
 				s.has_target = not _in_mol
 				s.target = mol_pos
 			elif not _in_mol:
-				s.title = "Stap in de Mol"
-				s.sub = "in de hangar, via de klep achteraan"
+				s.title = "Board the Mole"
+				s.sub = "in the hangar, up the ramp at the back"
 				s.has_target = true
 				s.target = mol_pos
 			else:
-				s.title = "Trek aan de hendel"
-				s.sub = "VERTREK, rechts op de console"
+				s.title = "Pull the lever"
+				s.sub = "LAUNCH, on the right of the console"
 				s.lever = true
 		Mol.Mode.DROP_COUNTDOWN:
 			if not _in_mol:
-				s.title = "NIET IN DE MOL · DROP OVER %d" % int(ceil(mol.countdown))
-				s.sub = "de luiken gaan open · wie erop staat, valt" if ship.over_bay(p, 0.5) else "snel naar de Mol, of je blijft achter"
+				s.title = "NOT IN THE MOLE · DROP IN %d" % int(ceil(mol.countdown))
+				s.sub = "the hatches are opening · stand on them and you fall" if ship.over_bay(p, 0.5) else "get to the Mole fast, or you'll be left behind"
 				s.tone = HudObjective.Tone.URGENT
 				s.has_target = true
 				s.target = mol_pos
 		Mol.Mode.COUNTDOWN, Mol.Mode.EXTRACTING, Mol.Mode.GRAPPLE_DOWN, Mol.Mode.LIFTING:
 			if not _in_mol:
-				s.title = "De Mol komt terug"
-				s.sub = "wacht tot hij in de baai staat"
+				s.title = "The Mole is coming back"
+				s.sub = "wait until it's back in the bay"
 		_:
 			if not _in_mol:
-				s.title = "De ploeg is op de planeet"
-				s.sub = "de Mol komt terug na de dienst"
+				s.title = "The crew is on the planet"
+				s.sub = "the Mole returns after the shift"
 	# Open luiken zonder Mol: een gat van 8 × 14 m in de vloer.
 	if ship.doors_open and not _in_mol and mol.mode != Mol.Mode.DROP_COUNTDOWN and ship.over_bay(p, 1.5):
-		s.title = "OPEN LUIK · %d M VRIJE VAL" % int(round(EksterExterior.ALTITUDE))
-		s.sub = "springen = te voet naar de planeet"
+		s.title = "OPEN HATCH · %d M FREE FALL" % int(round(EksterExterior.ALTITUDE))
+		s.sub = "jump = go down to the planet on foot"
 		s.tone = HudObjective.Tone.URGENT
-	elif ship.doors_open and not _in_mol and mol.mode != Mol.Mode.DROP_COUNTDOWN and s.title == "De ploeg is op de planeet":
-		s.sub = "wie wil volgen, springt door het open luik in de hangar"
+	elif ship.doors_open and not _in_mol and mol.mode != Mol.Mode.DROP_COUNTDOWN and s.title == "The crew is on the planet":
+		s.sub = "to follow, jump through the open hatch in the hangar"
 	return s
 
 
@@ -988,7 +988,7 @@ func _update_objective(player: Player, game: Game, mol: Mol, cam: Camera3D) -> v
 	var loading: bool = not game.world_ready()
 	if _was_loading and not loading and _in_hub and game.company and game.company.contract_ready() \
 			and mol and mol.mode == Mol.Mode.DOCKED:
-		toast("Aangekomen boven %s." % str(game.company.contract.get("name", "")), "mol", 5.0)
+		toast("Arrived above %s." % str(game.company.contract.get("name", "")), "mol", 5.0)
 	_was_loading = loading
 	objective.show_objective(s.get("title", ""), s.get("sub", ""), s.get("tone", HudObjective.Tone.NORMAL))
 	# Onder de vertrekbanner als die er staat (drop-aftelling), anders onder de strook.
@@ -999,7 +999,7 @@ func _update_objective(player: Player, game: Game, mol: Mol, cam: Camera3D) -> v
 			and not _countdown_focus
 	if lever:
 		_marker.target = lever.global_position
-		_marker.set_text("HENDEL · VERTREK")
+		_marker.set_text("LEVER · LAUNCH")
 	_marker.place(cam)
 	# QA-5: het incidentrapport meteen weg als een nieuwe aftelling begint (niet over de banner).
 	if mol and mol.mode in [Mol.Mode.DROP_COUNTDOWN, Mol.Mode.COUNTDOWN] and _result.visible:
@@ -1061,7 +1061,7 @@ func _update_team(player: Player, game: Game) -> void:
 			dot.color = pl.color
 			row.add_child(dot)
 			var name := Label.new()
-			name.text = "Speler %d" % (game.players.get_children().find(pl) + 1)
+			name.text = "Player %d" % (game.players.get_children().find(pl) + 1)
 			name.add_theme_font_override("font", UiTheme.body(800))
 			name.add_theme_font_size_override("font_size", 16)
 			row.add_child(name)
@@ -1079,7 +1079,7 @@ func _update_team(player: Player, game: Game) -> void:
 			continue
 		var pl := obj as Player
 		var where: Label = chip.find_child("Where", true, false)
-		where.text = "in de Mol" if game.mol and game.mol.contains_point(pl.global_position) else "%d m" % int(player.global_position.distance_to(pl.global_position))
+		where.text = "in the Mole" if game.mol and game.mol.contains_point(pl.global_position) else "%d m" % int(player.global_position.distance_to(pl.global_position))
 
 
 func _update_host() -> void:
@@ -1087,7 +1087,7 @@ func _update_host() -> void:
 		_host_chip.active = false
 		return
 	if Settings.get_b("interface/hide_ip"):
-		_host_label.text = "HOST  ·  IP verborgen"
+		_host_label.text = "HOST  ·  IP hidden"
 	else:
 		_host_label.text = "HOST  ·  IP %s" % ", ".join(StartMenu.local_ips())
 	if _last_team == 0:
@@ -1102,6 +1102,6 @@ func _update_stats(player: Player, game: Game, terrain: TerrainAPI) -> void:
 		return
 	var net: String = ["solo", "host", "client"][Net.mode]
 	var p := player.global_position
-	_stats.text = "%d fps  ·  %s  ·  %d speler(s)\npos %.1f, %.1f, %.1f%s" % [
+	_stats.text = "%d fps  ·  %s  ·  %d player(s)\npos %.1f, %.1f, %.1f%s" % [
 		Engine.get_frames_per_second(), net, game.players.get_child_count(), p.x, p.y, p.z,
-		"  ·  VLIEGEN" if player.flying else ""]
+		"  ·  FLYING" if player.flying else ""]

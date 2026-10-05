@@ -6,7 +6,7 @@ extends RefCounted
 
 enum Kind { KOPER, IJZER, ZILVER, LICHTKRISTAL }
 
-const NAMES: Array[String] = ["Koper", "IJzer", "Zilver", "Lichtkristal"]
+const NAMES: Array[String] = ["Copper", "Iron", "Silver", "Glow crystal"]
 ## Waarde per eenheid (€) bij verkoop aan boord.
 const VALUES: Array[int] = [3, 5, 9, 15]
 const COLORS: Array[Color] = [

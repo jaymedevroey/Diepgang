@@ -351,9 +351,9 @@ func _rpc_melted(peer_id: int) -> void:
 	melted.emit(peer_id)
 	var p: Player = game.player_node(peer_id)
 	if p and p.is_local:
-		game.notice.emit("Je robot smolt in het magma. DIG stuurde een vervanger (kosten volgen).", "warn")
+		game.notice.emit("Your robot melted in the magma. DIG sent a replacement (costs to follow).", "warn")
 	elif p:
-		game.notice.emit("Een robot smolt in het magma.", "warn")
+		game.notice.emit("A robot melted in the magma.", "warn")
 
 
 ## Losse buit (en vondsten nog in de rots) onder het magma: na swallow_s weg.
@@ -384,16 +384,16 @@ func _rule_mol(dt: float) -> void:
 	if _alarm_level > 0 and gap > alarms[_alarm_level - 1] + 10.0:
 		_alarm_level -= 1 # de Mol reed weg: opnieuw waarschuwen als het weer dichtkomt
 	if _alarm_level < alarms.size() and gap <= alarms[_alarm_level] and gap > 0.0:
-		mol.announce("! MAGMA %d M ONDER DE MOL" % int(alarms[_alarm_level]))
+		mol.announce("! MAGMA %d M BELOW THE MOLE" % int(alarms[_alarm_level]))
 		_alarm_level += 1
 	if gap < 0.0:
 		_mol_heat += dt / maxf(1.0, Tuning.get_f("magma", "mol_heat_s", 25.0))
-		if _mol_heat >= 1.0 and mol.host_emergency(5.0, "De Mol is te heet: DIG trekt hem naar boven!"):
+		if _mol_heat >= 1.0 and mol.host_emergency(5.0, "The Mole is overheating: DIG is hauling it up!"):
 			_mol_heat = 0.0
 	else:
 		_mol_heat = maxf(0.0, _mol_heat - dt / 10.0)
 	if not _recalled and depth() <= Tuning.get_f("magma", "recall_depth", 60.0):
-		if mol.host_emergency(20.0, "Noodophaling: het magma komt boven. De Mol vertrekt over 20 s!"):
+		if mol.host_emergency(20.0, "Emergency extraction: the magma is rising. The Mole leaves in 20 s!"):
 			_recalled = true
 
 

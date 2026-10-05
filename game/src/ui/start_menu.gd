@@ -8,7 +8,7 @@ signal host_chosen
 signal join_chosen(address: String)
 
 const LAST_IP_FILE := "user://last_ip.txt"
-const VERSION := "Playtest 0.3 · oktober 2026"
+const VERSION := "Playtest 0.3 · October 2026"
 
 var backdrop: MenuBackdrop
 var _ip: LineEdit
@@ -69,7 +69,7 @@ func _ready() -> void:
 	strip.custom_minimum_size.x = 440
 	col.add_child(strip)
 	var tag := Label.new()
-	tag.text = "DIEPGANG BV  ·  BOORPLOEG GEZOCHT  ·  ERVARING NIET VEREIST"
+	tag.text = "DIEPGANG INC.  ·  DRILL CREW WANTED  ·  NO EXPERIENCE REQUIRED"
 	tag.theme_type_variation = &"Caption"
 	tag.add_theme_font_size_override("font_size", 14)
 	tag.add_theme_constant_override("line_spacing", 0)
@@ -78,9 +78,9 @@ func _ready() -> void:
 	_buttons = VBoxContainer.new()
 	_buttons.add_theme_constant_override("separation", 12)
 	col.add_child(_buttons)
-	_menu_button("SOLO SPELEN", "Alleen de put in. Ideaal om de knoppen te leren.", func() -> void: _choose(solo_chosen.emit))
-	_menu_button("HOSTEN", "Start een ploeg; vrienden doen mee met jouw IP-adres.", func() -> void: _choose(host_chosen.emit))
-	_menu_button("MEEDOEN", "Bij een vriend die host. Steam-uitnodigingen komen later.", _toggle_join)
+	_menu_button("PLAY SOLO", "Down the pit alone. Ideal for learning the controls.", func() -> void: _choose(solo_chosen.emit))
+	_menu_button("HOST", "Start a crew; friends join with your IP address.", func() -> void: _choose(host_chosen.emit))
+	_menu_button("JOIN", "Join a friend who hosts. Steam invites come later.", _toggle_join)
 
 	# Meedoen: een kaartje met het IP-veld, klapt open onder de knop.
 	_join_card = PanelContainer.new()
@@ -91,25 +91,25 @@ func _ready() -> void:
 	jc.add_theme_constant_override("separation", 10)
 	_join_card.add_child(jc)
 	var jl := Label.new()
-	jl.text = "IP-adres van de host"
+	jl.text = "Host IP address"
 	jl.theme_type_variation = &"Caption"
 	jc.add_child(jl)
 	var jrow := HBoxContainer.new()
 	jrow.add_theme_constant_override("separation", 10)
 	jc.add_child(jrow)
 	_ip = LineEdit.new()
-	_ip.placeholder_text = "bv. 192.168.1.23"
+	_ip.placeholder_text = "e.g. 192.168.1.23"
 	_ip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_ip.text = _load_last_ip()
 	_ip.text_submitted.connect(func(_t: String) -> void: _join())
 	jrow.add_child(_ip)
 	var go := Button.new()
-	go.text = "VERBINDEN"
+	go.text = "CONNECT"
 	go.pressed.connect(_join)
 	jrow.add_child(go)
 
-	_menu_button("INSTELLINGEN", "Beeld, geluid, besturing, toetsen.", _open_settings, true)
-	_menu_button("AFSLUITEN", "", func() -> void: get_tree().quit(), true)
+	_menu_button("SETTINGS", "Video, audio, controls, keys.", _open_settings, true)
+	_menu_button("QUIT", "", func() -> void: get_tree().quit(), true)
 
 	_status = Label.new()
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD
@@ -231,7 +231,7 @@ func _choose(emit: Callable) -> void:
 func _join() -> void:
 	var address := _ip.text.strip_edges()
 	if address == "":
-		_status.text = "Vul eerst het IP-adres van de host in."
+		_status.text = "Enter the host's IP address first."
 		return
 	var f := FileAccess.open(LAST_IP_FILE, FileAccess.WRITE)
 	if f:

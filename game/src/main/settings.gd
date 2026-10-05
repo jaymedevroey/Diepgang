@@ -166,10 +166,10 @@ func _notification(what: int) -> void:
 
 ## Acties die je kan omzetten, in de volgorde van het instellingenmenu, met hun naam.
 const BINDABLE := [
-	["move_forward", "Vooruit"], ["move_back", "Achteruit"], ["move_left", "Links"], ["move_right", "Rechts"],
-	["jump", "Springen · neus omhoog"], ["crouch", "Bukken · neus omlaag"], ["interact", "Gebruiken · oppakken"],
-	["dig", "Graven"], ["tool_1", "Houweel"], ["tool_2", "Boor"], ["horn", "Toeter"], ["mol_view", "Buitenzicht (Mol)"],
-	["sonar_ping", "Sonar-PING (Mol)"], ["skip_cinematic", "Drop overslaan"],
+	["move_forward", "Forward"], ["move_back", "Back"], ["move_left", "Left"], ["move_right", "Right"],
+	["jump", "Jump · nose up"], ["crouch", "Crouch · nose down"], ["interact", "Use · pick up"],
+	["dig", "Dig"], ["tool_1", "Pickaxe"], ["tool_2", "Drill"], ["horn", "Horn"], ["mol_view", "Outside view (Mole)"],
+	["sonar_ping", "Sonar PING (Mole)"], ["skip_cinematic", "Skip drop"],
 ]
 
 
@@ -226,13 +226,13 @@ static func event_label(ev: InputEvent) -> String:
 			code = k.physical_keycode
 			if DisplayServer.get_name() != "headless": # headless kent geen toetsenbordindeling
 				code = DisplayServer.keyboard_get_keycode_from_physical(k.physical_keycode)
-		var names := {KEY_SPACE: "Spatie", KEY_CTRL: "Ctrl", KEY_SHIFT: "Shift", KEY_ALT: "Alt", KEY_TAB: "Tab",
+		var names := {KEY_SPACE: "Space", KEY_CTRL: "Ctrl", KEY_SHIFT: "Shift", KEY_ALT: "Alt", KEY_TAB: "Tab",
 				KEY_ESCAPE: "Esc", KEY_ENTER: "Enter", KEY_BACKSPACE: "Backspace"}
 		return names.get(code, OS.get_keycode_string(code))
 	if ev is InputEventMouseButton:
-		return {MOUSE_BUTTON_LEFT: "Linkermuis", MOUSE_BUTTON_RIGHT: "Rechtermuis", MOUSE_BUTTON_MIDDLE: "Middelste muis",
-				MOUSE_BUTTON_WHEEL_UP: "Wieltje op", MOUSE_BUTTON_WHEEL_DOWN: "Wieltje neer"}.get(
-				(ev as InputEventMouseButton).button_index, "Muis %d" % (ev as InputEventMouseButton).button_index)
+		return {MOUSE_BUTTON_LEFT: "Left mouse", MOUSE_BUTTON_RIGHT: "Right mouse", MOUSE_BUTTON_MIDDLE: "Middle mouse",
+				MOUSE_BUTTON_WHEEL_UP: "Wheel up", MOUSE_BUTTON_WHEEL_DOWN: "Wheel down"}.get(
+				(ev as InputEventMouseButton).button_index, "Mouse %d" % (ev as InputEventMouseButton).button_index)
 	return "?"
 
 

@@ -5,7 +5,7 @@ extends Control
 
 signal closed
 
-const TABS := [["beeld", "BEELD"], ["geluid", "GELUID"], ["besturing", "BESTURING"], ["toetsen", "TOETSEN"], ["interface", "INTERFACE"]]
+const TABS := [["beeld", "VIDEO"], ["geluid", "AUDIO"], ["besturing", "CONTROLS"], ["toetsen", "KEYS"], ["interface", "INTERFACE"]]
 
 var _tab_buttons: Dictionary = {}
 var _pages: Dictionary = {}
@@ -35,12 +35,12 @@ func _ready() -> void:
 	var top := HBoxContainer.new()
 	outer.add_child(top)
 	var title := Label.new()
-	title.text = "INSTELLINGEN"
+	title.text = "SETTINGS"
 	title.theme_type_variation = &"Heading"
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(title)
 	var hint := Label.new()
-	hint.text = "Alles werkt meteen en wordt bewaard"
+	hint.text = "Changes apply instantly and are saved"
 	hint.theme_type_variation = &"Caption"
 	hint.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	top.add_child(hint)
@@ -69,15 +69,15 @@ func _ready() -> void:
 	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	tabs.add_child(spacer)
 	var reset := Button.new()
-	reset.text = "STANDAARD"
+	reset.text = "DEFAULTS"
 	reset.theme_type_variation = &"GhostButton"
-	reset.tooltip_text = "Zet dit tabblad terug op de standaardwaarden"
+	reset.tooltip_text = "Reset this tab to its default values"
 	reset.pressed.connect(func() -> void:
 		Settings.reset_section(_section_of(_current))
 		_rebuild(_current))
 	tabs.add_child(reset)
 	var back := Button.new()
-	back.text = "TERUG"
+	back.text = "BACK"
 	back.pressed.connect(close)
 	tabs.add_child(back)
 
@@ -169,50 +169,50 @@ func _rebuild(tab: String) -> void:
 		c.queue_free()
 	match tab:
 		"beeld":
-			_option(page, "video/window_mode", "Weergave", ["Venster", "Volledig scherm (randloos)", "Volledig scherm (exclusief)"])
-			_toggle(page, "video/vsync", "Verticale synchronisatie", "Geen scheuren in het beeld; kan wat vertraging geven.")
-			_option(page, "video/max_fps", "Beeldsnelheid maximum", Settings.FPS_CAPS.map(func(v: int) -> String: return "Onbeperkt" if v == 0 else "%d fps" % v))
-			_option(page, "video/msaa", "Anti-aliasing (randen)", ["Uit", "2× MSAA", "4× MSAA", "8× MSAA"])
-			_slider(page, "video/render_scale", "Renderschaal", 0.5, 1.0, 0.05, "%d%%", 100.0, "Lager = sneller. Opgeschaald met FSR.")
-			_slider(page, "video/fov", "Gezichtsveld (FOV)", 60.0, 110.0, 1.0, "%d°", 1.0)
-			_slider(page, "video/brightness", "Helderheid", 0.6, 1.6, 0.05, "%d%%", 100.0, "De put hoort donker te zijn; je helmlamp is je beste vriend.")
+			_option(page, "video/window_mode", "Display mode", ["Windowed", "Fullscreen (borderless)", "Fullscreen (exclusive)"])
+			_toggle(page, "video/vsync", "Vertical sync", "No screen tearing; may add a little input lag.")
+			_option(page, "video/max_fps", "Max frame rate", Settings.FPS_CAPS.map(func(v: int) -> String: return "Unlimited" if v == 0 else "%d fps" % v))
+			_option(page, "video/msaa", "Anti-aliasing (edges)", ["Off", "2× MSAA", "4× MSAA", "8× MSAA"])
+			_slider(page, "video/render_scale", "Render scale", 0.5, 1.0, 0.05, "%d%%", 100.0, "Lower = faster. Upscaled with FSR.")
+			_slider(page, "video/fov", "Field of view (FOV)", 60.0, 110.0, 1.0, "%d°", 1.0)
+			_slider(page, "video/brightness", "Brightness", 0.6, 1.6, 0.05, "%d%%", 100.0, "The pit is meant to be dark; your helmet lamp is your best friend.")
 		"geluid":
-			_slider(page, "audio/master", "Hoofdvolume", 0.0, 1.0, 0.01, "%d%%", 100.0)
-			_slider(page, "audio/sfx", "Effecten", 0.0, 1.0, 0.01, "%d%%", 100.0)
-			_slider(page, "audio/music", "Muziek", 0.0, 1.0, 0.01, "%d%%", 100.0)
-			_slider(page, "audio/voice", "Stemmen (spraak)", 0.0, 1.0, 0.01, "%d%%", 100.0, "Voor de voice-chat (komt in M4).")
-			_slider(page, "audio/ui", "Menu's", 0.0, 1.0, 0.01, "%d%%", 100.0)
-			_toggle(page, "audio/mute_unfocused", "Stil als het spel niet actief is")
+			_slider(page, "audio/master", "Master volume", 0.0, 1.0, 0.01, "%d%%", 100.0)
+			_slider(page, "audio/sfx", "Effects", 0.0, 1.0, 0.01, "%d%%", 100.0)
+			_slider(page, "audio/music", "Music", 0.0, 1.0, 0.01, "%d%%", 100.0)
+			_slider(page, "audio/voice", "Voices (voice chat)", 0.0, 1.0, 0.01, "%d%%", 100.0, "For voice chat (coming in M4).")
+			_slider(page, "audio/ui", "Menus", 0.0, 1.0, 0.01, "%d%%", 100.0)
+			_toggle(page, "audio/mute_unfocused", "Mute when the game is in the background")
 		"besturing":
-			_slider(page, "controls/sensitivity", "Muisgevoeligheid", 0.1, 3.0, 0.05, "%d%%", 100.0)
-			_toggle(page, "controls/invert_y", "Verticaal omkeren (Y)")
+			_slider(page, "controls/sensitivity", "Mouse sensitivity", 0.1, 3.0, 0.05, "%d%%", 100.0)
+			_toggle(page, "controls/invert_y", "Invert vertical axis (Y)")
 		"toetsen":
 			var note := Label.new()
-			note.text = "Klik op een toets en druk de nieuwe toets of muisknop. Esc annuleert."
+			note.text = "Click a key, then press the new key or mouse button. Esc cancels."
 			note.theme_type_variation = &"Caption"
 			page.add_child(note)
 			for pair: Array in Settings.BINDABLE:
 				_key_row(page, pair[0], pair[1])
 		"interface":
-			_slider(page, "interface/ui_scale", "Grootte van de interface", 0.75, 2.0, 0.05, "%d%%", 100.0)
-			_slider(page, "interface/camera_shake", "Schudden van de camera", 0.0, 1.0, 0.05, "%d%%", 100.0, "Minder schudden helpt tegen misselijkheid.")
-			_toggle(page, "interface/hide_ip", "IP-adres verbergen", "Voor wie streamt: je IP verschijnt nergens in beeld.")
+			_slider(page, "interface/ui_scale", "Interface size", 0.75, 2.0, 0.05, "%d%%", 100.0)
+			_slider(page, "interface/camera_shake", "Camera shake", 0.0, 1.0, 0.05, "%d%%", 100.0, "Less shake helps against motion sickness.")
+			_toggle(page, "interface/hide_ip", "Hide IP address", "For streamers: your IP never appears on screen.")
 			var head := Label.new()
 			head.text = "HUD"
 			head.theme_type_variation = &"SubHeading"
 			page.add_child(_pad(head))
 			var note := Label.new()
-			note.text = "Dynamisch: komt in beeld als er iets verandert, en verdwijnt daarna weer."
+			note.text = "Dynamic: appears when something changes, then fades out again."
 			note.theme_type_variation = &"Caption"
 			page.add_child(note)
-			var modes := ["Uit", "Dynamisch", "Altijd"]
-			_option(page, "hud/crosshair", "Vizier", modes)
-			_option(page, "hud/prompts", "Toetsprompts (E: oppakken …)", modes)
-			_option(page, "hud/tools", "Gereedschap", modes)
-			_option(page, "hud/depth", "Diepte en richting naar de Mol", modes)
-			_option(page, "hud/team", "Ploeg", modes)
-			_option(page, "hud/sonar", "Sonar in buitenzicht (de Mol)", modes)
-			_option(page, "hud/stats", "Infopaneel (fps, netwerk) · F3", ["Uit", "Uit", "Aan"])
+			var modes := ["Off", "Dynamic", "Always"]
+			_option(page, "hud/crosshair", "Crosshair", modes)
+			_option(page, "hud/prompts", "Key prompts (E: pick up …)", modes)
+			_option(page, "hud/tools", "Tools", modes)
+			_option(page, "hud/depth", "Depth and direction to the Mole", modes)
+			_option(page, "hud/team", "Crew", modes)
+			_option(page, "hud/sonar", "Sonar in outside view (the Mole)", modes)
+			_option(page, "hud/stats", "Info panel (fps, network) · F3", ["Off", "Off", "On"])
 
 
 func _pad(c: Control) -> MarginContainer:
@@ -301,7 +301,7 @@ func _key_row(page: Control, action: String, label_text: String) -> void:
 		_cancel_rebind()
 		_waiting_for = b
 		_waiting_action = action
-		b.text = "DRUK EEN TOETS…")
+		b.text = "PRESS A KEY…")
 	row.add_child(b)
 
 

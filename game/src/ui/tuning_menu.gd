@@ -7,8 +7,8 @@ extends PanelContainer
 signal closed
 
 const TITLES := {
-	"camera": "Camera", "carry": "Dragen", "dig": "Graven", "drill": "Boor", "finds": "Vondsten",
-	"mol": "De Mol", "pickaxe": "Houweel", "player": "Speler", "terrain": "Terrein", "ore": "Erts",
+	"camera": "Camera", "carry": "Carrying", "dig": "Digging", "drill": "Drill", "finds": "Finds",
+	"mol": "The Mole", "pickaxe": "Pickaxe", "player": "Player", "terrain": "Terrain", "ore": "Ore",
 }
 
 var _tabs: TabContainer
@@ -34,7 +34,7 @@ func _ready() -> void:
 	col.add_theme_constant_override("separation", 10)
 	add_child(col)
 	var title := Label.new()
-	title.text = "Tuning  ·  F1 sluiten  ·  wijzigingen werken meteen"
+	title.text = "Tuning  ·  F1 to close  ·  changes apply instantly"
 	title.add_theme_font_size_override("font_size", 20)
 	title.add_theme_color_override("font_color", Color(1.0, 0.75, 0.35))
 	col.add_child(title)
@@ -47,19 +47,19 @@ func _ready() -> void:
 	buttons.add_theme_constant_override("separation", 10)
 	col.add_child(buttons)
 	var save := Button.new()
-	save.text = "Bewaar dit tabblad"
+	save.text = "Save this tab"
 	save.pressed.connect(_save_current)
 	buttons.add_child(save)
 	var save_all := Button.new()
-	save_all.text = "Bewaar alles"
+	save_all.text = "Save all"
 	save_all.pressed.connect(_save_all)
 	buttons.add_child(save_all)
 	var reset := Button.new()
-	reset.text = "Terug naar bewaarde waarden"
+	reset.text = "Revert to saved values"
 	reset.pressed.connect(func() -> void:
 		Tuning.reload()
 		_rebuild()
-		_status.text = "Bewaarde waarden opnieuw geladen.")
+		_status.text = "Saved values reloaded.")
 	buttons.add_child(reset)
 	_status = Label.new()
 	_status.add_theme_color_override("font_color", Color(0.75, 0.75, 0.7))
@@ -77,7 +77,7 @@ func toggle() -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 		_refresh_values()
 		if Tuning.is_remote():
-			_status.text = "Je bent client: de host beslist over de waarden. Wijzigingen hier gelden enkel lokaal tot de host iets verandert."
+			_status.text = "You're a client: the host decides the values. Changes here only apply locally until the host changes something."
 	else:
 		if _was_captured:
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -151,13 +151,13 @@ func _refresh_values() -> void:
 
 func _save_current() -> void:
 	var file := _tabs.get_child(_tabs.current_tab).name
-	_status.text = "Bewaard: %s" % Tuning.save(file)
+	_status.text = "Saved: %s" % Tuning.save(file)
 
 
 func _save_all() -> void:
 	for file in Tuning.files():
 		Tuning.save(file)
-	_status.text = "Alles bewaard (%d bestanden)." % Tuning.files().size()
+	_status.text = "All saved (%d files)." % Tuning.files().size()
 
 
 func _unhandled_input(event: InputEvent) -> void:

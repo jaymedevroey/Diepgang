@@ -152,10 +152,10 @@ func _ready() -> void:
 	Net.failed.connect(func(reason: String) -> void:
 		_loading.finish()
 		if _start_menu:
-			_start_menu.show_error("Netwerk: " + reason)
+			_start_menu.show_error("Network: " + reason)
 		else:
-			hud.toast("Netwerk: " + reason, "warn", 8.0))
-	Net.ended.connect(func(reason: String) -> void: hud.toast("Sessie voorbij: " + reason, "warn", 10.0))
+			hud.toast("Network: " + reason, "warn", 8.0))
+	Net.ended.connect(func(reason: String) -> void: hud.toast("Session over: " + reason, "warn", 10.0))
 	var port := int(CmdArgs.value("port", Net.DEFAULT_PORT))
 	if CmdArgs.has("host"):
 		Net.start_host(port)
@@ -188,17 +188,17 @@ func _open_start_menu(port: int) -> void:
 
 
 func _join(address: String, port: int) -> void:
-	_loading.show_status("VERBINDEN MET %s" % ("DE HOST" if Settings.get_b("interface/hide_ip") else address))
+	_loading.show_status("CONNECTING TO %s" % ("THE HOST" if Settings.get_b("interface/hide_ip") else address))
 	Net.join(address, port)
 
 
 func _on_net_started() -> void:
 	if Net.is_host():
 		if scenario == "play":
-			_loading.show_status("DE EKSTER MAAKT ZICH KLAAR")
+			_loading.show_status("PREPARING THE MAGPIE")
 		game.start_host(int(CmdArgs.value("seed", 1)))
 	else:
-		_loading.show_status("WERELD OPHALEN BIJ DE HOST")
+		_loading.show_status("FETCHING THE WORLD FROM THE HOST")
 		game.start_client()
 
 
@@ -215,7 +215,7 @@ func _on_world_loaded(stats: Dictionary) -> void:
 	if not _mol_connected:
 		_mol_connected = true
 		game.mol.message.connect(func(t: String) -> void:
-			hud.toast(t, "warn" if t.begins_with("Harde laag") or t.begins_with("Rand van de put") or t.begins_with("De boorkop") else "mol"))
+			hud.toast(t, "warn" if _is_mol_warning(t) else "mol"))
 		# De stempel landt op het moment dat je de besturing terugkrijgt, niet in de klap zelf.
 		game.mol.landed.connect(func() -> void:
 			if player and game.mol.contains_point(player.global_position):
@@ -223,8 +223,8 @@ func _on_world_loaded(stats: Dictionary) -> void:
 				if player == null:
 					return
 				var c: Company = game.company
-				var where: String = str(c.contract.get("name", "CONCESSIE %d" % (game.pit_seed % 97 + 1)))
-				hud.stamp(PlanetType.NAMES[game.planet_type].to_upper(), "%s · KWARTAAL %d · DIENST %d" % [where, c.quarter, c.shift]))
+				var where: String = str(c.contract.get("name", "CLAIM %d" % (game.pit_seed % 97 + 1)))
+				hud.stamp(PlanetType.NAMES[game.planet_type].to_upper(), "%s · QUARTER %d · SHIFT %d" % [where, c.quarter, c.shift]))
 		game.mol.summary.connect(func(count: int, value: int, left_behind: int) -> void:
 			if game.ship == null: # met het schip komt het incidentrapport van de firma
 				hud.show_result(count, value, left_behind, game.mol.last_ore_units, game.mol.last_ore_value))
@@ -241,6 +241,15 @@ func _on_world_loaded(stats: Dictionary) -> void:
 		scenario_node.on_terrain_loaded(stats)
 
 
+## Meldingen van de Mol die een waarschuwing zijn (rood): de autopiloot stopt (harde laag, rand van
+## de put) of de boorkop schepte een vondst op. Op de inhoud, niet op het eerste woord: mol.gd zegt
+## "Harde laag: de autopiloot stopt…" (in het Engels "…: the autopilot stops…"), en
+## "Autopiloot: afdalen tot…" is geen waarschuwing.
+func _is_mol_warning(t: String) -> bool:
+	var l := t.to_lower()
+	return (l.contains("autopilo") and l.contains("stop")) or l.begins_with("the drill head") or l.begins_with("de boorkop")
+
+
 func _on_player_spawned(p: Player) -> void:
 	print("[diepgang] speler %d gespawnd%s" % [p.peer_id, " (lokaal)" if p.is_local else ""])
 	if not p.is_local:
@@ -253,14 +262,14 @@ func _on_player_spawned(p: Player) -> void:
 	p.rotate_y(deg_to_rad(float(CmdArgs.value("yaw", 0.0))))
 	p.pickaxe.auto_swing = CmdArgs.has("autodig")
 	p.drill.auto_use = CmdArgs.has("autodig")
-	p.rescued.connect(func() -> void: hud.toast("Je viel door de wereld: teruggezet in de Mol", "warn"))
+	p.rescued.connect(func() -> void: hud.toast("You fell through the world: put back in the Mole", "warn"))
 	if CmdArgs.value("tool", "") == "drill":
 		p.select_tool(1)
 	_loading.finish()
 	if DisplayServer.get_name() != "headless":
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED # meteen kunnen rondkijken, zonder eerst te klikken
 	if Net.mode == Net.Mode.HOST:
-		hud.toast("Je host. Vrienden doen mee via Esc > Vrienden uitnodigen.", "info", 7.0)
+		hud.toast("You're hosting. Friends join via Esc > Invite friends.", "info", 7.0)
 	_frame_since_spawn = 0
 	if CmdArgs.has("tuning-open"):
 		_tuning_menu.toggle()

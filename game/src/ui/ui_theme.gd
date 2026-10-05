@@ -30,7 +30,7 @@ static func euro(v: int) -> String:
 	var s := str(absi(v))
 	var out := ""
 	while s.length() > 3:
-		out = "." + s.right(3) + out
+		out = "," + s.right(3) + out
 		s = s.left(s.length() - 3)
 	return ("−€" if v < 0 else "€") + s + out
 

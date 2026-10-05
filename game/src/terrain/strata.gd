@@ -7,7 +7,7 @@ enum Layer { KRISTAL, GRANIET, ZANDSTEEN, KLEI }
 ## Gereedschap-niveau: 0 = houweel, 1 = boor T1, 2 = boor T2.
 enum Tool { HOUWEEL, BOOR_T1, BOOR_T2 }
 
-const NAMES: Array[String] = ["Kristal", "Graniet", "Zandsteen", "Klei"]
+const NAMES: Array[String] = ["Crystal", "Granite", "Sandstone", "Clay"]
 ## Bovengrens van elke laag in meter boven de bodem. Klei loopt tot aan het oppervlak.
 const TOPS_M: Array[float] = [60.0, 140.0, 215.0]
 ## Welk gereedschap een laag minstens nodig heeft (GDD §4, tabel Lagen).

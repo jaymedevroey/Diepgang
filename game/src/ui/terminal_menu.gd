@@ -43,7 +43,7 @@ func _ready() -> void:
 	col.add_theme_constant_override("separation", 14)
 	center.add_child(col)
 	var title := Label.new()
-	title.text = "DIG · OPDRACHTEN"
+	title.text = "DIG · CONTRACTS"
 	title.theme_type_variation = &"Title"
 	col.add_child(title)
 	col.add_child(HazardStrip.new(8.0))
@@ -89,7 +89,7 @@ func _ready() -> void:
 	_note.autowrap_mode = TextServer.AUTOWRAP_WORD
 	col.add_child(_note)
 	var close_b := Button.new()
-	close_b.text = "SLUITEN"
+	close_b.text = "CLOSE"
 	close_b.theme_type_variation = &"GhostButton"
 	close_b.custom_minimum_size = Vector2(240, 48)
 	close_b.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
@@ -148,7 +148,7 @@ func _process(delta: float) -> void:
 	elif _pending >= 0 and now - _pending_at > ANSWER_S:
 		# De host antwoordde niet met deze opdracht (de Mol vertrok, of iemand anders koos).
 		_pending = -1
-		_note.text = "Geen bevestiging van de host: misschien vertrok de Mol net, of koos iemand anders. Probeer opnieuw."
+		_note.text = "No confirmation from the host: maybe the Mole just left, or someone else picked first. Try again."
 		_note.add_theme_color_override("font_color", UiTheme.DANGER)
 
 
@@ -156,7 +156,7 @@ func _on_company_changed() -> void:
 	if _pending >= 0 and company.contract_ready() and _pending < company.options.size() \
 			and company.contract == company.options[_pending]:
 		_pending = -1
-		_confirm.text = "KOERS GEZET NAAR %s" % str(company.contract.name)
+		_confirm.text = "COURSE SET FOR %s" % str(company.contract.name)
 		_confirm.visible = true
 		_closing_left = CONFIRM_S
 		Sfx.ui("toast")
@@ -170,7 +170,7 @@ func _on_mol_mode(_mode: int) -> void:
 func _choose(index: int) -> void:
 	var mol: Mol = company.game.mol
 	if mol == null or mol.mode != Mol.Mode.DOCKED:
-		_note.text = "Kan nu niet: de Mol staat niet in de baai."
+		_note.text = "Not now: the Mole isn't in the bay."
 		_note.add_theme_color_override("font_color", UiTheme.DANGER)
 		Sfx.ui("back")
 		return
@@ -179,7 +179,7 @@ func _choose(index: int) -> void:
 	Sfx.ui("click")
 	_pending = index
 	_pending_at = Time.get_ticks_msec() / 1000.0
-	_note.text = "Doorgegeven aan de brug…"
+	_note.text = "Relayed to the bridge…"
 	_note.remove_theme_color_override("font_color")
 	company.choose(index)
 
@@ -189,9 +189,9 @@ func _refresh() -> void:
 		return
 	var c := company
 	var q := c.quota()
-	_status.text = "KAS  %s     ·     REPUTATIE  %+d     ·     KWARTAAL %d  ·  DIENST %d/%d" % [
+	_status.text = "FUNDS  %s     ·     REPUTATION  %+d     ·     QUARTER %d  ·  SHIFT %d/%d" % [
 			UiTheme.euro(c.cash), c.reputation, c.quarter, c.shift, Tuning.get_i("company", "shifts", 3)]
-	_quota_label.text = "QUOTA DIT KWARTAAL: %s van %s (voor %d %s). Gemist = boete." % [
+	_quota_label.text = "QUOTA THIS QUARTER: %s of %s (for %d %s). Missed = fine." % [
 			UiTheme.euro(c.earned), UiTheme.euro(q), clampi(c.game.players.get_child_count(), 1, 4),
 			"robot" if c.game.players.get_child_count() == 1 else "robots"]
 	_quota_bar.max_value = maxf(1.0, q)
@@ -207,11 +207,11 @@ func _refresh() -> void:
 	var mol: Mol = c.game.mol
 	var docked: bool = mol != null and mol.mode == Mol.Mode.DOCKED
 	if not docked:
-		_note.text = "De Mol is op weg. Opdrachten kiezen kan als hij terug in de baai staat."
+		_note.text = "The Mole is out. You can pick a contract once it's back in the bay."
 	elif c.contract_ready():
-		_note.text = "Gekozen: %s. Stap in de Mol en trek aan de hendel (VERTREK) om te droppen." % c.contract.name
+		_note.text = "Chosen: %s. Board the Mole and pull the lever (LAUNCH) to drop." % c.contract.name
 	else:
-		_note.text = "Kies een opdracht. Meer risico = meer opbrengst, maar het magma stijgt sneller."
+		_note.text = "Pick a contract. More risk = more pay, but the magma rises faster."
 
 
 func _option_card(index: int, o: Dictionary, chosen: bool) -> Control:
@@ -243,15 +243,15 @@ func _option_card(index: int, o: Dictionary, chosen: bool) -> Control:
 	planet.theme_type_variation = &"Caption"
 	v.add_child(planet)
 	var r := Label.new()
-	r.text = "RISICO  %s" % Company.RISK_NAMES[risk]
+	r.text = "RISK  %s" % Company.RISK_NAMES[risk]
 	r.add_theme_color_override("font_color", [UiTheme.GOOD, UiTheme.YELLOW, UiTheme.DANGER][risk])
 	r.add_theme_font_size_override("font_size", 22)
 	v.add_child(r)
 	var d := Label.new()
-	d.text = "Opbrengst ×%.2f\nMagma ×%.2f" % [Company.pay_factor(risk), Company.magma_factor(risk)]
+	d.text = "Pay ×%.2f\nMagma ×%.2f" % [Company.pay_factor(risk), Company.magma_factor(risk)]
 	v.add_child(d)
 	var b := Button.new()
-	b.text = "GEKOZEN" if chosen else "KIEZEN"
+	b.text = "CHOSEN" if chosen else "CHOOSE"
 	# Niet uitgeschakeld als de Mol weg is: dan zegt het menu waarom het niet kan.
 	b.disabled = chosen
 	b.custom_minimum_size = Vector2(0, 50)

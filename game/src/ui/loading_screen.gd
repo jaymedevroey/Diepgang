@@ -3,16 +3,16 @@ extends Control
 ## Laadscherm tussen het menu en de put: draaiende boorkop, wat er gebeurt, en een tip van de firma.
 
 const TIPS := [
-	"Het houweel is traag maar veilig. De boor is snel, maar vondsten verliezen gaafheid.",
-	"Een korst bik je uit: blijf slaan tot hij openbreekt. Het vizier toont hoeveel slagen nog.",
-	"Zware stukken draag je beter met z'n tweeën. De firma noemt dat \"teamwork\".",
-	"Wat in het laadruim van de Mol ligt, rijdt mee naar boven. Wat ernaast ligt, niet.",
-	"Op graniet blokkeert de boorkop van de Mol. Neus omhoog, of draai bij.",
-	"Vertrekhendel getrokken? Tien seconden. Wie niet aan boord is, klimt te voet naar boven.",
-	"Kwijt? Bovenaan in beeld wijst het kompas de weg naar de Mol.",
-	"Diepgang BV is niet aansprakelijk voor verloren robots, vingers of goed humeur.",
-	"C in de stoel van de Mol: kijk van buiten mee terwijl je rijdt.",
-	"Instellingen > Toetsen: zet elke toets waar jij hem wil.",
+	"The pickaxe is slow but safe. The drill is fast, but finds lose condition.",
+	"Crust gets chipped away: keep swinging until it cracks. The crosshair shows how many hits are left.",
+	"Heavy pieces are better carried in pairs. The company calls that \"teamwork\".",
+	"Whatever is in the Mole's cargo hold rides up with it. Whatever is next to it does not.",
+	"Granite stops the Mole's drill head. Nose up, or steer away.",
+	"Launch lever pulled? Ten seconds. Anyone not on board climbs back up on foot.",
+	"Lost? The compass at the top of the screen points the way to the Mole.",
+	"Diepgang Inc. accepts no liability for lost robots, fingers or good spirits.",
+	"Press C in the Mole's seat to watch from outside while you drive.",
+	"Settings > Keys: put every key wherever you want it.",
 ]
 
 var _status: Label

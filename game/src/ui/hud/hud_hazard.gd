@@ -61,7 +61,7 @@ func _draw() -> void:
 		draw_string(_head, Vector2(box.position.x + 12.0, y + 21.0), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, col)
 		y += 36.0
 	if unrest >= SHOW_UNREST or quake != Unrest.Phase.CALM:
-		var label := "ONRUST"
+		var label := "UNREST"
 		draw_string_outline(_font, Vector2(0.0, y + 13.0), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, 4, Color(0, 0, 0, 0.7))
 		draw_string(_font, Vector2(0.0, y + 13.0), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, UiTheme.CREAM)
 		var bar := Rect2(70.0, y + 3.0, WIDTH - 70.0, 10.0)
@@ -74,7 +74,7 @@ func _draw() -> void:
 		draw_line(Vector2(x80, bar.position.y - 2.0), Vector2(x80, bar.end.y + 2.0), Color(UiTheme.CREAM, 0.6), 2.0)
 		y += 22.0
 	if quake != Unrest.Phase.CALM:
-		var t := "BEVING!" if quake == Unrest.Phase.QUAKE else "BEVING KOMT"
+		var t := "QUAKE!" if quake == Unrest.Phase.QUAKE else "QUAKE INCOMING"
 		var sz2 := _head.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 24)
 		var col2 := Color(UiTheme.DANGER, 1.0 if blink else 0.55)
 		draw_string_outline(_head, Vector2(WIDTH / 2.0 - sz2.x / 2.0, y + 24.0), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 24, 6, Color(0, 0, 0, 0.8))

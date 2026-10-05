@@ -8,7 +8,7 @@ extends RefCounted
 
 enum Id { ROESTBOL, FOSSIELWERELD, KRISTALMAAN }
 
-const NAMES: Array[String] = ["Roestbol", "Fossielwereld", "Kristalmaan"]
+const NAMES: Array[String] = ["Rustbowl", "Fossil World", "Crystal Moon"]
 const SKY_STYLE: Array[String] = ["a", "b", "c"]
 
 
