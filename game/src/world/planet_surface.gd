@@ -50,6 +50,13 @@ const BAND_LIFT := 0.05
 const LANDING_PAD := Vector2(11.0, 30.0)
 ## De tint van de landvorm over het speelgebied, als textuur voor het voxelterrein (m per texel).
 const NEAR_TINT_STEP := 2.0
+## Kaarten van de planeet rond de landingsplek voor het planeetdek onder de hub (Atmosphere): een
+## scherpe op het raster van de ring (±496 m, 7,8 m per texel) en een grove tot ±4 km (62,5 m).
+## Rgb = kleur van de grond (sRGB, met reliëf, lagen en landmarks), a = hoogte.
+const MAP_FAR_N := 128
+const MAP_FAR_HALF := 4000.0
+## Hoogte in de kaart: a = (hoogte - oppervlak - MAP_H.x) / MAP_H.y.
+const MAP_H := Vector2(-60.0, 240.0)
 
 var terrain: TerrainAPI
 ## Planeettype van deze wereld, en zijn grote landvormen rond het speelgebied (Landform.create).
@@ -77,6 +84,11 @@ var _phase_ms: Dictionary = {} # ms per stap op de werkthread (voor de log)
 ## worden donkerder, hoogtes en randen lichter (PlanetType.ground relief_*), in het verre landschap
 ## én in de tint van het voxelterrein: drie waardegroepen die aan de vormen hangen, niet aan ruis.
 const RELIEF_CELLS := 5
+## De kaarten (na _commit): texturen en rechthoeken (x/z van de hoek, breedte), voor Atmosphere.
+var land_map: ImageTexture
+var land_map_rect := Vector4.ZERO
+var land_map_near: ImageTexture
+var land_map_near_rect := Vector4.ZERO
 var _rel_field := PackedFloat32Array()
 var _rel_n := 0
 var _rel_o := 0.0
@@ -275,10 +287,17 @@ func _compute() -> void:
 	var ts := Time.get_ticks_usec()
 	var tp := ts
 	_out = {}
-	for step: String in ["area", "far", "skirt", "tint", "dressing"]:
+	for step: String in ["area", "far", "skirt", "tint", "map", "dressing"]:
 		match step:
 			"tint":
 				_out.near_tint = _near_tint_data()
+			"map":
+				var cell := _size.x / STEPS_INSIDE
+				var near_n := 2 * int(ceil(RING / cell)) + STEPS_INSIDE + 1
+				_out.land_map_near_n = near_n
+				_out.land_map_near_half = near_n * cell * 0.5
+				_out.land_map_near = _land_map_data(_out.far, near_n, near_n * cell * 0.5)
+				_out.land_map = _land_map_data(_out.far, MAP_FAR_N, MAP_FAR_HALF)
 			"area":
 				_out.area = _area_arrays()
 			"far":
@@ -605,6 +624,116 @@ func _near_tint_data() -> PackedByteArray:
 	return data
 
 
+## De kaart voor het planeetdek (buiten-11: door de baai zag je voor elke planeet dezelfde grijze
+## kratermaan). Uit de hoekpunten van het verre landschap die er al zijn (geen extra hoogtes: die
+## kosten op Fossielwereld ±30 µs per stuk): elk hoekpunt in zijn texel, gemiddeld, gaten opgevuld
+## vanuit de buren. Daarbovenop de landmarks (Landform.map_marks: de kristalader, het skelet).
+func _land_map_data(far: Array, n: int, half: float) -> PackedByteArray:
+	var verts: PackedVector3Array = far[Mesh.ARRAY_VERTEX]
+	var cols: PackedColorArray = far[Mesh.ARRAY_COLOR]
+	var g := PlanetType.ground(planet)
+	var base := (g.base as Color).srgb_to_linear()
+	var strata := ((g.strata as Array)[1] as Color).srgb_to_linear()
+	var x0 := landform.landing.x - half
+	var z0 := landform.landing.y - half
+	var texel := half * 2.0 / n
+	var acc := PackedFloat32Array()
+	acc.resize(n * n * 5) # r, g, b, hoogte, aantal
+	for i in verts.size():
+		var v := verts[i]
+		var ti := int((v.x - x0) / texel)
+		var tj := int((v.z - z0) / texel)
+		if ti < 0 or tj < 0 or ti >= n or tj >= n:
+			continue
+		var c := cols[i]
+		var lin := Color(base.r * c.r * 2.0, base.g * c.g * 2.0, base.b * c.b * 2.0)
+		lin = lin.lerp(strata, clampf(c.a, 0.0, 1.0) * 0.55)
+		var o := outside(v.x, v.z)
+		var at := (tj * n + ti) * 5
+		acc[at] += lin.r
+		acc[at + 1] += lin.g
+		acc[at + 2] += lin.b
+		acc[at + 3] += v.y + o * o / (2.0 * _radius) - _surface_y
+		acc[at + 4] += 1.0
+	for t in n * n:
+		var k := acc[t * 5 + 4]
+		if k > 0.0:
+			for ch in 4:
+				acc[t * 5 + ch] /= k
+			acc[t * 5 + 4] = 1.0
+	# Gaten (verder dan ±1,5 km liggen de ringen van de schijf verder uit elkaar dan een texel).
+	for pass_i in 8:
+		var filled := acc.duplicate()
+		var left := 0
+		for tj in n:
+			for ti in n:
+				var at := (tj * n + ti) * 5
+				if acc[at + 4] > 0.0:
+					continue
+				var sum := [0.0, 0.0, 0.0, 0.0]
+				var k := 0
+				for dj in range(-1, 2):
+					for di in range(-1, 2):
+						var ii := ti + di
+						var jj := tj + dj
+						if ii < 0 or jj < 0 or ii >= n or jj >= n:
+							continue
+						var b := (jj * n + ii) * 5
+						if acc[b + 4] > 0.0:
+							for ch in 4:
+								sum[ch] += acc[b + ch]
+							k += 1
+				if k == 0:
+					left += 1
+					continue
+				for ch in 4:
+					filled[at + ch] = sum[ch] / k
+				filled[at + 4] = 1.0
+		acc = filled
+		if left == 0:
+			break
+	# Wat dan nog leeg is: het gemiddelde.
+	var mean := [0.0, 0.0, 0.0, 0.0]
+	var cnt := 0
+	for t in n * n:
+		if acc[t * 5 + 4] > 0.0:
+			for ch in 4:
+				mean[ch] += acc[t * 5 + ch]
+			cnt += 1
+	for t in n * n:
+		if acc[t * 5 + 4] <= 0.0:
+			for ch in 4:
+				acc[t * 5 + ch] = mean[ch] / maxi(cnt, 1)
+	for mark: Array in landform.map_marks():
+		var mp: Vector2 = mark[0]
+		var mr: float = mark[1]
+		var mc: Color = (mark[2] as Color).srgb_to_linear()
+		var reach := int(ceil(mr / texel)) + 1
+		var ci := int((mp.x - x0) / texel)
+		var cj := int((mp.y - z0) / texel)
+		for tj in range(cj - reach, cj + reach + 1):
+			for ti in range(ci - reach, ci + reach + 1):
+				if ti < 0 or tj < 0 or ti >= n or tj >= n:
+					continue
+				var d := Vector2(x0 + (ti + 0.5) * texel, z0 + (tj + 0.5) * texel).distance_to(mp)
+				var k := (1.0 - smoothstep(mr * 0.5, mr + texel * 0.5, d)) * mc.a
+				if k <= 0.0:
+					continue
+				var at := (tj * n + ti) * 5
+				acc[at] = lerpf(acc[at], mc.r, k)
+				acc[at + 1] = lerpf(acc[at + 1], mc.g, k)
+				acc[at + 2] = lerpf(acc[at + 2], mc.b, k)
+	var data := PackedByteArray()
+	data.resize(n * n * 4)
+	for t in n * n:
+		var lin := Color(acc[t * 5], acc[t * 5 + 1], acc[t * 5 + 2]).linear_to_srgb()
+		data[t * 4] = int(clampf(lin.r, 0.0, 1.0) * 255.0 + 0.5)
+		data[t * 4 + 1] = int(clampf(lin.g, 0.0, 1.0) * 255.0 + 0.5)
+		data[t * 4 + 2] = int(clampf(lin.b, 0.0, 1.0) * 255.0 + 0.5)
+		data[t * 4 + 3] = int(clampf((acc[t * 5 + 3] - MAP_H.x) / MAP_H.y, 0.0, 1.0) * 255.0 + 0.5)
+	return data
+
+
 ## Rok langs de rand van het speelgebied: hangt 30 m naar beneden en kijkt naar binnen, zodat je
 ## vanuit het speelgebied nooit door een kier tussen de rechte randen van de ring, het raster en
 ## het voxelterrein de lucht ziet (die kier tekende een witte lijn rond het vierkant). Even fijn als
@@ -673,6 +802,12 @@ func _commit() -> void:
 	tmat.set_shader_parameter("near_tint", ImageTexture.create_from_image(tint_img))
 	tmat.set_shader_parameter("near_tint_rect", Vector4(0.0, 0.0, NEAR_TINT_STEP, float(tn)))
 	tmat.set_shader_parameter("near_tint_on", true)
+	land_map = ImageTexture.create_from_image(Image.create_from_data(MAP_FAR_N, MAP_FAR_N, false, Image.FORMAT_RGBA8, _out.land_map))
+	land_map_rect = Vector4(landform.landing.x - MAP_FAR_HALF, landform.landing.y - MAP_FAR_HALF, MAP_FAR_HALF * 2.0, 0.0)
+	var nn: int = _out.land_map_near_n
+	var nh: float = _out.land_map_near_half
+	land_map_near = ImageTexture.create_from_image(Image.create_from_data(nn, nn, false, Image.FORMAT_RGBA8, _out.land_map_near))
+	land_map_near_rect = Vector4(landform.landing.x - nh, landform.landing.y - nh, nh * 2.0, 0.0)
 	var area_mesh := ArrayMesh.new()
 	area_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, _out.area)
 	var area := MeshInstance3D.new()

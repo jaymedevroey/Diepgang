@@ -308,6 +308,18 @@ func tint(x: float, z: float) -> Color:
 	return c
 
 
+## De kristalader als lichte, lavendel lijn op de kaart van het planeetdek (van de hub uit gezien).
+func map_marks() -> Array:
+	var out := []
+	var t := VEIN_T.x
+	while t < VEIN_T.y:
+		var st := clampf(vein_strength(t) * 1.4, 0.0, 1.0)
+		if st > 0.05:
+			out.append([vein_o + vein_dir * t + vein_n * vein_center(t), 22.0, Color(0.85, 0.8, 0.98, 0.85 * st)])
+		t += 24.0
+	return out
+
+
 ## Binnen het speelgebied: naden van de korst waar ze ligt (dezelfde vlekken als de platen erbuiten).
 func crust_seams(x: float, z: float) -> float:
 	return crust_mask(Vector2(x, z))

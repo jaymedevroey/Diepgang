@@ -571,6 +571,19 @@ func shader_params(surface_y: float) -> Dictionary:
 			"strata_steep": Vector2(0.72, 0.94), "strata_key": Vector3(surface_y + cliff_h * 0.6, 5.5, 0.9)}
 
 
+## Het reuzenskelet als donkere ribbenkast op de kaart van het planeetdek (van de hub uit gezien).
+func map_marks() -> Array:
+	var out := []
+	var a := giant_c + giant_dir * (RIB_HALF + NECK_L + 30.0)
+	var b := giant_c - giant_dir * (RIB_HALF + TAIL_L * 0.6)
+	for k in 13:
+		var q := a.lerp(b, k / 12.0)
+		var w := 30.0 if q.distance_to(giant_c) < RIB_HALF else 14.0
+		out.append([q, w, Color(0.23, 0.16, 0.18, 0.8)])
+	out.append([ribs2_c, 22.0, Color(0.23, 0.16, 0.18, 0.6)])
+	return out
+
+
 ## Afstand tot de rug van het reuzenskelet (benaderd als lijnstuk).
 func _giant_d(p: Vector2) -> float:
 	var a := giant_c + giant_dir * (RIB_HALF + NECK_L + 30.0)

@@ -91,6 +91,13 @@ func shader_params(_surface_y: float) -> Dictionary:
 			"strata_steep": Vector2(0.55, 0.85), "strata_key": Vector3.ZERO}
 
 
+## Landmarks voor de kaart van het planeetdek onder de hub (PlanetSurface._land_map_data), die de
+## tint alleen niet toont (dingen, geen grond): [[Vector2 plek, straal m, Color sRGB (a = sterkte)], ...].
+## Op de werkthread, na compute-achtige setup (enkel lezen).
+func map_marks() -> Array:
+	return []
+
+
 ## Op de werkthread: waar de eigen dingen van de planeet staan. `s` geeft far_height en outside.
 func compute_props(_s: PlanetSurface) -> Dictionary:
 	return {}

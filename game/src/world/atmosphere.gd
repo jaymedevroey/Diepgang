@@ -44,6 +44,7 @@ var _depth := 0.0
 var _ready_once := false
 var _planet: Dictionary = {}
 var _deck: MeshInstance3D
+var _deck_map: Texture2D # de kaart die nu op het dek ligt (PlanetSurface.land_map)
 
 
 func setup(environment: Environment, terrain_api: TerrainAPI, planet := PlanetType.Id.ROESTBOL) -> void:
@@ -165,6 +166,26 @@ func _place_deck() -> void:
 	_deck.global_position = ship.dock_transform().origin - Vector3(0.0, Tuning.get_f("sky", "hub_deck_below_m", 250.0), 0.0)
 
 
+## Het planeetdek tekent rond de landingsplek de kaart van deze planeet (zodra het verre landschap
+## gebouwd is; een nieuwe wereld geeft een nieuwe kaart).
+func _sync_land_map() -> void:
+	if _deck == null:
+		return
+	var surf := terrain.get_parent().get_node_or_null("Surface") as PlanetSurface
+	var map: Texture2D = surf.land_map if surf and surf.is_built else null
+	if map == _deck_map:
+		return
+	_deck_map = map
+	var mat := _deck.material_override as ShaderMaterial
+	mat.set_shader_parameter("land_map", map)
+	mat.set_shader_parameter("land_map_on", 1.0 if map else 0.0)
+	if map:
+		mat.set_shader_parameter("land_map_rect", surf.land_map_rect)
+		mat.set_shader_parameter("land_map_near", surf.land_map_near)
+		mat.set_shader_parameter("land_map_near_rect", surf.land_map_near_rect)
+		mat.set_shader_parameter("land_map_h", PlanetSurface.MAP_H)
+
+
 ## Meteen de doelwaarden (mist, omgevingslicht, de overgang naar het schip) toepassen, zonder de
 ## zachte overgang van elke frame. Voor een cameraknip (hub -> drop -> binnen in de Mol).
 func snap() -> void:
@@ -189,6 +210,7 @@ func _update(delta: float, snap_now: bool) -> void:
 	if cam == null:
 		return
 	var p := cam.global_position
+	_sync_land_map()
 	var depth := maxf(0.0, terrain.surface_height_at(p.x, p.z) - p.y)
 	var altitude := maxf(0.0, p.y - terrain.surface_height_at(p.x, p.z))
 	var in_ship := ship != null and ship.contains(p)
