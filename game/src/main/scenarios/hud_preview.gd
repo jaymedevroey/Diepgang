@@ -75,8 +75,8 @@ func _run(p: Player) -> void:
 			mol.leave_seat()
 			await _wait(0.4)
 			p.global_transform = Transform3D(Basis(Vector3.UP, mol.yaw + PI), mol.to_world_mol(Vector3(0.6, -1.4, 1.5)))
-			main.hud.toast("Autopiloot: afdalen tot −40 m", "mol")
-			main.hud.toast("Harde laag: de autopiloot stopt op 61 m", "warn")
+			main.hud.toast("Autopilot: descending to −40 m", "mol")
+			main.hud.toast("Hard layer: autopilot stops at 61 m", "warn")
 			mol._path = [mol.body.global_position + mol.body.global_basis.z * 8.0, mol.body.global_position] # alsof hij gereden heeft
 			mol.press(Mol.Cmd.DEPART)
 			await _shot("hud_vertrek", 2.5)

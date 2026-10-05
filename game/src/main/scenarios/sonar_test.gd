@@ -175,7 +175,7 @@ func _run(p: Player) -> void:
 	var max_cond := Tuning.get_f("finds", "mol_condition", 0.3)
 	_expect(victim.condition <= max_cond + 0.001 and victim.condition < cond_before,
 			"zwaar beschadigd: gaafheid %d%% (max %d%%)" % [int(victim.condition * 100), int(max_cond * 100)])
-	_expect(_messages.any(func(m: String) -> bool: return m.begins_with("De boorkop schepte")), "melding voor de ploeg")
+	_expect(_messages.any(func(m: String) -> bool: return m.begins_with("The drill head scooped up")), "melding voor de ploeg")
 	_expect(not sonar.contacts.has(victim.find_id), "vondsten in het laadruim staan niet op de sonar")
 	_finish()
 

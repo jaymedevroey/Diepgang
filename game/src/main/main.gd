@@ -247,7 +247,7 @@ func _on_world_loaded(stats: Dictionary) -> void:
 ## "Autopiloot: afdalen tot…" is geen waarschuwing.
 func _is_mol_warning(t: String) -> bool:
 	var l := t.to_lower()
-	return (l.contains("autopilo") and l.contains("stop")) or l.begins_with("the drill head") or l.begins_with("de boorkop")
+	return (l.contains("autopilo") and l.contains("stop")) or l.begins_with("the drill head")
 
 
 func _on_player_spawned(p: Player) -> void:

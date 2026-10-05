@@ -47,7 +47,7 @@ func _run() -> void:
 	await _frames(2)
 	var horn_button: Button = null
 	for b in settings.find_children("*", "Button", true, false):
-		if (b as Button).text == Settings.key_of("horn").to_upper() and b.get_parent().get_child(0) is Label and (b.get_parent().get_child(0) as Label).text == "Toeter":
+		if (b as Button).text == Settings.key_of("horn").to_upper() and b.get_parent().get_child(0) is Label and (b.get_parent().get_child(0) as Label).text == "Horn":
 			horn_button = b
 	_expect(horn_button != null, "knop voor de toeter gevonden")
 	var old_key := Settings.key_of("horn")

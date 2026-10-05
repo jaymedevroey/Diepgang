@@ -156,7 +156,7 @@ func _hud_shots(p: Player, game: Game, ship: Ekster, mol: Mol) -> void:
 		knob.used.emit(p)
 	await _shot("hud_menu", 0.5)
 	var kiezen: Array = main._terminal.find_children("*", "Button", true, false).filter(
-			func(b: Button) -> bool: return b.text == "KIEZEN")
+			func(b: Button) -> bool: return b.text == "CHOOSE")
 	if not kiezen.is_empty():
 		(kiezen[1] as Button).pressed.emit()
 	await _shot("hud_menu_gekozen", 0.4)

@@ -53,7 +53,7 @@ func _run() -> void:
 	c.reputation = 2
 	c.changed.emit()
 	var board := screens.screen_text(HubScreens.BOARD)
-	_expect("€1.234" in board and "+2" in board, "firmabord: kas €1.234, reputatie +2")
+	_expect("€1,234" in board and "+2" in board, "firmabord: kas €1,234, reputatie +2")
 	c.cash = -50
 	c.changed.emit()
 	_expect(UiTheme.euro(-50) in screens.screen_text(HubScreens.BOARD), "firmabord: schuld %s" % UiTheme.euro(-50))
@@ -61,40 +61,40 @@ func _run() -> void:
 	# 3. De terminal: eerst kiezen, dan de gekozen opdracht (ook op het bord).
 	c.contract = {}
 	c.changed.emit()
-	_expect("KIES EEN OPDRACHT" in screens.screen_text(HubScreens.TERMINAL), "terminal: KIES EEN OPDRACHT zonder opdracht")
-	_expect("NOG NIET GEKOZEN" in screens.screen_text(HubScreens.BOARD), "firmabord: opdracht nog niet gekozen")
+	_expect("CHOOSE A CONTRACT" in screens.screen_text(HubScreens.TERMINAL), "terminal: KIES EEN OPDRACHT zonder opdracht")
+	_expect("NOT CHOSEN YET" in screens.screen_text(HubScreens.BOARD), "firmabord: opdracht nog niet gekozen")
 	var o: Dictionary = c.options[1]
 	c.contract = o
 	c.changed.emit()
 	var term := screens.screen_text(HubScreens.TERMINAL)
-	_expect(str(o.name) in term and "MIDDEL" in term and "×" + HubScreens._num(Company.pay_factor(Company.Risk.MID)) in term,
+	_expect(str(o.name) in term and "MEDIUM" in term and "×" + HubScreens._num(Company.pay_factor(Company.Risk.MID)) in term,
 			"terminal: %s, risico MIDDEL, opbrengst ×%s" % [o.name, HubScreens._num(Company.pay_factor(Company.Risk.MID))])
 	_expect(str(o.name) in screens.screen_text(HubScreens.BOARD), "firmabord: opdracht %s" % o.name)
 
 	# 4. Taxatie en rapport na een dienst.
 	c.last_report = {}
-	_expect("LEG VONDSTEN" in screens.screen_text(HubScreens.APPRAISAL), "taxatie zonder rapport: leg vondsten op de band")
+	_expect("PUT FINDS" in screens.screen_text(HubScreens.APPRAISAL), "taxatie zonder rapport: leg vondsten op de band")
 	var report := {"shift_total": 7, "quarter": 1, "shift": 1, "contract": o.name, "risk": 1, "factor": 1.15,
-			"sold": [["Schedel", 340, 87], ["Rib", 120, 100]], "finds_value": 460, "ore_units": 4, "ore_value": 30, "bonus": 74,
+			"sold": [["Skull", 340, 87], ["Rib", 120, 100]], "finds_value": 460, "ore_units": 4, "ore_value": 30, "bonus": 74,
 			"left_behind": 1, "melted": 0, "costs": 120, "damage": 44, "quakes": 1, "net": 444, "earned": 444, "quota": 800,
 			"cash": 444, "reputation": 0}
 	c.last_report = report
 	c.report_ready.emit(report)
 	c.changed.emit()
 	var appraisal := screens.screen_text(HubScreens.APPRAISAL)
-	_expect("SCHEDEL €340 (87%)" in appraisal and "€564" in appraisal and "NETTO €444" in appraisal,
+	_expect("SKULL €340 (87%)" in appraisal and "€564" in appraisal and "NET €444" in appraisal,
 			"taxatie: verkochte vondsten, totaal €564, netto €444")
-	_expect("NETTO +€444" in screens.screen_text(HubScreens.BOARD) and "1 ROBOT VERVANGEN" in screens.screen_text(HubScreens.BOARD),
+	_expect("NET +€444" in screens.screen_text(HubScreens.BOARD) and "1 ROBOT REPLACED" in screens.screen_text(HubScreens.BOARD),
 			"firmabord: vorige dienst netto +€444, 1 robot vervangen")
 	await _wait(2.0)
-	_expect(screens.tv_segment() == "report" and "Dienst 7 afgerond" in screens.screen_text(HubScreens.TV),
+	_expect(screens.tv_segment() == "report" and "Shift 7 complete" in screens.screen_text(HubScreens.TV),
 			"tv: EXTRA-uitzending na de dienst (%s)" % screens.tv_segment())
 
 	# 5. Tv: de echte quota, en elke regel uit hub_tv.gd zonder lege plaatshouders.
 	screens.tv_show("quota")
 	c.earned = 300
 	c.changed.emit()
-	var quota_line := "Kwartaal %d: %s van %s" % [c.quarter, UiTheme.euro(300), UiTheme.euro(c.quota())]
+	var quota_line := "Quarter %d: %s of %s" % [c.quarter, UiTheme.euro(300), UiTheme.euro(c.quota())]
 	_expect(quota_line in screens.screen_text(HubScreens.TV), "tv: '%s'" % quota_line)
 	var lines := 0
 	var bad := PackedStringArray()

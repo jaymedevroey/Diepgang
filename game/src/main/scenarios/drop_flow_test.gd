@@ -565,7 +565,7 @@ func _open_terminal_by_key() -> bool:
 	p.head.rotation.x = 0.0
 	await _frames(4)
 	var knob := p.aimed_interactable()
-	if knob == null or not knob.hint.begins_with("E: opdracht"):
+	if knob == null or not (knob.hint.begins_with("E: ") and "contract" in knob.hint):
 		print(TAG, " let op: de terminal staat niet in het vizier (%s)" % (knob.hint if knob else "niets"))
 	_key(KEY_E)
 	await _frames(3)
@@ -680,7 +680,7 @@ func _expect_choose_refused(label: String) -> void:
 	var seed_before := game.pit_seed
 	var b: Button = null
 	for n: Button in main._terminal.find_children("*", "Button", true, false):
-		if not n.is_queued_for_deletion() and n.text == "KIEZEN" and not n.disabled:
+		if not n.is_queued_for_deletion() and n.text == "CHOOSE" and not n.disabled:
 			b = n
 			break
 	if b == null:

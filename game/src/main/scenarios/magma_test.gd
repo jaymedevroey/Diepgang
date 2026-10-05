@@ -170,7 +170,7 @@ func _late(p: Player, game: Game, magma: Magma, mol: Mol) -> void:
 	magma.debug_depth = 55.0
 	await _wait(0.6)
 	_expect(mol.mode == Mol.Mode.COUNTDOWN, "noodophaling: de Mol vertrekt vanzelf")
-	_expect(_messages.any(func(m: String) -> bool: return m.begins_with("Noodophaling")), "met een melding voor de ploeg")
+	_expect(_messages.any(func(m: String) -> bool: return m.begins_with("Emergency extraction")), "met een melding voor de ploeg")
 	_finish()
 
 
