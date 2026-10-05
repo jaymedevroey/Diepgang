@@ -269,30 +269,46 @@ func _rescue() -> void:
 		_observer(torso + mol.body.global_basis.x * 7.0 + Vector3(0.0, 2.2, -2.0), torso + Vector3(0.0, 0.5, -4.0))
 	await _wait(1.0)
 	_snap("rescue_neer")
-	Input.action_press("move_forward")
-	await _wait(0.6)
-	Input.action_release("move_forward")
+	await _walk(torso + (p.global_position - torso).normalized() * 1.4, 1.2, side)
 	rescue.request_carry(2)
 	await _wait(0.5)
 	_snap("rescue_dragen")
-	# Naar de Mol lopen (de klep op), met de ploegmaat in de armen.
+	# Naar de Mol lopen (de klep op), met de ploegmaat in de armen, aan de draagsnelheid.
 	var goal := mol.to_world_mol(Vector3(0.0, -1.45, 1.0))
-	Input.action_press("move_forward")
-	var t0 := _now()
-	while _now() - t0 < 14.0 and not mol.contains_point(p.global_position):
-		var to := goal - p.global_position
-		p.rotation.y = atan2(-to.x, -to.z)
-		p.head.rotation.x = deg_to_rad(-12.0)
-		if side and _cam:
-			_cam.look_at(p.global_position + Vector3.UP * 0.6)
-		await get_tree().process_frame
-	await _wait(0.8)
-	Input.action_release("move_forward")
+	await _walk(goal, Tuning.get_f("player", "move_speed", 4.5) * p.carry.move_multiplier(), side)
+	await _wait(0.6)
 	_snap("rescue_in_de_mol")
 	await _until(func() -> bool: return rescue.life_of(2) == Rescue.Life.OK, 8.0)
 	await _wait(0.6)
 	_snap("rescue_gerepareerd")
 	await _wait(1.5)
+
+
+## Lopen zonder invoer (een film met venster vangt de muis niet altijd): de speler schuift aan
+## `speed` naar `to`, op de vloer (rots of de Mol). Het oog kijkt mee.
+func _walk(to: Vector3, speed: float, side: bool) -> void:
+	p.set_physics_process(false)
+	var mol: Mol = game.mol
+	var t0 := _now()
+	var last := _now()
+	while _now() - t0 < 20.0:
+		await get_tree().physics_frame
+		var dt := _now() - last
+		last = _now()
+		var d := to - p.global_position
+		d.y = 0.0
+		if d.length() < 0.3:
+			break
+		p.rotation.y = atan2(-d.x, -d.z)
+		p.head.rotation.x = deg_to_rad(-14.0)
+		var next := p.global_position + d.normalized() * minf(speed * dt, d.length())
+		var hit := t.raycast(next + Vector3.UP * 1.2, next + Vector3.DOWN * 2.0, Layers.TERRAIN | Layers.LIFT)
+		if not hit.is_empty():
+			next.y = (hit.position as Vector3).y + 0.02
+		p.global_position = next
+		if side and _cam:
+			_cam.look_at(p.global_position + Vector3.UP * 0.6)
+	p.set_physics_process(true)
 
 
 func _collapse() -> void:
