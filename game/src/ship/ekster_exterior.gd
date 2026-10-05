@@ -11,6 +11,12 @@ const MODEL := preload("res://assets/models/ekster_exterior.glb")
 const ALTITUDE := 340.0
 ## Grijperklauwen: van de oorsprong van de grijper tot onder de klauwen (m).
 const GRAPPLE_REACH := 3.0
+## Motoren (tools/blender/ekster_exterior.py ENGINES): x, y, straal; de straalpijp eindigt op z 85,4.
+const ENGINES: Array[Vector3] = [Vector3(-7.0, 4.5, 3.2), Vector3(0.0, 5.0, 3.4), Vector3(7.0, 4.5, 3.2),
+		Vector3(-3.8, -2.6, 2.9), Vector3(3.8, -2.6, 2.9)]
+## Hefstralen onder de buik (het schip hangt op stuwkracht, niet dood stil in de lucht).
+const LIFT_JETS: Array[Vector3] = [Vector3(-8.5, -7.8, -36.0), Vector3(8.5, -7.8, -36.0), Vector3(-4.5, -7.3, 75.0),
+		Vector3(4.5, -7.3, 75.0)]
 
 var model: Node3D
 ## Grijper: meter onder zijn rustplek in de baai (gezet door de Mol).
@@ -20,6 +26,8 @@ var _dock_local := Vector3.ZERO
 var _grapple: Node3D
 var _cable: Node3D # hangt aan zijn bovenkant; de schaal in y is de lengte
 var _nav: Array[StandardMaterial3D] = []
+var _nav_halos: Array[ShaderMaterial] = []
+var _strobe_halo: ShaderMaterial
 var _time := 0.0
 
 
@@ -42,6 +50,7 @@ func _ready() -> void:
 				mi.set_surface_override_material(i, cache[mat_name])
 	_build_grapple()
 	_build_lights()
+	_build_glows()
 
 
 ## Plek voor de baai van een wereld: de Mol hangt ALTITUDE boven de landingsplek.
@@ -76,6 +85,11 @@ func _process(delta: float) -> void:
 	var on := fmod(_time, 1.6) < 0.25
 	for m in _nav:
 		m.emission_energy_multiplier = 6.0 if on else 0.4
+	for h in _nav_halos:
+		h.set_shader_parameter("blink", 1.0 if on else 0.12)
+	# Flitser op de mast: twee korte flitsen om de 2,2 s.
+	var st := fmod(_time + 0.7, 2.2)
+	_strobe_halo.set_shader_parameter("blink", 1.0 if st < 0.07 or (st > 0.2 and st < 0.27) else 0.0)
 
 
 func _build_grapple() -> void:
@@ -117,6 +131,91 @@ func _build_grapple() -> void:
 	wire.material_override = MolVisual.machine_material("Steel")
 	wire.position = Vector3(0, -0.5, 0) # van 0 tot −1: de schaal van de node rekt hem uit
 	_cable.add_child(wire)
+
+
+## Leven van buiten (buiten-10: "het schip hangt dood stil"): stuwgloed uit de motoren en de
+## hefstralen, en halo's rond de navigatielichten, de flitser en de buiklichten, die je van op de
+## grond (340 m) nog ziet. Enkel om te zien, geen schaduw, geen mist (zie ship_glow/ship_halo).
+func _build_glows() -> void:
+	var glow := preload("res://src/ship/ship_glow.gdshader")
+	var halo := preload("res://src/ship/ship_halo.gdshader")
+	var k := 0
+	var nozzles: Array[Vector4] = [] # x, y, z van de straalpijp, straal
+	for e in ENGINES:
+		nozzles.append(Vector4(e.x, e.y, 85.4, e.z))
+	for s in [-1.0, 1.0]:
+		for lx in [-3.6, 3.6]:
+			var p := _arm_point(lx, 0.0, s)
+			nozzles.append(Vector4(p.x, p.y, 89.4, 2.5))
+	for nz in nozzles:
+		var length := nz.w * 5.0
+		_glow_cone(glow, Vector3(nz.x, nz.y, nz.z + length * 0.5), nz.w * 0.8, nz.w * 0.15, length,
+				Vector3(-PI / 2.0, 0.0, 0.0), Color(0.55, 0.75, 1.0), 2.4, k)
+		k += 1
+	for j in LIFT_JETS:
+		_glow_cone(glow, j - Vector3(0.0, 4.5, 0.0), 1.9, 0.7, 9.0, Vector3.ZERO, Color(0.5, 0.7, 1.0), 0.8, k)
+		k += 1
+	# Navigatielichten (rood bakboord, groen stuurboord) op de boeg en de uiteinden van de armen.
+	for nav: Array in [[Vector3(-15.8, 6.0, -78.0), Color(1.0, 0.12, 0.08)], [Vector3(15.8, 6.0, -78.0), Color(0.2, 1.0, 0.4)],
+			[_arm_point(-7.5, 0.0, -1.0) + Vector3(0.0, 0.0, 84.0), Color(1.0, 0.12, 0.08)],
+			[_arm_point(7.5, 0.0, 1.0) + Vector3(0.0, 0.0, 84.0), Color(0.2, 1.0, 0.4)]]:
+		_nav_halos.append(_halo(halo, nav[0], nav[1], 4.0, 2.4, 0.007))
+	_strobe_halo = _halo(halo, Vector3(3.0, 25.8, -20.0), Color(0.95, 0.97, 1.0), 6.0, 3.0, 0.01)
+	# Buiklichten (warm, rustig): van onder het schip een paar lichtjes in de waas.
+	for b in [Vector3(0.0, -10.6, -40.0), Vector3(0.0, -10.6, -20.0), Vector3(0.0, -9.6, 20.0), Vector3(0.0, -9.6, 50.0)]:
+		_halo(halo, b, Color(1.0, 0.72, 0.42), 2.2, 2.0, 0.005)
+
+
+## Punt op een arm (doorsnede-coördinaten px, py) zoals _xf in het Blender-script: de armen hangen
+## op ±19 m, 1 m hoog, en kantelen 32°.
+static func _arm_point(px: float, py: float, s: float) -> Vector3:
+	var r := deg_to_rad(-s * 32.0)
+	return Vector3(px * cos(r) - py * sin(r) + s * 19.0, px * sin(r) + py * cos(r) + 1.0, 0.0)
+
+
+func _glow_cone(shader: Shader, pos: Vector3, r_top: float, r_end: float, length: float, rot: Vector3, col: Color,
+		energy: float, seed_i: int) -> void:
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = r_top
+	mesh.bottom_radius = r_end
+	mesh.height = length
+	mesh.radial_segments = 16
+	mesh.rings = 1
+	mesh.cap_top = false
+	mesh.cap_bottom = false
+	var mat := ShaderMaterial.new()
+	mat.shader = shader
+	mat.set_shader_parameter("color", col)
+	mat.set_shader_parameter("energy", energy)
+	mat.set_shader_parameter("seed", float(seed_i))
+	var mi := MeshInstance3D.new()
+	mi.name = "Glow%d" % seed_i
+	mi.mesh = mesh
+	mi.material_override = mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.position = pos
+	mi.rotation = rot
+	add_child(mi)
+
+
+func _halo(shader: Shader, pos: Vector3, col: Color, energy: float, size_m: float, min_angle: float) -> ShaderMaterial:
+	var q := QuadMesh.new()
+	q.size = Vector2.ONE
+	var mat := ShaderMaterial.new()
+	mat.shader = shader
+	mat.set_shader_parameter("color", col)
+	mat.set_shader_parameter("energy", energy)
+	mat.set_shader_parameter("size_m", size_m)
+	mat.set_shader_parameter("min_angle", min_angle)
+	var mi := MeshInstance3D.new()
+	mi.name = "Halo"
+	mi.mesh = q
+	mi.material_override = mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.extra_cull_margin = 64.0 # de shader maakt hem van ver groter dan zijn mesh
+	mi.position = pos
+	add_child(mi)
+	return mat
 
 
 func _build_lights() -> void:
