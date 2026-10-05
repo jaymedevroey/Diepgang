@@ -8,6 +8,7 @@ extends Node
 ##   vertrek    de Mol telt af (de grote aftelling), met meldingen; daarna een noodophaling (alarm)
 ##              en de laatste tellen
 ##   resultaat  eindoverzicht van een dienst
+##   stempel    de landingsstempel tegen de crème wand van de cabine
 ##   pauze      pauzemenu met uitnodigen
 ##   magma      in een grot: magma dichtbij, onrust hoog, een zone aan het plafond, en een beving
 ## tools\godot.cmd --path game --resolution 1600x900 -- --scenario=hud_preview --no-steam [--only=korst,dragen]
@@ -64,7 +65,7 @@ func _run(p: Player) -> void:
 		p.rotation.y = deg_to_rad(40)
 		p.head.rotation.x = deg_to_rad(-5)
 		await _shot("hud_ver", 1.2)
-	if want.call("piloot") or want.call("vertrek") or want.call("resultaat"):
+	if want.call("piloot") or want.call("vertrek") or want.call("resultaat") or want.call("stempel"):
 		p.global_transform = Transform3D(Basis(Vector3.UP, mol.yaw), mol.to_world_mol(Vector3(0, -1.45, -1.0)))
 		p.set_physics_process(true)
 		await _wait(0.4)
@@ -72,6 +73,13 @@ func _run(p: Player) -> void:
 		await _wait(0.6)
 		if want.call("piloot"):
 			await _shot("hud_piloot", 0.8)
+		if want.call("stempel"):
+			# De landingsstempel tegen de crème wand van de cabine (ui-18).
+			mol.leave_seat()
+			await _wait(0.4)
+			p.global_transform = Transform3D(Basis(Vector3.UP, mol.yaw), mol.to_world_mol(Vector3(0.6, -1.4, 1.5)))
+			main.hud.stamp("RUSTBOWL", "CLAIM 21 · QUARTER 1 · SHIFT 1")
+			await _shot("hud_stempel", 0.5)
 		if want.call("resultaat") or want.call("vertrek"):
 			mol.leave_seat()
 			await _wait(0.4)

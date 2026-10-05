@@ -585,7 +585,11 @@ func _build_overlays() -> void:
 	var sign := _paper_label("Signed: Head Office (automated)", MIN_FONT, INK_DIM, 600)
 	sign.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	rc.add_child(sign)
-	# De stempel ligt schuin over de rechterbovenhoek van het papier.
+	# Onderaan plaats voor de stempel (die ligt dan over niets dat je moet lezen).
+	var stamp_room := Control.new()
+	stamp_room.custom_minimum_size = Vector2(0, 50)
+	rc.add_child(stamp_room)
+	# De stempel ligt schuin onderaan het papier.
 	_result_stamp = InkStamp.make("APPROVED", INK_GREEN, 30, -11.0)
 	_result.add_child(_result_stamp)
 
@@ -838,12 +842,12 @@ func _open_result(seconds: float) -> void:
 	var tw := create_tween()
 	_result_tween = tw
 	tw.tween_property(_result, "modulate:a", 1.0, 0.3)
-	tw.tween_interval(0.5)
+	tw.tween_interval(0.15)
 	tw.tween_callback(func() -> void:
 		var ps := _result.size
-		_result_stamp.position = Vector2(ps.x - _result_stamp.size.x - 10.0, 8.0)
+		_result_stamp.position = Vector2(30.0, ps.y - _result_stamp.size.y - 10.0)
 		_result_stamp.scale = Vector2(1.7, 1.7))
-	tw.tween_property(_result_stamp, "modulate:a", 0.88, 0.06)
+	tw.tween_property(_result_stamp, "modulate:a", 0.9, 0.05)
 	tw.parallel().tween_property(_result_stamp, "scale", Vector2.ONE, 0.14).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tw.tween_interval(seconds)
 	tw.tween_callback(func() -> void: _result_closing = true)
