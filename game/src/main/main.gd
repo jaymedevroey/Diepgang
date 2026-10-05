@@ -33,6 +33,9 @@ extends Node3D
 ##   ui_test           menu's met echte invoer: Esc, toetsen omzetten, bewaren, pauze (headless)
 ##   tuning_test       tuning-waarden aanpassen en bewaren (headless)
 ##   hub_screens_test  de schermen in de hub (tv, firmabord, terminal, taxatie) volgen de firma (headless)
+##   economy_test      taxatie en verkoop, sets, upgrades, laadruim, schuld, voorwaarden, bewaren (headless)
+##   economy_preview   screenshots van de winkel, de taxatie en de contractkaarten (--only=shop,gate,cards)
+##   net_economy_test  host + client: kopen, taxeren en verkopen via de host (tools/net_test.py --scenario=net_economy_test)
 ##   surface_bench     bouwtijd van het verre landschap per planeet (--contended: terwijl het terrein laadt)
 ##   feel_bench        metingen en filmpjes van lopen, gereedschap, dragen en vondsten (--part=…)
 ## Extra in play (voor controle door de agent):
@@ -81,11 +84,14 @@ const SCENARIOS := {
 	"hub_screens_test": preload("res://src/main/scenarios/hub_screens_test.gd"),
 	"surface_bench": preload("res://src/main/scenarios/surface_bench.gd"),
 	"feel_bench": preload("res://src/main/scenarios/feel_bench.gd"),
+	"economy_test": preload("res://src/main/scenarios/economy_test.gd"),
+	"economy_preview": preload("res://src/main/scenarios/economy_preview.gd"),
+	"net_economy_test": preload("res://src/main/scenarios/net_economy_test.gd"),
 }
 ## Scenario's die op De Ekster beginnen (de Mol in de dropbaai). De rest begint op de planeet.
-const SCENARIOS_ON_SHIP := ["play", "ship_preview", "drop_sequence", "drop_flow_test", "net_drop_flow_test", "ship_test", "net_ship_test", "company_test", "interior_preview", "surface_bench"]
+const SCENARIOS_ON_SHIP := ["play", "ship_preview", "drop_sequence", "drop_flow_test", "net_drop_flow_test", "ship_test", "net_ship_test", "company_test", "interior_preview", "surface_bench", "economy_test", "economy_preview", "net_economy_test"]
 ## Scenario's waarin de host ook een eigen speler krijgt.
-const SCENARIOS_WITH_PLAYER := ["play", "ship_preview", "drop_sequence", "drop_flow_test", "net_drop_flow_test", "ship_test", "net_ship_test", "net_test", "find_test", "carry_test", "carry_preview", "mol_test", "sonar_test", "mol_edge_test", "stream_test", "ore_test", "drive_perf", "mol_preview", "hud_preview", "ui_test", "tool_preview", "magma_test", "company_test", "surface_bench", "feel_bench"]
+const SCENARIOS_WITH_PLAYER := ["play", "ship_preview", "drop_sequence", "drop_flow_test", "net_drop_flow_test", "ship_test", "net_ship_test", "net_test", "find_test", "carry_test", "carry_preview", "mol_test", "sonar_test", "mol_edge_test", "stream_test", "ore_test", "drive_perf", "mol_preview", "hud_preview", "ui_test", "tool_preview", "magma_test", "company_test", "surface_bench", "feel_bench", "economy_test", "economy_preview", "net_economy_test"]
 
 var game: Game
 var player: Player
@@ -101,6 +107,7 @@ var load_ms := 0.0
 var _loading: LoadingScreen
 var _pause: PauseMenu
 var _terminal: TerminalMenu
+var _shop: ShopMenu
 var _tuning_menu: TuningMenu
 var _start_menu: StartMenu
 var _backdrop: MenuBackdrop
@@ -137,6 +144,7 @@ func _ready() -> void:
 	add_child(game)
 	game.notice.connect(func(t: String, kind: String) -> void: hud.toast(t, kind))
 	game.terminal_requested.connect(func(_p: Player) -> void: _terminal.open(game.company))
+	game.company.shop_requested.connect(func(counter: String) -> void: _shop.open(game.company, counter))
 	game.world_loaded.connect(_on_world_loaded)
 	game.player_spawned.connect(_on_player_spawned)
 
@@ -275,7 +283,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("toggle_stats"):
 		Settings.set_value("hud/stats", Settings.HUD_OFF if int(Settings.get_value("hud/stats")) == Settings.HUD_ALWAYS else Settings.HUD_ALWAYS)
-	elif event.is_action_pressed("ui_cancel") and player and not (_start_menu and _start_menu.visible) and not _tuning_menu.visible and not _terminal.visible:
+	elif event.is_action_pressed("ui_cancel") and player and not (_start_menu and _start_menu.visible) and not _tuning_menu.visible and not _terminal.visible and not _shop.visible:
 		_pause.open()
 		get_viewport().set_input_as_handled()
 
@@ -318,6 +326,8 @@ func _build_hud() -> void:
 	layer.add_child(_pause)
 	_terminal = TerminalMenu.new()
 	layer.add_child(_terminal)
+	_shop = ShopMenu.new()
+	layer.add_child(_shop)
 	_loading = LoadingScreen.new()
 	layer.add_child(_loading)
 

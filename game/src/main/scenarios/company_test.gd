@@ -1,8 +1,9 @@
 extends Node
-## Test van de firma (M3 stap 7 en 11): opdrachten, verkopen na een dienst, vervangrobots, het
-## kwartaal (gehaald / gemist met boete), het incidentrapport, en bewaren en laden. Solo, op het
-## schip, headless. Een dienst wordt nagebootst (Company.host_shift_end); de echte drop en het
-## ophalen test ship_test.
+## Test van de firma (M3 stap 7, 8 en 11): opdrachten, na een dienst het erts verkocht en de
+## vondsten in het laadruim tot ze getaxeerd en verkocht zijn (F1), vervangrobots, het kwartaal
+## (gehaald / gemist met boete), het incidentrapport, en bewaren en laden. Solo, op het schip,
+## headless. Een dienst wordt nagebootst (Company.host_shift_end); de echte drop en het ophalen test
+## ship_test, de taxatie en de upgrades in detail economy_test.
 ## tools\godot.cmd --headless --path game -- --scenario=company_test --no-steam
 
 const SAVE := "test_company"
@@ -32,20 +33,25 @@ func _run(_p: Player) -> void:
 	c.host_setup(SAVE)
 	_expect(c.cash == Tuning.get_i("company", "start_cash", 0) and c.quarter == 1 and c.shift == 1, "nieuwe firma: kas €%d, kwartaal 1, dienst 1" % c.cash)
 	_expect(c.options.size() == 3 and int(c.options[0].risk) == Company.Risk.LOW and int(c.options[2].risk) == Company.Risk.HIGH, "drie opdrachten: laag, middel, hoog risico")
-	_expect(c.quota() == 800, "quota voor 1 robot: 40%% van €2000 (€%d)" % c.quota())
+	var base := int(Tuning.get_f("company", "quota_base", 5000.0))
+	_expect(c.quota() == int(round(base * 0.4)), "quota voor 1 robot: 40%% van €%d (€%d)" % [base, c.quota()])
 	_expect(not c.contract_ready(), "nog geen opdracht")
 	c.choose(2)
 	await get_tree().process_frame
 	while not game.world_ready():
 		await get_tree().physics_frame
 	_expect(c.contract_ready() and int(c.contract.risk) == Company.Risk.HIGH and game.pit_seed == int(c.contract.seed), "opdracht met hoog risico gekozen (nieuwe wereld)")
-	_expect(is_equal_approx(c.contract_magma(), Company.magma_factor(Company.Risk.HIGH)), "het magma stijgt sneller (×%.2f)" % c.contract_magma())
+	# Risico × een eventuele hete kern (voorwaarde van de opdracht, F1).
+	_expect(is_equal_approx(c.contract_magma(), Company.magma_factor(Company.Risk.HIGH) * Contracts.magma_factor(c.contract.modifiers)),
+			"het magma stijgt sneller (×%.2f)" % c.contract_magma())
 
-	# 2. Een dienst: twee vondsten en wat erts verkocht, één achterblijver en één gesmolten robot.
+	# 2. Een dienst: twee vondsten en wat erts, één achterblijver en één gesmolten robot. Het erts wordt
+	# meteen verkocht; de vondsten wachten in het laadruim op de taxatie (F1).
 	var a := finds.items[0]
 	var b := finds.items[1]
+	for it: FindItem in [a, b]:
+		it.set_freed()
 	b.condition = 0.5
-	var finds_value := a.value() + b.value()
 	var damage := (a.base_value - a.value()) + (b.base_value - b.value())
 	var ore_value := 40
 	c.host_melted()
@@ -53,29 +59,45 @@ func _run(_p: Player) -> void:
 	var ids := [a.find_id, b.find_id]
 	c.host_shift_end([a, b], 6, ore_value, 1)
 	await _wait(0.3)
-	var gross := finds_value + ore_value
-	var bonus := int(round(gross * (Company.pay_factor(Company.Risk.HIGH) - 1.0)))
-	var costs := 2 * Tuning.get_i("company", "replacement_cost", 120)
-	_expect(c.cash == cash0 + gross + bonus - costs, "kas: +€%d verkocht, +€%d bonus, −€%d vervanging → €%d" % [gross, bonus, costs, c.cash])
-	_expect(c.earned == gross + bonus - costs and c.shift == 2, "verdiend dit kwartaal €%d, nu dienst 2" % c.earned)
-	_expect(finds.item(ids[0]) == null and finds.item(ids[1]) == null, "het verkochte is weg uit het laadruim")
+	var ore_paid := int(round(ore_value * Company.pay_factor(Company.Risk.HIGH) * Contracts.ore_factor(c.haul.contract.get("modifiers", []))))
+	var bonus := ore_paid - ore_value
+	var costs := 2 * Tuning.get_i("company", "replacement_cost", 250)
+	_expect(c.cash == cash0 + ore_paid - costs, "kas: +€%d erts (met bonus €%d), −€%d vervanging → €%d" % [ore_paid, bonus, costs, c.cash])
+	_expect(c.earned == ore_paid - costs and c.shift == 1 and c.haul_open(), "verdiend €%d; de dienst staat open tot de buit verkocht is" % c.earned)
+	_expect(finds.item(ids[0]) != null and finds.item(ids[1]) != null, "de vondsten liggen nog in het laadruim (taxatie)")
 	_expect(reports.size() == 1, "incidentrapport na de dienst")
 	if not reports.is_empty():
 		var r: Dictionary = reports[0]
-		_expect((r.sold as Array).size() == 2 and int(r.finds_value) == finds_value and int(r.ore_value) == ore_value, "rapport: 2 vondsten (€%d) en erts (€%d)" % [finds_value, ore_value])
+		_expect(int(r.haul_count) == 2 and (r.sold as Array).is_empty() and int(r.ore_value) == ore_value, "rapport: 2 vondsten te taxeren, erts (€%d)" % ore_value)
 		_expect(int(r.left_behind) == 1 and int(r.melted) == 1 and int(r.costs) == costs, "rapport: 1 achtergebleven, 1 gesmolten, −€%d" % costs)
 		_expect(int(r.damage) == damage and int(r.bonus) == bonus, "rapport: schade €%d, bonus €%d" % [damage, bonus])
 	_expect(not c.contract_ready() and c.options.size() == 3, "na de dienst: nieuwe opdrachten, opnieuw kiezen")
+	# Taxeren en verkopen: geld in de kas, de dienst sluit af.
+	var appr: Appraisal = c.appraisal
+	appr.host_appraise(a)
+	appr.host_appraise(b)
+	var finds_value := appr.value_of(a) + appr.value_of(b)
+	_p.global_position = game.ship.anchor_position("Sell_Hatch") + Vector3(0, 0.1, 0)
+	await _wait(0.2)
+	var cash_sell := c.cash
+	appr.request_sell()
+	await _wait(0.3)
+	_expect(c.cash == cash_sell + finds_value and finds.item(ids[0]) == null and finds.item(ids[1]) == null,
+			"verkocht aan het luik: +€%d, weg uit het laadruim" % finds_value)
+	_expect(not c.haul_open() and c.shift == 2, "alles verkocht: dienst afgesloten, nu dienst 2")
 
-	# 3. Einde van het kwartaal: doel gehaald.
+	# 3. Einde van het kwartaal: doel gehaald (zonder buit: meteen afgesloten). Geen schuld, dus geen rente.
+	c.cash = 1000
+	var q1 := c.quota()
 	c.shift = 3
-	c.earned = 900
+	c.earned = q1 + 100
 	var rep0 := c.reputation
 	c.host_shift_end([], 0, 0, 0)
 	await _wait(0.2)
 	_expect(c.quarter == 2 and c.shift == 1 and c.earned == 0 and c.reputation == rep0 + 1, "kwartaal gehaald: reputatie +1, kwartaal 2")
-	_expect(c.quota() == 1000, "het volgende doel is hoger (€%d)" % c.quota())
-	_expect(reports.back().get("quarter_result", "") == "gehaald", "rapport meldt: gehaald")
+	var q2 := int(round(q1 * Tuning.get_f("company", "quota_growth", 1.4) / 10.0)) * 10
+	_expect(c.quota() == q2, "het volgende doel is hoger (€%d)" % c.quota())
+	_expect(reports.back().get("quarter_result", "") == "gehaald" and str(reports.back().get("type", "")) == "quarter", "kwartaalrapport meldt: gehaald")
 
 	# 4. Doel gemist: boete (schuld) en reputatie −1.
 	c.shift = 3
@@ -83,7 +105,7 @@ func _run(_p: Player) -> void:
 	var cash1 := c.cash
 	c.host_shift_end([], 0, 0, 0)
 	await _wait(0.2)
-	var fine := int(round((1000 - 400) * Tuning.get_f("company", "fine_factor", 0.5)))
+	var fine := int(round((q2 - 400) * Tuning.get_f("company", "fine_factor", 0.5)))
 	_expect(c.cash == cash1 - fine and c.reputation == rep0, "kwartaal gemist: boete €%d, reputatie terug naar %d" % [fine, c.reputation])
 	_expect(reports.back().get("quarter_result", "") == "gemist" and int(reports.back().get("fine", 0)) == fine, "rapport meldt: gemist, met de boete")
 

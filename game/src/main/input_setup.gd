@@ -18,6 +18,7 @@ const KEYS := {
 	"mol_view": KEY_C,
 	"sonar_ping": KEY_F,
 	"skip_cinematic": KEY_SPACE,
+	"scan": KEY_Q,
 }
 ## Ontwikkelaarstoetsen: de actie bestaat altijd (de code mag ernaar vragen), maar krijgt enkel in
 ## de ontwikkelaarsmodus een toets (CmdArgs.dev_mode: debug-build of --dev). In de demo doet V niets

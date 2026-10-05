@@ -53,7 +53,11 @@ const HOOK := Vector3(0.0, 2.9, 0.0)
 ## De drie knoppen van de autopiloot: een diepte per laag (zie auto_target).
 const AUTO_LAYERS := ["clay", "sandstone, where the bones start", "deep sandstone"]
 
+## Boorkop zonder upgrade (klei en zandsteen). Wat de Mol nu aankan: tier().
 const TIER := Strata.Tool.BOOR_T1
+## De boorkop: T1 (klei en zandsteen), T2 met de upgrade van de ploeg (F1: graniet en kristal).
+func tier() -> Strata.Tool:
+	return Upgrades.mol_tier(game.company) if game and game.company else Strata.Tool.BOOR_T1
 const BORE_RADIUS := 3.2
 const BORE_AHEAD := 6.4 # middelpunt van de boorbol voor het midden van de Mol
 const BORE_STEP := 0.9 # meter tussen twee boorbollen
@@ -252,7 +256,17 @@ func auto_target(i: int) -> float:
 	var clay := minf(Tuning.get_f("mol", "auto_clay_m", 25.0), sand_top - 6.0)
 	var sand := sand_top + Tuning.get_f("mol", "auto_sand_below_m", 8.0)
 	var deep := maxf(sand + 10.0, granite_top - Tuning.get_f("mol", "auto_deep_above_m", 25.0))
+	# Met de boorkop T2 (F1) gaat de derde knop het graniet in, waar de duurste vondsten liggen.
+	if tier() >= Strata.Tool.BOOR_T2:
+		deep = granite_top + Tuning.get_f("mol", "auto_deep_above_m", 25.0) * 0.5
 	return [clay, sand, deep][clampi(i, 0, 2)]
+
+
+## Naam van de laag van autopilootknop `i` (de derde gaat met kop T2 het graniet in).
+func auto_layer(i: int) -> String:
+	if i == 2 and tier() >= Strata.Tool.BOOR_T2:
+		return "granite, past the hard floor"
+	return AUTO_LAYERS[clampi(i, 0, 2)]
 
 
 func depth() -> float:
@@ -287,6 +301,52 @@ func to_local_mol(world: Vector3) -> Vector3:
 
 func to_world_mol(local: Vector3) -> Vector3:
 	return body.global_transform * local
+
+
+## Gewicht in het laadruim (kg): elke losse vondst in de Mol, ook wat een robot erin vasthoudt (F1).
+func cargo_mass() -> float:
+	var kg := 0.0
+	for it: FindItem in game.finds.items:
+		if it.freed and INSIDE.has_point(to_local_mol(it.global_position)):
+			kg += it.mass
+	return kg
+
+
+## Wat de grijper kan optillen (kg): Upgrades.cargo_kg (groter laadruim).
+func cargo_capacity() -> float:
+	return Upgrades.cargo_kg(game.company) if game and game.company else 60.0
+
+
+func overloaded() -> bool:
+	return cargo_mass() > cargo_capacity() + 0.01
+
+
+## Host, als de grijper vastklikt: wat te zwaar is, valt eruit en blijft op de planeet, het dichtst
+## bij de klep eerst (F1). De hendel weigert al bij te veel; dit vangt wat er daarna nog bijkwam en de
+## noodophaling (die vertrekt vanzelf).
+func _jettison_overload() -> void:
+	var cap := cargo_capacity()
+	var items: Array = []
+	var kg := 0.0
+	for it: FindItem in game.finds.items:
+		if it.freed and INSIDE.has_point(to_local_mol(it.global_position)):
+			items.append(it)
+			kg += it.mass
+	if kg <= cap + 0.01:
+		return
+	items.sort_custom(func(a: FindItem, b: FindItem) -> bool: return to_local_mol(a.global_position).z > to_local_mol(b.global_position).z)
+	var names := PackedStringArray()
+	var dropped := 0.0
+	for it: FindItem in items:
+		if kg <= cap + 0.01:
+			break
+		var out := placed * Vector3(_rng.randf_range(-1.6, 1.6), 0.0, 8.0 + names.size() * 0.7)
+		out.y = game.terrain.surface_height_at(out.x, out.z) + it.rest_height() + 0.2
+		game.finds.host_eject(it.find_id, out)
+		kg -= it.mass
+		dropped += it.mass
+		names.append(it.display_name())
+	_rpc_message.rpc("Overloaded: the grapple dropped %s (%d kg). It stays on the planet." % [", ".join(names), int(round(dropped))], "warn")
 
 
 func cargo_contents() -> Array:
@@ -400,7 +460,7 @@ func _handle(sender: int, button: int, arg: float) -> void:
 				_plan_spiral(target)
 				_rpc_flags.rpc(false, lights_on)
 				_set_mode(Mode.AUTO_DOWN, pilot)
-				_rpc_message.rpc(("Autopilot: descending to −%d m (%s)" % [int(target), AUTO_LAYERS[int(arg)]]) if arg < 3.0
+				_rpc_message.rpc(("Autopilot: descending to −%d m (%s)" % [int(target), auto_layer(int(arg))]) if arg < 3.0
 						else "Autopilot: descending to −%d m" % int(target), "mol")
 			elif inside and mode in [Mode.PARKED, Mode.DRIVING]:
 				_rpc_message.rpc("Autopilot: already at −%d m or deeper." % int(target), "mol")
@@ -423,6 +483,10 @@ func _handle(sender: int, button: int, arg: float) -> void:
 				var solo: bool = game.players.get_child_count() <= 1
 				_rpc_message.rpc(("Drop in %d seconds." if solo else ("Everyone aboard: drop in %d seconds."
 						if _all_aboard_said else "Drop in %d seconds: everyone into the Mole!")) % int(ceil(countdown)), "mol")
+			elif inside and mode in [Mode.PARKED, Mode.DRIVING, Mode.AUTO_DOWN] and game.ship != null and overloaded():
+				# Het laadruim is te zwaar voor de grijper (F1, GDD §5A): eerst iets achterlaten.
+				_rpc_message.rpc("Overloaded: %d of %d kg. The grapple can't lift that: leave something behind first." % [
+						int(ceil(cargo_mass())), int(cargo_capacity())], "warn")
 			elif inside and mode in [Mode.PARKED, Mode.DRIVING, Mode.AUTO_DOWN] and (_path.size() > 1 or game.ship != null):
 				countdown = Tuning.get_f("mol", "countdown_s", 10.0)
 				_beep_timer = 0.0
@@ -889,7 +953,7 @@ func _probe_ring(center: Vector3, fwd: Vector3, radius := 2.4, count := 8) -> Ar
 	for p in points:
 		if t.is_solid(p):
 			rock = true
-			if not Strata.can_dig(t.layer_at(p), TIER):
+			if not Strata.can_dig(t.layer_at(p), tier()):
 				hard = true
 	return [rock, hard]
 
@@ -984,7 +1048,9 @@ func _flush_wrecked(delta: float) -> void:
 			names.append(str(w[0]))
 		lost += int(w[1])
 	var what := "a find (%s)" % names[0] if _wrecked.size() == 1 else "%d finds (%s)" % [_wrecked.size(), ", ".join(names)]
-	_rpc_message.rpc("The drill head wrecked %s: %s. Stop at a blip and dig finds out by hand!" % [what, UiTheme.euro_signed(-lost)], "warn")
+	# Geen bedrag: de waarde is pas aan boord bekend (F1, taxatie). Wel hoe erg het is.
+	_rpc_message.rpc("The drill head wrecked %s: in the cargo hold at %d%%. Stop at a blip and dig finds out by hand!" % [
+			what, int(round(Tuning.get_f("finds", "mol_condition", 0.05) * 100.0))], "warn")
 	_wrecked.clear()
 
 
@@ -1034,7 +1100,8 @@ func _autopilot_down(delta: float) -> Vector3:
 	var auto_speed := Tuning.get_f("mol", "auto_speed", 1.3)
 	if blocked and d < auto_depth - 1.0:
 		auto_depth = d
-		_rpc_message.rpc(("Pit edge" if at_edge else "Hard layer") + ": autopilot stops at −%d m" % int(d), "warn")
+		_rpc_message.rpc(("Pit edge" if at_edge else ("Hard layer (a T2 drill head bores it, Mole yard aboard)" if tier() < Strata.Tool.BOOR_T2
+				else "Hard layer")) + ": autopilot stops at −%d m" % int(d), "warn")
 	if d < auto_depth - 1.0:
 		var want := deg_to_rad(-Tuning.get_f("mol", "auto_pitch_deg", 22.0))
 		var p_in := clampf((want - pitch) * 4.0, -1.0, 1.0)
@@ -1211,6 +1278,8 @@ func host_emergency(seconds: float, text: String) -> bool:
 	_rpc_event.rpc(Event.HORN)
 	_set_mode(Mode.COUNTDOWN, pilot)
 	_rpc_message.rpc(text, "alarm") # noodophaling: altijd een alarm (ui-04)
+	if game.ship != null and overloaded():
+		_rpc_message.rpc("Overloaded by %d kg: what doesn't fit falls out when the grapple locks!" % int(ceil(cargo_mass() - cargo_capacity())), "warn")
 	return true
 
 
@@ -1409,6 +1478,7 @@ func _lift(delta: float) -> void:
 		if ship.grapple_depth < want - 0.01:
 			return
 		if _grab_timer == 0.0:
+			_jettison_overload()
 			_rpc_flags.rpc(false, lights_on)
 			_rpc_event.rpc(Event.GRAPPLED)
 			_rpc_message.rpc("Grapple locked. Going up!", "mol")
@@ -1589,24 +1659,27 @@ func _update_visual() -> void:
 	if _readout_timer <= 0.0:
 		_readout_timer = 0.25
 		for i in _auto_buttons.size():
-			_auto_buttons[i].hint = "E: autopilot · descend to −%d m (%s)" % [int(auto_target(i)), AUTO_LAYERS[i]]
+			_auto_buttons[i].hint = "E: autopilot · descend to −%d m (%s)" % [int(auto_target(i)), auto_layer(i)]
 		var front: Strata.Layer = game.terrain.layer_at(body.global_position + forward() * (BORE_AHEAD + 2.0))
 		var cargo := cargo_contents()
-		var value := 0
-		for it: FindItem in cargo:
-			value += it.value()
+		var kg := cargo_mass()
+		var cap := cargo_capacity()
+		var c: Company = game.company
 		var states := ["PARKED", "DRIVING", "AUTOPILOT", "LAUNCH %d" % int(ceil(countdown)), "GOING UP",
 				"IN THE MAGPIE", "DROP %d" % int(ceil(countdown)), "DROP", "GRAPPLE INBOUND", "TO THE MAGPIE"]
-		var state: String = ("! PIT EDGE" if at_edge else "! TOO HARD") if blocked else ("DRILLING" if drilling and mode == Mode.DRIVING else states[mode])
+		var state: String = ("! PIT EDGE" if at_edge else ("! TOO HARD: HEAD T2" if tier() < Strata.Tool.BOOR_T2 else "! TOO HARD")) if blocked else ("DRILLING" if drilling and mode == Mode.DRIVING else states[mode])
 		var ore: PackedInt32Array = game.ores.hold
 		visual.set_readout("%s
 DEPTH    %4d m
 %s
 UNREST   %4d%%
 FUEL     %4d%%
-CARGO    %d · €%d
-ORE      %d · €%d" % [state, int(depth()), _magma_line(), int(game.unrest.value / maxf(1.0, Tuning.get_f("unrest", "stage", 100.0)) * 100.0),
-				int(fuel * 100.0), cargo.size(), value, OreField.units(ore), OreField.value(ore)])
+%s
+ORE      %d · €%d
+QUOTA %s/%s" % [state, int(depth()), _magma_line(), int(game.unrest.value / maxf(1.0, Tuning.get_f("unrest", "stage", 100.0)) * 100.0),
+				int(fuel * 100.0), ("! CARGO %d/%d KG" if kg > cap + 0.01 else "CARGO %d · %d/%d kg") % ([int(ceil(kg)), int(cap)] if kg > cap + 0.01
+				else [cargo.size(), int(ceil(kg)), int(cap)]), OreField.units(ore), OreField.value(ore),
+				UiTheme.euro(c.earned).replace(",", ""), UiTheme.euro(c.quota()).replace(",", "")])
 		visual.feed_text = "%d m  ·  %s  ·  %.1f m/s" % [int(depth()), HudCompass.layer_name(front, int(game.planet_type)), absf(speed)]
 		if mode == Mode.DROP_COUNTDOWN:
 			visual.feed_text = "HATCHES  ·  DROP IN %d s" % int(ceil(countdown))
