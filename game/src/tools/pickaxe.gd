@@ -130,7 +130,7 @@ func move_multiplier() -> float:
 
 
 func hint_too_hard() -> String:
-	return "Too hard for the pickaxe: you need a drill here"
+	return "Too hard for the pickaxe: switch to the drill"
 
 
 func _start_swing() -> void:

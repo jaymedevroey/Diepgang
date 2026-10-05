@@ -1,7 +1,7 @@
 class_name PauseMenu
 extends Control
 ## Esc in het spel. In co-op loopt het spel door (zoals in DRG en PEAK); solo pauzeert het.
-## Hervatten, vrienden uitnodigen (nu: je IP; Steam-uitnodigingen in M4), instellingen,
+## Hervatten, vrienden uitnodigen (via je IP), instellingen,
 ## de ploeg, terug naar het hoofdmenu, afsluiten.
 
 signal leave_requested
@@ -155,9 +155,9 @@ func _toggle_invite() -> void:
 	elif Net.mode == Net.Mode.CLIENT:
 		_invite_label.text = "You're a guest here. Friends join via the host's IP address."
 	elif Settings.get_b("interface/hide_ip"):
-		_invite_label.text = "Your IP address is hidden (Settings > Interface). Friends choose JOIN and enter your IP. Steam invites come in a later version."
+		_invite_label.text = "Your IP address is hidden (Settings > Interface). Friends choose JOIN and enter your IP."
 	else:
-		_invite_label.text = "Friends choose JOIN and enter this:\n%s   (port %d)\nSteam invites come in a later version." % [
+		_invite_label.text = "Friends choose JOIN and enter this:\n%s   (port %d)" % [
 			", ".join(StartMenu.local_ips()), int(CmdArgs.value("port", Net.DEFAULT_PORT))]
 
 

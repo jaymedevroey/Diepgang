@@ -248,7 +248,7 @@ func cargo_contents() -> Array:
 
 func press(button: Cmd, arg: float = 0.0) -> void:
 	if button == Cmd.WORKBENCH:
-		message.emit("Workbench: upgrades for The Mole are coming later.")
+		message.emit("Workbench: all tools accounted for. Head office counted them twice.")
 		return
 	if Net.is_host():
 		_handle(Net.my_id(), button, arg)
@@ -1414,7 +1414,7 @@ func _build_buttons() -> void:
 	_button(a["Btn_Ramp_Cockpit"], "E: open/close ramp", Cmd.RAMP, 0.0, 0.16)
 	_button(a["Btn_Ramp_Back"], "E: open/close ramp", Cmd.RAMP, 0.0, 0.3)
 	_lever_button = _button(a["Lever"], "E: launch to The Magpie (10 s)", Cmd.DEPART, 0.0, 0.3)
-	_button(a["Workbench"], "Workbench (upgrades coming later)", Cmd.WORKBENCH, 0.0, 0.6)
+	_button(a["Workbench"], "Workbench · DIG-approved duct tape", Cmd.WORKBENCH, 0.0, 0.6)
 	# Ertstrechter: storten gaat rechtstreeks naar het ertsveld (host controleert de afstand).
 	var chute_shape := BoxShape3D.new()
 	chute_shape.size = Vector3(0.8, 0.7, 0.8)

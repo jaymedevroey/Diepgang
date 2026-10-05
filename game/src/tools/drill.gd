@@ -188,7 +188,7 @@ func _update_aim(hit: Dictionary) -> void:
 
 
 func hint_too_hard() -> String:
-	return "Too hard for the T1 drill: you need a T2 drill here"
+	return "Too hard for this drill: find a way around it"
 
 
 func _set_running(on: bool) -> void:

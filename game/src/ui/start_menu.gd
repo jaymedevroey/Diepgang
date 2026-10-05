@@ -1,14 +1,14 @@
 class_name StartMenu
 extends Control
 ## Hoofdmenu: links een kolom in de huisstijl, rechts de levende achtergrond (MenuBackdrop).
-## Solo, hosten, meedoen via IP (Steam-uitnodigingen komen in M4), instellingen, afsluiten.
+## Solo, hosten, meedoen via IP, instellingen, afsluiten.
 
 signal solo_chosen
 signal host_chosen
 signal join_chosen(address: String)
 
 const LAST_IP_FILE := "user://last_ip.txt"
-const VERSION := "Playtest 0.9 · October 2026"
+const VERSION := "v0.9"
 
 var backdrop: MenuBackdrop
 var _ip: LineEdit
@@ -80,7 +80,7 @@ func _ready() -> void:
 	col.add_child(_buttons)
 	_menu_button("PLAY SOLO", "Down the pit alone. Ideal for learning the controls.", func() -> void: _choose(solo_chosen.emit))
 	_menu_button("HOST", "Start a crew; friends join with your IP address.", func() -> void: _choose(host_chosen.emit))
-	_menu_button("JOIN", "Join a friend who hosts. Steam invites come later.", _toggle_join)
+	_menu_button("JOIN", "Join a friend who hosts, with their IP address.", _toggle_join)
 
 	# Meedoen: een kaartje met het IP-veld, klapt open onder de knop.
 	_join_card = PanelContainer.new()

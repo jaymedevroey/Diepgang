@@ -14,7 +14,7 @@ extends Control
 ## dan die van de speler) geen vizier, prompt, strook of gereedschap.
 ## main.gd roept elke frame update() aan.
 
-const TOOLS := [["pickaxe", "PICKAXE", "tool_1"], ["drill", "DRILL T1", "tool_2"]]
+const TOOLS := [["pickaxe", "PICKAXE", "tool_1"], ["drill", "DRILL", "tool_2"]]
 
 var main: Node
 var crosshair: HudCrosshair

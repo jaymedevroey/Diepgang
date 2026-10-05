@@ -702,7 +702,7 @@ func _tv_layout() -> void:
 			_style(big, UiTheme.heading(), 28, UiTheme.GOOD if ratio >= 1.0 else UiTheme.YELLOW)
 			var remark: String = TEXTS.QUOTA_REMARKS[3 if ratio >= 1.0 else clampi(int(ratio * 3.0), 0, 2)]
 			if c.cash < 0:
-				remark = "Debt: %s. Interest is accruing." % UiTheme.euro(c.cash)
+				remark = "Debt: %s. Head office has noticed." % UiTheme.euro(c.cash)
 			_place(small, "SHIFT %d/%d  ·  %s" % [c.shift, _shifts(), remark], Rect2(24, 244, w - 48, 56))
 			_style(small, UiTheme.screen(), 26, UiTheme.CREAM)
 		"employee":
@@ -1173,12 +1173,13 @@ func _paint_appraisal(s: Screen) -> void:
 	var marquee: Label = s.labels["marquee"]
 	var clip: Control = s.labels["clip"]
 	if r.is_empty():
-		# Nog niets verkocht: een stilstaande, knipperende oproep.
-		_text(s, "when", "NO FINDS\nYET")
+		# Nog niets verkocht: een stilstaande, knipperende oproep. Geen belofte ("binnenkort"): de
+		# taxatie gebeurt echt, na elke dienst, met wat in de Mol ligt (ui-02, binnen-13).
+		_text(s, "when", "NO SHIFT\nYET")
 		_style(marquee, UiTheme.screen(), 40, UiTheme.AMBER)
-		_place(marquee, "PUT FINDS\nON THE BELT", Rect2(0, 8, clip.size.x, 80), HORIZONTAL_ALIGNMENT_CENTER)
+		_place(marquee, "AWAITING\nYOUR HAUL", Rect2(0, 8, clip.size.x, 80), HORIZONTAL_ALIGNMENT_CENTER)
 		marquee.modulate.a = 1.0 if _blink(1.4, 0.75) else 0.5
-		_text(s, "detail", "coming soon")
+		_text(s, "detail", "FINDS IN THE MOLE ARE APPRAISED AFTER THE SHIFT")
 		_text(s, "total", UiTheme.euro(0))
 		_text(s, "net", "")
 		s.fps = 4.0
