@@ -18,7 +18,8 @@ extends CharacterBody3D
 ## en een lichte loopbeweging van de camera (uit te zetten: Settings interface/head_bob).
 
 const LAYER_PLAYERS := 1 << 2
-const MASK := Layers.TERRAIN | Layers.LOOT | Layers.LIFT | Layers.BOUNDS
+## RUBBLE: puin van een instorting houdt je tegen (wegbikken of erover springen).
+const MASK := Layers.TERRAIN | Layers.LOOT | Layers.LIFT | Layers.BOUNDS | Layers.RUBBLE
 const SEND_INTERVAL := 0.05
 const INTERP_DELAY_MS := 100.0
 
@@ -69,6 +70,16 @@ var rig: RobotRig
 var flying := false
 ## In de stoel van de Mol (piloot).
 var seated := false
+## Neergaan (Rescue, GDD §6): de toestand van deze robot (Rescue.Life) en zijn ragdoll zolang hij
+## omver of neer ligt. Dan staat de speler op de plek van zijn romp (streaming, netwerk, magma, "aan
+## boord") en kijkt de eigen camera van achter naar de pop. Kapot: een spookdrone.
+var life := 0
+var ragdoll: RobotRagdoll
+var _drone: SpectatorDrone
+## Hoogste punt van de huidige sprong of val (valschade: enkel wie van een richel of in een put valt,
+## niet wie uit De Ekster springt).
+var _air_top := -INF
+var _phys_last := Vector3.ZERO # plek na de vorige tick (een sprong van buitenaf is geen val)
 
 var _shape: CollisionShape3D
 var _capsule: CapsuleShape3D
@@ -222,8 +233,8 @@ func _setup_local() -> void:
 	add_child(carry)
 	carry.changed.connect(func(it: FindItem) -> void:
 		# Handen vol: gereedschap weg zolang je draagt (en in het schip sowieso weg).
-		active_tool.set_active(it == null and not _holstered)
-		_send_action(Action.CARRY_ON if it else Action.CARRY_OFF))
+		active_tool.set_active(it == null and carry.body_peer < 0 and not _holstered and _tools_allowed())
+		_send_action(Action.CARRY_ON if it or carry.body_peer >= 0 else Action.CARRY_OFF))
 	game.mol.pilot_changed.connect(_on_pilot_changed)
 	chase = MolChaseCam.new()
 	chase.name = "ChaseCam"
@@ -354,8 +365,13 @@ func _unseat() -> void:
 	head.rotation.x = clampf(head.rotation.x, -1.2, 1.2)
 	if not was_chase:
 		ViewGlide.start(self, camera, cam_was, 0.32, 0.3)
-	if (carry == null or carry.item == null) and not _holstered:
+	if (carry == null or carry.item == null) and not _holstered and _tools_allowed():
 		active_tool.set_active(true)
+
+
+## Gereedschap mag enkel met een gave robot (niet strompelend, neer of als drone).
+func _tools_allowed() -> bool:
+	return life == Rescue.Life.OK
 
 
 ## Knop, hendel of rail onder het vizier (niet door een muur heen), of null.
@@ -393,14 +409,14 @@ func hold_point(item_radius: float) -> Vector3:
 
 
 func select_tool(index: int) -> void:
-	if carry and carry.item:
+	if carry and (carry.item or carry.body_peer >= 0):
 		return
 	index = wrapi(index, 0, tools.size())
 	if active_tool == tools[index]:
 		return
 	active_tool = tools[index]
 	for t in tools:
-		t.set_active(t == active_tool and not _holstered)
+		t.set_active(t == active_tool and not _holstered and _tools_allowed())
 	_send_action(Action.TOOL_PICKAXE if active_tool == pickaxe else Action.TOOL_DRILL)
 	tool_changed.emit(active_tool)
 
@@ -459,12 +475,24 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventMouseButton and event.pressed and not captured:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("toggle_fly"):
+	elif event.is_action_pressed("toggle_fly") and life == Rescue.Life.OK:
 		flying = not flying
+	elif life != Rescue.Life.OK:
+		# Neer, strompelend of als drone: geen knoppen, geen gereedschap. De drone kan piepen (E), wie
+		# strompelt kan nog een baken gooien (de worm op afstand houden op de weg naar de Mol).
+		if life == Rescue.Life.BROKEN and event.is_action_pressed("interact"):
+			_send_action(Action.SWING) # bij de anderen: de drone piept en knippert
+			camera_fx.kick(-1.0, 0.0)
+			game.fx.play("clink", global_position, -14.0, 0.0, 2.2) # plaatshouder (geluid: M6)
+		elif life == Rescue.Life.LIMPING and event.is_action_pressed("beacon") and captured and game.beacons:
+			game.beacons.request_throw(self)
+		return
 	elif event.is_action_pressed("horn") and captured and (seated or game.mol.contains_point(global_position)):
 		game.mol.press(Mol.Cmd.HORN)
 	elif event.is_action_pressed("sonar_ping") and captured and (seated or game.mol.contains_point(global_position)):
 		game.mol.press(Mol.Cmd.PING)
+	elif event.is_action_pressed("beacon") and captured and not seated and game.beacons:
+		game.beacons.request_throw(self)
 	elif seated:
 		return # geen gereedschap in de stoel
 	elif event.is_action_pressed("tool_1"):
@@ -482,6 +510,19 @@ func _physics_process(delta: float) -> void:
 		return
 	if seated:
 		_drive_mol(delta)
+		return
+	if ragdoll != null:
+		# Omver of neer: de host (of de fysica hier) beweegt de pop; wij staan op de plek van de romp.
+		if is_instance_valid(ragdoll):
+			global_position = ragdoll.torso.global_position
+		velocity = Vector3.ZERO
+		_air_top = global_position.y
+		var awake := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or DisplayServer.get_name() == "headless"
+		if awake and life == Rescue.Life.DOWNED and Input.is_action_just_pressed("jump"):
+			game.rescue.request_flail()
+		return
+	if life == Rescue.Life.BROKEN:
+		_drone_fly(delta)
 		return
 	_ride_mol()
 	_rescue_if_fallen()
@@ -527,8 +568,9 @@ func _physics_process(delta: float) -> void:
 	# Sprint: enkel vooruit, niet gehurkt, niet met de boor aan of iets zwaars in je handen. Geen
 	# uithouding (zoals DRG): het gereedschap zakt weg terwijl je sprint, dat is de prijs.
 	var heavy: bool = carry != null and carry.item != null and carry.item.mass > Tuning.get_f("carry", "sprint_max_mass", 6.0)
+	var limping := life == Rescue.Life.LIMPING
 	var want_sprint: bool = can_move and InputMap.has_action("sprint") and Input.is_action_pressed("sprint") and input.y < -0.3 \
-			and not crouching and not heavy and active_tool.move_multiplier() > 0.99
+			and not crouching and not heavy and active_tool.move_multiplier() > 0.99 and not limping
 	sprinting = want_sprint and (on_floor or sprinting)
 	var speed := Tuning.get_f("player", "move_speed", 4.5)
 	if crouching:
@@ -536,6 +578,9 @@ func _physics_process(delta: float) -> void:
 	elif sprinting:
 		speed = Tuning.get_f("player", "sprint_speed", 6.8)
 	speed *= active_tool.move_multiplier() * (carry.move_multiplier() if carry else 1.0) * (game.unrest.walk_factor() if game.unrest else 1.0)
+	if limping:
+		# Strompelen: traag, en een hapering in de pas.
+		speed *= Tuning.get_f("rescue", "limp_speed", 0.45) * (0.75 + 0.25 * absf(sin(Time.get_ticks_msec() / 1000.0 * 3.1)))
 	var dir := (global_basis * Vector3(input.x, 0.0, input.y)).normalized()
 	var target := Vector3(dir.x, 0.0, dir.z) * speed
 	var hv := Vector3(velocity.x, 0.0, velocity.z)
@@ -559,15 +604,21 @@ func _physics_process(delta: float) -> void:
 		velocity += get_gravity() * delta
 		# Wie uit De Ekster springt, valt niet sneller dan dit (geen tunneling door de grond).
 		velocity.y = maxf(velocity.y, -Tuning.get_f("player", "max_fall_speed", 40.0))
-	if _jump_buffer > 0.0 and _coyote > 0.0 and not crouching:
+	if _jump_buffer > 0.0 and _coyote > 0.0 and not crouching and not limping:
 		velocity.y = Tuning.get_f("player", "jump_velocity", 4.5)
 		_jump_buffer = 0.0
 		_coyote = 0.0
 	_step_up(delta)
 	var fall := -velocity.y
+	# Neergezet van buitenaf (een scenario, de host, het schip): de val begint hier opnieuw.
+	if global_position.distance_to(_phys_last) > velocity.length() * delta + 1.0:
+		_air_top = global_position.y
+	_air_top = global_position.y if on_floor else maxf(_air_top, global_position.y)
 	move_and_slide()
+	_phys_last = global_position
 	if not on_floor and is_on_floor():
 		_on_landed(fall)
+		_air_top = global_position.y
 
 
 ## Hurken: lagere botsvorm en een lager oog. Opstaan kan enkel als er boven je ruimte is.
@@ -588,6 +639,15 @@ func _set_crouch(want: bool) -> void:
 ## Geland met `speed` m/s naar beneden: het oog zakt even door (meer bij een hogere val), een
 ## kleine schok, en bij een harde landing stof aan je voeten.
 func _on_landed(speed: float) -> void:
+	# Valschade (GDD §6, playtest 2026-10-06): wie van een richel of in een put valt. Niet wie uit De
+	# Ekster springt (dan begon de val hoog boven het oppervlak) en niet in het schip.
+	# De snelheid moet passen bij de hoogte van de val (anders telt de opgebouwde snelheid van een robot
+	# die een test of de host door de rots verzette).
+	var dropped := sqrt(2.0 * 9.8 * maxf(0.0, _air_top - global_position.y)) + 1.0
+	if game.rescue and game.terrain and minf(speed, dropped) >= Tuning.get_f("rescue", "fall_safe", 9.0):
+		var top_ok: bool = _air_top < game.terrain.surface_height_at(global_position.x, global_position.z) + 6.0
+		if top_ok and not (game.ship and game.ship.contains(global_position)):
+			game.rescue.report_fall(minf(speed, dropped))
 	if speed < Tuning.get_f("player", "land_min_speed", 2.5):
 		return
 	_land_impulse = speed
@@ -727,6 +787,9 @@ func _process(delta: float) -> void:
 func _update_rig(delta: float) -> void:
 	var mol: Mol = game.mol
 	_check_jump()
+	if ragdoll != null and is_instance_valid(ragdoll):
+		_orbit_ragdoll()
+		return
 	var frac := Engine.get_physics_interpolation_fraction()
 	var anchor: Transform3D
 	if seated and mol and mol.body:
@@ -766,6 +829,21 @@ func _update_rig(delta: float) -> void:
 	camera_fx.roll = _tilt
 	var eye := head.position + bob + Vector3(0.0, -_dip, 0.0)
 	cam_rig.global_transform = Transform3D(anchor.basis * Basis(Vector3.RIGHT, head.rotation.x), anchor * eye)
+
+
+## Omver of neer: het oog hangt achter en boven de pop en kijkt ernaar (rondkijken met de muis), en
+## schuift naar voren als er rots tussen zit (R.E.P.O.: je ziet je eigen robot vallen).
+func _orbit_ragdoll() -> void:
+	var c := ragdoll.torso.get_global_transform_interpolated().origin + Vector3.UP * 0.35
+	var pitch := clampf(head.rotation.x - 0.35, -1.25, 0.6)
+	var b := Basis(Vector3.UP, rotation.y) * Basis(Vector3.RIGHT, pitch)
+	var back := b * Vector3(0.0, 0.0, 1.0)
+	var dist := 3.2
+	var hit: Dictionary = game.terrain.raycast(c, c + back * (dist + 0.3), Layers.TERRAIN | Layers.LIFT)
+	if not hit.is_empty():
+		dist = maxf(0.5, c.distance_to(hit.position) - 0.3)
+	camera_fx.roll = 0.0
+	cam_rig.global_transform = Transform3D(b, c + back * dist)
 
 
 ## Grote sprong van het lijf zonder reset (een scenario, een test, de host die je verzet): niet
@@ -829,14 +907,14 @@ func _update_holster() -> void:
 		active_tool.set_active(false)
 	elif not in_ship and _holstered:
 		_holstered = false
-		if not seated and (carry == null or carry.item == null) and not _drop_cine and not drop_cam.current:
+		if not seated and (carry == null or carry.item == null) and not _drop_cine and not drop_cam.current and _tools_allowed():
 			active_tool.set_active(true)
 
 
 func _end_cinematic() -> void:
 	_drop_cine = false
 	_handover = 0.0
-	if not seated and (carry == null or carry.item == null) and active_tool and not _holstered:
+	if not seated and (carry == null or carry.item == null) and active_tool and not _holstered and _tools_allowed():
 		active_tool.set_active(true)
 	drop_cam.handover()
 	control_returned.emit()
@@ -868,6 +946,9 @@ func _snap_yaw(s: Array) -> float:
 
 
 func _interpolate() -> void:
+	if ragdoll != null and is_instance_valid(ragdoll):
+		global_position = ragdoll.torso.global_position # omver of neer: op de plek van de romp
+		return
 	if _snapshots.is_empty():
 		return
 	var render_t := float(Time.get_ticks_msec()) - INTERP_DELAY_MS
@@ -912,13 +993,119 @@ func _rpc_teleport(pos: Vector3) -> void:
 
 
 func _teleport(pos: Vector3) -> void:
-	if carry and carry.item:
+	if carry and (carry.item or carry.body_peer >= 0):
 		carry.drop(false)
 	flying = false
 	velocity = Vector3.ZERO
 	global_position = pos
 	reset_physics_interpolation()
 	_riding = false
+	_air_top = pos.y
+
+
+# --- Neergaan (Rescue) -----------------------------------------------------------------------------
+
+## Omver of neer: de pop ligt er, wij volgen hem (Rescue._rpc_ragdoll, op elk peer).
+func on_ragdoll(rd: RobotRagdoll, new_life: int) -> void:
+	ragdoll = rd
+	life = new_life
+	if is_local:
+		if carry and (carry.item or carry.body_peer >= 0):
+			carry.drop(false)
+		_shape.disabled = true
+		velocity = Vector3.ZERO
+		flying = false
+		_attached = null
+		if active_tool:
+			active_tool.set_active(false)
+	else:
+		_snapshots.clear()
+		if rig:
+			rig.visible = false
+	_update_drone()
+
+
+## Weer recht (na omver, na reparatie, of strompelend): op `feet`, met kijkrichting `yaw`.
+func on_stand(feet: Vector3, yaw: float, new_life: int) -> void:
+	ragdoll = null
+	life = new_life
+	if is_local:
+		_shape.disabled = false
+		collision_mask = MASK
+		_teleport(feet)
+		rotation.y = yaw
+		if active_tool and not seated and (carry == null or (carry.item == null and carry.body_peer < 0)) and not _holstered:
+			active_tool.set_active(_tools_allowed())
+	else:
+		_snapshots.clear()
+		global_position = feet
+		rotation.y = yaw
+		if rig:
+			rig.visible = true
+	_update_drone()
+
+
+## Kapot: een spookdrone op `at` (Rescue._rpc_broken, op elk peer). Hij botst enkel met de rots.
+func on_broken(at: Vector3) -> void:
+	ragdoll = null
+	life = Rescue.Life.BROKEN
+	if is_local:
+		if carry and (carry.item or carry.body_peer >= 0):
+			carry.drop(false)
+		_shape.disabled = false
+		collision_mask = Layers.TERRAIN | Layers.BOUNDS
+		flying = false
+		_attached = null
+		_teleport(at)
+		if active_tool:
+			active_tool.set_active(false)
+	else:
+		_snapshots.clear()
+		global_position = at
+		if rig:
+			rig.visible = false
+	_update_drone()
+
+
+## Een andere toestand zonder ragdoll (strompelend → gerepareerd, of terug op nul).
+func on_life(new_life: int) -> void:
+	life = new_life
+	if is_local:
+		if life != Rescue.Life.BROKEN:
+			collision_mask = MASK
+		if active_tool:
+			active_tool.set_active(_tools_allowed() and not seated and not _holstered and (carry == null or (carry.item == null and carry.body_peer < 0)))
+	elif rig:
+		rig.visible = ragdoll == null and life != Rescue.Life.BROKEN
+	_update_drone()
+
+
+## De spookdrone bij de anderen tonen (of weghalen).
+func _update_drone() -> void:
+	var want := life == Rescue.Life.BROKEN and not is_local
+	if want and _drone == null:
+		_drone = SpectatorDrone.new()
+		_drone.name = "Drone"
+		add_child(_drone)
+		_drone.setup(color)
+	elif not want and _drone != null:
+		_drone.queue_free()
+		_drone = null
+
+
+## Spookdrone: vrij vliegen (WASD, Spatie omhoog, Ctrl omlaag), botst enkel met de rots.
+func _drone_fly(delta: float) -> void:
+	var can_move := not (Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and DisplayServer.get_name() != "headless")
+	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back") if can_move else Vector2.ZERO
+	var speed := Tuning.get_f("rescue", "drone_speed", 6.0)
+	var want := head.global_basis * Vector3(input.x, 0.0, input.y) * speed
+	if can_move and Input.is_action_pressed("jump"):
+		want.y += speed * 0.8
+	if can_move and Input.is_action_pressed("crouch"):
+		want.y -= speed * 0.8
+	velocity = velocity.lerp(want, minf(1.0, delta * 5.0))
+	move_and_slide()
+	_rescue_if_fallen()
 
 
 ## Zichtbare acties (zwaai, gereedschap, boor) naar de anderen. Het terrein zelf komt via
@@ -930,7 +1117,10 @@ func _rpc_action(action: int) -> void:
 		return
 	match action:
 		Action.SWING:
-			rig.swing()
+			if life == Rescue.Life.BROKEN and _drone:
+				_drone.beep()
+			else:
+				rig.swing()
 		Action.TOOL_PICKAXE:
 			rig.set_tool(RobotRig.HeldTool.PICKAXE)
 		Action.TOOL_DRILL:

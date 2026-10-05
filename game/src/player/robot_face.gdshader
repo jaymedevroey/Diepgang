@@ -10,6 +10,7 @@ uniform float blink = 0.0;           // 0 = open, 1 = dicht
 uniform vec2 look = vec2(0.0);       // -1..1, x = naar rechts (vanuit de robot), y = omhoog
 uniform float happy = 0.0;           // 0..1: ogen worden boogjes ^^
 uniform float squint = 0.0;          // 0..1: ogen worden streepjes (inspanning)
+uniform float dazed = 0.0;           // 0..1: ogen worden kruisjes (neergegaan, ragdoll)
 
 const vec2 GRID = vec2(18.0, 10.0);
 
@@ -20,7 +21,10 @@ float eye(vec2 c, vec2 center) {
 	// Blije boog: bovenste rij + twee schouders.
 	float arc = step(abs(d.x), 1.6) * step(abs(d.y - 0.5), 0.5) * (1.0 - step(abs(d.x), 0.6) * step(d.y, 0.5))
 		+ step(abs(abs(d.x) - 2.0), 0.5) * step(abs(d.y + 0.5), 0.5);
-	return mix(rect, clamp(arc, 0.0, 1.0), step(0.5, happy));
+	// Kruisje (neergegaan): twee diagonalen van 5 × 5 pixels.
+	float cross_eye = step(abs(d.x), 2.1) * step(abs(d.y), 2.1) * (step(abs(d.x - d.y), 0.5) + step(abs(d.x + d.y), 0.5));
+	float shape = mix(rect, clamp(arc, 0.0, 1.0), step(0.5, happy));
+	return mix(shape, clamp(cross_eye, 0.0, 1.0), step(0.5, dazed));
 }
 
 void fragment() {

@@ -11,3 +11,5 @@ const LIFT := 1 << 5
 const INTERACT := 1 << 6
 ## Onzichtbare muren aan de concessiegrens (enkel spelers botsen ertegen).
 const BOUNDS := 1 << 7
+## Puin van een instorting of beving dat blijft liggen (spelers botsen ertegen; Rubble).
+const RUBBLE := 1 << 8

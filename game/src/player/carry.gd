@@ -8,6 +8,9 @@ extends Node
 ## Gewicht (gevoel-06, binnen-10): twee robothanden in beeld houden de vondst vast. Hij volgt het
 ## houdpunt met een veer (hoe zwaarder, hoe trager hij naslingert) en kantelt mee met zijn
 ## naslepen. Gooien geeft hem die snelheid mee.
+##
+## Een neergegane ploegmaat draag je ook zo (GDD §6, Rescue): E op zijn pop, en je draagt hem dwars in
+## je armen naar de Mol. Alleen traag (rescue.body_mass), met twee vlot. De host beslist wie draagt.
 
 signal changed(item: FindItem)
 
@@ -18,6 +21,8 @@ const HAND_YAW := 22.0
 var player: Player
 var finds: FindField
 var item: FindItem
+## Peer-id van de neergegane robot die je draagt, of -1.
+var body_peer := -1
 
 var _vel := Vector3.ZERO # snelheid van de vondst in je handen (veer)
 var _rel_basis := Basis() # draaiing t.o.v. je kijkrichting bij het oppakken
@@ -48,6 +53,8 @@ func _ready() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and DisplayServer.get_name() != "headless":
 		return
+	if player.life != Rescue.Life.OK:
+		return # neer, strompelend of als drone: niets oppakken
 	if event.is_action_pressed("interact") and player.seated:
 		# In de stoel: een knop onder het vizier indrukken, anders uitstappen.
 		var knob := player.aimed_interactable()
@@ -61,14 +68,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		var mol: Mol = player.game.mol
 		if button:
 			button.used.emit(player)
-		elif item == null and aimed_item() == null and mol.in_cockpit(player.global_position) and mol.pilot == 0:
+		elif item == null and body_peer < 0 and aimed_item() == null and mol.in_cockpit(player.global_position) and mol.pilot == 0:
 			mol.press(Mol.Cmd.SEAT) # in de cabine: E = plaatsnemen, ook als je niet precies op de stoel mikt
-		elif item:
+		elif item or body_peer >= 0:
 			drop(false)
 		else:
 			try_grab()
 		get_viewport().set_input_as_handled()
-	elif item and event.is_action_pressed("dig") and not player.seated:
+	elif (item or body_peer >= 0) and event.is_action_pressed("dig") and not player.seated:
 		drop(true)
 		get_viewport().set_input_as_handled()
 
@@ -86,12 +93,20 @@ func aimed_item() -> FindItem:
 
 
 func try_grab() -> void:
+	var rescue: Rescue = player.game.rescue
+	var peer := rescue.aimed_body(player) if rescue else -1
+	if peer >= 0:
+		rescue.request_carry(peer)
+		return
 	var it := aimed_item()
 	if it:
 		finds.request_grab(it.find_id)
 
 
 func drop(throw: bool) -> void:
+	if body_peer >= 0:
+		_drop_body(throw)
+		return
 	if item == null:
 		return
 	var vel := player.velocity + _vel * 0.5
@@ -101,8 +116,53 @@ func drop(throw: bool) -> void:
 	_set_item(null)
 
 
+func _drop_body(throw: bool) -> void:
+	var rescue: Rescue = player.game.rescue
+	var rd := rescue.ragdoll_of(body_peer)
+	var vel := player.velocity + _vel * 0.5
+	if throw:
+		vel += -player.camera.global_basis.z * Tuning.get_f("carry", "throw_speed", 6.5) * 0.5
+	var peer := body_peer
+	on_body_released()
+	rescue.request_release(peer, rd.torso.global_transform if rd else Transform3D(), vel)
+
+
+## Rescue: de host gaf ons deze robot in handen.
+func on_body_carried(peer: int) -> void:
+	if body_peer == peer:
+		return
+	if item:
+		_set_item(null)
+	body_peer = peer
+	_vel = Vector3.ZERO
+	var rd: RobotRagdoll = player.game.rescue.ragdoll_of(peer)
+	if rd:
+		for rb: RigidBody3D in rd.all_bodies():
+			player.add_collision_exception_with(rb)
+	changed.emit(null)
+
+
+## Rescue: we dragen hem niet meer (losgelaten, gerepareerd, of een ander nam hem over).
+func on_body_released() -> void:
+	if body_peer < 0:
+		return
+	var rd: RobotRagdoll = player.game.rescue.ragdoll_of(body_peer)
+	if rd:
+		for rb: RigidBody3D in rd.all_bodies():
+			if is_instance_valid(rb):
+				player.remove_collision_exception_with(rb)
+	body_peer = -1
+	_vel = Vector3.ZERO
+	changed.emit(null)
+
+
 ## Loopsnelheid met wat je draagt.
 func move_multiplier() -> float:
+	if body_peer >= 0:
+		var c: PackedInt32Array = player.game.rescue.carriers_of(body_peer)
+		var nb := maxi(1, c.size())
+		var kb := 1.0 - Tuning.get_f("rescue", "body_mass", 24.0) / (Tuning.get_f("carry", "strength", 30.0) * nb)
+		return maxf(Tuning.get_f("carry", "min_speed", 0.4), kb)
 	if item == null:
 		return 1.0
 	var n := maxi(1, item.carriers.size())
@@ -111,6 +171,9 @@ func move_multiplier() -> float:
 
 
 func _physics_process(delta: float) -> void:
+	if body_peer >= 0:
+		_carry_body(delta)
+		return
 	if item == null:
 		return
 	if not is_instance_valid(item) or not item.carriers.has(player.peer_id):
@@ -137,16 +200,39 @@ func _physics_process(delta: float) -> void:
 	item.global_transform = Transform3D(yaw_basis * sway * _rel_basis, pos)
 
 
+## Een neergegane robot in je armen: de romp volgt het houdpunt met een veer (zwaar: traag), de
+## ledematen bengelen er vanzelf aan.
+func _carry_body(delta: float) -> void:
+	var rescue: Rescue = player.game.rescue
+	var rd := rescue.ragdoll_of(body_peer)
+	if rd == null or not rescue.carriers_of(body_peer).has(player.peer_id):
+		on_body_released()
+		return
+	var target := rescue.carry_target(body_peer)
+	var heavy := 1.0 + Tuning.get_f("rescue", "body_mass", 24.0) / maxf(Tuning.get_f("carry", "follow_mass_ref", 6.0), 0.1)
+	var k := Tuning.get_f("carry", "follow_stiffness", 260.0) / heavy
+	var c := Tuning.get_f("carry", "follow_damping", 26.0) / sqrt(heavy)
+	var pos := rd.torso.global_position
+	if pos.distance_to(target.origin) > 2.5:
+		pos = target.origin
+		_vel = Vector3.ZERO
+	_vel += ((target.origin - pos) * k - _vel * c) * delta
+	pos += _vel * delta
+	rd.set_pinned(true)
+	rd.move_torso(Transform3D(target.basis, pos))
+
+
 ## De handen aan weerszijden van de vondst, zoals hij getekend wordt (elke frame).
 func _process(_delta: float) -> void:
-	var show := item != null and is_instance_valid(item) and player.camera != null
+	var rd: RobotRagdoll = player.game.rescue.ragdoll_of(body_peer) if body_peer >= 0 and player.game.rescue else null
+	var show := (item != null and is_instance_valid(item) or rd != null) and player.camera != null
 	for h in _hands:
 		h.visible = show
 	if not show:
 		return
 	var cam := player.camera.global_transform
-	var at := item.get_global_transform_interpolated().origin
-	var r := item.half_extents.length()
+	var at := rd.torso.get_global_transform_interpolated().origin if rd else item.get_global_transform_interpolated().origin
+	var r := 0.4 if rd else item.half_extents.length()
 	var right := cam.basis.x
 	var up := cam.basis.y
 	for h in _hands:
