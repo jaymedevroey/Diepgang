@@ -60,6 +60,17 @@ func dock_position() -> Vector3:
 	return to_global(_dock_local)
 
 
+## Grijper en kabel op `grapple_depth` zetten. Ook de Mol roept dit (in zijn _process), met de diepte
+## van zijn getekende (geïnterpoleerde) dak, zodat de klauwen tijdens het optrekken op het dak
+## blijven en niet een tick voor- of achterlopen (pakket C).
+func update_grapple() -> void:
+	var rest := grapple_rest_world() - global_position
+	_grapple.position = rest - Vector3(0.0, grapple_depth, 0.0)
+	_cable.position = rest + Vector3(0.0, 0.5, 0.0)
+	_cable.scale = Vector3(1.0, maxf(0.05, grapple_depth + 0.5), 1.0)
+	_cable.visible = grapple_depth > 0.5
+
+
 ## Rustplek van de grijper (wereld): net boven het dak van een Mol in de baai.
 func grapple_rest_world() -> Vector3:
 	return dock_position() + Vector3(0.0, Mol.HOOK.y + GRAPPLE_REACH, 0.0)
@@ -67,11 +78,7 @@ func grapple_rest_world() -> Vector3:
 
 func _process(delta: float) -> void:
 	_time += delta
-	var rest := grapple_rest_world() - global_position
-	_grapple.position = rest - Vector3(0.0, grapple_depth, 0.0)
-	_cable.position = rest + Vector3(0.0, 0.5, 0.0)
-	_cable.scale = Vector3(1.0, maxf(0.05, grapple_depth + 0.5), 1.0)
-	_cable.visible = grapple_depth > 0.5
+	update_grapple()
 	# Navigatielichten knipperen.
 	var on := fmod(_time, 1.6) < 0.25
 	for m in _nav:
@@ -107,6 +114,9 @@ func _build_grapple() -> void:
 	_cable = Node3D.new()
 	_cable.name = "Cable"
 	add_child(_cable)
+	# Bewegen in _process (update_grapple): zonder fysica-interpolatie (gevoel-02).
+	_grapple.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	_cable.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	var wire := MeshInstance3D.new()
 	var cyl := CylinderMesh.new()
 	# Dik genoeg om van ver te lezen als een kabel, geen draadje (buiten-5).

@@ -39,6 +39,7 @@ var _text_timer := 0.0
 
 func setup(screen: MeshInstance3D, lamp: MeshInstance3D, ping_button: MeshInstance3D) -> void:
 	_viewport = SubViewport.new()
+	_viewport.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF # tekent in _process (gevoel-02)
 	_viewport.size = SIZE
 	_viewport.disable_3d = true
 	_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS

@@ -33,7 +33,8 @@ func _process(_delta: float) -> void:
 	if _frame < 0:
 		return
 	_frame += 1
-	if _frame == 60:
+	# Na 2,5 s: de speler is geland en de vondst hangt stil in zijn handen (hij volgt met een veer).
+	if _frame == 150:
 		var path := PerfLog.log_dir().path_join("carry.png")
 		get_viewport().get_texture().get_image().save_png(path)
 		print("[preview] ", path)

@@ -248,6 +248,7 @@ func set_readout(text: String) -> void:
 ## (Label_Depth), met hetzelfde beeldbuiseffect als het camerascherm en de sonar.
 func _build_status() -> void:
 	_status_viewport = SubViewport.new()
+	_status_viewport.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF # tekent in _process (gevoel-02)
 	_status_viewport.size = Vector2i(520, 320)
 	_status_viewport.disable_3d = true
 	_status_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
@@ -1039,6 +1040,8 @@ func play(name: String, pos := Vector3.ZERO, db := 0.0, pitch := 1.0) -> void:
 
 func _build_feed() -> void:
 	_feed_viewport = SubViewport.new()
+	# Een SubViewport erft de fysica-interpolatie niet: deze camera beweegt in _process (gevoel-02).
+	_feed_viewport.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	_feed_viewport.size = Vector2i(640, 352)
 	_feed_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	add_child(_feed_viewport)

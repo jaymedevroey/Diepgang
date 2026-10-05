@@ -48,7 +48,7 @@ func _run(p: Player) -> void:
 
 	# 2. Een vondst vrijmaken en in het laadruim leggen.
 	var it: FindItem = finds.items[0]
-	for i in 6:
+	for i in 20: # zoveel slagen als de korst levens heeft (7-13)
 		if it.freed:
 			break
 		p.global_position = it.global_position + Vector3(0, 0.3, 1.2)

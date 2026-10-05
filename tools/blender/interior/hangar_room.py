@@ -344,7 +344,7 @@ def ceiling(ctx, B, rng):
             for sz in (-1, 1):
                 box(rdet, x - 0.025, x + 0.025, 8.305, 8.95, zf + sz * 0.225, zf + sz * 0.29, "DarkSteel")
             x += 1.5
-        box(rdet, 1.2, 18.8, 8.243, 8.255, zf - 0.018, zf + 0.018, "LedWhite")
+        box(rdet, 1.2, 18.8, 8.243, 8.255, zf - 0.018, zf + 0.018, "LedSodium")  # natrium (nostromo-stijl §3)
     # Gordingen langs z.
     xe = [1.05, 4.0, 8.0, 12.0, 16.0, 18.95]
     for xp in xe[1:-1]:
@@ -387,6 +387,6 @@ def ceiling(ctx, B, rng):
             x += 3.0
     # Hangende lichtbakken (elk licht heeft een armatuur die je ziet).
     for (x, z) in ((1.95, 5.0), (1.95, 13.0), (13.8, 5.0), (13.8, 13.0), (18.0, 5.0), (18.0, 13.0), (18.0, 17.0)):
-        hang_fixture(roof, rdet, x, z, 8.2, 2.2, "z", top=8.93)
+        hang_fixture(roof, rdet, x, z, 8.2, 2.2, "z", top=8.93, lens="LedWarm")
     for (x, z) in ((2.6, 17.4), (6.6, 17.4), (12.0, 17.4), (2.6, 20.6), (12.4, 20.6), (16.0, 20.6)):
-        hang_fixture(roof, rdet, x, z, 8.2, 2.2, "x", top=8.93)
+        hang_fixture(roof, rdet, x, z, 8.2, 2.2, "x", top=8.93, lens="LedWarm")

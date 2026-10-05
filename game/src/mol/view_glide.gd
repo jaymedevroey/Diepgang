@@ -2,7 +2,9 @@ class_name ViewGlide
 extends Node
 ## Instappen en uitstappen in de Mol zonder harde knip (gevoel-20, gevoel-14): de speler staat meteen
 ## op zijn nieuwe plek (botsvormen, tests), maar zijn camera glijdt er in `seconds` naartoe vanaf
-## waar hij was. Een verschuiving van de camera t.o.v. het hoofd, die uitdooft; enkel beeld.
+## waar hij was. Een verschuiving van de camera t.o.v. zijn ouder (de CamRig van de speler), die
+## uitdooft; enkel beeld. De CamRig zet het oog pas in de volgende _process op de nieuwe plek
+## (Player._update_rig, process_priority −100): daarom meten we daar, niet bij de start.
 ## Telt bij de positie van de camera op (en haalt het eigen deel van de vorige frame weg), zodat het
 ## samengaat met wat anders de camera verschuift.
 
@@ -12,6 +14,9 @@ var _applied := Vector3.ZERO
 var _t := 1.0
 var _dur := 0.3
 var _arc := Vector3.ZERO # in de ruimte van de ouder: een boogje omhoog halverwege (over de rugleuning)
+var _from := Vector3.ZERO
+var _arc_m := 0.0
+var _pending := false
 
 
 ## Start een glijbeweging: `from_world` is waar de camera stond vóór de sprong (wereld).
@@ -33,23 +38,28 @@ func _ready() -> void:
 
 
 func _begin(from_world: Vector3, seconds: float, arc_m := 0.0) -> void:
-	# Waar de camera nu staat zonder onze eigen verschuiving.
-	var parent := camera.get_parent() as Node3D
-	var now_world := camera.global_position - parent.global_basis * _applied
-	var d := from_world - now_world
-	if d.length() > 4.0: # een sprong (respawn, de hub): niet glijden
-		d = Vector3.ZERO
-	_offset = parent.global_basis.inverse() * d
-	_arc = parent.global_basis.inverse() * Vector3(0.0, arc_m, 0.0) if d != Vector3.ZERO else Vector3.ZERO
+	_from = from_world
+	_arc_m = arc_m
 	_dur = maxf(0.05, seconds)
 	_t = 0.0
-	_apply() # meteen, anders toont het eerste beeld de nieuwe plek al zonder verschuiving
+	_pending = true
 
 
 func _process(delta: float) -> void:
 	if camera == null:
 		return
-	_t = minf(1.0, _t + delta / _dur)
+	if _pending:
+		# Het oog staat nu op zijn nieuwe plek: van daar terug naar waar de camera was.
+		_pending = false
+		var parent := camera.get_parent() as Node3D
+		var now_world := camera.global_position - parent.global_basis * _applied
+		var d := _from - now_world
+		if d.length() > 4.0: # een sprong (respawn, de hub): niet glijden
+			d = Vector3.ZERO
+		_offset = parent.global_basis.inverse() * d
+		_arc = parent.global_basis.inverse() * Vector3(0.0, _arc_m, 0.0) if d != Vector3.ZERO else Vector3.ZERO
+	else:
+		_t = minf(1.0, _t + delta / _dur)
 	_apply()
 
 

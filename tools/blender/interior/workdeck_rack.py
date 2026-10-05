@@ -95,8 +95,8 @@ def shell(ctx, S, R, ST, PN, D, RD, rng):
         blk(RD, 6.6, 13.4, 2.92, 2.96, z - 0.01, z + 0.01, "DarkSteel")
     for i, (dz, m) in enumerate(((42.08, "Rubber"), (42.17, "Red"), (42.26, "Rubber"))):
         cyl(RD, (6.6, 2.955, dz), (1, 0, 0), 6.8, 0.03, 6, m)
-    ctx.glow("7fdcf0", (8.0, 2.8, 41.25))
-    ctx.glow("7fdcf0", (12.0, 2.8, 41.25))
+    ctx.glow("ffd2a6", (8.0, 2.8, 41.25))
+    ctx.glow("ffd2a6", (12.0, 2.8, 41.25))
 
 
 def pod(ctx, P, PN, D, px, i):

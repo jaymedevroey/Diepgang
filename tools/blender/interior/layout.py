@@ -57,7 +57,27 @@ from builder import Builder
 kit.PALETTE.update({
     "FloorWorn": ((0.46, 0.46, 0.45), 0.6, 0.38, None),  # platen waar elke robot loopt: glad gesleten
     "StainOil": ((0.06, 0.055, 0.05), 0.1, 0.22, None),  # olie en hydrauliekvloeistof
+    # Ledstroken per zone (binnen-12: niet overal hetzelfde witte licht). build.py zet LedWhite buiten de
+    # hangar om naar de zone (led_zone); de hangar kiest zelf. In Godot: HubLook.EMISSIVE.
+    "LedCool": ((0.72, 0.86, 1.0), 0.0, 0.2, ((0.72, 0.86, 1.0), 1.5)),  # brug: koud wit
+    "LedTube": ((0.88, 0.97, 0.84), 0.0, 0.2, ((0.88, 0.97, 0.84), 1.25)),  # werkdek: tl, groenig wit
+    "LedWarm": ((1.0, 0.82, 0.62), 0.0, 0.25, ((1.0, 0.82, 0.62), 1.25)),  # laadrek, gang: gloeilamp
+    "LedSodium": ((1.0, 0.6, 0.28), 0.0, 0.3, ((1.0, 0.6, 0.28), 1.7)),  # hangarplafond: natrium
 })
+
+
+def led_zone(x, y, z):
+    """Ledkleur voor een witte ledstrook op planplek (x, y, z): warm in het laadrek en de gang, tl op het
+    werkdek, koud wit op de brug. In de hangar en op de galerij blijven randen en trappen wit."""
+    if z >= 39.85:
+        return "LedWarm"
+    if z >= 30.0:
+        return "LedTube"
+    if z >= 26.3:
+        return "LedWarm"
+    if z >= 21.0 and 1.1 <= y < 4.25:
+        return "LedCool"
+    return "LedWhite"
 
 RISER = 0.15
 TREAD = 0.30

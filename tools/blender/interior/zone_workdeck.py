@@ -2,7 +2,7 @@
 
 Plan: werkdek x 3..17, z 30..40 op +1,2, plafond 3,6 m (3,0 aan de zijkanten). Nissen 3 × 4 m,
 plafond 2,6: Niche_Tools (x 0..3, z 31..35, gereedschapsbank met schaduwbord), Niche_Supply (x 0..3,
-z 35..39, uitgifte met luik), Niche_Free_A/B (x 17..20, in aanbouw). Tv tegen de voorwand
+z 35..39, uitgifte met luik), Niche_Free_A/B (x 17..20: HR en de lounge van de directie). Tv tegen de voorwand
 (DIG-nieuws), het DIG-logo in de vloer. Laadrek x 6..14, z 41,2..44 op +0,6, plafond 2,4, met 4
 treden omlaag vanaf het werkdek; capsules en Spawn_0..3.
 
@@ -46,7 +46,8 @@ def build(ctx: Ctx):
     build_niches(ctx, S, R, PN, D, RD, P, rng)
     build_rack(ctx, S, R, ST, P, PN, D, RD, rng)
 
-    # Licht op het dek: koel wit onder de lichtbakken (de spot op het logo staat in ceiling()).
-    ctx.glow("e6eeff", (7.6, 4.1, 32.6))
-    ctx.glow("e6eeff", (12.4, 4.1, 32.6))
-    ctx.glow("e6eeff", (10.0, 4.1, 38.4))
+    # Licht op het dek: tl-wit (groenig, nostromo-stijl §3) onder de lichtbakken (de spot op het logo
+    # staat in ceiling()). Elke zone een eigen lichttemperatuur (release-audit binnen-12).
+    ctx.glow("e9f2df", (7.6, 4.1, 32.6))
+    ctx.glow("e9f2df", (12.4, 4.1, 32.6))
+    ctx.glow("e9f2df", (10.0, 4.1, 38.4))

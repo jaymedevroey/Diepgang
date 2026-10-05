@@ -23,13 +23,13 @@ sys.path.append(str(HERE))
 sys.path.append(str(HERE.parent))
 import kit  # noqa: E402
 from builder import Builder  # noqa: E402
-from kit import PARTS, empty, export_glb  # noqa: E402
+from kit import PARTS, empty  # noqa: E402
 import layout  # noqa: E402
 
 REPO = HERE.parents[2]
 ARGS = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 OUT = REPO / "game/assets/models/ekster_hub.glb"
-ZONES = ["zone_hangar", "zone_bridge", "zone_workdeck"]
+ZONES = ["zone_hangar", "zone_bridge", "zone_workdeck", "zone_wear"]
 for a in ARGS:
     if a.startswith("--out="):
         OUT = Path(a.split("=", 1)[1])
@@ -93,6 +93,86 @@ def part(name, b, pivot):
     return o
 
 
+def zone_leds(b):
+    """Witte ledstroken krijgen de kleur van hun zone (layout.led_zone), per vlak op zijn midden."""
+    if "LedWhite" not in b.mats:
+        return
+    white = b.mats.index("LedWhite")
+    for f in b.bm.faces:
+        if f.material_index != white:
+            continue
+        c = f.calc_center_median()
+        m = layout.led_zone(c.x + layout.MOL[0], c.z, -c.y + layout.MOL[1])  # Blender → plan
+        if m != "LedWhite":
+            f.material_index = b._mi(m)
+
+
+def bake_edges(o, seed, edges=True):
+    """Vertexkleur per hoek voor de hub-shader (game/src/ship/hub_surface.gdshader), na de afschuining:
+    R = afgeschuinde rand (een smal vlak dat schuin staat op zijn buren: daar slijt de verf, kaal metaal),
+    B = willekeur per los onderdeel (elke plaat een iets andere tint). De hub is vlak gearceerd, dus de
+    shader kan randen niet zelf vinden (machine.gdshader meet de kromming van gladde normalen).
+    `edges` = False voor groepen met tekst en kleine details (Detail): smalle letterstreken zijn geen rand."""
+    import random
+    for mod in list(o.modifiers):
+        bpy.context.view_layer.objects.active = o
+        bpy.ops.object.modifier_apply(modifier=mod.name)
+    bm = bmesh.new()
+    bm.from_mesh(o.data)
+    bm.faces.ensure_lookup_table()
+    edge = [0.0] * len(bm.faces)
+    for f in (bm.faces if edges else ()):
+        longest = max((e.calc_length() for e in f.edges), default=0.0)
+        if longest <= 1e-6 or f.calc_area() / longest > 0.05:
+            continue  # niet smal
+        for e in f.edges:
+            for g in e.link_faces:
+                if g is not f and 0.42 < f.normal.angle(g.normal, 0.0) < 1.25:  # 24°..72°
+                    edge[f.index] = 1.0
+                    break
+            if edge[f.index]:
+                break
+    rng = random.Random(seed)
+    island = [-1.0] * len(bm.faces)
+    for f in bm.faces:
+        if island[f.index] >= 0.0:
+            continue
+        val = rng.random()
+        stack = [f]
+        island[f.index] = val
+        while stack:
+            g = stack.pop()
+            for e in g.edges:
+                for h in e.link_faces:
+                    if island[h.index] < 0.0:
+                        island[h.index] = val
+                        stack.append(h)
+    col = bm.loops.layers.color.new("Col")
+    for f in bm.faces:
+        c = (edge[f.index], 0.0, island[f.index], 1.0)
+        for loop in f.loops:
+            loop[col] = c
+    bm.to_mesh(o.data)
+    bm.free()
+    attr = o.data.color_attributes.get("Col")
+    if attr:
+        o.data.color_attributes.active_color = attr
+
+
+def export_hub(path):
+    """Zoals kit.export_glb, maar met één set vertexkleuren ("Col" van bake_edges): de exporter van Blender
+    5.2 schreef ze anders twee keer (COLOR_0 en COLOR_1, 3,7 MB extra)."""
+    bpy.ops.object.select_all(action="SELECT")
+    kwargs = dict(filepath=str(path), export_format="GLB", export_apply=True, export_yup=True)
+    for extra in ({"export_vertex_color": "NAME", "export_vertex_color_name": "Col", "export_all_vertex_colors": False},
+                  {"export_vertex_color": "ACTIVE"}, {"export_colors": True}, {}):
+        try:
+            bpy.ops.export_scene.gltf(**kwargs, **extra)
+            return
+        except TypeError:
+            continue
+
+
 def build():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     kit._MATS.clear()
@@ -109,6 +189,8 @@ def build():
             traceback.print_exc()
     root = bpy.data.objects.new("Ekster_Hub", None)
     bpy.context.collection.objects.link(root)
+    for b in shared["builders"].values():
+        zone_leds(b)
     for name, b in shared["builders"].items():
         group = name.split("_", 1)[1]
         o = b.to_object(name, bevel=BEVEL.get(group, 0.0), segments=1, angle=40.0)
@@ -123,11 +205,14 @@ def build():
         screen_quad(name, pos, normal, w, h).parent = root
     for name, pos, rot in shared["anchors"]:
         empty(name, pos, rot, parent=root)
+    for i, o in enumerate(o for o in root.children if o.type == "MESH" and o.name != "Collision"):
+        group = o.name.split("_", 1)[1] if "_" in o.name else o.name
+        bake_edges(o, 1000 + i, edges=group not in ("Detail", "RoofDetail", "Glass", "Glow", "Holo", "Screen"))
     for name, frm, to in layout.CAMERAS:
         empty("Cam_" + name, layout.G(*frm), parent=root)
         empty("Look_" + name, layout.G(*to), parent=root)
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    export_glb(OUT)
+    export_hub(OUT)
     print(f"[hub] -> {OUT}" + (f" (MISLUKT: {', '.join(failed)})" if failed else ""))
 
 
