@@ -823,7 +823,7 @@ func _update_prompt(player: Player, game: Game, terrain: TerrainAPI) -> void:
 			crosshair.crust_hp = o.hp
 			crosshair.crust_max = o.max_hp
 			text = "Ore: %s" % OreKinds.NAMES[o.kind]
-			sub = "€%d each · %d left · pickaxe or drill" % [OreKinds.VALUES[o.kind], int(ceil(o.hp))]
+			sub = "€%d each · %d left · pickaxe or drill" % [OreKinds.value(o.kind), int(ceil(o.hp))]
 		elif not hit.is_empty() and hit.collider is FindItem:
 			var f: FindItem = hit.collider
 			state = HudCrosshair.State.USE if f.freed else HudCrosshair.State.NONE
