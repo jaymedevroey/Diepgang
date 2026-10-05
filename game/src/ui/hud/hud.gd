@@ -49,6 +49,8 @@ var crosshair: HudCrosshair
 var compass: HudCompass
 var hazard: HudHazard
 var alarm: HudAlarm
+## Neergaan en redden (F2): de staat van je robot, neer/strompelend/drone, ploegmaten die neerliggen.
+var rescue_hud: HudRescue
 var _prompt: HudFader
 var _prompt_caps: HBoxContainer
 var _prompt_text: Label
@@ -128,6 +130,9 @@ func _ready() -> void:
 	_build_bottom()
 	_build_left()
 	_build_overlays()
+	rescue_hud = HudRescue.new()
+	rescue_hud.name = "Rescue"
+	add_child(rescue_hud)
 
 
 # --- Opbouw -----------------------------------------------------------------------------------
@@ -929,18 +934,36 @@ func update(player: Player, game: Game, terrain: TerrainAPI) -> void:
 	_update_host()
 	_update_stats(player, game, terrain)
 	_update_alarm(player, game, mol)
+	rescue_hud.update(player, game, _world_hidden or not (_own_cam or chase_cam))
 
 
 func _update_hazard(player: Player, game: Game) -> void:
 	hazard.blocked = _in_hub or _world_hidden # in het schip geen magma of onrust
 	var dist := INF
-	if game.magma and game.magma.visible and not (game.ship and game.ship.contains(player.global_position)):
-		dist = player.global_position.y - game.magma.level
+	var eta := INF
+	var p := player.global_position
+	var underground := game.terrain != null and game.terrain.surface_height_at(p.x, p.z) - p.y > 2.5
+	var in_mol := game.mol != null and game.mol.body != null and (player.seated or game.mol.contains_point(p))
+	if game.magma and game.magma.visible and not (game.ship and game.ship.contains(p)):
+		dist = p.y - game.magma.level
+		eta = game.magma.seconds_until(p.y)
 	var frac := 0.0
 	var phase := Unrest.Phase.CALM
 	if game.unrest:
 		frac = game.unrest.value / maxf(1.0, Tuning.get_f("unrest", "stage", 100.0))
 		phase = game.unrest.phase
+	hazard.always_magma = underground or in_mol
+	if game.magma and not game.magma.quake_rise.is_connected(hazard.flash_rise):
+		game.magma.quake_rise.connect(hazard.flash_rise)
+	hazard.magma_eta = eta
+	# De worm: hoe hard het rommelt waar jij staat (0..1).
+	var worm := 0.0
+	if game.worm and game.worm.is_awake():
+		var cam := get_viewport().get_camera_3d()
+		var at := cam.global_position if cam else p
+		worm = (1.0 - smoothstep(6.0, Tuning.get_f("worm", "rumble_m", 30.0), at.distance_to(game.worm.pos))) * game.worm.activity
+	hazard.worm = worm
+	hazard.gas = game.gas != null and game.gas.in_gas(p + Vector3.UP * 1.0)
 	hazard.set_state(dist, frac, phase)
 
 
@@ -1035,6 +1058,25 @@ func _update_tools(player: Player) -> void:
 
 func _update_carry(player: Player) -> void:
 	var it: FindItem = player.carry.item
+	if player.carry.body_peer >= 0:
+		_carry.active = true
+		if _last_carry != player.carry:
+			_last_carry = player.carry
+			Sfx.ui("pickup", -2.0)
+			_carry_icon.texture = load("res://assets/ui/icons/warning.svg")
+			_carry_icon.modulate = UiTheme.DANGER
+		var g: Game = player.game
+		_carry_name.text = _player_name(g, player.carry.body_peer)
+		_carry_value.text = "DOWN"
+		var others := g.rescue.carriers_of(player.carry.body_peer).size() - 1
+		_carry_note.text = "Carried together: get to the Mole" if others > 0 else "To the Mole for repairs · faster with a buddy"
+		var left := clampf(g.rescue.timer_of(player.carry.body_peer) / maxf(1.0, Tuning.get_f("rescue", "downed_s", 90.0)), 0.0, 1.0)
+		_carry_bar.anchor_right = left
+		_carry_bar.offset_right = 0
+		_carry_bar.color = UiTheme.DANGER if left < 0.25 else UiTheme.AMBER
+		_carry_pct.text = HudRescue._clock(g.rescue.timer_of(player.carry.body_peer))
+		_carry_pct.add_theme_color_override("font_color", _carry_bar.color)
+		return
 	_carry.active = it != null
 	if it != _last_carry:
 		_last_carry = it
@@ -1065,7 +1107,7 @@ func _update_prompt(player: Player, game: Game, terrain: TerrainAPI) -> void:
 	var state := HudCrosshair.State.NONE
 	var aim: Pickaxe.Aim = player.active_tool.aim
 	# Vizier en prompt enkel door je eigen ogen (niet in buitenzicht of een filmbeeld).
-	crosshair.blocked = _world_hidden or not _own_cam
+	crosshair.blocked = _world_hidden or not _own_cam or player.ragdoll != null or player.life == Rescue.Life.BROKEN
 	_prompt.blocked = crosshair.blocked
 	_prompt.position.y = PROMPT_Y
 	crosshair.heat = 0.0
@@ -1091,8 +1133,13 @@ func _update_prompt(player: Player, game: Game, terrain: TerrainAPI) -> void:
 			_prompt.position.y = 220.0
 	elif player.seated:
 		pass
-	elif player.carry.item:
+	elif player.carry.item or player.carry.body_peer >= 0:
 		pass # het draagkaartje linksonder toont de toetsen
+	elif game.rescue and game.rescue.is_ok(player.peer_id) and game.rescue.aimed_body(player) >= 0:
+		action = "interact"
+		text = "Carry %s to the Mole" % _player_name(game, game.rescue.aimed_body(player))
+		sub = "Heavy: faster with a buddy"
+		state = HudCrosshair.State.USE
 	elif game.mol and game.mol.in_cockpit(player.global_position) and game.mol.pilot == 0:
 		action = "interact"
 		text = "Drive the Mole"
@@ -1101,7 +1148,14 @@ func _update_prompt(player: Player, game: Game, terrain: TerrainAPI) -> void:
 		var cam := player.camera
 		var hit := terrain.raycast(cam.global_position, cam.global_position - cam.global_basis.z * 3.5,
 				Layers.TERRAIN | Layers.CRUST | Layers.LOOT | Layers.LIFT)
-		if not hit.is_empty() and hit.collider is Crust:
+		if not hit.is_empty() and hit.collider is Rubble and (hit.collider as Rubble).blocks:
+			var rb: Rubble = hit.collider
+			state = HudCrosshair.State.CRUST
+			crosshair.crust_hp = rb.hp
+			crosshair.crust_max = rb.max_hp
+			text = "Rubble: chip it away"
+			sub = "Pickaxe or drill"
+		elif not hit.is_empty() and hit.collider is Crust:
 			var c: Crust = hit.collider
 			state = HudCrosshair.State.CRUST
 			crosshair.crust_hp = c.hp
@@ -1434,7 +1488,29 @@ func _update_team(player: Player, game: Game) -> void:
 			continue
 		var pl := obj as Player
 		var where: Label = chip.find_child("Where", true, false)
-		where.text = "In the Mole" if game.mol and game.mol.contains_point(pl.global_position) else "%d m" % int(player.global_position.distance_to(pl.global_position))
+		var life: int = game.rescue.life_of(pl.peer_id) if game.rescue else Rescue.Life.OK
+		if life == Rescue.Life.DOWNED:
+			where.text = "DOWN %s" % HudRescue._clock(game.rescue.timer_of(pl.peer_id))
+			where.add_theme_color_override("font_color", UiTheme.DANGER)
+		elif life == Rescue.Life.LIMPING:
+			where.text = "Limping %s" % HudRescue._clock(game.rescue.timer_of(pl.peer_id))
+			where.add_theme_color_override("font_color", UiTheme.AMBER)
+		elif life == Rescue.Life.BROKEN:
+			where.text = "Ghost drone"
+			where.add_theme_color_override("font_color", UiTheme.CYAN)
+		else:
+			where.add_theme_color_override("font_color", Color("#C2BAAC"))
+			where.text = "In the Mole" if game.mol and game.mol.contains_point(pl.global_position) else "%d m" % int(player.global_position.distance_to(pl.global_position))
+
+
+## "Player 2": zoals in de ploeglijst (volgorde van binnenkomen).
+static func _player_name(game: Game, peer: int) -> String:
+	var idx := 0
+	for pl: Player in game.players.get_children():
+		idx += 1
+		if pl.peer_id == peer:
+			return "Player %d" % idx
+	return "a robot"
 
 
 func _update_host() -> void:
