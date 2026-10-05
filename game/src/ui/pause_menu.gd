@@ -169,10 +169,9 @@ func _toggle_invite() -> void:
 	elif Net.mode == Net.Mode.CLIENT:
 		_invite_label.text = "You're a guest here. Friends join via the host's IP address."
 	elif Settings.get_b("interface/hide_ip"):
-		_invite_label.text = "Your IP address is hidden (Settings > Interface). Friends choose JOIN and enter your IP."
+		_invite_label.text = "Your IP address is hidden (Settings > Interface). Friends choose JOIN and enter your IP (Tailscale, same network, or your public IP with UDP port %d forwarded)." % Net.DEFAULT_PORT
 	else:
-		_invite_label.text = "Friends choose JOIN and enter this:\n%s   (port %d)" % [
-			", ".join(StartMenu.local_ips()), int(CmdArgs.value("port", Net.DEFAULT_PORT))]
+		_invite_label.text = StartMenu.invite_text(int(CmdArgs.value("port", Net.DEFAULT_PORT)))
 
 
 func _open_settings() -> void:

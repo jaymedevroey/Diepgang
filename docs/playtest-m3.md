@@ -1,11 +1,24 @@
-# Diepgang — playtest M3 (de kernlus, versie 0.8)
+# Diepgang — playtest M3 (de kernlus, versie 0.9.1)
 
 **Vraag: voelt een volledige dienst als een spel?** Opdracht kiezen, droppen, graven en delven, het magma voelen komen, op tijd terug, en het rapport lezen.
 
 ## Starten
 
 1. Start `Diepgang.exe`.
-2. Kies **Solo spelen**, **Hosten** of **Meedoen** (IP van de host). Samen spelen gaat nog via LAN, poort 24565 (UDP), of een virtueel LAN zoals Tailscale. Steam-uitnodigingen komen later.
+2. Kies **PLAY SOLO**, **HOST** of **JOIN** (IP van de host). Samen spelen gaat via het IP-adres van de host: in hetzelfde netwerk zijn LAN-IP, over het internet zijn publieke IP met port forwarding (zie hieronder). Iedereen moet **dezelfde versie** hebben (staat linksonder in het startmenu); het spel weigert anders met een melding.
+
+## Samen spelen over het internet (port forwarding)
+
+De host (één pc) doet dit één keer:
+
+1. **Je eigen IP in het netwerk.** Start het spel, kies HOST, druk Esc: onder het pauzemenu staat je adres (bv. `192.168.1.23`). Zorg dat je pc dat adres houdt: in je modem bij "DHCP"/"vaste IP" je pc reserveren.
+2. **Port forwarding in je modem** (meestal op `192.168.1.1` of `192.168.0.1`; bij Telenet via Mijn Telenet, bij Proximus in de Internet Box onder "Port forwarding"): een regel **UDP**, externe poort **24565**, interne poort **24565**, naar het adres uit stap 1.
+3. **Windows Firewall.** De eerste keer dat je host, vraagt Windows of Diepgang het netwerk mag gebruiken: kies **Toestaan** (privé en openbaar). Gemist? Windows-beveiliging > Firewall > Een app toestaan > Diepgang.
+4. **Je publieke IP**: surf naar `whatismyip.com` (of kijk in je modem bij "WAN"). Dat adres geef je aan je vrienden; zij kiezen JOIN en typen het in.
+   - Staat in je modem een ander WAN-adres dan op die site, of begint het met `100.64`–`100.127` of `10.`? Dan deelt je provider één adres over meerdere klanten (CGNAT) en werkt port forwarding niet. Gebruik dan Tailscale.
+   - Je kan je eigen publieke IP vaak niet vanuit je eigen netwerk testen: laat een vriend (of je gsm via 4G/5G) verbinden.
+
+Vrienden: pak dezelfde zip uit, start `Diepgang.exe`, JOIN, en typ het publieke IP van de host.
 
 **Sinds 0.8 staat alle tekst in het spel in het Engels** (het schip heet nu *The Magpie*, de Mol *The Mole*). Je begint op **De Ekster**, in het laadrek achteraan het schip. **Sinds 0.5:** de echte binnenkant, zoals de Super Destroyer van Helldivers, met DIG-humor. Loop vooruit: het werkdek (de tv met DIG-nieuws, vier nissen voor latere upgrades), de gang (spuitcabine, firmabord), de brug met de opdrachttafel, en dan de trap af naar de hangar met de Mol voor het grote raam.
 

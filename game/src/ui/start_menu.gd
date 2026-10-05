@@ -10,7 +10,7 @@ signal host_chosen
 signal join_chosen(address: String)
 
 const LAST_IP_FILE := "user://last_ip.txt"
-const VERSION := "v0.9"
+const VERSION := "v" + Net.GAME_VERSION
 
 var backdrop: MenuBackdrop
 var _ip: LineEdit
@@ -290,7 +290,46 @@ func _shot(name: String) -> void:
 ## Privé-IPv4-adressen van deze pc (om aan vrienden in het LAN door te geven).
 static func local_ips() -> PackedStringArray:
 	var out := PackedStringArray()
-	for a in IP.get_local_addresses():
-		if a.begins_with("192.168.") or a.begins_with("10.") or (a.begins_with("172.") and int(a.split(".")[1]) in range(16, 32)) or a.begins_with("100."):
-			out.append(a)
+	for e: Array in join_addresses():
+		out.append(e[1])
 	return out
+
+
+## [soort, adres] waarmee vrienden kunnen meedoen: eerst een virtueel LAN (Tailscale, Radmin VPN),
+## dan het eigen netwerk. Virtuele netwerkkaarten van VMware, VirtualBox en Hyper-V/WSL laten we
+## weg: die adressen (192.168.x.1) bereikt niemand anders.
+static func join_addresses() -> Array:
+	var vpn: Array = []
+	var lan: Array = []
+	for itf: Dictionary in IP.get_local_interfaces():
+		var name := (str(itf.get("friendly", "")) + " " + str(itf.get("name", ""))).to_lower()
+		if ["vmware", "virtualbox", "vethernet", "hyper-v", "wsl", "loopback", "bluetooth"].any(func(w: String) -> bool: return name.contains(w)):
+			continue
+		for a: String in itf.get("addresses", []):
+			if a.contains(":"):
+				continue # IPv6: niet nodig
+			var parts := a.split(".")
+			if parts.size() != 4:
+				continue
+			var p0 := int(parts[0])
+			var p1 := int(parts[1])
+			if name.contains("tailscale") or (p0 == 100 and p1 >= 64 and p1 < 128):
+				vpn.append(["Tailscale", a])
+			elif name.contains("radmin") or p0 == 26:
+				vpn.append(["Radmin VPN", a])
+			elif p0 == 192 and p1 == 168 or p0 == 10 or (p0 == 172 and p1 >= 16 and p1 < 32):
+				lan.append(["Same network", a])
+	return vpn + lan
+
+
+## De uitleg in het pauzemenu: welk adres vrienden intypen, en dat iedereen dezelfde versie nodig heeft.
+static func invite_text(port: int) -> String:
+	var lines := PackedStringArray(["Friends choose JOIN and enter one of these:"])
+	var any_vpn := false
+	for e: Array in join_addresses():
+		lines.append("%s: %s" % [e[0], e[1]])
+		any_vpn = any_vpn or e[0] != "Same network"
+	if not any_vpn:
+		lines.append("Over the internet: Tailscale, or your public IP with UDP port %d forwarded." % port)
+	lines.append("Everyone needs version %s." % Net.GAME_VERSION)
+	return "\n".join(lines)

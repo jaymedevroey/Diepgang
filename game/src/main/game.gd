@@ -335,7 +335,7 @@ func world_ready_everywhere() -> bool:
 
 @rpc("any_peer", "reliable")
 func _rpc_world_ready(seed_value: int) -> void:
-	if multiplayer.is_server():
+	if multiplayer.is_server() and Net.is_verified(multiplayer.get_remote_sender_id()):
 		_world_seed_of[multiplayer.get_remote_sender_id()] = seed_value
 
 
@@ -344,6 +344,8 @@ func _rpc_peer_ready() -> void:
 	if not multiplayer.is_server():
 		return
 	var id := multiplayer.get_remote_sender_id()
+	if not Net.is_verified(id):
+		return
 	if not ready_peers.has(id):
 		ready_peers.append(id)
 	for peer in multiplayer.get_peers():
@@ -362,6 +364,9 @@ func _rpc_request_join() -> void:
 	if not multiplayer.is_server():
 		return
 	var id := multiplayer.get_remote_sender_id()
+	if not Net.is_verified(id):
+		print("[game] peer %d vroeg binnen te komen zonder versiecontrole: genegeerd" % id)
+		return
 	if not is_loaded:
 		_join_queue.append(id)
 		return

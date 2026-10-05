@@ -10,7 +10,7 @@ Co-op opgravingsgame in Godot. Het ontwerp staat in [docs/GDD.md](docs/GDD.md), 
 - Python-scripts met `py -3.11`, niet de `python` in PATH.
 
 ## Testen
-- Alle testcommando's staan bovenaan `tasks/todo.md`. Voor elke commit: `dig_test`, `find_test`, `carry_test`, `mol_test`, `sonar_test`, `mol_edge_test`, `stream_test`, `ore_test`, `ship_test`, `magma_test`, `company_test`, `tuning_test`, `ui_test`, `hub_screens_test`, `drop_flow_test`, `economy_test` (headless), `py -3.11 tools/net_test.py`, `py -3.11 tools/net_test.py --scenario=net_ship_test` `py -3.11 tools/net_test.py --scenario=net_drop_flow_test` en `--scenario=net_economy_test`.
+- Alle testcommando's staan bovenaan `tasks/todo.md`. Voor elke commit: `dig_test`, `find_test`, `carry_test`, `mol_test`, `sonar_test`, `mol_edge_test`, `stream_test`, `ore_test`, `ship_test`, `magma_test`, `company_test`, `tuning_test`, `ui_test`, `hub_screens_test`, `drop_flow_test`, `economy_test`, `threat_test` (headless), `py -3.11 tools/net_test.py`, `py -3.11 tools/net_test.py --scenario=net_ship_test` `py -3.11 tools/net_test.py --scenario=net_drop_flow_test` `--scenario=net_economy_test` en `--scenario=net_threat_test`.
 - Visuele wijzigingen: zelf een screenshot nemen en bekijken vóór je iets aan Jayme geeft.
 - Netwerk: wat de client voorspelt, moet de host aanvaarden (zelfde controles aan beide kanten).
 
