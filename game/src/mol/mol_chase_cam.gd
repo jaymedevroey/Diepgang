@@ -46,7 +46,8 @@ func activate() -> void:
 func _process(delta: float) -> void:
 	if mol == null or mol.body == null or not current:
 		return
-	var xf := mol.body.global_transform
+	# Zoals de Mol getekend wordt (fysica-interpolatie), anders trilt hij in beeld boven 60 fps.
+	var xf := mol.body.get_global_transform_interpolated()
 	var pivot := xf * PIVOT
 	# Enkel de koers van de Mol volgen (vertraagd, voelt zwaar), niet zijn helling: anders
 	# kantelt het beeld bij het afdalen.

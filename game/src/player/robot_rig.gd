@@ -37,6 +37,7 @@ var _antenna_angle := Vector2.ZERO
 var _antenna_vel := Vector2.ZERO
 var _last_velocity := Vector3.ZERO
 var _swing_t := -1.0
+var _grimace := 0.0
 var _blink_timer := 2.0
 var _blink := 0.0
 var _rng := RandomNumberGenerator.new()
@@ -108,6 +109,11 @@ func set_drilling(on: bool) -> void:
 
 func swing() -> void:
 	_swing_t = 0.0
+
+
+## Wat hij draagt, kreeg een klap: even een pijnlijk gezicht (gevoel-06).
+func grimace() -> void:
+	_grimace = 0.9
 
 
 func _recolor(root: Node, color: Color) -> void:
@@ -217,7 +223,8 @@ func _update_face(delta: float, speed: float) -> void:
 	_blink = maxf(0.0, _blink - delta * 7.0)
 	_face.set_shader_parameter("blink", 1.0 if _blink > 0.5 else 0.0)
 	_face.set_shader_parameter("look", Vector2(0.0, clampf(look_pitch * 0.8, -1.0, 1.0)))
-	_face.set_shader_parameter("squint", 1.0 if _swing_t >= 0.0 and _swing_t < 0.25 else 0.0)
+	_grimace = maxf(0.0, _grimace - delta)
+	_face.set_shader_parameter("squint", 1.0 if (_swing_t >= 0.0 and _swing_t < 0.25) or _grimace > 0.0 else 0.0)
 	_face.set_shader_parameter("happy", 0.0)
 
 

@@ -5,6 +5,8 @@ extends Node
 ## CameraFx zet enkel de lokale rotatie van de camera.
 
 var camera: Camera3D
+## Extra kanteling rond de kijkas (radialen), bv. zijwaarts lopen. Gezet door de speler.
+var roll := 0.0
 
 var _trauma := 0.0
 var _kick := Vector2.ZERO # x = pitch, y = yaw (radialen)
@@ -59,4 +61,4 @@ func _process(delta: float) -> void:
 	camera.rotation = Vector3(
 		_kick.x + max_rad * _noise.get_noise_2d(f, 0.0),
 		_kick.y + max_rad * _noise.get_noise_2d(0.0, f),
-		max_rad * 0.5 * _noise.get_noise_2d(f, f))
+		roll + max_rad * 0.5 * _noise.get_noise_2d(f, f))

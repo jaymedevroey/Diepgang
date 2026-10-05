@@ -23,6 +23,7 @@ var hold := PackedInt32Array([0, 0, 0, 0])
 
 var _last_hit: Dictionary = {} # host: peer_id -> tijd (s)
 var _glint_timer := 0.0
+var _last_hit_pos := Vector3.ZERO # lokaal: waar je laatst erts raakte (voor de "+1")
 
 
 ## Rots laten glinsteren rond de clusters die het dichtst bij de camera liggen.
@@ -131,7 +132,7 @@ static func units(counts: PackedInt32Array) -> int:
 static func value(counts: PackedInt32Array) -> int:
 	var v := 0
 	for k in counts.size():
-		v += counts[k] * OreKinds.VALUES[k]
+		v += counts[k] * OreKinds.value(k)
 	return v
 
 
@@ -157,6 +158,7 @@ func nearest(world: Vector3, count: int, max_dist: float) -> Array[Vector4]:
 
 ## Lokaal gereedschap raakt een cluster. Juice doet het gereedschap zelf meteen.
 func hit(cluster_id: int, tool: Strata.Tool, pos: Vector3) -> void:
+	_last_hit_pos = pos
 	if Net.is_host():
 		_apply_hit(Net.my_id(), cluster_id, tool, pos)
 	else:
@@ -206,12 +208,21 @@ func _rpc_cluster(cluster_id: int, hp: float, by: int) -> void:
 	c.set_hp(hp)
 	cluster_hit.emit(c, by)
 	if c.depleted():
-		game.fx.crust_break(c.global_position + c.global_basis.y * 0.2, 0.35)
+		var col: Color = OreKinds.COLORS[c.kind]
+		game.fx.crust_break(c.global_position + c.global_basis.y * 0.2, 0.3, col, col.lightened(0.3), 0.55)
 
 
 @rpc("authority", "call_local", "reliable")
 func _rpc_bag(peer_id: int, counts: PackedInt32Array) -> void:
+	var before := bag_of(peer_id)
 	bags[peer_id] = counts
+	# Erin: "+1 Copper" waar je hakte (gevoel-16), enkel bij wie het overkomt.
+	if peer_id == multiplayer.get_unique_id() and game and game.fx:
+		for k in counts.size():
+			var gained := counts[k] - (before[k] if k < before.size() else 0)
+			if gained > 0:
+				game.fx.float_text(_last_hit_pos + Vector3(0, 0.25, 0), "+%d %s" % [gained, OreKinds.NAMES[k]],
+						OreKinds.COLORS[k].lightened(0.35), 0.6, 1.1)
 	bag_changed.emit(peer_id)
 
 
@@ -254,7 +265,16 @@ func _deposit(sender: int) -> void:
 
 @rpc("authority", "call_local", "reliable")
 func _rpc_hold(counts: PackedInt32Array) -> void:
+	var before := value(hold)
+	var poured := PackedInt32Array([0, 0, 0, 0])
+	for k in counts.size():
+		poured[k] = maxi(0, counts[k] - (hold[k] if k < hold.size() else 0))
 	hold = counts
+	# Gestort (gevoel-16): een stroom brokjes in de trechter, gerammel en "+€X" erboven.
+	var gain := value(counts) - before
+	var mol: Mol = game.mol if game else null
+	if gain > 0 and mol and mol.body and game.fx:
+		game.fx.ore_pour(mol.chute_position(), poured, gain)
 	hold_changed.emit()
 
 

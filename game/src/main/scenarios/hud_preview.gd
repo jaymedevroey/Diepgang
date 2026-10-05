@@ -42,7 +42,7 @@ func _run(p: Player) -> void:
 		_look_at(p, here + Vector3(0, 0.25, 1.7), here)
 		finds.hit_crust(it.find_id, Strata.Tool.HOUWEEL, here) # één slag: de ring toont wat er nog rest
 		await _shot("hud_korst", 0.8)
-	for i in 6:
+	for i in 20:
 		if it.freed:
 			break
 		finds.hit_crust(it.find_id, Strata.Tool.HOUWEEL, here)

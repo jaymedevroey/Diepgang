@@ -92,6 +92,42 @@ func _run() -> void:
 	cam.position = Vector3(0, 0.45, 1.1)
 	cam.look_at(stage.global_position + Vector3(0, -0.33, 0))
 	await _shot("puin")
+	# Korsten (binnen-04): per laag een andere knol, met de hint van wat erin zit. Bovenaan gaaf,
+	# onderaan na een paar slagen (gekrompen, barsten, meer hint).
+	for c in stage.get_children():
+		if c is MeshInstance3D and c != floor:
+			c.queue_free()
+	var combos := [[Strata.Layer.KLEI, FindKinds.Kind.COINS], [Strata.Layer.KLEI, FindKinds.Kind.BOTTLE],
+			[Strata.Layer.ZANDSTEEN, FindKinds.Kind.FEMUR], [Strata.Layer.ZANDSTEEN, FindKinds.Kind.CLAW],
+			[Strata.Layer.GRANIET, FindKinds.Kind.GOLD], [Strata.Layer.KRISTAL, FindKinds.Kind.GEODE]]
+	for row in 2:
+		for i in combos.size():
+			var kind: int = combos[i][1]
+			var it := FindItem.new()
+			it.setup(1000 + i, kind)
+			var crust := Crust.new()
+			crust.setup(1000 + i, it.half_extents, 9.0, float(i) * 3.7 + row, combos[i][0], FindKinds.FAMILIES[kind])
+			var holder := Node3D.new()
+			stage.add_child(holder)
+			holder.position = Vector3((i - 2.5) * 0.62, 0.62 - row * 0.62, -0.4)
+			holder.rotation = Vector3(0.3, 0.6 + i, 0.0)
+			holder.add_child(it)
+			holder.add_child(crust)
+			if row == 1:
+				crust.set_hp(4.0)
+			var lab := Label3D.new()
+			lab.text = "%s · %s" % [Strata.NAMES[combos[i][0]], FindKinds.NAMES[kind]]
+			lab.font = UiTheme.body(800)
+			lab.font_size = 28
+			lab.pixel_size = 0.0012
+			lab.modulate = UiTheme.CREAM
+			lab.outline_size = 8
+			lab.position = Vector3((i - 2.5) * 0.62, 0.32 - row * 0.62, -0.1)
+			stage.add_child(lab)
+	cam.fov = 45.0
+	cam.position = Vector3(0, 0.35, 2.7)
+	cam.look_at(stage.global_position + Vector3(0, 0.3, -0.4))
+	await _shot("korsten")
 	get_tree().quit(0)
 
 
