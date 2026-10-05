@@ -2,7 +2,7 @@
 
 Plan: werkdek x 3..17, z 30..40 op +1,2, plafond 3,6 m (3,0 aan de zijkanten). Nissen 3 × 4 m,
 plafond 2,6: Niche_Tools (x 0..3, z 31..35, gereedschapsbank met schaduwbord), Niche_Supply (x 0..3,
-z 35..39, uitgifte met luik), Niche_Free_A/B (x 17..20, in aanbouw). Tv tegen de voorwand
+z 35..39, uitgifte met luik), Niche_Free_A/B (x 17..20: HR en de lounge van de directie). Tv tegen de voorwand
 (DIG-nieuws), het DIG-logo in de vloer. Laadrek x 6..14, z 41,2..44 op +0,6, plafond 2,4, met 4
 treden omlaag vanaf het werkdek; capsules en Spawn_0..3.
 
