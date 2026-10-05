@@ -745,7 +745,8 @@ func _land_map_data(far: Array, n: int, half: float) -> PackedByteArray:
 ## Rok langs de rand van het speelgebied: hangt 30 m naar beneden en kijkt naar binnen, zodat je
 ## vanuit het speelgebied nooit door een kier tussen de rechte randen van de ring, het raster en
 ## het voxelterrein de lucht ziet (die kier tekende een witte lijn rond het vierkant). Even fijn als
-## de naadstrook en net onder haar rand: anders steekt de rok tussen twee hoekpunten boven de grond uit.
+## de naadstrook en met haar bovenrand op de rand van de strook (anders steekt de rok tussen twee
+## hoekpunten boven de grond uit, of blijft er een spleet onder de strook).
 func _skirt_arrays() -> Array:
 	var segs := STEPS_INSIDE * BAND_PER_CELL
 	var step := _size.x / segs
@@ -774,8 +775,10 @@ func _skirt_arrays() -> Array:
 					p0 = Vector3(0, 0, k * step)
 					p1 = Vector3(0, 0, (k + 1) * step)
 					inward = Vector3(1, 0, 0)
-			p0.y = far_height(p0.x, p0.z) - 0.05
-			p1.y = far_height(p1.x, p1.z) - 0.05
+			# Exact de rand van de naadstrook (zelfde punten, zelfde hoogte): geen spleet waar een
+			# scherende straal tussen de strook en het raster onder de strook door naar de lucht kan.
+			p0.y = far_height(p0.x, p0.z) + BAND_LIFT
+			p1.y = far_height(p1.x, p1.z) + BAND_LIFT
 			var q0 := p0 - Vector3(0, SKIRT, 0)
 			var q1 := p1 - Vector3(0, SKIRT, 0)
 			var a := verts.size()
