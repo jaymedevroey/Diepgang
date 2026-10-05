@@ -141,6 +141,7 @@ Elk planeettype heeft 4–5 lagen van ±60 m, elk met een eigen kleur **en** een
 | Kristalmaan | ja | breekbare, lichtgevende buit, gas, de Graafworm |
 | Vulkaanplaneet | later | snel magma, basalt, hittepak |
 | Verzonken beschaving | later | ingestorte ruïnes in de rots (zuilen, trappen), relieken |
+| Waterwereld | later (idee playtest 2026-10-06) | onder water graven: druk die met de diepte stijgt, risico op implosie |
 
 Na Early Access komen nog een eindeloze "diepe dienst" en een wekelijkse planeet met een vast zaad.
 
@@ -225,7 +226,7 @@ Een grote rupsvoertuig-drilboor (±10 m lang, ±6 m breed) van DIG: vooraan een 
 ## 6. Gevaren en wezens
 
 - **Magma:** een stijgend vlak met shader en een dodelijke zone, de enige klok van een dienst. Geen stromingssimulatie. Het slokt losse buit op. Eerst 2 min stil, dan steeds sneller (zonder bevingen na ±21 min boven); elke beving zet de klok 40 s vooruit; op −60 m komt de noodophaling ([onderzoek](research/magma-en-onrust.md), cijfers in `magma.cfg`).
-- **Instortingen:** vallende rotsblokken (fysica-objecten) met stof in **gemarkeerde onstabiele zones**. Spannend en vermijdbaar, en het terrein verandert er niet door.
+- **Instortingen:** vallende rotsblokken (fysica-objecten) met stof in **gemarkeerde onstabiele zones**. Spannend en vermijdbaar, en het terrein verandert er niet door. **Hoe dieper, hoe groter de kans** (playtest 2026-10-06): dieper liggen meer zones, en een instorting laat puin achter dat je wegbikt (losse blokken, geen nieuw terrein).
 - **Gasbellen:** een zichtbare gele waas, en de T2-scanner toont ze. Ze ontploffen bij vonken, bijvoorbeeld van de boor.
 - **Graafworm** (het enige wezen in Early Access):
   - Hij zwemt onzichtbaar door de aarde, zonder het terrein te veranderen.
@@ -233,10 +234,11 @@ Een grote rupsvoertuig-drilboor (±10 m lang, ±6 m breed) van DIG: vooraan een 
   - Hij komt af op lawaai en duikt enkel op in open ruimtes.
   - Hij slokt losliggende buit op en sleurt die weg, en kan spelers omverduwen.
   - Lichtbakens en lokaas houden hem op afstand. Er zijn geen wapens.
-- **Later:** een kristalspin (trekt spelers mee, via een gescripte "gesleept"-toestand op de client van het slachtoffer) en een lavaslang.
+  - Op de sonar van de Mol verschijnt hij als **grote stip** die nadert (playtest 2026-10-06).
+- **Later:** een kristalspin (trekt spelers mee, via een gescripte "gesleept"-toestand op de client van het slachtoffer) en een lavaslang. Idee uit de playtest van 2026-10-06: kleine grotwezens ("googlies") in grotten met goede buit, zodat een grot verleidelijk én gevaarlijk is.
 
 ### Neergaan: je wordt zelf buit
-- Een neergegane robot wordt een **draagbaar object**.
+- Een neergegane robot wordt een **draagbaar object**: een **ragdoll** (ook bij een harde klap of val even), zodat slepen en vallen grappig is (playtest 2026-10-06).
 - Je team moet je naar de Mol slepen om je te repareren. Dat hergebruikt het draagsysteem en levert gegarandeerd grappige momenten op.
 - Ben je volledig kapot, dan kijk je mee als spookdrone. Je kan niet praten met de levenden, en dat is de grap.
 - Je progressie verlies je nooit, enkel wat je droeg.
