@@ -2,6 +2,26 @@
 
 Wat we onderweg leerden en wat het GDD bijstuurt. Nieuwste bovenaan.
 
+## 2026-10-05 — Release-audit, pakket F1: economie en voortgang
+
+**Keuzes waar het GDD zweeg** (ter info voor Jayme; getallen in `company.cfg` en `economy.cfg`):
+- **De lus aan boord:** na het ophalen wordt enkel het erts meteen verkocht. De vondsten blijven in het laadruim: je draagt ze door de taxatiepoort (elk stuk apart onthuld, 1,1 s ertussen: soort, gaafheid, dan de waarde die optelt) en verkoopt alles wat getaxeerd is met E aan het verkoopluik. Tot de taxatie is de waarde nergens te zien (ook niet bij schade: "−12%" in plaats van "−€X").
+- **De dienst is pas af als de buit verkocht is.** Daarna volgt het oordeel over het kwartaal: de onthulling van de laatste dienst beslist dus of je de quota haalt. Wie tekent met onverkochte buit, verkoopt hem aan het hoofdkantoor aan 60%.
+- **Gevolgen van falen:** boete = schuld en reputatie −1 (GDD). Met schuld is de rekening **bevroren** (geen upgrades) en loopt er **10% rente per dienst**. Met reputatie onder 0 ben je **op proeftijd**: de kaart met hoog risico staat op slot (GDD: "reputatie bepaalt welke planeten je mag doen"). Geen ontslag met een nieuwe firma: het GDD zegt dat upgrades altijd blijven, en dan is een nieuwe firma eerder een beloning (schuld kwijt, lagere quota). Wil Jayme een run zoals Lethal Company, dan is "twee kwartalen gemist = ontslagen" de knop.
+- **Quota ×2,5 (€5.000 voor 4) en ×1,4 per kwartaal**: solo €2.000 in kwartaal 1, €3.920 in kwartaal 3 (dan moet je dieper). Vervangrobot €250. Prijzen van upgrades voor 4 spelers, een kleinere ploeg betaalt het deel van haar quota (solo 40%): boor T2 €2.400, scanner €1.600, lamp €1.400, boorkop €3.200, laadruim €1.800. *Schatting*: een goede dienst solo met T1 ±€1.000–1.300, dus de eerste upgrade na ±2 diensten. Gemeten is dat niet: na een echte speelsessie bijstellen.
+- **Set:** alle stukken van één skelet (`set_id`/`set_size`, F3) verkocht na dezelfde dienst = dubbele waarde. **Doelvondst:** de eerste van die soort krijgt een bonus (minstens €250).
+- **Laadruim 60 kg (140 kg met de upgrade):** de hendel weigert als het te zwaar is; wat er daarna nog bijkwam (of bij een noodophaling) valt eruit als de grijper vastklikt, het dichtst bij de klep eerst, en blijft op de planeet. Erts telt niet mee.
+- **Drie toonbanken:** gereedschapsrek (boor T2), uitgiftebalie (scanner, lamp) en de Mol-werf op de galerij (boorkop, laadruim). De lege nissen (HR, lounge) blijven decor.
+- **Voorwaarden op de kaarten:** een troef van de planeet (Rustbowl: erts en rommel; Fossil World: botten en fossielbedden; Crystal Moon: geodes en ertsaders), risico's volgens het risico (MEDIUM één, HIGH twee: onstabiele grond, hete kern, krappe brandstof) en soms een doelvondst. Onstabiele grond = de grond maakt zelf onrust (`Unrest.host_add`), dus de bevingen komen ook als je stil bent.
+- **Handscanner:** Q, in de linkerhand naast je gereedschap, één stille puls tot 10 m, vage blips met een pijltje boven/onder, geen soort en geen waarde (T2 later). De verre sonar met PING blijft van de Mol.
+
+**Wat ik leerde:**
+- **Een bevroren (kinematisch) RigidBody die je verzet, krijgt in Jolt een snelheid mee**, en FindField telt dat als een klap (twee keer −30%). In tests een vondst los en stil neerzetten; dragen heeft er geen last van (wat gedragen wordt, telt niet voor schade).
+- **Wereld die van de firma afhangt (extra fossielbedden):** een late joiner moet de toestand van de firma krijgen vóór de wereld (`Game._accept`), anders genereert hij een andere wereld.
+- **Een lambda in een tween die een node vasthoudt** ("Lambda capture was freed"): de vondst was intussen verkocht. Waarden meenemen, geen nodes.
+- **"Parameter material is null" ×434 bij elke nieuwe wereld (headless)** is ouder dan F1: het vrijgeven van de vondsten met hun glans-overlay op de dummy-renderer (zelfde aantal in de logs van C). Eerst vergelijken met een oude log voor je gaat zoeken.
+- **Een verborgen waarde verstop je op één plek:** elk bedrag bij een vondst (draagkaartje, prompt, rapport, schadetekst, melding van de boorkop) gaat via de taxatie (`Appraisal.appraised_value`, `Hud._appraised_value`).
+
 ## 2026-10-05 — Release-audit, pakket C: de Mol, de drop en het ophalen
 
 - **Zwaar voelen komt uit reactie, niet uit lage getallen.** De Mol rijdt nu zoals het GDD zegt (1,3–1,8 m/s), maar wat hem zwaar maakt: motor en hendels die meteen op de hand antwoorden, een cabinecamera die met de versnelling helt (een veer: de ruk bij het stoppen) en een dreun die met het werk meegaat. Een helling op de camera van iemand anders z'n CameraFx: een node met een hogere `process_priority` telt ze erbij na CameraFx, die de rotatie elke frame opnieuw zet.
@@ -31,6 +51,12 @@ Wat we onderweg leerden en wat het GDD bijstuurt. Nieuwste bovenaan.
 - **`draw_polygon` met het eerste punt nog eens achteraan** (een waaier van 0 tot TAU) faalt bij het trianguleren, en dat elke frame: 990 fouten in één preview. Ook een ellips van bijna nul breed.
 - **Wat enkel in de release-build anders moet, hangt aan `CmdArgs.dev_mode()`** (`OS.is_debug_build()` of `--dev`). De tests en previews draaien op de editor-build (debug), dus F1 en V blijven daar werken; `ui_test` controleert dat de release-toetsen ze niet hebben.
 - **Een regel "tekst ≥ 18 px" houd je enkel met een test.** `ui_test` loopt nu elke Label in de HUD af (ook meldingen van elke soort, het rapport en de aftelling).
+
+## 2026-10-06 — Tests en parallelle agents
+
+- **Een test die een speler teleporteert, zet hem buiten alle botsvormen en wacht tot hij staat** (`is_on_floor`). Anders beslist de volgorde in de solver (Jolt duwt hem de ene keer naar buiten, de andere keer naar binnen): `on_doors` faalde zo de helft van de keren nadat de Mol 0,95 m verder in de baai kwam.
+- **Parallelle nettests op dezelfde poort verbinden met elkaar**: de client van de ene agent kwam op de host van een andere (andere code, "rpc node checksum failed"). Elke agent een eigen `--port`.
+- **Nooit Godot afsluiten op procesnaam** (`taskkill /IM …`): dat stopt ook de runs van andere agents. Op PID.
 
 ## 2026-10-05 — Alles in het Engels: woordenlijst
 

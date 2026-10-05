@@ -69,6 +69,13 @@ static func material(name: String, viewmodel_fov: float, tint: Color) -> Materia
 	return m
 
 
+## Zit dit onderdeel in tools.glb? (Nieuwe onderdelen, zoals de scanner en de T2-band, F1.)
+static func has_part(name: String) -> bool:
+	if _parts.is_empty():
+		_source("Pickaxe")
+	return _parts.has(name)
+
+
 ## Mesh en plaats van een onderdeel; de scène wordt één keer geopend en meteen weer vrijgegeven.
 static func _source(name: String) -> Array:
 	if _parts.is_empty():

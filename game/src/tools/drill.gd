@@ -1,8 +1,9 @@
 class_name Drill
 extends Node3D
-## Boor T1 (GDD §5). Vasthouden: korte aanloop, dan eet hij continu happen weg langs de
-## kijkrichting (docs/research/graven.md: vloeiend, geen bolletjes). Graaft klei en zandsteen; op
-## hardere rots slipt hij met vonken. Hitte: oververhit = even stil.
+## Boor T1/T2 (GDD §5). Vasthouden: korte aanloop, dan eet hij continu happen weg langs de
+## kijkrichting (docs/research/graven.md: vloeiend, geen bolletjes). T1 graaft klei en zandsteen; op
+## hardere rots slipt hij met vonken. T2 (upgrade van de ploeg, F1: Upgrades.drill_tier) graaft ook
+## graniet en kristal; dan krijgt hij een cyane band en het label T2. Hitte: oververhit = even stil.
 ## Terreinbewerkingen gaan via TerrainSync (max-semantiek). De happen komen op een vast ritme in
 ## speltijd (drill.bites_per_s); de snelheidslimiet van het terrein is enkel nog een vangnet.
 ##
@@ -20,7 +21,9 @@ signal running_changed(running: bool)
 ## Oververhit aan/uit (een plek voor het gesis, M6).
 signal overheated_changed(on: bool)
 
-const TOOL := Strata.Tool.BOOR_T1
+## Het niveau van deze boor (T1, of T2 als de ploeg de upgrade kocht). De host controleert hetzelfde
+## (TerrainSync._validate: niet beter dan wat de ploeg bezit).
+var tool := Strata.Tool.BOOR_T1
 const VIEWMODEL_FOV := 68.0
 # Rechtsonder, bit gericht op het vizier.
 const POSE := [Vector3(0.3, -0.33, -0.55), Vector3(6, 16, 0)]
@@ -126,6 +129,7 @@ func move_multiplier() -> float:
 
 
 func _physics_process(delta: float) -> void:
+	_update_tier()
 	var captured := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 	var held := auto_use or (captured and Input.is_action_pressed("dig"))
 	var want := held and not overheated and _equip > 0.6
@@ -156,7 +160,7 @@ func _physics_process(delta: float) -> void:
 		_set_contact(true, false, hit.position, hit.normal, crust.tint)
 		if _crust_timer <= 0.0:
 			_crust_timer = 0.1
-			finds.hit_crust(crust.find_id, TOOL, hit.position, heat > heat_max * Tuning.get_f("finds", "drill_hot_from", 0.5))
+			finds.hit_crust(crust.find_id, tool, hit.position, heat > heat_max * Tuning.get_f("finds", "drill_hot_from", 0.5))
 			fx.crust_hit(hit.position, hit.normal, false, crust.tint)
 	elif running and not hit.is_empty() and hit.collider is OreCluster:
 		# Erts boren: trager per tik dan het houweel per slag, maar zonder pauze.
@@ -166,7 +170,7 @@ func _physics_process(delta: float) -> void:
 		_set_contact(true, false, hit.position, hit.normal, OreKinds.COLORS[ore.kind])
 		if _crust_timer <= 0.0:
 			_crust_timer = 0.1
-			ores.hit(ore.cluster_id, TOOL, hit.position)
+			ores.hit(ore.cluster_id, tool, hit.position)
 			fx.ore_hit(hit.position, hit.normal, ore.kind, false)
 	elif running and not hit.is_empty():
 		var pos: Vector3 = hit.position
@@ -176,7 +180,7 @@ func _physics_process(delta: float) -> void:
 		var lname := _layer_key(layer)
 		touching = true
 		_heat_rate = Tuning.get_f("drill", "heat_rate_" + lname, 1.0)
-		if Strata.can_dig(layer, TOOL):
+		if Strata.can_dig(layer, tool):
 			if _bite_timer <= 0.0:
 				_bite_timer += 1.0 / maxf(Tuning.get_f("drill", "bites_per_s", 8.0), 1.0)
 				_bite_timer = maxf(_bite_timer, 0.0)
@@ -184,7 +188,7 @@ func _physics_process(delta: float) -> void:
 				var r := Tuning.get_f("drill", "bite_radius", 0.8)
 				var bite := Tuning.get_f("drill", "bite_depth_" + lname, 0.15)
 				# De bol steekt precies `bite` voorbij het raakpunt, langs de kijkrichting.
-				sync.submit_sphere(pos + dir * (bite - r), r, TOOL)
+				sync.submit_sphere(pos + dir * (bite - r), r, tool)
 			_set_contact(true, false, pos, normal, col)
 		else:
 			_set_contact(true, true, pos, normal, col)
@@ -273,14 +277,27 @@ func _update_aim(hit: Dictionary) -> void:
 		new_aim = Pickaxe.Aim.ORE
 	elif not hit.is_empty():
 		var layer := terrain.layer_at(hit.position - hit.normal * 0.2)
-		new_aim = Pickaxe.Aim.DIGGABLE if Strata.can_dig(layer, TOOL) else Pickaxe.Aim.TOO_HARD
+		new_aim = Pickaxe.Aim.DIGGABLE if Strata.can_dig(layer, tool) else Pickaxe.Aim.TOO_HARD
 	if new_aim != aim:
 		aim = new_aim
 		aim_changed.emit(aim)
 
 
 func hint_too_hard() -> String:
+	if tool < Strata.Tool.BOOR_T2:
+		return "Too hard for the T1 drill: a T2 drill digs this (tool rack, aboard)"
 	return "Too hard for this drill: find a way around it"
+
+
+## Het niveau volgt de upgrades van de ploeg (ook als ze gekocht worden terwijl je hem vasthoudt).
+func _update_tier() -> void:
+	var p := body as Player
+	var want := Upgrades.drill_tier(p.game.company) if p and p.game and p.game.company else Strata.Tool.BOOR_T1
+	if want != tool:
+		tool = want
+		var band := _model.get_node_or_null("T2")
+		if band:
+			band.visible = tool >= Strata.Tool.BOOR_T2
 
 
 func _set_running(on: bool) -> void:

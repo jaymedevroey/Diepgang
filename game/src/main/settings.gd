@@ -170,7 +170,8 @@ const BINDABLE := [
 	["move_forward", "Forward"], ["move_back", "Back"], ["move_left", "Left"], ["move_right", "Right"],
 	["jump", "Jump · nose up"], ["crouch", "Crouch · nose down"], ["sprint", "Sprint"], ["interact", "Use · pick up"],
 	["dig", "Dig"], ["tool_1", "Pickaxe"], ["tool_2", "Drill"], ["horn", "Horn"], ["mol_view", "Outside view (Mole)"],
-	["sonar_ping", "Sonar PING (Mole)"], ["beacon", "Throw a light beacon"], ["skip_cinematic", "Skip drop"],
+	["sonar_ping", "Sonar PING (Mole)"], ["scan", "Hand scanner"], ["beacon", "Throw a light beacon"],
+	["skip_cinematic", "Skip drop"],
 ]
 
 

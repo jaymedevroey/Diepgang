@@ -761,6 +761,9 @@ func stamp(title: String, sub: String) -> void:
 ## opdracht, de kosten (vervangrobots), de schade, bevingen, en de stand van het kwartaal. Een
 ## formulier: wat geld kost, staat in het rood met een minteken; bovenaan een stempel.
 func show_report(r: Dictionary) -> void:
+	if str(r.get("type", "")) == "quarter":
+		_show_quarter(r)
+		return
 	_clear_rows()
 	var shift_total := int(r.get("shift_total", 0))
 	_result_title.text = "INCIDENT REPORT"
@@ -775,7 +778,10 @@ func show_report(r: Dictionary) -> void:
 			break
 		_result_row("%s (%d%%)" % [e[0], int(e[2])], UiTheme.euro(int(e[1])), INK)
 		shown += 1
-	if sold.is_empty():
+	var haul := int(r.get("haul_count", -1))
+	if haul > 0:
+		_result_row("Finds to appraise at the gate (%d)" % haul, "€ ?", INK)
+	elif sold.is_empty():
 		_result_row("No finds in the cargo hold", UiTheme.euro(0), INK_DIM)
 	if int(r.get("ore_units", 0)) > 0:
 		_result_row("Ore (%d)" % int(r.ore_units), UiTheme.euro(int(r.ore_value)), INK)
@@ -784,7 +790,9 @@ func show_report(r: Dictionary) -> void:
 	var robots := int(r.get("left_behind", 0)) + int(r.get("melted", 0))
 	if robots > 0:
 		_result_row("Replacement robots (%d left behind, %d melted)" % [int(r.left_behind), int(r.melted)], UiTheme.euro(-int(r.costs)), INK_RED)
-	if int(r.get("damage", 0)) > 0:
+	if int(r.get("interest", 0)) > 0:
+		_result_row("Interest on debt", UiTheme.euro(-int(r.interest)), INK_RED)
+	if int(r.get("damage", 0)) > 0 and haul <= 0:
 		_result_row("Damage to finds (value lost)", UiTheme.euro(-int(r.damage)), INK_RED)
 	if int(r.get("quakes", 0)) > 0:
 		_result_row("Quakes survived", str(int(r.quakes)), INK_DIM)
@@ -800,11 +808,53 @@ func show_report(r: Dictionary) -> void:
 		_result_row("Quota missed (%s): fine" % quota, UiTheme.euro(-int(r.get("fine", 0))), INK_RED)
 		_set_report_stamp("QUOTA MISSED", INK_RED)
 	else:
-		_result_row("Quota so far", quota, INK)
+		_result_row("Quota so far (sell your finds!)" if haul > 0 else "Quota so far", quota, INK)
 		_set_report_stamp("APPROVED" if net >= 0 else "NOTED", INK_GREEN if net >= 0 else INK_RED)
 	var cash := int(r.get("cash", 0))
 	_result_row("Team funds", UiTheme.euro(cash), INK if cash >= 0 else INK_RED, true)
 	_open_result(12.0)
+
+
+## Afsluiting van een kwartaal (F1): na de verkoop van de laatste dienst, of bij het tekenen van de
+## volgende opdracht. Wat verkocht werd, de bonussen, de stand tegenover de quota, het oordeel en
+## de gevolgen (boete, proeftijd, bevroren rekening).
+func _show_quarter(r: Dictionary) -> void:
+	_clear_rows()
+	_result_title.text = "QUARTER REPORT"
+	_result_meta.text = "Quarter %d closed  ·  Head office, accounts department" % int(r.get("quarter", 1))
+	var sold: Array = r.get("sold", [])
+	if not sold.is_empty():
+		_result_row("Last haul sold (%d)" % sold.size(), UiTheme.euro(int(r.get("finds_value", 0))), INK)
+	if int(r.get("set_bonus", 0)) > 0:
+		_result_row("Complete sets", UiTheme.euro_signed(int(r.set_bonus)), INK_GREEN)
+	if int(r.get("target_bonus", 0)) > 0:
+		_result_row("Target bonus", UiTheme.euro_signed(int(r.target_bonus)), INK_GREEN)
+	if int(r.get("leftover_value", 0)) > 0:
+		_result_row("Unsold, bought by head office (%d)" % int(r.get("leftover_count", 0)), UiTheme.euro_signed(int(r.leftover_value)), INK)
+	_result_line()
+	var quota := "%s / %s" % [UiTheme.euro(int(r.get("earned", 0))), UiTheme.euro(int(r.get("quota", 0)))]
+	if str(r.get("quarter_result", "")) == "gehaald":
+		_result_row("Quota met (%s)" % quota, "REP +1", INK_GREEN, true)
+		_set_report_stamp("QUOTA MET", INK_GREEN)
+	else:
+		_result_row("Quota missed (%s): fine" % quota, UiTheme.euro(-int(r.get("fine", 0))), INK_RED, true)
+		_result_row("Reputation", "%+d" % int(r.get("reputation", 0)), INK_RED)
+		_set_report_stamp("QUOTA MISSED", INK_RED)
+	if bool(r.get("probation", false)):
+		_result_row("Probation: no HIGH-risk contracts", "", INK_RED)
+	if bool(r.get("frozen", false)):
+		_result_row("Account frozen until funds are positive", "", INK_RED)
+	var cash := int(r.get("cash", 0))
+	_result_row("Team funds", UiTheme.euro(cash), INK if cash >= 0 else INK_RED, true)
+	_open_result(14.0)
+
+
+## De getaxeerde waarde van een vondst (Appraisal), of −1 zolang ze niet getaxeerd is.
+func _appraised_value(it: FindItem) -> int:
+	var game: Game = main.game if main else null
+	if game == null or game.company == null:
+		return -1
+	return game.company.appraisal.appraised_value(it.find_id)
 
 
 ## Eindoverzicht na de extractie (zonder schip; met het schip komt het incidentrapport).
@@ -1088,7 +1138,9 @@ func _update_carry(player: Player) -> void:
 	if it == null:
 		return
 	_carry_name.text = it.display_name()
-	_carry_value.text = UiTheme.euro(it.value())
+	# De waarde is pas aan boord bekend (F1, taxatiepoort); tot dan de waardeklasse.
+	var known := _appraised_value(it)
+	_carry_value.text = UiTheme.euro(known) if known >= 0 else "€ ?"
 	var others := it.carriers.size() - 1
 	_carry_note.text = "Carried together" if others > 0 else ("Heavy: faster with a buddy" if it.mass >= 10.0 else "%d kg" % int(round(it.mass)))
 	var cond := clampf(it.condition, 0.0, 1.0)
@@ -1177,7 +1229,8 @@ func _update_prompt(player: Player, game: Game, terrain: TerrainAPI) -> void:
 				text = "Pick up: %s" % f.display_name()
 			else:
 				text = f.display_name()
-			sub = "%s · condition %d%%" % [UiTheme.euro(f.value()), int(round(f.condition * 100))]
+			var known := _appraised_value(f)
+			sub = ("%s · condition %d%%" % [UiTheme.euro(known), int(round(f.condition * 100))]) if known >= 0 else 					("%s · condition %d%% · value: appraised aboard" % [FindKinds.CLASS_NAMES[f.value_class], int(round(f.condition * 100))])
 		elif aim == Pickaxe.Aim.TOO_HARD:
 			state = HudCrosshair.State.HARD
 			text = player.active_tool.hint_too_hard()
@@ -1341,7 +1394,19 @@ func _hub_state(player: Player, game: Game, mol: Mol) -> Dictionary:
 	var mol_pos := mol.body.global_position
 	match mol.mode:
 		Mol.Mode.DOCKED:
-			if c == null or not c.contract_ready():
+			if c and c.haul_open() and not c.contract_ready() and not c.appraisal.unappraised_items().is_empty():
+				s.title = "Appraise your haul"
+				s.sub = "Carry the finds from the Mole through the appraisal gate (%d left)" % c.appraisal.unappraised_items().size()
+				s.has_target = true
+				s.target = ship.anchor_position("Appraisal_Gate") + Vector3(0, 1.2, 0)
+				s.icon = HudCompass.TERMINAL_ICON
+			elif c and c.haul_open() and not c.contract_ready() and not c.appraisal.appraised_items().is_empty():
+				s.title = "Sell your haul"
+				s.sub = "At the sell hatch, next to the gate"
+				s.has_target = true
+				s.target = ship.anchor_position("Sell_Hatch") + Vector3(0, 1.2, 0)
+				s.icon = HudCompass.TERMINAL_ICON
+			elif c == null or not c.contract_ready():
 				s.title = "Pick a contract"
 				s.sub = "At the terminal on the bridge"
 				s.has_target = true

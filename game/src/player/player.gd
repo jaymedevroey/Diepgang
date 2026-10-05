@@ -144,6 +144,7 @@ func _ready() -> void:
 	var lamp_parent: Node3D = cam_rig if is_local else head
 
 	var lamp := SpotLight3D.new()
+	lamp.name = "HelmetLamp" # F1: Upgrades.apply_lamp (helmlamp T2) zoekt hem op naam
 	# Warm wit, niet amber (release-audit binnen-01/02): een amber bundel kleurde elke laag oranje,
 	# ook het koele graniet. De lamp blijft warm; de kleur van de rots leest nu zelf.
 	lamp.light_color = Color(1.0, 0.86, 0.68)

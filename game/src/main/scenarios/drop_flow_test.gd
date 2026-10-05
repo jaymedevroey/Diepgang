@@ -270,10 +270,20 @@ func _run_on_doors() -> void:
 	await _until(func() -> bool: return game.world_ready(), 60.0)
 	await _walk_into_mol_from_quay()
 	await _pull_lever(Mol.Mode.DROP_COUNTDOWN)
-	var doors := ship.global_transform * Vector3(2.0, 0.2, 5.0)
+	# Op het rechterluik naast de flank van de Mol (romp ±2,4 m breed), halverwege zijn lengte: niet
+	# in zijn botsvormen. Vroeger stond deze plek op (2,0; 0,2; 5,0) t.o.v. het schip, maar sinds de
+	# Mol 0,95 m verder in de baai staat (layout.py MOL_DOCK_Z) is dat lokaal (2,0; −2,5; 4,05): in de
+	# achterhoek van de romp. Jolt duwde de speler er dan eens naar buiten (op het luik, geslaagd) en
+	# eens naar binnen op de open klep (gefaald), naargelang de volgorde in de solver.
+	var doors := mol.to_world_mol(Vector3(3.2, 0.0, 1.0))
+	doors.y = (ship.global_transform * Vector3(0.0, 0.05, 0.0)).y
 	p.global_position = doors
 	p.velocity = Vector3.ZERO
-	await _frames(2)
+	# Eerst echt op het luik staan, dan pas tellen wanneer hij zijn steun verliest (anders telt de
+	# laatste centimeters vallen na het neerzetten als "steun kwijt bij 0 graden").
+	await _until(func() -> bool: return p.is_on_floor(), 1.0)
+	print(TAG, " op het luik: lokaal t.o.v. de Mol %s, op de vloer %s, luiken %.0f graden" % [
+			mol.to_local_mol(p.global_position), p.is_on_floor(), ship.door_angle_deg()])
 	_expect(ship.over_bay(p.global_position) and not mol.contains_point(p.global_position), "speler staat op de luiken naast de Mol")
 	var lost_at_deg := -1.0
 	var start := _gt

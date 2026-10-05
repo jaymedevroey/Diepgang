@@ -4,7 +4,10 @@ extends Control
 ## stand van de firma (kas, reputatie, kwartaal, de quota met een streepje per dienst), daaronder drie
 ## werkorders om uit te kiezen: per kaart de planeet als draaiend bolletje met een speld op de
 ## claim, de naam groot met een bijnaam, een risicostempel, wat het oplevert en hoe snel het magma
-## stijgt, en ruimte voor twee à drie voorwaarden (`modifiers` in de opdracht, pakket F1).
+## stijgt, en twee à drie voorwaarden (Contracts, F1: een troef van de planeet, risico's, een
+## doelvondst) in kleur. Met reputatie onder 0 (proeftijd) is de kaart met hoog risico op slot, en
+## ligt er nog onverkochte buit, dan zegt een strook bovenaan dat tekenen hem aan 60% verkoopt (en
+## op het einde van een kwartaal het kwartaal afsluit).
 ## Kiezen kan iedereen; de host beslist (Company). Na een keuze één bevestiging: een stempel SIGNED
 ## op de kaart en "COURSE SET" bovenaan, en het menu sluit vanzelf; de HUD zegt daarna wat er
 ## gebeurt (De Ekster vliegt erheen, dan naar de Mol). Het spel loopt door; Esc, E of CLOSE sluit.
@@ -30,6 +33,9 @@ var _quota_bar: Control
 var _quota_label: Label
 var _cards: HBoxContainer
 var _note: Label
+## Strook boven de kaarten: onverkochte buit, einde van het kwartaal, proeftijd.
+var _warn: PanelContainer
+var _warn_label: Label
 var _confirm: Label
 var _time := 0.0
 ## Opdracht die we kozen en waar we op wachten (index), of −1.
@@ -105,6 +111,26 @@ func _ready() -> void:
 	_quota_label.add_theme_font_size_override("font_size", 20)
 	_quota_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	qrow.add_child(_quota_label)
+	# Onverkochte buit en het einde van het kwartaal (F1).
+	_warn = PanelContainer.new()
+	var wb := StyleBoxFlat.new()
+	wb.bg_color = Color(0.34, 0.16, 0.0, 0.9)
+	wb.border_color = UiTheme.AMBER
+	wb.border_width_left = 5
+	wb.set_corner_radius_all(4)
+	wb.content_margin_left = 16
+	wb.content_margin_right = 16
+	wb.content_margin_top = 8
+	wb.content_margin_bottom = 8
+	_warn.add_theme_stylebox_override("panel", wb)
+	_warn_label = Label.new()
+	_warn_label.add_theme_font_override("font", UiTheme.body(800))
+	_warn_label.add_theme_font_size_override("font_size", 20)
+	_warn_label.add_theme_color_override("font_color", UiTheme.CREAM)
+	_warn_label.autowrap_mode = TextServer.AUTOWRAP_WORD
+	_warn.add_child(_warn_label)
+	_warn.visible = false
+	col.add_child(_warn)
 	# Drie werkorders.
 	_cards = HBoxContainer.new()
 	_cards.add_theme_constant_override("separation", 18)
@@ -273,6 +299,11 @@ func _choose(index: int) -> void:
 		return
 	if company.contract == company.options[index]:
 		return
+	if company.option_locked(index):
+		_note.text = "Probation: head office won't sign a HIGH-risk claim with you. Meet a quota first."
+		_note.add_theme_color_override("font_color", UiTheme.DANGER)
+		Sfx.ui("back")
+		return
 	Sfx.ui("click")
 	_pending = index
 	_pending_at = Time.get_ticks_msec() / 1000.0
@@ -288,6 +319,7 @@ func _refresh() -> void:
 	var q := c.quota()
 	var shifts := Tuning.get_i("company", "shifts", 3)
 	_status.text = "FUNDS %s   ·   REP %+d   ·   Q%d · SHIFT %d/%d" % [UiTheme.euro(c.cash), c.reputation, c.quarter, c.shift, shifts]
+	_refresh_warning(c, q, shifts)
 	var robots := clampi(c.game.players.get_child_count(), 1, 4)
 	_quota_label.text = "%s / %s  ·  %s" % [UiTheme.euro(c.earned), UiTheme.euro(q), UiTheme.count(robots, "robot")]
 	(_quota_bar as _QuotaBar).set_state(clampf(float(c.earned) / maxf(1.0, q), 0.0, 1.0), shifts)
@@ -315,7 +347,7 @@ func _refresh() -> void:
 	elif c.contract_ready():
 		_note.text = "Board the Mole and pull the LAUNCH lever to drop."
 	else:
-		_note.text = "More risk pays more, but the magma rises faster. Miss the quota and head office fines you."
+		_note.text = "More risk pays more, but brings risky conditions and faster magma. Miss the quota and head office fines you."
 
 
 func _first_button(n: Node) -> Button:
@@ -344,10 +376,13 @@ func _option_card(index: int, o: Dictionary, chosen: bool) -> Control:
 	v.add_theme_constant_override("separation", 8)
 	p.add_child(v)
 	# De knop eerst in de boom (tests en het toetsenbord vinden hem zo), onderaan in beeld.
+	var locked := company != null and company.option_locked(index)
 	var b := Button.new()
-	b.text = "CHOSEN" if chosen else "CHOOSE"
+	b.text = "CHOSEN" if chosen else ("PROBATION" if locked else "CHOOSE")
 	# Niet uitgeschakeld als de Mol weg is: dan zegt het menu waarom het niet kan.
-	b.disabled = chosen
+	b.disabled = chosen or locked
+	if locked:
+		p.modulate = Color(1, 1, 1, 0.6)
 	b.custom_minimum_size = Vector2(0, 52)
 	b.pressed.connect(_choose.bind(index))
 	# Bovenaan: de planeet op een sterrenhemel, met de naam en de stempel.
@@ -393,7 +428,11 @@ func _option_card(index: int, o: Dictionary, chosen: bool) -> Control:
 	if mods.is_empty():
 		mods_box.add_child(_mod_line("Standard terms. No surprises promised.", true))
 	for m in mods.slice(0, MAX_MODIFIERS):
-		mods_box.add_child(_mod_line(str(m), false))
+		if m is Dictionary:
+			var d: Array = Contracts.describe(m)
+			mods_box.add_child(_mod_line(str(d[0]), false, int(d[1])))
+		else:
+			mods_box.add_child(_mod_line(str(m), false))
 	var bpad := MarginContainer.new()
 	bpad.add_theme_constant_override("margin_left", 18)
 	bpad.add_theme_constant_override("margin_right", 18)
@@ -406,7 +445,11 @@ func _option_card(index: int, o: Dictionary, chosen: bool) -> Control:
 	stamp.fill = Color(0.06, 0.05, 0.05, 0.75)
 	art.add_child(stamp)
 	var signed: InkStamp = null
-	if chosen:
+	if locked:
+		signed = InkStamp.make("LOCKED", UiTheme.DANGER, 30, -12.0)
+		signed.fill = Color(0.06, 0.05, 0.05, 0.8)
+		art.add_child(signed)
+	elif chosen:
 		signed = InkStamp.make("SIGNED", UiTheme.YELLOW, 34, -12.0)
 		signed.fill = Color(0.06, 0.05, 0.05, 0.72)
 		art.add_child(signed)
@@ -438,14 +481,35 @@ func _stat_row(label_text: String, value: String, col: Color) -> Control:
 	return row
 
 
-func _mod_line(text: String, dim: bool) -> Label:
+## Een voorwaarde: troef groen (+), risico oranjerood (!), doelvondst geel (€).
+func _mod_line(text: String, dim: bool, tone := -1) -> Label:
 	var l := Label.new()
-	l.text = "· " + text
-	l.add_theme_font_override("font", UiTheme.body(700))
+	var marks := ["+ ", "! ", "€ "]
+	var inks := [UiTheme.GOOD, UiTheme.DANGER, UiTheme.YELLOW]
+	l.text = (marks[tone] if tone >= 0 and tone < marks.size() else "· ") + text
+	l.add_theme_font_override("font", UiTheme.body(800 if tone >= 0 else 700))
 	l.add_theme_font_size_override("font_size", 18)
-	l.add_theme_color_override("font_color", Color("#8C9096") if dim else UiTheme.CREAM)
+	l.add_theme_color_override("font_color", Color("#8C9096") if dim else (inks[tone] if tone >= 0 and tone < inks.size() else UiTheme.CREAM))
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD
 	return l
+
+
+## De strook boven de kaarten: onverkochte buit (tekenen verkoopt hem aan 60%), het einde van het
+## kwartaal, of de proeftijd.
+func _refresh_warning(c: Company, q: int, shifts: int) -> void:
+	var lines := PackedStringArray()
+	if c.haul_open():
+		var left := c.appraisal.unappraised_items().size() + c.appraisal.appraised_items().size()
+		if left > 0:
+			lines.append("Your haul isn't sold yet (%s). Sign a contract now and head office buys it at %d%%: sell it at the hatch first." % [
+					UiTheme.count(left, "find"), int(round(Tuning.get_f("economy", "unsold_factor", 0.6) * 100.0))])
+		if c.shift >= shifts:
+			lines.append("Signing closes quarter %d: %s of %s so far." % [c.quarter, UiTheme.euro(c.earned), UiTheme.euro(q)])
+	if c.on_probation():
+		lines.append("Probation (reputation %+d): no HIGH-risk contracts until you meet a quota." % c.reputation)
+	_warn.visible = not lines.is_empty()
+	_warn_label.text = "
+".join(lines)
 
 
 ## Het beeld bovenaan een kaart: sterren, de planeet met een speld op de claim, en haar naam.

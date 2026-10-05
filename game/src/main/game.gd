@@ -198,7 +198,8 @@ func _build_terrain(ops: Array, finds_state: Array = [], ores_state: Array = [])
 		# De klok loopt vanaf de landing tot de Mol terug in de baai staat.
 		mol.landed.connect(func() -> void:
 			if multiplayer.is_server():
-				magma.host_start(company.contract_magma()))
+				magma.host_start(company.contract_magma())
+				company.host_landed())
 		mol.noise_made.connect(func(amount: float, _where: Vector3) -> void: unrest.host_add(amount))
 		mol.noise_made.connect(worm.host_mol_noise)
 		mol.landed.connect(func() -> void:
@@ -372,6 +373,9 @@ func _accept(id: int) -> void:
 	for p: Player in players.get_children():
 		existing.append([p.peer_id, _color_of.get(p.peer_id, 0), p.global_position])
 	_rpc_tuning.rpc_id(id, Tuning.snapshot())
+	# De firma eerst: de voorwaarden van de opdracht bepalen mee hoe de wereld gegenereerd wordt
+	# (extra fossielbedden en ertsaders, Company.world_mods).
+	company.send_state(id)
 	_rpc_world_init.rpc_id(id, pit_seed, int(planet_type), terrain.op_log(), existing, finds.snapshot(), ores.snapshot())
 	mol.send_state(id)
 	magma.send_state(id)
@@ -380,7 +384,6 @@ func _accept(id: int) -> void:
 	worm.send_state(id)
 	beacons.send_state(id)
 	gas.send_state(id)
-	company.send_state(id)
 	var idx := _free_color()
 	_color_of[id] = idx
 	var pos := _spawn_pos(idx)
