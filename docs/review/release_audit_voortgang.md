@@ -26,15 +26,15 @@ Legenda: **open**, **bezig**, **klaar** (met verificatie), **deels**, **niet** (
 | ID | Ernst | Pakket | Status | Wat er gedaan is | Verificatie |
 |---|---|---|---|---|---|
 | ontwerp-1 | Blokkerend | F2 | open | | |
-| ontwerp-2 | Blokkerend | F1 (+A: tekst "interest") | deels (tekst klaar, economie bij F1) | 'Interest is accruing' vervangen door 'Head office has noticed.' | A1 |
-| ontwerp-3 | Ernstig | F1 | open | | |
-| ontwerp-4 | Ernstig | F1 | open | | |
-| ontwerp-5 | Ernstig | F2 | open | | |
-| ontwerp-6 | Ernstig | C | deels (handscanner: F1) | Opgeschepte vondsten kapot (5%), autopiloot nooit sneller dan zelf boren, brandstof voor 600 m boren per dienst | C |
+| ontwerp-2 | Blokkerend | F1 (+A: tekst "interest") | klaar (ter goedkeuring: keuzes) | A1: tekst. F1: winkel aan drie toonbanken (gereedschapsrek: boor T2; uitgiftebalie: handscanner, helmlamp; Mol-werf: boorkop T2, groter laadruim); boete = schuld + reputatie −1; met schuld geen upgrades en 10% rente per dienst; reputatie < 0 = proeftijd (kaart met hoog risico op slot); upgrades blijven altijd | economy_test (47), net_economy_test (8); F1: na/f1_shop_*, kwartaal_voor_na.png |
+| ontwerp-3 | Ernstig | F1 | klaar | Quota ×2,5 (€5.000 voor 4, solo €2.000), ×1,4 per kwartaal; vervangrobot €250; laadruim met gewichtslimiet (60 kg, 140 kg met upgrade): de hendel weigert bij te veel, bij noodophaling valt het teveel eruit; statusscherm CARGO en QUOTA; kwartaaloordeel na de laatste verkoop. Open: quota niet in de HUD op de planeet | economy_test |
+| ontwerp-4 | Ernstig | F1 | klaar | Boor T2 graaft graniet en kristal (host weigert T2-happen zonder upgrade, zelfde controle als de client); boorkop T2 voor de Mol; derde autopilootknop het graniet in; prompt verwijst naar de upgrade | economy_test, net_economy_test |
+| ontwerp-5 | Ernstig | F2 | klaar (ter goedkeuring: mix per planeet) | PlanetLoot + planets.cfg: eigen buitmix per laag en aantallen per planeet (Roestbol: kampen met rommel en munten, ×1,25 erts; Fossielwereld: 12 bedden, 75% Titan-skeletten; Kristalmaan: kristalgrotten met breekbare, gloeiende buit, lichtkristal-erts); buit in groepjes (68–76% met 2+ buren i.p.v. 27–30%); breekbare kristallen en geodes; per-planeet gas/worm/beving voor F2. Open: laagdieptes en magma nog gelijk per planeet | find_test (3 planeten × 2 seeds), carry_test; F3: buit_per_planeet_voor_na.png |
+| ontwerp-6 | Ernstig | C | klaar (scanner ter goedkeuring) | C: graven blijft de kern. F1: handscanner T1 op Q (stille puls tot 10 m, vage blips met pijl boven/onder, nooit soort of waarde) | F1: na/f1_scanner.png |
 | ontwerp-7 | Ernstig | F2 | open | | |
-| ontwerp-8 | Ernstig | F2 | open | | |
-| ontwerp-9 | Ernstig | F1 | open | | |
-| ontwerp-10 | Ernstig | F1 | open | | |
+| ontwerp-8 | Ernstig | F2 | klaar (ter goedkeuring: zijscan) | Stukken > 18 kg til je niet alleen: alleen slepen (0,33× snelheid, slijtage), met twee optillen; zijscan voor passagiers in het laadruim (pijltjes in de tunnelwand); bug opgelost: E zette een vondst niet neer maar liet hem 1,2 m vallen (±11% schade) | carry_test, mol_test, net_test (slepen en samen dragen bij host en client); F3: f3_fossiel_*, f3_zijscan |
+| ontwerp-9 | Ernstig | F1 | klaar | F1: onthulling aan de poort, verkoop, verborgen waarde, set-bonus. F3: skeletten van 3–8 stukken per bed (schedel verplicht, anatomisch gelegd) met set_id/set_size/set_name; 'Complete Titan skeleton' krijgt de bonus | economy_test verkoopt een echt skelet uit een bed met bonus |
+| ontwerp-10 | Ernstig | F1 | klaar | Per kaart 2–3 voorwaarden in kleur: een troef (opkoper, extra fossielbedden, ertsaders), risico's (onstabiele grond, hete kern, weinig brandstof; 1 bij MEDIUM, 2 bij HIGH), soms een doelvondst met bonus; ze werken echt in het spel | economy_test |
 | ontwerp-11 | Middel | B | klaar (druk volgt met F2) | Houweel 4,9 s gaaf tegenover boor 1,1 s 87% / tikjes 90%; heet boren 2,2× schade | B: metingen |
 | ontwerp-12 | Middel | D | deels (dreiging: F2) | Onstabiele zones ook in klei; toast 'The quake pushed the magma up X m'; haak local_knockdown voor neergaan | D |
 | ontwerp-13 | Middel | B | klaar (erts als munt voor upgrades: F1) | Zie gevoel-16 | B |
@@ -76,7 +76,7 @@ Legenda: **open**, **bezig**, **klaar** (met verificatie), **deels**, **niet** (
 | buiten-13 | Klein | C | klaar | Strepen dikker, korter, zacht, in de waaskleur, enkel aan de zijranden | C |
 | buiten-14 | Klein | E | klaar | Mistvlak blijft vlak en dooft uit, zachte aanzet, minder dekking | E |
 | binnen-01 | Blokkerend | D | klaar (ter goedkeuring: lamp, decor) | Klei gevlekt en fijn gelaagd met merklagen om de ±8 m; gloeiende knollen; CaveDecor (zwammen/kristallen, ≤2 lampjes per grot, druipsteen); grotvormen in de SDF; helmlamp warm wit i.p.v. amber; koele schaduwen onder de grond. Open: rommel van vorige ploegen, flare; Mol-koplampen nog amber (C) | D: blad_lagen_p0, blad_grotten, blad_mol |
-| binnen-02 | Ernstig | D (+F1: boor T2) | deels (bereikbaar met T2: F1) | Zandsteen met scheve gelaagdheid en ijzerband, graniet koel en blokkig, kristallaag met zeskantige kristallen en lichtgevende clusters | D: blad_lagen_* |
+| binnen-02 | Ernstig | D (+F1: boor T2) | klaar | D: leesbaarheid van de lagen. F1: graniet en kristal bereikbaar met boor T2 / boorkop T2 | economy_test |
 | binnen-03 | Ernstig | D | klaar | Verkleuring rond erts (koper groen-turkoois, ijzer roestzwart), glinsters ±10 cm die nooit onder enkele pixels zakken en oplichten bij kijken, naalden in alle richtingen | D: blad_erts |
 | binnen-04 | Ernstig | B | klaar (ter goedkeuring) | Korst = gefacetteerde knol met kleur per laag en hint per familie (botten steken uit), krimpt per slag | B: na/korsten.png |
 | binnen-05 | Ernstig | D | klaar | Gehakte rotsen met botsvorm en interpolatie, stofsliert en -wolk, stofwaas bij de hoofdschok, steentjes, haperende lamp; haken voor geluid | D: blad_beving, na/beving_sheet, beving.avi |
@@ -95,7 +95,7 @@ Legenda: **open**, **bezig**, **klaar** (met verificatie), **deels**, **niet** (
 | binnen-18 | Klein | A | klaar | MIND THE STEPS leesbaar vanaf de spawn; TO THE MOLE / TO THE BRIDGE met eigen pijl | A2: binnen-18/ |
 | ui-01 | Blokkerend | A | klaar | Oorzaak: de kop van de middenbalk hing voor het bord; balk korter, bord lager en naar voren; alle 279 opschriften van voren gefotografeerd, geen enkel nog bedekt | A2: ui-01/, ui-01/alle_borden/ |
 | ui-02 | Blokkerend | A | klaar | Godot (A1) en model (A2): geen ontwikkelaarstaal meer; nissen worden HUMAN RESOURCES en BREAK ROOM | A1 + A2 |
-| ui-03 | Ernstig | A (+F1: inhoud) | klaar (inhoud volgt in F1) | Contractbalie als DIG-console met drie werkorders (planeetbolletje, bijnaam, risicostempel, pay/magma, vak CONDITIONS voor F1); één bevestiging (SIGNED, COURSE SET); hologram = draadmodel van de planeet + claim | A1: firma_terminal, hud_menu_gekozen, interior_terminal_* |
+| ui-03 | Ernstig | A (+F1: inhoud) | klaar | A1: ontwerp van de balie. F1: inhoud (planeet + voorwaarden) | F1: na/f1_* |
 | ui-04 | Ernstig | A | klaar | De bron geeft de soort mee (Mol.notice/Game.notice: mol/warn/alarm/contract); alarm = grote rode melding + rode gloed rond het scherm (HudAlarm); de rand pulseert bij beving en voorschok; de aftelling wordt rood bij noodophaling; dikkere onrustbalk | A1: hud_beving*, hud_noodophaling, hud_magma; magma_test op de soort |
 | ui-05 | Ernstig | A | klaar | Alle HUD-tekst ≥ 18 px, toetsen 18–20 px; sonar in buitenzicht ×1,4 | ui_test controleert 57 HUD-labels; A1: na/720p_* |
 | ui-06 | Ernstig | A | klaar | Zie gevoel-07 | ui_test op een release-export |

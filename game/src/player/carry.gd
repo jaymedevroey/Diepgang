@@ -8,6 +8,15 @@ extends Node
 ## Gewicht (gevoel-06, binnen-10): twee robothanden in beeld houden de vondst vast. Hij volgt het
 ## houdpunt met een veer (hoe zwaarder, hoe trager hij naslingert) en kantelt mee met zijn
 ## naslepen. Gooien geeft hem die snelheid mee.
+##
+## Samen dragen (release-audit ontwerp-8, GDD §3 stap 6): zwaarder dan carry.lift_max til je niet
+## alleen. Alleen sleep je het over de grond (traag, het schuurt: FindField._drag_wear); met twee draag
+## je het tussen jullie in, trager dan leeg maar sneller dan slepen, en je kan niet ver uit elkaar
+## lopen (de vondst houdt je bij je maat). Neergaan en gedragen worden (F2) kan dezelfde regels
+## gebruiken: alles hangt aan item.mass en item.carriers.
+##
+## E zet neer op de grond eronder (geen val van 1,2 m meer: een kristal breekt daarvan); gooien en
+## omvallen (een beving) laten hem wel vallen.
 
 signal changed(item: FindItem)
 
@@ -20,6 +29,7 @@ var finds: FindField
 var item: FindItem
 
 var _vel := Vector3.ZERO # snelheid van de vondst in je handen (veer)
+var _drag_t := 0.0 # slepen: fase van het schuren
 var _rel_basis := Basis() # draaiing t.o.v. je kijkrichting bij het oppakken
 var _hands: Array[Node3D] = []
 
@@ -95,19 +105,72 @@ func drop(throw: bool) -> void:
 	if item == null:
 		return
 	var vel := player.velocity + _vel * 0.5
+	var xf := item.global_transform
 	if throw:
 		vel += -player.camera.global_basis.z * Tuning.get_f("carry", "throw_speed", 6.5)
-	finds.request_release(item.find_id, item.global_transform, vel)
+	elif player._stun <= 0.0:
+		# Neerzetten: op de grond eronder, zonder val (wie omvalt door een beving, laat hem wel vallen).
+		var spot := put_down_spot(item)
+		if spot != Vector3.INF:
+			xf.origin = spot
+			vel = Vector3.ZERO
+	finds.request_release(item.find_id, xf, vel)
 	_set_item(null)
 
 
-## Loopsnelheid met wat je draagt.
+## Plek op de grond onder een gedragen vondst (onderkant net boven de grond), of INF als er binnen
+## 2,5 m geen grond is (dan valt hij gewoon).
+func put_down_spot(it: FindItem) -> Vector3:
+	var from := it.global_position
+	var hit: Dictionary = player.game.terrain.raycast(from, from - Vector3(0, 2.5, 0), Layers.TERRAIN | Layers.LIFT)
+	if hit.is_empty():
+		return Vector3.INF
+	return Vector3(from.x, hit.position.y + it.bottom_offset(it.global_basis) + 0.02, from.z)
+
+
+## Loopsnelheid met wat je draagt. Alleen en te zwaar: slepen (carry.drag_speed). Met twee: elk
+## draagt een kant, en samen zijn jullie sterker dan twee keer één (carry.team_strength).
 func move_multiplier() -> float:
 	if item == null:
 		return 1.0
-	var n := maxi(1, item.carriers.size())
-	var k := 1.0 - item.mass / (Tuning.get_f("carry", "strength", 30.0) * n)
-	return maxf(Tuning.get_f("carry", "min_speed", 0.4), k)
+	return speed_for(item.mass, item.carriers.size())
+
+
+## Dezelfde regel voor tests en schermen: snelheid (deel van lopen) voor `mass` kg met `carriers` dragers.
+static func speed_for(mass: float, carriers: int) -> float:
+	var n := maxi(1, carriers)
+	if n == 1 and not FindKinds.liftable_alone(mass):
+		return Tuning.get_f("carry", "drag_speed", 0.33)
+	var strength := Tuning.get_f("carry", "strength", 30.0) * n * (Tuning.get_f("carry", "team_strength", 1.35) if n >= 2 else 1.0)
+	return maxf(Tuning.get_f("carry", "min_speed", 0.4), 1.0 - mass / strength)
+
+
+## Wat je moet weten over wat je draagt (het kaartje linksonder in de HUD): eerst wat je doet
+## (slepen, samen), dan of het breekbaar is, bij welk skelet het hoort, of het zwaar is.
+func note() -> String:
+	if item == null:
+		return ""
+	if item.dragged():
+		return "Too heavy alone: dragging · get a buddy"
+	if item.carriers.size() > 1:
+		return "Carried together"
+	if item.is_shattered():
+		return "Shattered"
+	if item.fragility > 0.0:
+		return "Fragile: don't drop it"
+	if item.set_id != "":
+		return item.set_label()
+	if item.mass >= 10.0:
+		return "Heavy: faster with a buddy"
+	return "%d kg" % int(round(item.mass))
+
+
+## Werkwoord voor de prompt bij een losse vondst: alleen te zwaar = slepen, anders oppakken (en bij
+## iemand die al sleept: helpen dragen).
+static func verb(it: FindItem) -> String:
+	if not FindKinds.liftable_alone(it.mass):
+		return "Help carry" if it.carriers.size() == 1 else "Drag"
+	return "Pick up"
 
 
 func _physics_process(delta: float) -> void:
@@ -129,12 +192,45 @@ func _physics_process(delta: float) -> void:
 		item.reset_physics_interpolation()
 	_vel += ((target - pos) * k - _vel * c) * delta
 	pos += _vel * delta
-	# Kantelen met het naslepen: de onderkant blijft achter, als iets zwaars aan twee handen.
-	var lag := player.head.global_basis.inverse() * (target - pos)
-	var tilt := deg_to_rad(Tuning.get_f("carry", "sway_tilt_deg", 14.0))
-	var sway := Basis.from_euler(Vector3(clampf(-lag.y * 6.0, -1.0, 1.0) * tilt, 0.0, clampf(lag.x * 6.0, -1.0, 1.0) * tilt))
 	var yaw_basis := Basis(Vector3.UP, player.rotation.y)
-	item.global_transform = Transform3D(yaw_basis * sway * _rel_basis, pos)
+	if item.dragged():
+		# Slepen: plat op de grond (zoals hij lag), enkel wat schuren in de draaiing, geen kantelen.
+		_drag_t += delta * clampf(Vector2(player.velocity.x, player.velocity.z).length(), 0.0, 3.0)
+		var scrape := Basis(Vector3.UP, sin(_drag_t * 7.0) * 0.03)
+		item.global_transform = Transform3D(yaw_basis * scrape * _rel_basis, pos)
+	else:
+		# Kantelen met het naslepen: de onderkant blijft achter, als iets zwaars aan twee handen.
+		var lag := player.head.global_basis.inverse() * (target - pos)
+		var tilt := deg_to_rad(Tuning.get_f("carry", "sway_tilt_deg", 14.0))
+		var sway := Basis.from_euler(Vector3(clampf(-lag.y * 6.0, -1.0, 1.0) * tilt, 0.0, clampf(lag.x * 6.0, -1.0, 1.0) * tilt))
+		item.global_transform = Transform3D(yaw_basis * sway * _rel_basis, pos)
+	_leash()
+
+
+## Met twee dragen: je kan niet verder van je maat dan de vondst toelaat (carry.team_span + de afstand
+## waarop jullie hem vasthouden). Loop je verder, dan houdt het gewicht je terug: een touw, geen muur.
+## Elk op zijn eigen scherm (zijn maat zoals hij hem ziet), dus het werkt ook met wat vertraging.
+func _leash() -> void:
+	if item.carriers.size() < 2:
+		return
+	var other: Player = null
+	for peer in item.carriers:
+		if peer != player.peer_id:
+			other = player.game.player_node(peer)
+	if other == null:
+		return
+	var hold := Tuning.get_f("carry", "hold_near", 0.62) + item.half_extents.length() * Tuning.get_f("carry", "hold_per_radius", 1.1)
+	var limit := 2.0 * hold + Tuning.get_f("carry", "team_span", 1.0)
+	var d := player.global_position - other.global_position
+	d.y = 0.0
+	var dist := d.length()
+	if dist <= limit or dist < 0.01:
+		return
+	var away := d / dist
+	player.move_and_collide(-away * (dist - limit))
+	var out := player.velocity.dot(away)
+	if out > 0.0:
+		player.velocity -= away * out
 
 
 ## De handen aan weerszijden van de vondst, zoals hij getekend wordt (elke frame).

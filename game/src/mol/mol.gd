@@ -93,6 +93,8 @@ var placed := Transform3D()
 var visual: MolVisual
 ## Sonar (lokaal op elke peer, enkel bijgewerkt als iemand hier in de Mol kijkt).
 var sonar := Sonar.new()
+## Zijscan in het laadruim: de post voor wie meerijdt (F3, ontwerp-8; zie SideScan).
+var side_scan: SideScan
 
 # Toestand (host bepaalt, iedereen kent).
 var mode := Mode.PARKED
@@ -199,6 +201,10 @@ func setup(docked := false) -> void:
 	body.add_child(visual)
 	_build_collision()
 	_build_buttons()
+	side_scan = SideScan.new()
+	side_scan.name = "SideScan"
+	add_child(side_scan)
+	side_scan.setup(self)
 	_ride_feel = MolRideFeel.new()
 	_ride_feel.name = "RideFeel"
 	_ride_feel.mol = self
@@ -595,6 +601,7 @@ func _rpc_ping_denied() -> void:
 ## Host: de PINGs weer vol (een nieuwe dienst begint, of terug aan boord).
 func _refill_pings() -> void:
 	_rpc_pings.rpc(Tuning.get_i("mol", "sonar_pings", 4))
+	side_scan.host_refill() # en de pijltjes van de zijscan (F3)
 
 
 ## Host: het aftellen korter maken (iedereen is aan boord). De clients tellen zelf verder af.

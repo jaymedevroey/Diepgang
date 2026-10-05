@@ -48,9 +48,11 @@ func generate(planet_seed: int) -> void:
 	var start := spawn + Vector3(cos(a), 0, sin(a)) * rng.randf_range(6.0, 10.0)
 	start.y = t.surface_height_at(start.x, start.z) - 1.4
 	_vein(rng, start, Vector3(sin(a), -0.1, -cos(a)).normalized(), 5)
-	# 2. Aders per laag: meer in de bovenste lagen, waar je het eerst komt.
-	var per_layer := [Tuning.get_i("ore", "veins_kristal", 8), Tuning.get_i("ore", "veins_graniet", 10),
-			Tuning.get_i("ore", "veins_zandsteen", 12), Tuning.get_i("ore", "veins_klei", 10)]
+	# 2. Aders per laag: meer in de bovenste lagen, waar je het eerst komt. Per planeet meer of minder
+	# (planets.cfg ore_veins: Roestbol vast inkomen, Fossielwereld weinig, de botten zijn er het geld).
+	var vein_mult := PlanetLoot.value(int(game.planet_type), "ore_veins", 1.0)
+	var per_layer := [roundi(Tuning.get_i("ore", "veins_kristal", 8) * vein_mult), roundi(Tuning.get_i("ore", "veins_graniet", 10) * vein_mult),
+			roundi(Tuning.get_i("ore", "veins_zandsteen", 12) * vein_mult), roundi(Tuning.get_i("ore", "veins_klei", 10) * vein_mult)]
 	var bottoms := [4.0, Strata.TOPS_M[0], Strata.TOPS_M[1], Strata.TOPS_M[2]]
 	for layer in 4:
 		for v in per_layer[layer]:
@@ -117,7 +119,7 @@ func _add(rng: RandomNumberGenerator, pos: Vector3, out: Vector3) -> void:
 	if t.generated_rock_depth(pos) < 0.1:
 		return
 	var c := OreCluster.new()
-	c.setup(clusters.size(), OreKinds.for_layer(t.layer_at(pos)), units, variant)
+	c.setup(clusters.size(), OreKinds.for_layer(t.layer_at(pos), int(game.planet_type)), units, variant)
 	add_child(c)
 	var basis := Basis(Quaternion(Vector3.UP, up.normalized())) * Basis(Vector3.UP, spin)
 	c.global_transform = Transform3D(basis, pos)

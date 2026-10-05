@@ -1099,8 +1099,7 @@ func _update_carry(player: Player) -> void:
 	# De waarde is pas aan boord bekend (F1, taxatiepoort); tot dan de waardeklasse.
 	var known := _appraised_value(it)
 	_carry_value.text = UiTheme.euro(known) if known >= 0 else "€ ?"
-	var others := it.carriers.size() - 1
-	_carry_note.text = "Carried together" if others > 0 else ("Heavy: faster with a buddy" if it.mass >= 10.0 else "%d kg" % int(round(it.mass)))
+	_carry_note.text = player.carry.note() # slepen, samen, breekbaar, skelet, gewicht (F3: Carry.note)
 	var cond := clampf(it.condition, 0.0, 1.0)
 	_carry_bar.anchor_right = cond
 	_carry_bar.offset_right = 0
@@ -1172,7 +1171,7 @@ func _update_prompt(player: Player, game: Game, terrain: TerrainAPI) -> void:
 			state = HudCrosshair.State.USE if f.freed else HudCrosshair.State.NONE
 			if f.freed and f.carriers.size() < 2:
 				action = "interact"
-				text = "Pick up: %s" % f.display_name()
+				text = "%s: %s" % [Carry.verb(f), f.display_name()] # oppakken, slepen of helpen dragen (F3)
 			else:
 				text = f.display_name()
 			var known := _appraised_value(f)

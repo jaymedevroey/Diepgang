@@ -34,8 +34,8 @@ const RISKS := [UNSTABLE, HOT_CORE, LOW_FUEL]
 ## Doelvondsten per planeet (FindKinds.Kind).
 const TARGETS := [
 	[FindKinds.Kind.GNOME, FindKinds.Kind.TV, FindKinds.Kind.COINS, FindKinds.Kind.LAMP],
-	[FindKinds.Kind.SKULL, FindKinds.Kind.FEMUR, FindKinds.Kind.CLAW],
-	[FindKinds.Kind.GEODE, FindKinds.Kind.GOLD, FindKinds.Kind.SKULL],
+	[FindKinds.Kind.SKULL, FindKinds.Kind.FEMUR, FindKinds.Kind.CLAW, FindKinds.Kind.TITAN_SKULL], # F3: ook een titanschedel (met twee)
+	[FindKinds.Kind.GEODE, FindKinds.Kind.GOLD, FindKinds.Kind.GLOWSHARD, FindKinds.Kind.BLOOM], # F3: breekbare kristallen
 ]
 ## Toon van een regel op de kaart.
 enum Tone { GOOD, RISK, TARGET }
@@ -76,7 +76,7 @@ static func value_factor(mods: Array, kind: int) -> float:
 	var fam := FindKinds.FAMILIES[clampi(kind, 0, FindKinds.FAMILIES.size() - 1)]
 	if has(mods, BONE_BUYER) and fam == FindKinds.Family.SKELETON:
 		f *= Tuning.get_f("economy", "mod_bone_buyer", 1.4)
-	if has(mods, GEODE_BUYER) and (kind == FindKinds.Kind.GEODE or kind == FindKinds.Kind.GOLD):
+	if has(mods, GEODE_BUYER) and (fam == FindKinds.Family.CRYSTAL or kind == FindKinds.Kind.GOLD): # F3: ook glowshard en kristalroos
 		f *= Tuning.get_f("economy", "mod_geode_buyer", 1.4)
 	if has(mods, SCRAP_BUYER) and fam == FindKinds.Family.JUNK:
 		f *= Tuning.get_f("economy", "mod_scrap_buyer", 3.0)
@@ -131,7 +131,7 @@ static func describe(m: Dictionary) -> Array:
 		FOSSIL_BEDS:
 			return ["Rich fossil beds: %d extra bone beds" % Tuning.get_i("economy", "mod_fossil_beds", 4), Tone.GOOD]
 		GEODE_BUYER:
-			return ["Gem buyer: geodes and gold pay ×%s" % _x(Tuning.get_f("economy", "mod_geode_buyer", 1.4)), Tone.GOOD]
+			return ["Gem buyer: crystals, geodes and gold pay ×%s" % _x(Tuning.get_f("economy", "mod_geode_buyer", 1.4)), Tone.GOOD]
 		ORE_VEINS:
 			return ["Ore veins: %d extra veins of ore" % Tuning.get_i("economy", "mod_ore_veins", 8), Tone.GOOD]
 		ORE_PRICE:

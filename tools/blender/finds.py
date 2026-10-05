@@ -11,7 +11,24 @@ Objecten (namen = FindKinds.KEYS in Godot):
   Lamp                              oude mijnwerkerslamp (zandsteen)
   Coins Bottle Gnome Tv             klei: muntenbuidel, oude fles, tuinkabouter, oude tv
   Geode Gold                        diep zandsteen: opengebroken geode, goudklomp
+  TitanSkull Pelvis TitanFemur      grote, zware skeletstukken (Fossielwereld, release-audit F3):
+  Spine Tusk                        met twee dragen of alleen slepen
+  Glowshard Bloom                   breekbare, lichtgevende kristallen (Kristalmaan)
   Chunk_0..2                        puinbrokjes (eenheidsgrootte, in Godot geschaald en gekleurd)
+
+Referenties voor de nieuwe stukken (ter goedkeuring van Jayme, F3):
+  TitanSkull   ceratopsiden (Triceratops, Styracosaurus): een kraag met gaten en knobbels op de rand,
+               twee hoorns boven de ogen, een korte neushoorn en een donkere snavel. Ander silhouet
+               dan de raptorachtige Skull, zodat je "groot beest" leest van ver.
+  Pelvis       een bekken zoals in een museum vooraan gezien: twee vleugels (darmbeen) rond een
+               heiligbeen, heupkommen en de ringen eronder. Herkenbaar als "bekken" voor iedereen.
+  TitanFemur   het dijbeen van een sauropode: zelfde vorm als Femur, maar plomp en 1,4 m lang.
+  Spine        drie vergroeide wervels op een rij (een stuk ruggengraat zoals in een fossielbed).
+  Tusk         slagtand van een mammoet: een gebogen kegel met groeiringen.
+  Glowshard    kwartsgroep (zeszijdige prisma's met een punt) uit een rotsvoet, cyaan gloeiend:
+               leesbaar als "kristal" zoals de Morkite en Nitra in Deep Rock Galactic.
+  Bloom        woestijnroos (seleniet): een roset van dunne bladen rond een gloeiende kern; ziet er
+               broos uit, en dat is ze ook (R.E.P.O.: breekbare buit verliest waarde bij elke klap).
 """
 
 import math
@@ -41,7 +58,20 @@ kit.PALETTE.update({
     "Rock": ((0.42, 0.37, 0.33), 0.0, 0.92, None),
     "Quartz": ((0.92, 0.9, 0.86), 0.0, 0.35, None),
     "Green": ((0.3, 0.55, 0.22), 0.0, 0.7, None),
+    # Lichtgevende kristallen (Kristalmaan); in Godot eigen materiaal (FindKinds._material).
+    "GlowCyan": ((0.35, 0.92, 1.0), 0.0, 0.12, ((0.3, 0.9, 1.0), 2.5)),
+    "GlowPink": ((0.95, 0.5, 0.85), 0.0, 0.12, ((1.0, 0.45, 0.85), 2.5)),
 })
+
+
+def plate(radius, pos, scale, rot, material, group, segments=24, rings=12):
+    """Afgeplatte ellipsoïde (bladvormig bot, kraag), gedraaid rond Godot-assen (graden)."""
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=radius, segments=segments, ring_count=rings, location=G(*pos))
+    o = bpy.context.active_object
+    o.scale = kit.GS(*scale)
+    o.rotation_euler = kit._godot_euler(rot)
+    bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+    return kit._finish(o, material, group, 0.0)
 
 
 def lumpy(name, radius, scale, material, group, seed, amp=0.25, subdiv=2, flat=True, pos=(0, 0, 0)):
@@ -203,6 +233,203 @@ def build_claw():
     loft(pts[-3:], [(0.026, 0.018), (0.016, 0.011), 0.0], "BoneDark", g, verts=12, up=(1, 0, 0))  # donkere punt
 
 
+# --- Grote skeletten (Fossielwereld): met twee dragen ---------------------------------------
+
+# Kop van het titanbeest (van achter naar de snavel): z, hoogte van de as, halve breedte, halve hoogte.
+TITAN = [
+    (0.46, 0.06, 0.16, 0.15), (0.38, 0.08, 0.3, 0.25), (0.24, 0.07, 0.34, 0.28), (0.06, 0.04, 0.32, 0.26),
+    (-0.12, 0.0, 0.27, 0.22), (-0.3, -0.04, 0.21, 0.18), (-0.46, -0.07, 0.15, 0.14), (-0.58, -0.09, 0.1, 0.1),
+    (-0.66, -0.11, 0.05, 0.06),
+]
+
+
+def build_titan_skull():
+    """Schedel van een titanbeest (ceratopside): kraag met twee gaten en knobbels op de rand, twee lange
+    hoorns boven de ogen, een korte neushoorn, een donkere snavel en een zware onderkaak. ±1,5 m."""
+    g = "TitanSkull"
+    head = loft([(0, y, z) for z, y, _rx, _ry in TITAN], [(rx, ry) for _z, _y, rx, ry in TITAN], "Bone", g,
+                verts=16, up=(0, 1, 0), profile=SKULL_PROFILE)
+    head.data.materials.append(kit.mat("BoneDark"))
+    for s in (-1, 1):
+        _carve(head, (s * 0.27, 0.12, -0.04), 0.085, (0.7, 1.0, 1.15))   # oogkas
+        _carve(head, (s * 0.06, -0.02, -0.6), 0.04, (0.8, 1.0, 1.4))     # neusgat
+    # Kraag: een schild dat vanaf de achterkant van de schedel schuin naar achter en omhoog staat, met
+    # een dikke rand, knobbels op die rand en twee gaten (fenestrae).
+    tilt = math.radians(40)
+    fc = Vector((0.0, 0.3, 0.5))  # midden van de kraag (de onderrand zit in de achterkant van de kop)
+    rx, ry = 0.64, 0.56
+
+    def on_frill(x, yl, out=0.0):
+        """Punt in het vlak van de kraag (x opzij, yl omhoog in het schild), `out` naar achter erbuiten."""
+        return (fc.x + x, fc.y + yl * math.cos(tilt) - out * math.sin(tilt), fc.z + yl * math.sin(tilt) + out * math.cos(tilt))
+
+    frill = plate(1.0, tuple(fc), (rx, ry, 0.07), (40, 0, 0), "Bone", g, segments=32, rings=14)
+    frill.data.materials.append(kit.mat("BoneDark"))
+    for s in (-1, 1):
+        cut = sphere(0.12, on_frill(s * 0.27, 0.16), "BoneDark", "_cut", scale=(1.0, 1.0, 1.0), segments=20, rings=10)
+        unregister(cut)
+        boolean(frill, cut)
+    rim = [on_frill(math.sin(a) * rx * 0.95, math.cos(a) * ry * 0.95) for a in
+           (math.radians(-118 + k * 236 / 23) for k in range(24))]
+    kit.tube(rim, 0.04, "Bone", g, verts=10)
+    # Knobbels op de rand van de kraag (epoccipitalia), van links naar rechts over de top.
+    for k in range(13):
+        a = math.radians(-108 + k * 216 / 12)
+        p = on_frill(math.sin(a) * rx * 1.0, math.cos(a) * ry * 1.0)
+        sphere(0.055 if k % 2 == 0 else 0.042, p, "Bone", g, scale=(1.0, 1.0, 0.85), segments=12, rings=6)
+    for s in (-1, 1):
+        # Hoorns boven de ogen: dik aan de voet, naar voren en omhoog, licht naar binnen gebogen.
+        loft([(s * 0.2, 0.22, 0.04), (s * 0.25, 0.42, -0.14), (s * 0.24, 0.58, -0.36), (s * 0.19, 0.66, -0.58)],
+             [0.085, 0.06, 0.035, 0.0], "Bone", g, verts=14)
+        torus(0.08, 0.018, (s * 0.2, 0.235, 0.03), "Bone", g, axis="y", major_seg=16, minor_seg=6)  # voetring
+        # Jukbeen: een punt opzij onder het oog.
+        loft([(s * 0.3, -0.02, 0.0), (s * 0.4, -0.08, 0.04), (s * 0.46, -0.16, 0.06)], [0.06, 0.04, 0.0], "Bone", g, verts=10)
+    # Neushoorn en snavel.
+    loft([(0, 0.08, -0.46), (0, 0.18, -0.52), (0, 0.27, -0.56)], [0.05, 0.03, 0.0], "Bone", g, verts=10)
+    loft([(0, -0.06, -0.6), (0, -0.1, -0.7), (0, -0.17, -0.76), (0, -0.25, -0.76)], [(0.06, 0.06), (0.05, 0.05),
+         (0.03, 0.035), 0.0], "BoneDark", g, verts=12)
+    # Onderkaak: twee zware takken die vooraan in een donkere ondersnavel samenkomen.
+    for s in (-1, 1):
+        loft([(s * 0.27, -0.16, 0.32), (s * 0.25, -0.24, 0.12), (s * 0.19, -0.27, -0.12), (s * 0.11, -0.28, -0.36),
+              (s * 0.03, -0.29, -0.55)], [(0.04, 0.09), (0.045, 0.1), (0.04, 0.08), (0.035, 0.06), (0.03, 0.05)],
+             "Bone", g, verts=12, up=(0, 1, 0))
+        sphere(0.06, (s * 0.27, -0.12, 0.34), "Bone", g, segments=12, rings=6)  # kaakgewricht
+    loft([(0, -0.29, -0.55), (0, -0.3, -0.66), (0, -0.27, -0.72)], [0.055, 0.04, 0.0], "BoneDark", g, verts=10)
+
+
+def build_pelvis():
+    """Bekken, vooraan gezien als een vlinder: twee schuine vleugels rond een heiligbeen, heupkommen
+    opzij en twee ringen eronder die onderaan samenkomen. ±1,2 m breed."""
+    g = "Pelvis"
+    S = 1.3
+    for s in (-1, 1):
+        # Vleugel (darmbeen): schuin naar buiten en licht naar voor gekanteld.
+        plate(1.0, (s * 0.3 * S, 0.17 * S, 0.0), (0.27 * S, 0.33 * S, 0.05 * S), (8, s * 18, -s * 30), "Bone", g)
+        # Dikke rand bovenaan de vleugel (darmkam).
+        loft([(s * 0.1 * S, 0.42 * S, 0.02 * S), (s * 0.3 * S, 0.47 * S, 0.0), (s * 0.48 * S, 0.37 * S, -0.04 * S),
+              (s * 0.55 * S, 0.22 * S, -0.06 * S)], [0.035 * S, 0.042 * S, 0.04 * S, 0.03 * S], "Bone", g, verts=12)
+        # Heupkom: een ring met een donkere kuil.
+        torus(0.095 * S, 0.042 * S, (s * 0.36 * S, -0.1 * S, 0.0), "Bone", g, axis="x", major_seg=24, minor_seg=8)
+        cyl(0.07 * S, 0.05 * S, (s * 0.36 * S, -0.1 * S, 0.0), "BoneDark", g, axis="x", verts=20, bevel=0.0)
+        # Ring eronder (zitbeen en schaambeen rond het gat).
+        torus(0.12 * S, 0.042 * S, (s * 0.17 * S, -0.3 * S, -0.02 * S), "Bone", g, axis="z", major_seg=24, minor_seg=8)
+        # Verbinding van de heupkom naar de ring.
+        loft([(s * 0.33 * S, -0.16 * S, 0.0), (s * 0.26 * S, -0.22 * S, -0.01 * S)], [0.05 * S, 0.045 * S], "Bone", g, verts=10)
+    # Heiligbeen: drie vergroeide wervels in het midden, met doornen naar achter.
+    loft([(0, -0.08 * S, 0.06 * S), (0, 0.15 * S, 0.07 * S), (0, 0.38 * S, 0.05 * S)], [0.075 * S, 0.085 * S, 0.06 * S],
+         "Bone", g, verts=14)
+    for k in range(3):
+        y = (0.0 + k * 0.14) * S
+        sphere(0.08 * S, (0, y, 0.06 * S), "Bone", g, scale=(1.2, 0.7, 1.0), segments=14, rings=7)
+        loft([(0, y, 0.12 * S), (0, y + 0.03 * S, 0.22 * S)], [0.03 * S, 0.0], "Bone", g, verts=8)
+        for s in (-1, 1):  # zenuwgaatjes
+            sphere(0.018 * S, (s * 0.05 * S, y + 0.06 * S, -0.03 * S), "BoneDark", g, segments=8, rings=4)
+    # Schaambeenvoeg onderaan.
+    sphere(0.06 * S, (0, -0.4 * S, -0.03 * S), "Bone", g, scale=(1.3, 0.9, 1.0), segments=14, rings=7)
+
+
+def build_titan_femur():
+    """Dijbeen van een sauropode: plomp, met een grote kop en knobbels. ±1,4 m."""
+    g = "TitanFemur"
+    n = 7
+    L = 0.6
+    pts = [(-L + 2 * L * i / (n - 1), 0.03 * math.sin(i / (n - 1) * math.pi), 0) for i in range(n)]
+    loft(pts, [0.15, 0.12, 0.1, 0.095, 0.1, 0.12, 0.15], "Bone", g, verts=16, up=(0, 0, 1))
+    sphere(0.17, (L + 0.1, 0.1, 0.0), "Bone", g, segments=18, rings=9)  # kop
+    sphere(0.12, (L + 0.02, -0.09, 0.07), "Bone", g, segments=14, rings=7)  # trochanter
+    loft([(L - 0.02, 0.0, 0.0), (L + 0.07, 0.07, 0.0)], [0.13, 0.12], "Bone", g, verts=14)  # hals
+    for s in (-1, 1):
+        sphere(0.15, (-L - 0.04, -0.03, s * 0.09), "Bone", g, scale=(1.0, 0.9, 0.8), segments=16, rings=8)
+    box((0.3, 0.012, 0.02), (0.05, 0.08, 0.098), "BoneDark", g, bevel=0.0, rot=(0, 0, 9))  # barst
+    box((0.18, 0.01, 0.016), (-0.25, 0.05, -0.1), "BoneDark", g, bevel=0.0, rot=(0, 0, -14))
+
+
+def _big_vertebra(g, z, scale):
+    """Eén grote wervel rond (0, 0, z): wervellichaam langs z, boog, doorn omhoog, uitsteeksels opzij."""
+    cyl(0.12 * scale, 0.15 * scale, (0, -0.05 * scale, z), "Bone", g, axis="z", verts=20, bevel=0.03, segments=3)
+    torus(0.075 * scale, 0.03 * scale, (0, 0.11 * scale, z), "Bone", g, axis="z", major_seg=18, minor_seg=8)
+    cyl(0.045 * scale, 0.16 * scale, (0, 0.11 * scale, z), "BoneDark", g, axis="z", verts=12, bevel=0.0)
+    # Doorn: een plat blad naar boven en wat naar achter (geen hoorn), met een afgeronde top.
+    loft([(0, 0.15 * scale, z), (0, 0.25 * scale, z + 0.02 * scale), (0, 0.33 * scale, z + 0.05 * scale),
+          (0, 0.355 * scale, z + 0.06 * scale)],
+         [(0.024 * scale, 0.06 * scale), (0.02 * scale, 0.055 * scale), (0.017 * scale, 0.045 * scale), 0.0],
+         "Bone", g, verts=12, up=(0, 0, 1))
+    for s in (-1, 1):
+        loft([(s * 0.06 * scale, 0.08 * scale, z), (s * 0.17 * scale, 0.11 * scale, z), (s * 0.25 * scale, 0.13 * scale, z + 0.02 * scale)],
+             [0.03 * scale, 0.022 * scale, 0.012 * scale], "Bone", g, verts=10, up=(0, 0, 1))
+
+
+def build_spine():
+    """Stuk ruggengraat: drie vergroeide wervels op een rij (zoals ze in een fossielbed liggen). ±0,8 m."""
+    g = "Spine"
+    sc = 1.55
+    for k in range(3):
+        _big_vertebra(g, (k - 1) * 0.26, sc)
+    for k in range(2):  # tussenwervelschijf (donker, versteend)
+        cyl(0.1 * sc, 0.035, (0, -0.05 * sc, (k - 0.5) * 0.26), "BoneDark", g, axis="z", verts=18, bevel=0.0)
+
+
+def build_tusk():
+    """Slagtand: een gebogen kegel met groeiringen en een donkere wortel. ±1,2 m langs de boog."""
+    g = "Tusk"
+    n = 12
+    pts = []
+    radii = []
+    R = 0.55
+    for i in range(n):
+        k = i / (n - 1)
+        a = math.radians(-55 + 150 * k)
+        pts.append((0.06 * math.sin(k * math.pi), math.sin(a) * R - 0.05, -math.cos(a) * R + 0.25))
+        radii.append(0.11 * (1.0 - k) ** 0.75 + 0.004)
+    radii[-1] = 0.0
+    loft(pts, radii, "Bone", g, verts=18, up=(1, 0, 0), twist=40.0)
+    # Wortel: een donkere, iets dikkere voet (waar hij in de kaak zat), met een donkere holte.
+    loft(pts[:2], [radii[0] + 0.01, radii[1] + 0.008], "BoneDark", g, verts=18, up=(1, 0, 0))
+
+
+# --- Kristallen (Kristalmaan): lichtgevend en breekbaar --------------------------------------
+
+def _crystal(g, base, direction, length, radius, material, twist=0.0, sides=6):
+    """Zeszijdig prisma met een punt (kwarts), vanaf `base` langs `direction`."""
+    d = Vector(direction).normalized()
+    b = Vector(base)
+    prof = [(math.cos(i / sides * math.tau), math.sin(i / sides * math.tau)) for i in range(sides)]
+    loft([tuple(b), tuple(b + d * length * 0.72), tuple(b + d * length)], [radius, radius * 0.92, 0.0], material, g,
+         verts=sides, profile=prof, twist=twist, smooth=False)
+
+
+def build_glowshard():
+    """Groep cyaan gloeiende kwartskristallen uit een rotsvoet. ±0,45 m."""
+    g = "Glowshard"
+    lumpy("base", 0.14, (1.25, 0.55, 1.05), "Rock", g, seed=41, amp=0.22, subdiv=2, pos=(0, -0.13, 0))
+    rng = random.Random(17)
+    spec = [((0, 1, 0), 0.42, 0.06), ((0.45, 1, 0.15), 0.33, 0.05), ((-0.4, 1, -0.2), 0.3, 0.048),
+            ((0.1, 1, -0.55), 0.26, 0.042), ((-0.25, 1, 0.5), 0.24, 0.04), ((0.6, 0.7, -0.4), 0.18, 0.032)]
+    for d, length, r in spec:
+        base = (rng.uniform(-0.04, 0.04), -0.1, rng.uniform(-0.04, 0.04))
+        _crystal(g, base, d, length, r, "GlowCyan", twist=rng.uniform(0, 30))
+
+
+def build_bloom():
+    """Kristalroos (woestijnroos): een roset van dunne roze bladen rond een gloeiende kern. ±0,5 m."""
+    g = "Bloom"
+    sphere(0.075, (0, 0.0, 0), "GlowPink", g, segments=16, rings=8)
+    lumpy("foot", 0.09, (1.3, 0.5, 1.3), "Rock", g, seed=7, amp=0.2, subdiv=2, pos=(0, -0.09, 0))
+    rng = random.Random(5)
+    blade = [(1.0, 0.0), (0.0, 0.22), (-1.0, 0.0), (0.0, -0.22)]  # plat, ruitvormig
+    for ring, (count, tilt, length) in enumerate(((9, 22, 0.24), (7, 48, 0.2), (5, 72, 0.15))):
+        for k in range(count):
+            a = k / count * math.tau + ring * 0.4 + rng.uniform(-0.1, 0.1)
+            e = math.radians(tilt + rng.uniform(-6, 6))
+            d = Vector((math.cos(a) * math.cos(e), math.sin(e), math.sin(a) * math.cos(e)))
+            base = d * 0.05
+            tip = base + d * length
+            mid = base + d * length * 0.6
+            w = 0.075 - ring * 0.012
+            loft([tuple(base), tuple(mid), tuple(tip)], [(w * 0.6, 0.012), (w, 0.012), 0.0],
+                 "GlowPink" if (k + ring) % 3 else "Quartz", g, verts=4, profile=blade, up=(0, 1, 0), smooth=False)
+
+
 # --- Relieken en metalen -----------------------------------------------------------------
 
 def build_lamp():
@@ -321,7 +548,7 @@ def build_chunks():
 
 # --- Okervlekken op botten ------------------------------------------------------------------
 
-BONES = ("Femur", "Vertebra", "Rib", "Skull", "Claw")
+BONES = ("Femur", "Vertebra", "Rib", "Skull", "Claw", "TitanSkull", "Pelvis", "TitanFemur", "Spine", "Tusk")
 BONE_WEAR = 10.0  # sterkere slijtage-bake voor botten (andere vondsten 6)
 
 
@@ -376,11 +603,15 @@ def main():
         "Femur": build_femur, "Vertebra": build_vertebra, "Rib": build_rib, "Skull": build_skull,
         "Claw": build_claw, "Lamp": build_lamp, "Coins": build_coins, "Bottle": build_bottle,
         "Gnome": build_gnome, "Tv": build_tv, "Geode": build_geode, "Gold": build_gold,
+        # F3 (release-audit ontwerp-5/8): grote skeletstukken en breekbare kristallen.
+        "TitanSkull": build_titan_skull, "Pelvis": build_pelvis, "TitanFemur": build_titan_femur,
+        "Spine": build_spine, "Tusk": build_tusk, "Glowshard": build_glowshard, "Bloom": build_bloom,
     }
     for fn in builders.values():
         fn()
     build_chunks()
-    _center_group("Skull")
+    for name in ("Skull", "TitanSkull", "Pelvis", "TitanFemur", "Spine", "Tusk", "Glowshard", "Bloom"):
+        _center_group(name)
     root = bpy.data.objects.new("Finds", None)
     bpy.context.collection.objects.link(root)
     names = list(builders.keys()) + [f"Chunk_{k}" for k in range(3)]

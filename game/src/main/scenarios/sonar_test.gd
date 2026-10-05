@@ -87,6 +87,15 @@ func _run(p: Player) -> void:
 	# 2b. PING: alles tot 24 m, scherp, luid, en daarna opladen.
 	var noise := [0]
 	mol.noise_made.connect(func(_a: float, _w: Vector3) -> void: noise[0] += 1)
+	# Zeker één vondst tussen het stille bereik en het PING-bereik: de buit ligt sinds F3 per planeet in
+	# groepjes, en rond de landingsplek lag er soms niets tussen 12 en 24 m (of net op 11,5-12 m).
+	for it: FindItem in finds.items:
+		if not it.freed and it.global_position.distance_to(origin.origin) > sonar.ping_range + 2.0:
+			var spot := origin.origin + origin.basis.x * 18.0 + Vector3(0, -2.0, 0)
+			it.global_position = spot
+			if finds.crusts.has(it.find_id):
+				(finds.crusts[it.find_id] as Node3D).global_position = spot
+			break
 	var ping_n := 0
 	var quiet_n := 0
 	for it: FindItem in finds.items:
