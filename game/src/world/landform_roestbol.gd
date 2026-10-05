@@ -86,6 +86,12 @@ var _wiggle := FastNoiseLite.new()
 var _bay := FastNoiseLite.new()
 var _par := FastNoiseLite.new()
 var _clump := FastNoiseLite.new()
+## Vlekken in het stof (licht perzik tot roestrood), als raster rond de landingsplek (één keer in
+## C++ gemaakt): per hoekpunt een ruisoproep was op de werkthread duur.
+const BLOT_STEP := 6.0
+var _blot := PackedByteArray()
+var _blot_n := 0
+var _blot_o := Vector2.ZERO
 var _seed := 0
 var _built := false
 var _a_rim := 0.0
@@ -155,6 +161,40 @@ func _ensure() -> void:
 	_make_pipe(rng)
 	_make_dunes(rng)
 	_make_tracks(rng)
+	_make_blot()
+
+
+## Het raster van de stofvlekken: twee schalen (±300 m en ±75 m) in één ruis.
+func _make_blot() -> void:
+	var reach := NEAR_M + 20.0
+	_blot_n = int(ceil(reach * 2.0 / BLOT_STEP)) + 2
+	_blot_o = landing - Vector2(reach, reach)
+	var nz := FastNoiseLite.new()
+	nz.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	nz.seed = _seed + 315
+	nz.fractal_type = FastNoiseLite.FRACTAL_FBM
+	nz.fractal_octaves = 2
+	nz.fractal_lacunarity = 4.0
+	nz.fractal_gain = 0.75
+	nz.frequency = 0.0033 * BLOT_STEP
+	nz.offset = Vector3(_blot_o.x / BLOT_STEP, _blot_o.y / BLOT_STEP, 0.0)
+	var img := nz.get_image(_blot_n, _blot_n, false, false, false)
+	if img.get_format() != Image.FORMAT_L8:
+		img.convert(Image.FORMAT_L8)
+	_blot = img.get_data()
+
+
+## −1..1, bilineair uit het raster.
+func _blot_at(x: float, z: float) -> float:
+	var fx := (x - _blot_o.x) / BLOT_STEP
+	var fz := (z - _blot_o.y) / BLOT_STEP
+	var ix := clampi(int(fx), 0, _blot_n - 2)
+	var iz := clampi(int(fz), 0, _blot_n - 2)
+	var tx := clampf(fx - ix, 0.0, 1.0)
+	var tz := clampf(fz - iz, 0.0, 1.0)
+	var i := iz * _blot_n + ix
+	var v := lerpf(lerpf(_blot[i], _blot[i + 1], tx), lerpf(_blot[i + _blot_n], _blot[i + _blot_n + 1], tx), tz)
+	return clampf((v * (2.0 / 255.0) - 1.0) * 1.6, -1.0, 1.0)
 
 
 # --- Keuzes uit de seed ----------------------------------------------------------------------------
@@ -806,8 +846,10 @@ func tint(x: float, z: float) -> Color:
 		return Color(1.14, 1.05, 0.95, 0.0)
 	# Perzikkleurig stof op de bodem, met grote vlekken (lichter en donkerder stof). Ook in het
 	# speelgebied (PlanetSurface bakt de tint voor het voxelterrein): geen rand.
-	var blot := 0.0 if far else _clump.get_noise_2d(x * 0.3, z * 0.3)
-	var c := Color(1.14 + 0.1 * blot, 1.05 + 0.08 * blot, 0.95 + 0.04 * blot)
+	var blot := 0.0 if far else _blot_at(x, z)
+	# Release-audit buiten-4 (ronde 2): niet één tint. Waar het stof weg is, roestrood (donkerder,
+	# roder); waar het zich ophoopt, licht perzik tot oker (lichter, geler).
+	var c := Color(1.14 + 0.1 * blot, 1.04 + 0.2 * blot, 0.94 + 0.18 * blot)
 	var a := 0.0
 	if d > toe - 20.0:
 		# Puin: grijzer en ruwer; een waaier is vers en lichter.
@@ -832,7 +874,7 @@ func tint(x: float, z: float) -> Color:
 		return c
 	# Donker basaltzand in de duinen.
 	var dune := _dune_mask(p)
-	c = c.lerp(Color(0.22, 0.19, 0.25), dune)
+	c = c.lerp(Color(0.2, 0.17, 0.27), dune) # koel, violet basalt: het donkere accent
 	# De put: grijzer gesteente, een donkere plas slib op de bodem, lichte hopen op de rand.
 	var dp := p.distance_to(pit_c) / pit_r
 	if dp < 1.6:
@@ -854,6 +896,14 @@ func tint(x: float, z: float) -> Color:
 			c = c.lerp(Color(1.25, 1.15, 1.06), (1.0 - smoothstep(0.7, 1.0, dd)) * 0.8)
 	c.a = a
 	return c
+
+
+# --- Middenplan ------------------------------------------------------------------------------------
+
+## Op de kraterbodem, niet in of op de wal van de put, niet op een duin of bij het bord en het wrak.
+func clutter_ok(p: Vector2) -> bool:
+	_ensure()
+	return crater_d(p) < _toe_at(p) - 15.0 and p.distance_to(pit_c) > pit_r * 1.7 and _dune_mask(p) < 0.2 			and p.distance_to(board_xz) > 25.0 and p.distance_to(wreck_xz) > 30.0 and p.distance_to(rig_xz) > 40.0
 
 
 # --- Rotsblokken ------------------------------------------------------------------------------------

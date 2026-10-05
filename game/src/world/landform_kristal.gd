@@ -329,6 +329,11 @@ func crust_seams(x: float, z: float) -> float:
 
 ## Hoekig basalt: matig op de bodem, veel puin onder de bekkenwand, uitgeworpen blokken rond de
 ## jonge krater, gebroken basalt op de flanken van de ader, bijna niets op de korst.
+## Niet op de ader, in de jonge krater of bij het booreiland.
+func clutter_ok(p: Vector2) -> bool:
+	return absf(vein_coords(p).y) > 28.0 and p.distance_to(crater_c) > crater_r * 1.4 and p.distance_to(rig_xz) > 45.0
+
+
 func rock_density(p: Vector2) -> float:
 	var dens := 0.45
 	var d := basin_d(p)

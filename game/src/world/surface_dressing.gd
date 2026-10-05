@@ -46,6 +46,7 @@ static func compute(s: PlanetSurface) -> Dictionary:
 				tints.append(Color(rock_color.r * v * lerpf(1.0, t.r, 0.35), rock_color.g * v * lerpf(1.0, t.g, 0.35), rock_color.b * v * lerpf(1.0, t.b, 0.35)))
 	var out := {"rocks": rocks, "rock_tints": tints}
 	out.merge(lf.compute_props(s))
+	out.merge(MidgroundProps.compute(s)) # het middenplan (buiten-12)
 	return out
 
 
@@ -56,6 +57,7 @@ static func commit(s: PlanetSurface, out: Dictionary) -> void:
 	s.add_child(root)
 	_commit_rocks(root, out.get("rocks", []), out.get("rock_tints", PackedColorArray()), PlanetType.ground(s.planet).rock)
 	s.landform.commit_props(root, out)
+	MidgroundProps.commit(s, root, out)
 
 
 static func _commit_rocks(root: Node3D, rocks: Array, tints: PackedColorArray, fallback: Color) -> void:

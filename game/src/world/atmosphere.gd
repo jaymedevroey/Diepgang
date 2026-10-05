@@ -45,6 +45,7 @@ var _ambient := Color()
 var _depth := 0.0
 var _ready_once := false
 var _planet: Dictionary = {}
+var _contrast := 1.35 # AgX-contrast aan de oppervlakte van deze planeet (sky.cfg agx_contrast_*)
 var _deck: MeshInstance3D
 var _deck_map: Texture2D # de kaart die nu op het dek ligt (PlanetSurface.land_map)
 
@@ -53,6 +54,7 @@ func setup(environment: Environment, terrain_api: TerrainAPI, planet := PlanetTy
 	env = environment
 	terrain = terrain_api
 	_planet = PlanetType.params(planet)
+	_contrast = _surface_contrast(planet)
 	env.background_mode = Environment.BG_SKY
 	var sky_mat := ShaderMaterial.new()
 	sky_mat.shader = preload("res://src/world/planet_sky.gdshader")
@@ -106,6 +108,7 @@ func set_planet(planet: PlanetType.Id) -> void:
 	if env == null or str(p.get("name", "")) == str(_planet.get("name", "")):
 		return
 	_planet = p
+	_contrast = _surface_contrast(planet)
 	var air := _air_params()
 	var sky_mat := env.sky.sky_material as ShaderMaterial if env.sky else null
 	if sky_mat:
@@ -120,6 +123,12 @@ func set_planet(planet: PlanetType.Id) -> void:
 			mat.set_shader_parameter(k, air[k])
 		mat.set_shader_parameter("sun_dir", _moon.global_basis.z)
 	snap()
+
+
+## AgX-contrast aan de oppervlakte van een planeet, per hemel (sky.cfg).
+static func _surface_contrast(planet: PlanetType.Id) -> float:
+	var style := str(CmdArgs.value("sky", PlanetType.SKY_STYLE[clampi(int(planet), 0, PlanetType.SKY_STYLE.size() - 1)])).to_lower()
+	return Tuning.get_f("sky", "agx_contrast_" + style, 1.35)
 
 
 ## Wat de hemel en het planeetdek allebei nodig hebben (planet_air.gdshaderinc): de kleuren van de
@@ -249,6 +258,9 @@ func _update(delta: float, snap_now: bool) -> void:
 	# Boven de grond neemt de mist de kleur van de hemel in die richting aan (luchtperspectief);
 	# onder de grond de kleur van de laag. Gloed: matig in de zon, sterker in het donker (lampen, kristal).
 	env.fog_aerial_perspective = 0.85 * surface * (1.0 - _ship_k)
+	if "tonemap_agx_contrast" in env:
+		var base_c := Tuning.get_f("sky", "agx_contrast_a", 1.35)
+		env.set("tonemap_agx_contrast", lerpf(base_c, _contrast, surface * (1.0 - _ship_k)))
 	env.fog_sun_scatter = 0.2 * surface
 	env.glow_intensity = lerpf(0.85, 0.45, surface)
 	# Het zonlicht dooft uit onder de grond (geen schaduw door 100 m rots heen).

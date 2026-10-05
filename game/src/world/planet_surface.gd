@@ -841,7 +841,9 @@ func _commit() -> void:
 	far.name = "FarTerrain"
 	far.mesh = far_mesh
 	far.material_override = far_mat
-	far.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# Werpt schaduw (buiten-3/-7, ronde 2): kliffen, buttes en ruggen leggen van op de drop een schaduw
+	# over het landschap ervoor; zonder hingen ze er belicht maar "plat" bij.
+	far.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	far.visibility_range_end = FAR_HIDE_M
 	add_child(far)
 	SurfaceDressing.commit(self, _out)

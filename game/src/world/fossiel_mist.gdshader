@@ -53,7 +53,7 @@ void fragment() {
 	float n = vnoise(q * 0.018 + vec2(t * 0.011, t * 0.004)) * 0.65 + vnoise(q * 0.061 - vec2(t * 0.02, -t * 0.013)) * 0.35;
 	// Van boven (de drop) dunner: daar zie je de geulen door de mist heen; van opzij dik.
 	vec3 vdir = normalize((INV_VIEW_MATRIX * vec4(VERTEX, 0.0)).xyz);
-	float dens = density * mix(0.35, 1.35, n) * mix(1.0, 0.3, smoothstep(0.35, 0.9, abs(vdir.y)));
+	float dens = density * mix(0.35, 1.35, n) * mix(1.0, 0.14, smoothstep(0.35, 0.9, abs(vdir.y)));
 	float a = (1.0 - exp(-thick * dens)) * smoothstep(0.0, soft_m, thick);
 	a *= smoothstep(near_fade_m, near_fade_m * 2.5, frag_d) * (1.0 - smoothstep(far_fade_m * 0.6, far_fade_m, frag_d));
 	a *= smoothstep(0.0, 0.9, edge_a) * mix(0.55, 1.0, n); // rand van het mistgebied, en slierten
