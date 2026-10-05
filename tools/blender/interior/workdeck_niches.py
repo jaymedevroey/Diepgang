@@ -229,7 +229,7 @@ def niche_tools(ctx, S, R, PN, D, RD, P, rng):
     blk(D, 1.82, 2.58, 2.18, 2.76, 31.27, 31.276, "Screen")
     f = Face((0.0, Y0, 31.276), (1, 0, 0), (0, 1, 0))
     text(D, "UPGRADES", 0.05, f.at(2.2, 1.47), (0, 0, 1), "ScreenAmber", lift=0.002)
-    for i, row in enumerate(("PICKAXE MK2 ..... 450", "DRILL MK1 ....... 900", "SCANNER+ ........ 1200")):
+    for i, row in enumerate(("PICKAXE MK2 .... €450", "DRILL MK1 ...... €900", "SCANNER+ ..... €1,200")):
         text(D, row, 0.026, f.at(2.2, 1.34 - i * 0.06), (0, 0, 1), "ScreenAmber", lift=0.002, max_w=0.68)
     text(D, "PRICES SUBJECT TO CHANGE", 0.018, f.at(2.2, 1.06), (0, 0, 1), "ScreenAmber", lift=0.002, max_w=0.6)
     for i, m in enumerate(("LedAmber", "LedAmber", "LensRed", "LedGreen")):
@@ -313,8 +313,8 @@ def niche_supply(ctx, S, R, PN, D, RD, P, rng):
     blk(D, 2.12, 2.88, 2.39, 3.21, 35.2, 35.204, "Screen")
     pf = Face((0.0, Y0, 35.204), (1, 0, 0), (0, 1, 0))
     text(D, "PRICES", 0.05, pf.at(2.5, 1.9), (0, 0, 1), "ScreenAmber", lift=0.002)
-    for i, row in enumerate(("ROPE .......... 40", "HEADLAMP ...... 75", "LADDER ....... 120", "SCANNER ...... 300",
-                             "WALKIE-TALKIE . 150")):
+    for i, row in enumerate(("ROPE ......... €40", "HEADLAMP ..... €75", "LADDER ...... €120", "SCANNER ..... €300",
+                             "WALKIE-TALKIE €150")):
         text(D, row, 0.024, pf.at(2.5, 1.76 - i * 0.075), (0, 0, 1), "ScreenAmber", lift=0.002, max_w=0.66)
     text(D, "SUBJECT TO CHANGE", 0.018, pf.at(2.5, 1.27), (0, 0, 1), "LensRed", lift=0.002)
     sign(D, D, cf, 2.55, 0.62, 0.62, 0.14, [("NO RETURNS", 0.018), ("NO EXCHANGES EITHER", 0.018)],

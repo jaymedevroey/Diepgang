@@ -394,7 +394,7 @@ def vending(ctx, B):
     for z in (18.52, 19.04):
         box(det, 1.155, 1.625, 0.0, 0.04, z - 0.02, z + 0.02, "DarkSteel")
     text(det, "STEP STOOL", 0.05, (1.625, 0.12, 18.78), (1, 0, 0), (0, 1, 0), DARK_TXT, res=1)
-    text(det, "1 CR PER STEP", 0.028, (1.625, 0.05, 18.78), (1, 0, 0), (0, 1, 0), DARK_TXT, res=1)
+    text(det, "€1 PER STEP", 0.028, (1.625, 0.05, 18.78), (1, 0, 0), (0, 1, 0), DARK_TXT, res=1)
     ctx.col_box(1.16, 1.62, 0.0, 0.18, 18.5, 19.06)
     ctx.col_box(1.16, 1.62, 0.0, 0.36, 18.5, 18.8)
     # Vuilnisbak ernaast, overvol.
@@ -700,7 +700,7 @@ def signage(ctx, B, rng):
     box(props, 12.4, 12.7, -0.6, -0.56, 0.3, 0.6, "DarkSteel")
     box(props, 12.43, 12.67, 0.12, 0.42, 0.33, 0.55, "Red")
     text(det, "VIEW", 0.03, (12.55, 0.33, 0.55), (0, 0, 1), (0, 1, 0), LIGHT_TXT, res=1)
-    text(det, "50 CENTS/MIN", 0.017, (12.55, 0.285, 0.55), (0, 0, 1), (0, 1, 0), LIGHT_TXT, res=1)
+    text(det, "€0.50/MIN", 0.017, (12.55, 0.285, 0.55), (0, 0, 1), (0, 1, 0), LIGHT_TXT, res=1)
     box(det, 12.51, 12.59, 0.2, 0.23, 0.55, 0.56, DARK_TXT)
     ctx.col_box(12.4, 12.7, -0.6, 0.42, 0.3, 0.6)
     plate(det, det, "VIEWPOINT", (18.9, 1.62, 0.45), (0, 0, 1), (0, 1, 0), 0.6, 0.12, bg=DARK_TXT, fg=YELLOW_TXT,
@@ -732,7 +732,7 @@ def pit_and_gallery(ctx, B):
     box(props, 19.66, 19.95, 1.55, 2.45, zc - 0.32, zc + 0.32, "GreyGreen")
     box(props, 19.62, 19.66, 1.6, 2.4, zc - 0.28, zc + 0.28, "DarkSteel")
     fbox(det, (19.62, 2.22, zc), N, 0.34, 0.16, 0.006, "Screen")
-    text(det, "CHARGING: 1 CR/MIN", 0.022, (19.613, 2.24, zc), N, (0, 1, 0), "ScreenGreen", fit=0.3, res=1)
+    text(det, "CHARGING: €1/MIN", 0.022, (19.613, 2.24, zc), N, (0, 1, 0), "ScreenGreen", fit=0.3, res=1)
     text(det, "BATTERY FULL? +5%", 0.016, (19.613, 2.19, zc), N, (0, 1, 0), "ScreenGreen", fit=0.3, res=1)
     box(det, 19.6, 19.62, 2.0, 2.06, zc - 0.05, zc + 0.05, DARK_TXT)  # muntgleuf
     plate(det, det, "CHARGING POINT", (19.62, 2.56, zc), N, (0, 1, 0), 0.6, 0.12, bg=YELLOW_TXT, fg=DARK_TXT,
