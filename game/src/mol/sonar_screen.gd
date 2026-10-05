@@ -59,7 +59,7 @@ func setup(screen: MeshInstance3D, lamp: MeshInstance3D, ping_button: MeshInstan
 	for m: int in [20, 10, 0, -10, -20]:
 		var y := STRIP.get_center().y - m * STRIP.size.y * 0.5 / STRIP_RANGE
 		_label("tick%d" % m, ("+%d" % m) if m > 0 else str(m), Vector2(STRIP.end.x + 6.0, y - 13.0), 24, 0.55)
-	_label("head", "DOEL", Vector2(TEXT_X, 22), 32, 0.55)
+	_label("head", "TARGET", Vector2(TEXT_X, 22), 32, 0.55)
 	_label("dist", "", Vector2(TEXT_X, 50), 76, 1.0)
 	_label("clock", "", Vector2(TEXT_X, 128), 48, 0.9)
 	_label("height", "", Vector2(TEXT_X, 176), 48, 0.9)
@@ -155,32 +155,32 @@ func display(sonar: Sonar, origin: Transform3D, delta: float) -> void:
 	if target == null:
 		_text("head", "")
 		_text("dist", "")
-		_text("clock", "GEEN")
+		_text("clock", "NO")
 		_text("height", "ECHO")
 		_text("size", "")
 		_text("warn", "")
 	else:
 		var rel := target.echo - origin.origin
 		var dist := rel.length()
-		_text("head", "DOEL")
+		_text("head", "TARGET")
 		_text("dist", "%d M" % int(round(dist)))
-		_text("clock", "%d UUR" % Sonar.clock(Sonar.bearing(origin, target.echo)))
+		_text("clock", "%d O'CLOCK" % Sonar.clock(Sonar.bearing(origin, target.echo)))
 		var level := Tuning.get_f("mol", "sonar_level", 2.5)
-		_text("height", "GELIJK" if absf(rel.y) <= level else "%d M %s" % [int(round(absf(rel.y))), "BOVEN" if rel.y > 0.0 else "ONDER"])
+		_text("height", "LEVEL" if absf(rel.y) <= level else "%d M %s" % [int(round(absf(rel.y))), "ABOVE" if rel.y > 0.0 else "BELOW"])
 		_text("size", Sonar.SIZE_NAMES[target.size])
 		var close := dist < Tuning.get_f("mol", "sonar_warn", 8.0)
-		_text("warn", "! DICHTBIJ\nSTOP HIER" if close else "")
+		_text("warn", "! CLOSE\nSTOP HERE" if close else "")
 		(_labels["warn"] as Label).modulate.a = 1.0 if blink else 0.35
 	if sonar.pinging():
 		_text("ping", "PING!")
 	elif sonar.ping_cool > 0.0:
 		_text("ping", "PING %d S" % int(ceil(sonar.ping_cool)))
 	else:
-		_text("ping", "PING KLAAR")
+		_text("ping", "PING READY")
 	(_labels["ping"] as Label).modulate.a = 1.0 if sonar.ping_cool <= 0.0 or sonar.pinging() else 0.45
-	_text("range", "BEREIK %d M" % int(sonar.range_m))
+	_text("range", "RANGE %d M" % int(sonar.range_m))
 	var noisy := sonar.noise > 0.3
-	_text("status", "RUIS" if noisy else "STIL")
+	_text("status", "NOISY" if noisy else "QUIET")
 	(_labels["status"] as Label).modulate.a = (1.0 if blink else 0.4) if noisy else 0.8
 
 

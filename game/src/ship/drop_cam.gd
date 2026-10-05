@@ -390,7 +390,7 @@ func _update_overlay(delta: float) -> void:
 	_hint.visible = show
 	if show:
 		var key := Settings.key_of("skip_cinematic").to_upper()
-		_hint.text = "%s  ·  OVERSLAAN" % key if mol.skip_votes == 0 else "%s  ·  OVERSLAAN  %d/%d" % [key, mol.skip_votes, mol.skip_needed]
+		_hint.text = "%s  ·  SKIP" % key if mol.skip_votes == 0 else "%s  ·  SKIP  %d/%d" % [key, mol.skip_votes, mol.skip_needed]
 
 
 ## Na de klap: alles even gedempt (laagdoorlaat op de SFX-bus die weer opengaat).

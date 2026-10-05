@@ -35,20 +35,20 @@ const IDENT_EVERY := 9
 const TICKER_SPEED := 64.0
 const TICKER_H := 40.0
 const KICKER := {
-	"news": ["NIEUWS", UiTheme.YELLOW, UiTheme.ANTHRACITE],
-	"ad": ["RECLAME", UiTheme.ANTHRACITE, UiTheme.YELLOW],
-	"quota": ["KWARTAALCIJFERS", UiTheme.CYAN, UiTheme.ANTHRACITE],
-	"employee": ["WERKNEMER VAN HET KWARTAAL", UiTheme.YELLOW, UiTheme.ANTHRACITE],
-	"weather": ["HET WEER", UiTheme.GOOD, UiTheme.ANTHRACITE],
-	"shares": ["BEURS", UiTheme.GOOD, UiTheme.ANTHRACITE],
-	"safety": ["VEILIGHEID", UiTheme.DANGER, UiTheme.CREAM],
-	"report": ["EXTRA", UiTheme.DANGER, UiTheme.CREAM],
+	"news": ["NEWS", UiTheme.YELLOW, UiTheme.ANTHRACITE],
+	"ad": ["ADVERTISING", UiTheme.ANTHRACITE, UiTheme.YELLOW],
+	"quota": ["QUARTERLY FIGURES", UiTheme.CYAN, UiTheme.ANTHRACITE],
+	"employee": ["EMPLOYEE OF THE QUARTER", UiTheme.YELLOW, UiTheme.ANTHRACITE],
+	"weather": ["WEATHER", UiTheme.GOOD, UiTheme.ANTHRACITE],
+	"shares": ["MARKETS", UiTheme.GOOD, UiTheme.ANTHRACITE],
+	"safety": ["SAFETY", UiTheme.DANGER, UiTheme.CREAM],
+	"report": ["BREAKING", UiTheme.DANGER, UiTheme.CREAM],
 }
 const SMALL_PRINT: Array[String] = [
-	"Prijzen excl. btw, arm en garantie.",
-	"Aanbod geldig tot het magma komt.",
-	"Niet geschikt voor robots.",
-	"Kosten worden afgehouden van uw kas.",
+	"Prices excl. tax, arms and warranty.",
+	"Offer valid until the magma arrives.",
+	"Not suitable for robots.",
+	"Costs are deducted from your funds.",
 ]
 
 
@@ -430,9 +430,9 @@ func _shifts() -> int:
 	return Tuning.get_i("company", "shifts", 3)
 
 
-## Getal met een komma: 1,20.
+## Getal met een decimale punt: 1.20.
 static func _num(v: float, decimals := 2) -> String:
-	return (("%." + str(decimals) + "f") % v).replace(".", ",")
+	return ("%." + str(decimals) + "f") % v
 
 
 func _planet_name() -> String:
@@ -457,8 +457,8 @@ func _vars() -> Dictionary:
 		"shifts": _shifts(),
 		"left": maxi(1, _shifts() - c.shift + 1),
 		"rep": "%+d" % c.reputation,
-		"contract": str(c.contract.name) if chosen else "nog niet gekozen",
-		"risk": Company.RISK_NAMES[int(c.contract.risk)].to_lower() if chosen else "onbekend",
+		"contract": str(c.contract.name) if chosen else "not chosen yet",
+		"risk": Company.RISK_NAMES[int(c.contract.risk)].to_lower() if chosen else "unknown",
 		"magma": _num(c.contract_magma()),
 		"replacement": UiTheme.euro(Tuning.get_i("company", "replacement_cost", 120)),
 		"robots": clampi(game.players.get_child_count(), 1, 4) if game.players else 1,
@@ -508,7 +508,7 @@ func _build_tv(s: Screen) -> void:
 	_label(s, "bug2", UiTheme.screen(), 18, UiTheme.ANTHRACITE, Vector2(w - 86, 36), Vector2(70, 18), HORIZONTAL_ALIGNMENT_CENTER)
 	(s.labels["live"] as Label).text = "LIVE"
 	(s.labels["bug"] as Label).text = "DIG"
-	(s.labels["bug2"] as Label).text = "NIEUWS"
+	(s.labels["bug2"] as Label).text = "NEWS"
 	# Lopende balk onderaan.
 	_label(s, "tag", UiTheme.heading(), 16, UiTheme.ANTHRACITE, Vector2(0, h - TICKER_H + 9), Vector2(108, 24), HORIZONTAL_ALIGNMENT_CENTER)
 	(s.labels["tag"] as Label).text = "DIG 24"
@@ -654,21 +654,21 @@ func _tv_layout() -> void:
 		"ident":
 			_place(big, "DIG", Rect2(0, 108, w, 90), HORIZONTAL_ALIGNMENT_CENTER)
 			_style(big, UiTheme.heading(), 72, UiTheme.YELLOW)
-			_place(sub, "DIEPGANG INTERPLANETAIRE GRONDWERKEN", Rect2(0, 250, w, 28), HORIZONTAL_ALIGNMENT_CENTER)
+			_place(sub, "DIEPGANG INTERPLANETARY GROUNDWORKS", Rect2(0, 250, w, 28), HORIZONTAL_ALIGNMENT_CENTER)
 			_style(sub, UiTheme.screen(), 28, UiTheme.CREAM)
-			_place(small, "Wij graven, u betaalt.", Rect2(0, 276, w, 26), HORIZONTAL_ALIGNMENT_CENTER)
+			_place(small, "We dig, you pay.", Rect2(0, 276, w, 26), HORIZONTAL_ALIGNMENT_CENTER)
 		"news", "report":
 			kicker.position = Vector2(20, 176)
 			if _seg == "report":
 				var r := c.last_report
 				var replaced := int(r.get("left_behind", 0)) + int(r.get("melted", 0))
-				_line = PackedStringArray(["Dienst %d afgerond: netto %s" % [int(r.get("shift_total", 0)), UiTheme.euro(int(r.get("net", 0)))],
-						("%d %s vervangen. Teleurstellend, niet verrassend." % [replaced, "robot" if replaced == 1 else "robots"]) if replaced > 0
-						else "Niemand vervangen. Het hoofdkantoor vermoedt fraude."])
+				_line = PackedStringArray(["Shift %d complete: net %s" % [int(r.get("shift_total", 0)), UiTheme.euro(int(r.get("net", 0)))],
+						("%d %s replaced. Disappointing, not surprising." % [replaced, "robot" if replaced == 1 else "robots"]) if replaced > 0
+						else "Nobody replaced. Head office suspects fraud."])
 				var result := str(r.get("quarter_result", ""))
-				var verdict := "KWARTAAL GEHAALD\nREPUTATIE +1" if result == "gehaald" else (
-						"KWARTAAL GEMIST\nBOETE %s" % UiTheme.euro(int(r.get("fine", 0))) if result == "gemist" else
-						"KWARTAAL %d\nDIENST %d/%d" % [c.quarter, c.shift, _shifts()])
+				var verdict := "QUOTA MET\nREPUTATION +1" if result == "gehaald" else (
+						"QUOTA MISSED\nFINE %s" % UiTheme.euro(int(r.get("fine", 0))) if result == "gemist" else
+						"QUARTER %d\nSHIFT %d/%d" % [c.quarter, c.shift, _shifts()])
 				_place(small, verdict, Rect2(40, 74, 270, 80), HORIZONTAL_ALIGNMENT_CENTER)
 				_style(small, UiTheme.screen(), 34, UiTheme.CREAM)
 			_style(head, UiTheme.screen(), 38, UiTheme.CREAM)
@@ -693,17 +693,17 @@ func _tv_layout() -> void:
 			price.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		"quota":
 			var q := c.quota()
-			_place(head, "Kwartaal %d: %s van %s" % [c.quarter, UiTheme.euro(c.earned), UiTheme.euro(q)], Rect2(24, 88, w - 48, 44))
+			_place(head, "Quarter %d: %s of %s" % [c.quarter, UiTheme.euro(c.earned), UiTheme.euro(q)], Rect2(24, 88, w - 48, 44))
 			_style(head, UiTheme.screen(), 46, UiTheme.CREAM)
-			_place(sub, "Het hoofdkantoor kijkt mee.", Rect2(24, 136, w - 48, 30))
+			_place(sub, "Head office is watching.", Rect2(24, 136, w - 48, 30))
 			_style(sub, UiTheme.screen(), 30, UiTheme.AMBER)
 			var ratio := float(c.earned) / maxf(1.0, q)
 			_place(big, "%d%%" % int(clampf(ratio, 0.0, 9.99) * 100.0), Rect2(w - 224, 150, 200, 40), HORIZONTAL_ALIGNMENT_RIGHT)
 			_style(big, UiTheme.heading(), 28, UiTheme.GOOD if ratio >= 1.0 else UiTheme.YELLOW)
 			var remark: String = TEXTS.QUOTA_REMARKS[3 if ratio >= 1.0 else clampi(int(ratio * 3.0), 0, 2)]
 			if c.cash < 0:
-				remark = "Schuld: %s. De rente loopt." % UiTheme.euro(c.cash)
-			_place(small, "DIENST %d/%d  ·  %s" % [c.shift, _shifts(), remark], Rect2(24, 244, w - 48, 56))
+				remark = "Debt: %s. Interest is accruing." % UiTheme.euro(c.cash)
+			_place(small, "SHIFT %d/%d  ·  %s" % [c.shift, _shifts(), remark], Rect2(24, 244, w - 48, 56))
 			_style(small, UiTheme.screen(), 26, UiTheme.CREAM)
 		"employee":
 			var f := _employee_frame(w)
@@ -712,7 +712,7 @@ func _tv_layout() -> void:
 			big.pivot_offset = Vector2(120, 25)
 			big.rotation = -0.22
 			_style(head, UiTheme.screen(), 42, UiTheme.CREAM)
-			_place(head, "Kwartaal %d: de plek blijft leeg." % c.quarter, Rect2(24, 100, f.position.x - 48, 90))
+			_place(head, "Quarter %d: the spot remains empty." % c.quarter, Rect2(24, 100, f.position.x - 48, 90))
 			_style(sub, UiTheme.screen(), 30, UiTheme.AMBER)
 			_place(sub, _line[0], Rect2(24, _below(head, 14.0), f.position.x - 48, 90))
 		"weather":
@@ -722,8 +722,8 @@ func _tv_layout() -> void:
 			_style(head, UiTheme.screen(), 32, UiTheme.CREAM)
 			_place(sub, _line[1] if _line.size() > 1 else "", Rect2(286, 196, w - 306, 50))
 			_style(sub, UiTheme.screen(), 24, UiTheme.CREAM_DIM)
-			var risk := ("  (RISICO %s)" % Company.RISK_NAMES[int(c.contract.risk)]) if c.contract_ready() else ""
-			_place(small, "OPPERVLAKTE %d°C\nMAGMA ×%s%s" % [_surface_temp(), _num(c.contract_magma()), risk], Rect2(286, 246, w - 300, 56))
+			var risk := ("  (RISK %s)" % Company.RISK_NAMES[int(c.contract.risk)]) if c.contract_ready() else ""
+			_place(small, "SURFACE %d°C\nMAGMA ×%s%s" % [_surface_temp(), _num(c.contract_magma()), risk], Rect2(286, 246, w - 300, 56))
 			_style(small, UiTheme.screen(), 28, UiTheme.AMBER)
 		"shares":
 			_style(big, UiTheme.heading(), 24, UiTheme.GOOD)
@@ -787,7 +787,7 @@ func _place(l: Label, text: String, r: Rect2, align := HORIZONTAL_ALIGNMENT_LEFT
 func _paint_tv(s: Screen) -> void:
 	var t := Time.get_time_dict_from_system()
 	var c := _company()
-	_text(s, "clock", "%02d:%02d  ·  KW %d  ·  DIENST %d/%d" % [t.hour, t.minute, c.quarter, c.shift, _shifts()])
+	_text(s, "clock", "%02d:%02d  ·  Q%d  ·  SHIFT %d/%d" % [t.hour, t.minute, c.quarter, c.shift, _shifts()])
 	(s.labels["ticker"] as Label).position.x = roundf(_ticker_x)
 	var kicker: PanelContainer = s.labels["kicker_box"]
 	if _seg == "report":
@@ -837,9 +837,9 @@ func _draw_tv(c: Control) -> void:
 				c.draw_line(Vector2(24 + 34 * i, 56), Vector2(24 + 34 * i, 168), Color(1, 1, 1, 0.04), 1)
 			if not alarm:
 				c.draw_string(UiTheme.heading(), Vector2(62, 124), "DIG", HORIZONTAL_ALIGNMENT_LEFT, -1, 46, UiTheme.YELLOW)
-				c.draw_string(UiTheme.screen(), Vector2(190, 108), "NIEUWS", HORIZONTAL_ALIGNMENT_LEFT, -1, 34, UiTheme.CREAM)
-				c.draw_string(UiTheme.screen(), Vector2(190, 132), "elk uur, ook als", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, UiTheme.CREAM_DIM)
-				c.draw_string(UiTheme.screen(), Vector2(190, 150), "niemand kijkt", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, UiTheme.CREAM_DIM)
+				c.draw_string(UiTheme.screen(), Vector2(190, 108), "NEWS", HORIZONTAL_ALIGNMENT_LEFT, -1, 34, UiTheme.CREAM)
+				c.draw_string(UiTheme.screen(), Vector2(190, 132), "hourly, even if", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, UiTheme.CREAM_DIM)
+				c.draw_string(UiTheme.screen(), Vector2(190, 150), "nobody watches", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, UiTheme.CREAM_DIM)
 			_draw_anchor(c, Vector2(w - 128, 44), alarm)
 			# Desk en de onderste band.
 			c.draw_rect(Rect2(w - 262, 148, 262, 30), UiTheme.ANTHRACITE)
@@ -881,7 +881,7 @@ func _draw_tv(c: Control) -> void:
 			c.draw_rect(Rect2(mid.x - 48, mid.y - 2, 96, 70), Color(UiTheme.CREAM_DIM, 0.25), false, 2.0)
 			c.draw_string(UiTheme.heading(), Vector2(mid.x - 10, mid.y - 26), "?", HORIZONTAL_ALIGNMENT_LEFT, -1, 28, Color(UiTheme.CREAM_DIM, 0.35))
 			_rrect(c, Rect2(mid.x - 60, f.end.y + 2, 120, 16), Color("#c9a227"), 2)
-			c.draw_string(UiTheme.screen(), Vector2(mid.x - 60, f.end.y + 15), "KWARTAAL %d" % _company().quarter, HORIZONTAL_ALIGNMENT_CENTER, 120, 18, UiTheme.ANTHRACITE_LO)
+			c.draw_string(UiTheme.screen(), Vector2(mid.x - 60, f.end.y + 15), "QUARTER %d" % _company().quarter, HORIZONTAL_ALIGNMENT_CENTER, 120, 18, UiTheme.ANTHRACITE_LO)
 		"weather":
 			var sky: Dictionary = PlanetType.params(game.planet_type).get("sky", {})
 			_gradient(c, Rect2(0, 0, w, bottom), sky.get("zenith", Color("#a0705f")), sky.get("horizon", Color("#e8c49a")))
@@ -977,32 +977,32 @@ func _bar(c: CanvasItem, r: Rect2, ratio: float, col: Color, parts: int) -> void
 
 # --- Firmabord -----------------------------------------------------------------------------------
 
-const BOARD_TILES := [["cash", "KAS"], ["rep", "REPUTATIE"], ["quarter", "KWARTAAL · DIENST"]]
+const BOARD_TILES := [["cash", "FUNDS"], ["rep", "REPUTATION"], ["quarter", "QUARTER · SHIFT"]]
 
 
 func _build_board(s: Screen) -> void:
 	var w := s.size.x
 	(s.art as Art).painter = _draw_board
-	_label(s, "title", UiTheme.heading(), 26, UiTheme.ANTHRACITE, Vector2(18, 8)).text = "DIG · FIRMABORD"
+	_label(s, "title", UiTheme.heading(), 26, UiTheme.ANTHRACITE, Vector2(18, 8)).text = "DIG · COMPANY BOARD"
 	_label(s, "status", UiTheme.screen(), 26, UiTheme.ANTHRACITE, Vector2(w - 236, 12), Vector2(218, 28), HORIZONTAL_ALIGNMENT_RIGHT)
 	var tw := (w - 32 - 24) / 3.0
 	for i in BOARD_TILES.size():
 		var x := 16 + i * (tw + 12)
 		_label(s, "cap_" + BOARD_TILES[i][0], UiTheme.screen(), 22, UiTheme.CREAM_DIM, Vector2(x + 14, 70)).text = BOARD_TILES[i][1]
 		_label(s, BOARD_TILES[i][0], UiTheme.heading(), 30, UiTheme.YELLOW, Vector2(x + 14, 94), Vector2(tw - 20, 44))
-	_label(s, "cap_quota", UiTheme.screen(), 24, UiTheme.CREAM_DIM, Vector2(16, 156)).text = "QUOTA DIT KWARTAAL"
+	_label(s, "cap_quota", UiTheme.screen(), 24, UiTheme.CREAM_DIM, Vector2(16, 156)).text = "QUOTA THIS QUARTER"
 	_label(s, "quota", UiTheme.screen(), 30, UiTheme.CREAM, Vector2(w - 336, 152), Vector2(320, 32), HORIZONTAL_ALIGNMENT_RIGHT)
 	_label(s, "remark", UiTheme.screen(), 24, UiTheme.AMBER, Vector2(16, 222), Vector2(w - 32, 26))
-	_label(s, "cap_contract", UiTheme.screen(), 24, UiTheme.CREAM_DIM, Vector2(16, 264)).text = "OPDRACHT"
+	_label(s, "cap_contract", UiTheme.screen(), 24, UiTheme.CREAM_DIM, Vector2(16, 264)).text = "CONTRACT"
 	_label(s, "contract", UiTheme.screen(), 30, UiTheme.CREAM, Vector2(150, 260), Vector2(w - 166, 32))
-	_label(s, "cap_last", UiTheme.screen(), 24, UiTheme.CREAM_DIM, Vector2(16, 302)).text = "VORIGE DIENST"
+	_label(s, "cap_last", UiTheme.screen(), 24, UiTheme.CREAM_DIM, Vector2(16, 302)).text = "LAST SHIFT"
 	_label(s, "last", UiTheme.screen(), 30, UiTheme.CREAM, Vector2(150, 298), Vector2(w - 166, 32))
 
 
 func _paint_board(s: Screen) -> void:
 	var c := _company()
 	var q := c.quota()
-	_text(s, "status", "KW %d  ·  DIENST %d/%d" % [c.quarter, c.shift, _shifts()])
+	_text(s, "status", "Q%d  ·  SHIFT %d/%d" % [c.quarter, c.shift, _shifts()])
 	_text(s, "cash", UiTheme.euro(c.cash))
 	(s.labels["cash"] as Label).add_theme_color_override("font_color", UiTheme.DANGER if c.cash < 0 else UiTheme.YELLOW)
 	_text(s, "rep", "%+d" % c.reputation)
@@ -1015,21 +1015,21 @@ func _paint_board(s: Screen) -> void:
 	var contract: Label = s.labels["contract"]
 	if c.contract_ready():
 		var risk := int(c.contract.risk)
-		_text(s, "contract", "%s  ·  RISICO %s" % [str(c.contract.name), Company.RISK_NAMES[risk]])
+		_text(s, "contract", "%s  ·  RISK %s" % [str(c.contract.name), Company.RISK_NAMES[risk]])
 		contract.add_theme_color_override("font_color", [UiTheme.GOOD, UiTheme.YELLOW, UiTheme.DANGER][risk])
 		contract.modulate.a = 1.0
 	else:
-		_text(s, "contract", "NOG NIET GEKOZEN  ·  ZIE DE BRUG")
+		_text(s, "contract", "NOT CHOSEN YET  ·  SEE THE BRIDGE")
 		contract.add_theme_color_override("font_color", UiTheme.AMBER)
 		contract.modulate.a = 1.0 if _blink(1.0, 0.7) else 0.45
 	var r := c.last_report
 	if r.is_empty():
-		_text(s, "last", "NOG GEEN  ·  HET HOOFDKANTOOR WACHT")
+		_text(s, "last", "NONE YET  ·  HEAD OFFICE IS WAITING")
 		(s.labels["last"] as Label).add_theme_color_override("font_color", UiTheme.CREAM_DIM)
 	else:
 		var net := int(r.get("net", 0))
 		var replaced := int(r.get("left_behind", 0)) + int(r.get("melted", 0))
-		_text(s, "last", "NETTO %s%s  ·  %d %s VERVANGEN" % ["+" if net > 0 else "", UiTheme.euro(net), replaced, "ROBOT" if replaced == 1 else "ROBOTS"])
+		_text(s, "last", "NET %s%s  ·  %d %s REPLACED" % ["+" if net > 0 else "", UiTheme.euro(net), replaced, "ROBOT" if replaced == 1 else "ROBOTS"])
 		(s.labels["last"] as Label).add_theme_color_override("font_color", UiTheme.GOOD if net > 0 else UiTheme.DANGER)
 
 
@@ -1061,7 +1061,7 @@ const HOLO_DIM := Color(0.31, 0.89, 0.94, 0.75)
 func _build_terminal(s: Screen) -> void:
 	var w := s.size.x
 	(s.art as Art).painter = _draw_terminal
-	_label(s, "title", UiTheme.heading(), 28, HOLO, Vector2(0, 12), Vector2(w, 36), HORIZONTAL_ALIGNMENT_CENTER).text = "DIG · OPDRACHTEN"
+	_label(s, "title", UiTheme.heading(), 28, HOLO, Vector2(0, 12), Vector2(w, 36), HORIZONTAL_ALIGNMENT_CENTER).text = "DIG · CONTRACTS"
 	_label(s, "name", UiTheme.screen(), 64, HOLO, Vector2(0, 58), Vector2(w, 60), HORIZONTAL_ALIGNMENT_CENTER)
 	_label(s, "where", UiTheme.screen(), 28, HOLO_DIM, Vector2(0, 118), Vector2(w, 30), HORIZONTAL_ALIGNMENT_CENTER)
 	var cw := (w - 48) / 3.0
@@ -1074,16 +1074,16 @@ func _build_terminal(s: Screen) -> void:
 func _paint_terminal(s: Screen) -> void:
 	var c := _company()
 	var cursor := "_" if _blink(0.9, 0.5) else " "
-	_text(s, "where", "%s  ·  KWARTAAL %d  ·  DIENST %d/%d" % [_planet_name().to_upper(), c.quarter, c.shift, _shifts()])
+	_text(s, "where", "%s  ·  QUARTER %d  ·  SHIFT %d/%d" % [_planet_name().to_upper(), c.quarter, c.shift, _shifts()])
 	var name_l: Label = s.labels["name"]
 	var docked: bool = game.mol == null or game.mol.mode == Mol.Mode.DOCKED
 	if c.contract_ready():
 		var risk := int(c.contract.risk)
 		_text(s, "name", str(c.contract.name))
 		name_l.modulate.a = 1.0
-		_text(s, "cap0", "RISICO")
+		_text(s, "cap0", "RISK")
 		_text(s, "val0", Company.RISK_NAMES[risk])
-		_text(s, "cap1", "OPBRENGST")
+		_text(s, "cap1", "PAYOUT")
 		_text(s, "val1", "×" + _num(Company.pay_factor(risk)))
 		_text(s, "cap2", "MAGMA")
 		_text(s, "val2", "×" + _num(Company.magma_factor(risk)))
@@ -1091,13 +1091,13 @@ func _paint_terminal(s: Screen) -> void:
 		var loading: bool = not game.world_ready()
 		var dots := ".".repeat(1 + int(_time * 2.5) % 3)
 		if not docked:
-			_text(s, "prompt", "> DE MOL IS ONDERWEG" + cursor)
+			_text(s, "prompt", "> THE MOLE IS AWAY" + cursor)
 		elif loading:
-			_text(s, "prompt", "> ONDERWEG NAAR DE CONCESSIE" + dots)
+			_text(s, "prompt", "> EN ROUTE TO THE CLAIM" + dots)
 		else:
-			_text(s, "prompt", "> STAP IN DE MOL EN TREK AAN DE HENDEL" + cursor)
+			_text(s, "prompt", "> BOARD THE MOLE AND PULL THE LEVER" + cursor)
 	else:
-		_text(s, "name", "KIES EEN OPDRACHT")
+		_text(s, "name", "CHOOSE A CONTRACT")
 		name_l.modulate.a = 1.0 if _blink(1.2, 0.7) else 0.6
 		for i in 3:
 			if i < c.options.size():
@@ -1107,7 +1107,7 @@ func _paint_terminal(s: Screen) -> void:
 			else:
 				_text(s, "cap%d" % i, "")
 				_text(s, "val%d" % i, "")
-		_text(s, "prompt", ("> E AAN DE TAFEL: OPDRACHT KIEZEN" if docked else "> WACHT TOT DE MOL TERUG IS") + cursor)
+		_text(s, "prompt", ("> E AT THE TABLE: CHOOSE A CONTRACT" if docked else "> WAIT FOR THE MOLE TO RETURN") + cursor)
 
 
 func _draw_terminal(c: Control) -> void:
@@ -1150,7 +1150,7 @@ func _build_appraisal(s: Screen) -> void:
 	var w := s.size.x
 	var h := s.size.y
 	(s.art as Art).painter = _draw_appraisal
-	_label(s, "title", UiTheme.heading(), 20, UiTheme.YELLOW, Vector2(10, 12), Vector2(APPRAISAL_LEFT - 16, 28)).text = "TAXATIE"
+	_label(s, "title", UiTheme.heading(), 17, UiTheme.YELLOW, Vector2(10, 14), Vector2(APPRAISAL_LEFT - 16, 28)).text = "APPRAISAL"
 	_label(s, "when", UiTheme.screen(), 24, UiTheme.CREAM_DIM, Vector2(10, 44), Vector2(APPRAISAL_LEFT - 16, 60), HORIZONTAL_ALIGNMENT_LEFT, true)
 	var clip := Control.new()
 	clip.clip_contents = true
@@ -1162,7 +1162,7 @@ func _build_appraisal(s: Screen) -> void:
 	_label(s, "marquee", UiTheme.screen(), 44, UiTheme.AMBER, Vector2(0, 14), Vector2(clip.size.x, 50), HORIZONTAL_ALIGNMENT_LEFT, false, clip)
 	_label(s, "detail", UiTheme.screen(), 24, UiTheme.CREAM_DIM, Vector2(0, h - 54), Vector2(clip.size.x, 50), HORIZONTAL_ALIGNMENT_CENTER, true, clip)
 	var rx := w - APPRAISAL_RIGHT + 8
-	_label(s, "cap_total", UiTheme.screen(), 22, UiTheme.CREAM_DIM, Vector2(rx, 10), Vector2(APPRAISAL_RIGHT - 18, 24), HORIZONTAL_ALIGNMENT_RIGHT).text = "VERKOCHT"
+	_label(s, "cap_total", UiTheme.screen(), 22, UiTheme.CREAM_DIM, Vector2(rx, 10), Vector2(APPRAISAL_RIGHT - 18, 24), HORIZONTAL_ALIGNMENT_RIGHT).text = "SOLD"
 	_label(s, "total", UiTheme.heading(), 24, UiTheme.YELLOW, Vector2(rx - 4, 34), Vector2(APPRAISAL_RIGHT - 14, 34), HORIZONTAL_ALIGNMENT_RIGHT)
 	_label(s, "net", UiTheme.screen(), 22, UiTheme.CREAM, Vector2(rx, 80), Vector2(APPRAISAL_RIGHT - 18, 60), HORIZONTAL_ALIGNMENT_RIGHT, true)
 
@@ -1174,26 +1174,26 @@ func _paint_appraisal(s: Screen) -> void:
 	var clip: Control = s.labels["clip"]
 	if r.is_empty():
 		# Nog niets verkocht: een stilstaande, knipperende oproep.
-		_text(s, "when", "NOG GEEN\nVONDSTEN")
+		_text(s, "when", "NO FINDS\nYET")
 		_style(marquee, UiTheme.screen(), 40, UiTheme.AMBER)
-		_place(marquee, "LEG VONDSTEN\nOP DE BAND", Rect2(0, 8, clip.size.x, 80), HORIZONTAL_ALIGNMENT_CENTER)
+		_place(marquee, "PUT FINDS\nON THE BELT", Rect2(0, 8, clip.size.x, 80), HORIZONTAL_ALIGNMENT_CENTER)
 		marquee.modulate.a = 1.0 if _blink(1.4, 0.75) else 0.5
-		_text(s, "detail", "komt binnenkort")
+		_text(s, "detail", "coming soon")
 		_text(s, "total", UiTheme.euro(0))
 		_text(s, "net", "")
 		s.fps = 4.0
 		return
 	marquee.modulate.a = 1.0
-	_text(s, "when", "DIENST %d\nKW %d · %d/%d" % [int(r.get("shift_total", 0)), int(r.get("quarter", 1)), int(r.get("shift", 1)), _shifts()])
+	_text(s, "when", "SHIFT %d\nQ%d · %d/%d" % [int(r.get("shift_total", 0)), int(r.get("quarter", 1)), int(r.get("shift", 1)), _shifts()])
 	var parts := PackedStringArray()
 	for it: Array in r.get("sold", []):
 		parts.append("%s %s (%d%%)" % [str(it[0]).to_upper(), UiTheme.euro(int(it[1])), int(it[2])])
 	if int(r.get("ore_units", 0)) > 0:
-		parts.append("ERTS %d ST. %s" % [int(r.get("ore_units", 0)), UiTheme.euro(int(r.get("ore_value", 0)))])
+		parts.append("ORE ×%d %s" % [int(r.get("ore_units", 0)), UiTheme.euro(int(r.get("ore_value", 0)))])
 	if int(r.get("bonus", 0)) != 0:
-		parts.append("RISICOBONUS %s" % UiTheme.euro(int(r.get("bonus", 0))))
+		parts.append("RISK BONUS %s" % UiTheme.euro(int(r.get("bonus", 0))))
 	if parts.is_empty():
-		parts.append("NIETS VERKOCHT. HET HOOFDKANTOOR ZUCHT.")
+		parts.append("NOTHING SOLD. HEAD OFFICE SIGHS.")
 	var text := "    ·    ".join(parts) + "    ·    "
 	if marquee.text != text:
 		# Nieuwe lijst: meteen leesbaar vanaf links, daarna lopend van rechts.
@@ -1211,11 +1211,11 @@ func _paint_appraisal(s: Screen) -> void:
 		_marquee_x = clip.size.x
 	marquee.position.x = roundf(_marquee_x)
 	var sold := (r.get("sold", []) as Array).size()
-	_text(s, "detail", "%d %s  ·  SCHADE %s" % [sold, "VONDST" if sold == 1 else "VONDSTEN", UiTheme.euro(int(r.get("damage", 0)))])
+	_text(s, "detail", "%d %s  ·  DAMAGE %s" % [sold, "FIND" if sold == 1 else "FINDS", UiTheme.euro(int(r.get("damage", 0)))])
 	var gross := int(r.get("finds_value", 0)) + int(r.get("ore_value", 0)) + int(r.get("bonus", 0))
 	_text(s, "total", UiTheme.euro(gross))
 	var costs := int(r.get("costs", 0))
-	_text(s, "net", ("KOSTEN %s\n" % UiTheme.euro(-costs) if costs > 0 else "") + "NETTO %s" % UiTheme.euro(int(r.get("net", 0))))
+	_text(s, "net", ("COSTS %s\n" % UiTheme.euro(-costs) if costs > 0 else "") + "NET %s" % UiTheme.euro(int(r.get("net", 0))))
 
 
 func _draw_appraisal(c: Control) -> void:

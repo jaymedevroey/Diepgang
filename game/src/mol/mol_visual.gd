@@ -900,7 +900,7 @@ func _build_feed() -> void:
 	_feed_viewport.add_child(hud)
 	var font_col := Color(0.85, 1.0, 0.85, 0.9)
 	_feed_top = Label.new()
-	_feed_top.text = "CAM 1  ·  BOORKOP"
+	_feed_top.text = "CAM 1  ·  DRILL HEAD"
 	_feed_top.position = Vector2(18, 12)
 	_feed_top.add_theme_font_size_override("font_size", 20)
 	_feed_top.add_theme_color_override("font_color", font_col)
@@ -1034,12 +1034,12 @@ func _process(delta: float) -> void:
 					Basis.looking_at(Vector3.DOWN, Vector3.FORWARD), Vector3(0.0, -2.55, -1.0))
 			_feed_camera.near = 0.05
 			_feed_camera.far = 3000.0
-			_feed_top.text = "CAM 2  ·  BUIK"
+			_feed_top.text = "CAM 2  ·  BELLY"
 		else:
 			_feed_camera.global_transform = (anchors["Cam_Feed"] as Node3D).global_transform
 			_feed_camera.near = 0.1
 			_feed_camera.far = 60.0
-			_feed_top.text = "CAM 1  ·  BOORKOP"
+			_feed_top.text = "CAM 1  ·  DRILL HEAD"
 		_feed_label.text = feed_text
 		_feed_rec.visible = fmod(Time.get_ticks_msec() / 1000.0, 1.2) < 0.7
 

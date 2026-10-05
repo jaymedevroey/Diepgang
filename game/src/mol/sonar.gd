@@ -13,7 +13,7 @@ extends RefCounted
 
 ## Blipgrootte: wat de echo verraadt over de massa.
 enum Size { SMALL, MEDIUM, LARGE }
-const SIZE_NAMES := ["KLEIN", "MIDDEL", "GROOT"]
+const SIZE_NAMES := ["SMALL", "MEDIUM", "LARGE"]
 
 class Contact:
 	var item: FindItem
