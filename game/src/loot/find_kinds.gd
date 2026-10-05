@@ -6,28 +6,43 @@ extends RefCounted
 ##   diep zandsteen   ook geode en goudklomp (vlak boven het graniet)
 ##   graniet          grote schedels, goud, geodes
 ##   kristal          vooral geodes
-##   fossielbed       een cluster skeletstukken
+##   fossielbed       één skelet in stukken (een set, zie PlanetLoot): klein (Sand strider) of groot (Titan)
+## Per planeet een andere mix (PlanetLoot, release-audit ontwerp-5): Roestbol rommel en kleine
+## skeletten, Fossielwereld grote skeletten, Kristalmaan breekbare, lichtgevende kristallen.
 ## Plaatsing volgt uit de seed (FindField), dus elke peer kiest dezelfde soorten.
 
-enum Kind { FEMUR, VERTEBRA, RIB, SKULL, CLAW, LAMP, COINS, BOTTLE, GNOME, TV, GEODE, GOLD }
+enum Kind { FEMUR, VERTEBRA, RIB, SKULL, CLAW, LAMP, COINS, BOTTLE, GNOME, TV, GEODE, GOLD,
+		TITAN_SKULL, PELVIS, TITAN_FEMUR, SPINE, TUSK, GLOWSHARD, BLOOM }
 enum Family { SKELETON, RELIC, METAL, JUNK, CRYSTAL }
 
 ## Objectnamen in finds.glb.
-const KEYS: Array[String] = ["Femur", "Vertebra", "Rib", "Skull", "Claw", "Lamp", "Coins", "Bottle", "Gnome", "Tv", "Geode", "Gold"]
+const KEYS: Array[String] = ["Femur", "Vertebra", "Rib", "Skull", "Claw", "Lamp", "Coins", "Bottle", "Gnome", "Tv", "Geode", "Gold",
+		"TitanSkull", "Pelvis", "TitanFemur", "Spine", "Tusk", "Glowshard", "Bloom"]
 const NAMES: Array[String] = ["Femur", "Vertebra", "Rib", "Skull", "Claw", "Miner's lamp", "Coin pouch",
-		"Old bottle", "Garden gnome", "Old TV", "Geode", "Gold nugget"]
+		"Old bottle", "Garden gnome", "Old TV", "Geode", "Gold nugget",
+		"Titan skull", "Pelvis", "Giant femur", "Spine segment", "Tusk", "Glowshard", "Crystal bloom"]
 const FAMILIES: Array[Family] = [Family.SKELETON, Family.SKELETON, Family.SKELETON, Family.SKELETON, Family.SKELETON,
-		Family.RELIC, Family.METAL, Family.JUNK, Family.JUNK, Family.JUNK, Family.CRYSTAL, Family.METAL]
-const BASE_VALUES: Array[int] = [180, 60, 45, 350, 90, 120, 85, 40, 15, 25, 260, 320]
-const MASSES: Array[float] = [8.0, 3.0, 2.0, 14.0, 2.0, 3.0, 2.0, 1.0, 4.0, 12.0, 6.0, 9.0]
-## Kans per soort in elke zone (som hoeft niet 1 te zijn).
-const WEIGHTS_CLAY: Array[float] = [0, 0, 0, 0, 0, 0, 30, 30, 18, 12, 0, 0]
-const WEIGHTS_SAND: Array[float] = [25, 30, 25, 5, 15, 10, 0, 0, 0, 0, 0, 0]
-const WEIGHTS_DEEP: Array[float] = [14, 10, 10, 9, 8, 5, 0, 0, 0, 0, 20, 16]
-const WEIGHTS_GRANITE: Array[float] = [10, 6, 6, 12, 8, 6, 0, 0, 0, 0, 24, 26]
-const WEIGHTS_CRYSTAL: Array[float] = [4, 2, 2, 8, 6, 2, 0, 0, 0, 0, 46, 22]
-## Fossielbed: enkel skeletstukken.
-const WEIGHTS_BED: Array[float] = [22, 30, 26, 8, 14, 0, 0, 0, 0, 0, 0, 0]
+		Family.RELIC, Family.METAL, Family.JUNK, Family.JUNK, Family.JUNK, Family.CRYSTAL, Family.METAL,
+		Family.SKELETON, Family.SKELETON, Family.SKELETON, Family.SKELETON, Family.SKELETON, Family.CRYSTAL, Family.CRYSTAL]
+const BASE_VALUES: Array[int] = [180, 60, 45, 350, 90, 120, 85, 40, 15, 25, 260, 320,
+		600, 360, 280, 150, 220, 240, 420]
+## Massa (kg). Boven carry.lift_max (18 kg) til je het niet alleen: alleen sleep je het (traag,
+## het schuurt), met twee draag je het (ontwerp-8). Titanschedel, bekken en reuzendijbeen.
+const MASSES: Array[float] = [8.0, 3.0, 2.0, 14.0, 2.0, 3.0, 2.0, 1.0, 4.0, 12.0, 6.0, 9.0,
+		34.0, 26.0, 22.0, 12.0, 10.0, 3.0, 6.0]
+## Breekbaarheid (0 = stevig): kristallen en geodes (GDD §4: "gloeiend en breekbaar"). Een klap
+## kost dan sneller gaafheid, een harde klap breekt ze (FindField._check_impact), en de boor
+## beschadigt ze meer. Ook verder dan 1 kan (de kristalroos is het broosst).
+const FRAGILITY: Array[float] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.5, 0,
+		0, 0, 0, 0, 0, 1.0, 1.4]
+## Lichtgevende vondsten: kleur van hun licht (een klein lampje zodra ze los zijn). Kapot = uit.
+const GLOW := {Kind.GLOWSHARD: Color(0.35, 0.9, 1.0), Kind.BLOOM: Color(1.0, 0.5, 0.86)}
+## Kans per soort in elke zone (som hoeft niet 1 te zijn). Per planeet bijgestuurd (PlanetLoot).
+const WEIGHTS_CLAY: Array[float] = [0, 0, 0, 0, 0, 0, 30, 30, 18, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+const WEIGHTS_SAND: Array[float] = [25, 30, 25, 5, 15, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+const WEIGHTS_DEEP: Array[float] = [14, 10, 10, 9, 8, 5, 0, 0, 0, 0, 20, 16, 0, 0, 0, 0, 0, 0, 0]
+const WEIGHTS_GRANITE: Array[float] = [10, 6, 6, 12, 8, 6, 0, 0, 0, 0, 24, 26, 0, 0, 0, 0, 0, 0, 0]
+const WEIGHTS_CRYSTAL: Array[float] = [4, 2, 2, 8, 6, 2, 0, 0, 0, 0, 46, 22, 0, 0, 0, 0, 0, 0, 0]
 ## Diep zandsteen: zoveel meter boven de top van het graniet.
 const DEEP_BAND := 14.0
 ## Vondsten met zoveel waarde of meer krijgen een gouden glans bij het vrijkomen.
@@ -59,18 +74,26 @@ const DETAIL := 7.0
 static var _meshes: Dictionary = {}
 
 
-static func pick_kind(rng: RandomNumberGenerator, world_y: float, layer: Strata.Layer, bed := false) -> Kind:
-	var weights: Array[float] = WEIGHTS_SAND
-	if bed:
-		weights = WEIGHTS_BED
-	elif layer == Strata.Layer.KLEI:
-		weights = WEIGHTS_CLAY
-	elif layer == Strata.Layer.GRANIET:
-		weights = WEIGHTS_GRANITE
-	elif layer == Strata.Layer.KRISTAL:
-		weights = WEIGHTS_CRYSTAL
-	elif world_y < Strata.TOPS_M[1] + DEEP_BAND:
-		weights = WEIGHTS_DEEP
+## Basistabel van een zone (zonder de planeet): klei, zandsteen, diep zandsteen, graniet, kristal.
+static func layer_weights(world_y: float, layer: Strata.Layer) -> Array[float]:
+	if layer == Strata.Layer.KLEI:
+		return WEIGHTS_CLAY
+	if layer == Strata.Layer.GRANIET:
+		return WEIGHTS_GRANITE
+	if layer == Strata.Layer.KRISTAL:
+		return WEIGHTS_CRYSTAL
+	if world_y < Strata.TOPS_M[1] + DEEP_BAND:
+		return WEIGHTS_DEEP
+	return WEIGHTS_SAND
+
+
+## Een soort voor een losse vondst op deze plek en deze planeet (PlanetLoot.weights).
+static func pick_kind(rng: RandomNumberGenerator, world_y: float, layer: Strata.Layer, planet := 0) -> Kind:
+	return pick_from(rng, PlanetLoot.weights(planet, world_y, layer))
+
+
+## Gewogen keuze uit een tabel (index = Kind). Altijd één getal uit de rng.
+static func pick_from(rng: RandomNumberGenerator, weights: Array[float]) -> Kind:
 	var total := 0.0
 	for w in weights:
 		total += w
@@ -82,8 +105,24 @@ static func pick_kind(rng: RandomNumberGenerator, world_y: float, layer: Strata.
 	return Kind.VERTEBRA
 
 
+## Kan je dit alleen optillen? Zwaarder dan carry.lift_max: alleen sleep je het (ontwerp-8).
+static func liftable_alone(mass: float) -> bool:
+	return mass <= Tuning.get_f("carry", "lift_max", 18.0)
+
+
 static func mesh(kind: Kind) -> Mesh:
 	return _mesh(KEYS[kind])
+
+
+static var _radii := {}
+
+
+## Straal van de korst rond deze soort (grootste halve maat + de schil), voor de afstand tussen vondsten.
+static func radius(kind: Kind) -> float:
+	if not _radii.has(kind):
+		var he := mesh(kind).get_aabb().size * 0.5
+		_radii[kind] = maxf(he.x, maxf(he.y, he.z)) + 0.12
+	return _radii[kind]
 
 
 ## Brokje puin (0..2), eenheidsgrootte.
@@ -122,6 +161,21 @@ static func _material(name: String) -> Material:
 		s.emission = Color(1.0, 0.85, 0.5)
 		s.emission_energy_multiplier = 0.0
 		return s
+	if name in ["GlowCyan", "GlowPink"]:
+		# Lichtgevend kristal (Kristalmaan): fel, glazig, met een rand. FindItem dooft het als het breekt.
+		var c := StandardMaterial3D.new()
+		var col := Color(0.42, 0.92, 1.0) if name == "GlowCyan" else Color(1.0, 0.55, 0.88)
+		c.albedo_color = col
+		c.roughness = 0.08
+		c.metallic = 0.0
+		c.rim_enabled = true
+		c.rim = 0.7
+		c.rim_tint = 0.6
+		c.emission_enabled = true
+		c.emission = col
+		c.emission_energy_multiplier = 1.6
+		c.set_meta("glow", true)
+		return c
 	if name == "Amethyst":
 		var a := StandardMaterial3D.new()
 		a.albedo_color = Color(0.62, 0.38, 0.88)

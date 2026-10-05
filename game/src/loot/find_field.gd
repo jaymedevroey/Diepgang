@@ -13,6 +13,8 @@ signal carriers_changed(item: FindItem)
 signal condition_changed(item: FindItem, hard: bool)
 ## De boorkop van de Mol schepte een vondst op (in het laadruim, beschadigd).
 signal find_scooped(item: FindItem)
+## Een breekbare vondst brak (harde klap): op elk peer. Haak voor het geluid (M6).
+signal shattered(item: FindItem)
 
 const SEND_INTERVAL := 0.05
 ## De eerste vondst bij de landingsplek: een bot, wisselend per wereld (geen schedel: die is de
@@ -33,13 +35,20 @@ var _stowed := {} # find_id -> Transform3D relatief tot de Mol (laadruim, zie _s
 var _parked := {} # find_id -> true: bevroren omdat er geen collision onder ligt (streaming)
 var _send_timer := 0.0
 var _gone := PackedInt32Array() # opgeslokt door het magma (voor wie later binnenkomt)
+var _drag_last := {} # host: find_id -> plek bij de vorige tick (slepen schuurt)
+var _drag_worn := {} # host: find_id -> geschuurde gaafheid die nog niet gemeld is
+var _freed_at := {} # host: find_id -> tijd (ms) van het vrijkomen (zie _check_impact)
 var _by_id := {} # find_id -> FindItem (items blijft niet op volgorde: het magma haalt er weg)
 var _next_id := 0
 
 
+## Alle vondsten van deze wereld, per planeet anders (PlanetLoot, planets.cfg; release-audit ontwerp-5):
+## de buit ligt geconcentreerd in fossielbedden (één skelet per bed, een set), kampen, kristalgrotten
+## en rond grotten, en minder verspreid (GDD §4).
 func generate(pit_seed: int) -> void:
 	var t_start := Time.get_ticks_msec()
 	var t: TerrainAPI = game.terrain
+	var planet := int(game.planet_type)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = pit_seed * 7919 + 11
 	var spawn := t.spawn_point()
@@ -54,33 +63,145 @@ func generate(pit_seed: int) -> void:
 			var p := spawn + Vector3(cos(ang), 0, sin(ang)) * rng.randf_range(2.5, 7.0)
 			p.y = t.surface_height_at(p.x, p.z) - rng.randf_range(1.3, 2.6)
 			return [p, first if i == 0 else -1])
-	# 2. Fossielbedden: clusters skeletstukken in zandsteen en graniet.
-	for b in Tuning.get_i("finds", "beds", 8):
-		var center := Vector3(rng.randf_range(12.0, size.x - 12.0), rng.randf_range(Strata.TOPS_M[0] + 8.0, Strata.TOPS_M[2] - 4.0),
-				rng.randf_range(12.0, size.z - 12.0))
-		for k in rng.randi_range(4, 8):
-			_place(rng, func() -> Array:
-				return [center + Vector3(rng.randf_range(-7, 7), rng.randf_range(-2.5, 2.5), rng.randf_range(-7, 7)), -2])
-	# 3. Rond grotten: net achter de wand, te vinden van in de grot.
 	var caves := t.caves()
-	for i in Tuning.get_i("finds", "near_caves", 45):
-		var c: Vector4 = caves[rng.randi() % caves.size()]
+	# 2. Fossielbedden: één skelet per bed, de stukken liggen zoals in het beest (PlanetLoot.SLOTS).
+	var beds := PlanetLoot.count(planet, "beds", 8)
+	var deep := PlanetLoot.count(planet, "deep_beds", 2)
+	var surface_y := t.surface_height_at(spawn.x, spawn.z)
+	for b in beds + deep:
+		var titan := rng.randf() < PlanetLoot.value(planet, "titan_share", 0.0)
+		var lo := Strata.TOPS_M[1] + 6.0
+		var hi := surface_y - PlanetLoot.value(planet, "bed_top_m", 74.0)
+		if b >= beds: # diep, in het graniet (boor T2)
+			lo = Strata.TOPS_M[0] + 8.0
+			hi = Strata.TOPS_M[1] - 4.0
+		var near_cave := rng.randf() < PlanetLoot.value(planet, "bed_cave_share", 0.5)
+		var center := _bed_center(rng, caves, lo, maxf(hi, lo + 4.0), near_cave)
+		_place_set(rng, center, "titan" if titan else "strider", "%d-%d" % [pit_seed, b])
+	# 3. Kampen van vorige bezoekers (rommel in de klei) en kristalgrotten (kristallen rond een grot).
+	for i in PlanetLoot.count(planet, "camps", 0):
+		var c := Vector3(rng.randf_range(14.0, size.x - 14.0), 0.0, rng.randf_range(14.0, size.z - 14.0))
+		c.y = t.surface_height_at(c.x, c.z) - rng.randf_range(5.0, 38.0)
+		_place_heap(rng, c, PlanetLoot.CAMP_POOL, 2.4)
+	for i in PlanetLoot.count(planet, "pockets", 0):
+		var cv := _cave_between(rng, caves, Strata.TOPS_M[1] + 4.0, surface_y - 12.0)
+		var a0 := rng.randf() * TAU
+		_place_pocket(rng, cv, a0)
+	# 4. Rond grotten: een handvol rijke grotten, elk met een groepje vondsten net achter één stuk wand
+	# (te vinden van in de grot; GDD §4: rijke zakken rond grotten, niet uniform).
+	var rich: Array[Vector4] = []
+	var arcs: Array[float] = []
+	for i in maxi(1, PlanetLoot.count(planet, "rich_caves", 10)):
+		rich.append(caves[rng.randi() % caves.size()])
+		arcs.append(rng.randf() * TAU)
+	for i in PlanetLoot.count(planet, "near_caves", 45):
+		var c: Vector4 = rich[i % rich.size()]
+		var a0: float = arcs[i % rich.size()]
 		_place(rng, func() -> Array:
-			var a := rng.randf() * TAU
+			var a := a0 + rng.randf_range(-0.55, 0.55)
 			var r := c.w + rng.randf_range(0.8, 3.0)
 			return [Vector3(c.x + cos(a) * r, c.y + rng.randf_range(-0.4, 0.4) * c.w / PlanetGenerator.CAVERN_SQUASH, c.z + sin(a) * r), -1])
-	# 4. Verspreid, op elke diepte (opzij is evenveel te vinden als diep: geen "recht naar beneden").
-	for i in Tuning.get_i("finds", "scattered", 60):
+	# 5. Verspreid, op elke diepte (opzij is evenveel te vinden als diep: geen "recht naar beneden").
+	for i in PlanetLoot.count(planet, "scattered", 60):
 		_place(rng, func() -> Array:
 			var p := Vector3(rng.randf_range(8.0, size.x - 8.0), 0, rng.randf_range(8.0, size.z - 8.0))
 			p.y = rng.randf_range(6.0, t.surface_height_at(p.x, p.z) - 2.0)
 			return [p, -1])
-	print("[finds] %d vondsten geplaatst (seed %d) in %d ms" % [items.size(), pit_seed, Time.get_ticks_msec() - t_start])
+	print("[finds] %d vondsten geplaatst op %s (seed %d, %d skeletten) in %d ms" % [items.size(),
+			PlanetType.NAMES[clampi(planet, 0, 2)], pit_seed, sets().size(), Time.get_ticks_msec() - t_start])
 
 
-## Eén vondst plaatsen. `where` geeft [positie, soort] terug (soort -1 = volgens de laag,
-## -2 = fossielbed). Tot 40 pogingen voor een plek in de rots, weg van de landingsplek en van
-## andere vondsten. Altijd evenveel getallen uit de rng per poging: elke peer plaatst hetzelfde.
+## Midden van een bed tussen hoogte lo en hi: naast een grot (als die er in die band is), anders ergens
+## in de rots, weg van de rand.
+func _bed_center(rng: RandomNumberGenerator, caves: Array[Vector4], lo: float, hi: float, near_cave: bool) -> Vector3:
+	var size: Vector3 = game.terrain.world_size()
+	var c := Vector3(rng.randf_range(16.0, size.x - 16.0), rng.randf_range(lo, hi), rng.randf_range(16.0, size.z - 16.0))
+	if near_cave:
+		var cv := _cave_between(rng, caves, lo, hi)
+		if cv.w > 0.0:
+			var a := rng.randf() * TAU
+			var r := cv.w + rng.randf_range(3.0, 5.5)
+			c = Vector3(clampf(cv.x + cos(a) * r, 16.0, size.x - 16.0), clampf(cv.y, lo, hi), clampf(cv.z + sin(a) * r, 16.0, size.z - 16.0))
+	return c
+
+
+## Een willekeurige grot met zijn midden tussen lo en hi (w = 0 als er geen is). Altijd één getal uit de rng.
+func _cave_between(rng: RandomNumberGenerator, caves: Array[Vector4], lo: float, hi: float) -> Vector4:
+	var pick := rng.randi()
+	var ok: Array[Vector4] = []
+	for cv in caves:
+		if cv.y >= lo and cv.y <= hi:
+			ok.append(cv)
+	return ok[pick % ok.size()] if not ok.is_empty() else Vector4.ZERO
+
+
+## Eén skelet in een bed: de stukken langs een rug in een willekeurige richting, kop vooraan en
+## paren links en rechts (PlanetLoot.SLOTS). Pas als er minstens 3 stukken in de rots passen, is het
+## een set (set_size = wat er echt ligt: anders kan je hem nooit compleet maken).
+func _place_set(rng: RandomNumberGenerator, center: Vector3, set_key: String, id: String) -> void:
+	var spec: Dictionary = PlanetLoot.SETS[set_key]
+	var kinds := PlanetLoot.set_pieces(rng, set_key)
+	var a := rng.randf() * TAU
+	var axis := Vector3(cos(a), rng.randf_range(-0.12, 0.12), sin(a)).normalized()
+	var side := axis.cross(Vector3.UP).normalized()
+	var half: float = spec.half_len
+	var placed: Array[FindItem] = []
+	var seen := {}
+	for k in kinds:
+		var slot: Array = PlanetLoot.SLOTS.get(k, [0.0, false])
+		var n: int = seen.get(k, 0)
+		seen[k] = n + 1
+		# Herhaalde soorten (twee dijbenen, drie ruggenstukken) schuiven op langs de rug of wisselen van kant.
+		var along: float = float(slot[0]) * half + (n * 1.9 if not slot[1] else (n / 2) * 1.6)
+		var lateral := (1.6 if n % 2 == 0 else -1.6) if slot[1] else 0.0
+		var it := _place(rng, func() -> Array:
+			var p := center + axis * along + side * lateral
+			p += Vector3(rng.randf_range(-0.6, 0.6), rng.randf_range(-0.5, 0.5), rng.randf_range(-0.6, 0.6))
+			return [p, k], 14)
+		if it:
+			placed.append(it)
+	if placed.size() < 3:
+		return # te weinig plaats (een grot, de rand): losse botten, geen set
+	for it in placed:
+		it.set_id = id
+		it.set_size = placed.size()
+		it.set_name = str(spec.name)
+
+
+## Een hoopje (kamp van vorige bezoekers): 3-5 stukken uit `pool` in een kring van `radius` m.
+func _place_heap(rng: RandomNumberGenerator, center: Vector3, pool: Array, radius: float) -> void:
+	var n := rng.randi_range(3, 5)
+	for i in n:
+		var k: int = pool[rng.randi() % pool.size()]
+		var a := float(i) / n * TAU + rng.randf_range(-0.3, 0.3)
+		_place(rng, func() -> Array:
+			return [center + Vector3(cos(a) * radius, rng.randf_range(-0.6, 0.6), sin(a) * radius), k], 10)
+
+
+## Kristalgrot: 3-5 kristallen net achter de wand van grot `cv`, samen in een boog van ±70°.
+func _place_pocket(rng: RandomNumberGenerator, cv: Vector4, a0: float) -> void:
+	if cv.w <= 0.0:
+		return
+	for i in rng.randi_range(3, 5):
+		var k: int = PlanetLoot.POCKET_POOL[rng.randi() % PlanetLoot.POCKET_POOL.size()]
+		_place(rng, func() -> Array:
+			var a := a0 + rng.randf_range(-0.6, 0.6)
+			var r := cv.w + rng.randf_range(0.7, 1.8)
+			return [Vector3(cv.x + cos(a) * r, cv.y + rng.randf_range(-0.5, 0.3) * cv.w / PlanetGenerator.CAVERN_SQUASH,
+					cv.z + sin(a) * r), k], 12)
+
+
+## Skeletten in deze wereld: set_id -> [stukken]. Voor tests, schermen en de taxatie (F1).
+func sets() -> Dictionary:
+	var out := {}
+	for it in items:
+		if it.set_id != "":
+			if not out.has(it.set_id):
+				out[it.set_id] = []
+			(out[it.set_id] as Array).append(it)
+	return out
+
+
 ## Nieuwe wereld: alle vondsten en korsten weg.
 func clear() -> void:
 	for it in items:
@@ -95,20 +216,27 @@ func clear() -> void:
 	_stowed.clear()
 	_parked.clear()
 	_prev_velocity.clear()
+	_drag_last.clear()
+	_drag_worn.clear()
+	_freed_at.clear()
 
 
-func _place(rng: RandomNumberGenerator, where: Callable) -> void:
+## Eén vondst plaatsen. `where` geeft [positie, soort] terug (soort -1 = volgens de laag en de
+## planeet). Tot `attempts` pogingen voor een plek in de rots, weg van de landingsplek en van andere
+## vondsten (grote stukken houden meer afstand: hun korsten mogen niet overlappen). Altijd evenveel
+## getallen uit de rng per poging: elke peer plaatst hetzelfde. Geeft de vondst terug, of null.
+func _place(rng: RandomNumberGenerator, where: Callable, attempts := 40) -> FindItem:
 	var t: TerrainAPI = game.terrain
 	var sc := t.shaft_center_world()
-	for attempt in 40:
+	for attempt in attempts:
 		var res: Array = where.call()
 		var pos: Vector3 = res[0]
 		var forced: int = res[1]
 		var rot := Vector3(rng.randf() * TAU, rng.randf() * TAU, rng.randf() * TAU)
+		var kind: FindKinds.Kind = forced if forced >= 0 else FindKinds.pick_kind(rng, pos.y, t.layer_at(pos), int(game.planet_type))
 		var flat := Vector2(pos.x - sc.x, pos.z - sc.z).length()
-		if flat < 6.0 or pos.y < 4.0 or t.generated_rock_depth(pos) < 1.0 or not _far_from_others(pos):
+		if flat < 6.0 or pos.y < 4.0 or t.generated_rock_depth(pos) < 1.0 or not _far_from_others(pos, FindKinds.radius(kind)):
 			continue
-		var kind: FindKinds.Kind = forced if forced >= 0 else FindKinds.pick_kind(rng, pos.y, t.layer_at(pos), forced == -2)
 		var item := FindItem.new()
 		item.setup(_next_id, kind)
 		_next_id += 1
@@ -125,7 +253,8 @@ func _place(rng: RandomNumberGenerator, where: Callable) -> void:
 		add_child(crust)
 		crust.global_transform = item.global_transform
 		crusts[item.find_id] = crust
-		return
+		return item
+	return null
 
 
 ## Levens van de korst (ontwerp-11): hoe waardevoller de vondst, hoe meer geduld met het houweel
@@ -134,10 +263,13 @@ static func crust_hp_of(it: FindItem) -> float:
 	return Tuning.get_f("finds", "crust_hp", 7.0) + Tuning.get_f("finds", "crust_hp_per_class", 2.0) * it.value_class
 
 
-func _far_from_others(pos: Vector3) -> bool:
+## `radius`: straal van de korst van de nieuwe vondst (FindKinds.radius). Twee korsten houden minstens
+## min_spacing uit elkaar, en grote (Titan) zoveel als hun stralen samen plus een marge.
+func _far_from_others(pos: Vector3, radius := 0.0) -> bool:
 	var min_gap := Tuning.get_f("finds", "min_spacing", 2.0)
 	for other in items:
-		if other.global_position.distance_to(pos) < min_gap:
+		var gap := maxf(min_gap, radius + FindKinds.radius(other.kind) + 0.3)
+		if other.global_position.distance_to(pos) < gap:
 			return false
 	return true
 
@@ -184,7 +316,9 @@ func _apply_hit(sender: int, find_id: int, tool: int, pos: Vector3, hot := false
 	var hp := crust.hp - Tuning.get_f("finds", "drill_damage" if drill else "pickaxe_damage", 1.0)
 	var cond := it.condition
 	if drill:
-		var loss := Tuning.get_f("finds", "drill_condition_loss", 0.014) * (Tuning.get_f("finds", "drill_hot_factor", 2.2) if hot else 1.0)
+		# Breekbaar (kristallen, Kristalmaan): het trillen van de boor kost meer (houweel blijft veilig).
+		var loss := Tuning.get_f("finds", "drill_condition_loss", 0.014) * (Tuning.get_f("finds", "drill_hot_factor", 2.2) if hot else 1.0) \
+				* (1.0 + it.fragility * Tuning.get_f("finds", "drill_fragile_factor", 1.2))
 		cond = maxf(Tuning.get_f("finds", "min_condition", 0.25), cond - loss)
 	_rpc_state.rpc(find_id, hp, cond, tool)
 	if hp <= 0.0:
@@ -197,6 +331,7 @@ func _rpc_state(find_id: int, hp: float, cond: float, tool: int) -> void:
 	if it == null:
 		return
 	it.condition = cond
+	it.update_glow()
 	var crust: Crust = crusts.get(find_id)
 	if crust:
 		crust.set_hp(hp)
@@ -237,6 +372,7 @@ func _rpc_freed(find_id: int, by := 0) -> void:
 	_reveal_text(it)
 	if multiplayer.is_server():
 		it.freeze = false
+		_freed_at[find_id] = Time.get_ticks_msec()
 		var push := Vector3.UP * Tuning.get_f("finds", "free_impulse", 2.0)
 		if toward.length() > 0.1:
 			var flat := Vector3(toward.x, 0.0, toward.z)
@@ -436,8 +572,13 @@ func _rpc_carriers(find_id: int, carriers: PackedInt32Array) -> void:
 	carriers_changed.emit(it)
 
 
-## Waar een gedragen vondst hoort: tussen de handen van zijn dragers, niet door een muur.
+## Waar een gedragen vondst hoort: tussen de handen van zijn dragers, niet door een muur. Te zwaar om
+## alleen te tillen (ontwerp-8): dan sleept de enige drager hem over de grond (drag_point).
 func carry_target(it: FindItem) -> Vector3:
+	if it.dragged():
+		var dragger: Player = game.player_node(it.carriers[0])
+		if dragger:
+			return drag_point(dragger, it)
 	var sum := Vector3.ZERO
 	var n := 0
 	for peer in it.carriers:
@@ -446,6 +587,37 @@ func carry_target(it: FindItem) -> Vector3:
 			sum += p.hold_point(it.half_extents.length())
 			n += 1
 	return sum / n if n > 0 else it.global_position
+
+
+## Waar een gesleepte vondst ligt: vlak voor de voeten van wie sleept, met zijn onderkant op de grond
+## (de rots, of de vloer van de Mol en de hub). Op elk peer dezelfde regel (host, drager, kijkers).
+func drag_point(p: Player, it: FindItem) -> Vector3:
+	var fwd := -p.global_basis.z
+	fwd.y = 0.0
+	fwd = fwd.normalized() if fwd.length() > 0.01 else Vector3.FORWARD
+	var at := p.global_position + fwd * (Tuning.get_f("carry", "drag_near", 0.45) + it.half_extents.length())
+	var hit: Dictionary = game.terrain.raycast(at + Vector3(0, 1.2, 0), at - Vector3(0, 2.0, 0), Layers.TERRAIN | Layers.LIFT)
+	var ground: float = hit.position.y if not hit.is_empty() else p.global_position.y
+	at.y = ground + it.bottom_offset(it.global_basis) + 0.03
+	return at
+
+
+## Host: slepen schuurt (ontwerp-8: alleen kan, maar het kost). Per meter carry.drag_wear gaafheid,
+## gemeld per stapje van 2 % (anders een melding per tick).
+func _drag_wear(it: FindItem) -> void:
+	var last: Variant = _drag_last.get(it.find_id)
+	var here := it.global_position
+	_drag_last[it.find_id] = here
+	if last == null:
+		return
+	var moved := here.distance_to(last as Vector3)
+	if moved > 1.5: # een sprong (de Mol, een teleport): niet geschuurd
+		return
+	var worn: float = _drag_worn.get(it.find_id, 0.0) + moved * Tuning.get_f("carry", "drag_wear", 0.004)
+	if worn >= 0.02 and it.condition > Tuning.get_f("finds", "min_condition", 0.25):
+		_rpc_condition.rpc(it.find_id, maxf(Tuning.get_f("finds", "min_condition", 0.25), it.condition - worn))
+		worn = 0.0
+	_drag_worn[it.find_id] = worn
 
 
 ## Host: iemand is weg; wat hij droeg, valt.
@@ -470,6 +642,10 @@ func _physics_process(delta: float) -> void:
 			# Draagt de host hem zelf, dan zet zijn Carry hem (met naslepen en wiegen).
 			if not it.carriers.has(multiplayer.get_unique_id()):
 				it.global_position = carry_target(it)
+			if it.dragged():
+				_drag_wear(it)
+			else:
+				_drag_last.erase(it.find_id)
 		elif _stow(it, mol_now, mol_moving):
 			pass
 		elif _park(it):
@@ -592,19 +768,34 @@ func _free_spot_above(from: Vector3, it: FindItem) -> Vector3:
 	return from + Vector3(0, 0.3, 0)
 
 
-## Host: harde klap (vallen, gooien, botsen) kost gaafheid (GDD §3: botst, breekt).
+## Host: harde klap (vallen, gooien, botsen) kost gaafheid (GDD §3: botst, breekt). Breekbare vondsten
+## (FindItem.fragility, Kristalmaan) voelen al een kleinere klap, verliezen per klap meer, en boven
+## finds.shatter_dv / breekbaarheid breken ze: bijna niets meer waard, het licht gaat uit.
 func _check_impact(it: FindItem) -> void:
 	var v := it.linear_velocity
 	var prev: Vector3 = _prev_velocity.get(it.find_id, v)
 	_prev_velocity[it.find_id] = v
 	var dv := (v - prev).length()
-	var threshold := Tuning.get_f("carry", "impact_threshold", 3.0)
-	if dv <= threshold:
+	# Het sprongetje bij het vrijkomen (gevoel-03) mag een kristal niet kraken: even geen klappen tellen.
+	if Time.get_ticks_msec() < int(_freed_at.get(it.find_id, -100000)) + int(Tuning.get_f("finds", "free_grace_s", 1.5) * 1000.0):
 		return
-	var loss := minf((dv - threshold) * Tuning.get_f("carry", "impact_damage", 0.06), Tuning.get_f("carry", "impact_max_loss", 0.3))
-	var cond := maxf(Tuning.get_f("finds", "min_condition", 0.25), it.condition - loss)
+	var cond := impact_condition(it, dv)
 	if cond < it.condition - 0.001:
 		_rpc_condition.rpc(it.find_id, cond)
+
+
+## Gaafheid na een klap met snelheidsverandering `dv` (m/s). Dezelfde regel voor tests en de host.
+static func impact_condition(it: FindItem, dv: float) -> float:
+	var frag := it.fragility
+	var threshold := Tuning.get_f("carry", "impact_threshold", 3.0) / (1.0 + frag * Tuning.get_f("finds", "fragile_threshold_factor", 1.2))
+	if dv <= threshold or it.is_shattered():
+		return it.condition
+	if frag > 0.0 and dv >= Tuning.get_f("finds", "shatter_dv", 4.5) / frag:
+		return minf(it.condition, Tuning.get_f("finds", "shatter_condition", 0.08))
+	var rate := Tuning.get_f("carry", "impact_damage", 0.06) * (1.0 + frag * Tuning.get_f("finds", "fragile_damage_factor", 2.0))
+	var cap := Tuning.get_f("carry", "impact_max_loss", 0.3) * (1.0 + frag * 0.5)
+	var loss := minf((dv - threshold) * rate, cap)
+	return minf(it.condition, maxf(Tuning.get_f("finds", "min_condition", 0.25), it.condition - loss))
 
 
 ## Schade zie je meteen (gevoel-06, plezier-en-design §10): "−€X" boven de vondst, een krak (de
@@ -617,8 +808,17 @@ func _rpc_condition(find_id: int, cond: float) -> void:
 		return
 	var hard := cond < it.condition - 0.001
 	var before := it.value()
+	var was_whole := not it.is_shattered()
 	it.condition = cond
-	if hard:
+	it.update_glow()
+	if hard and was_whole and it.is_shattered():
+		# Gebroken (breekbaar kristal na een harde klap): scherven in zijn kleur, het licht gaat uit.
+		var col: Color = FindKinds.GLOW.get(it.kind, Color(0.75, 0.6, 0.95))
+		game.fx.crust_break(it.global_position, it.half_extents.length(), col.darkened(0.2), col, 0.8)
+		game.fx.float_text(it.global_position + Vector3(0, it.half_extents.length() + 0.2, 0), "SHATTERED",
+				Color(1.0, 0.32, 0.22), 1.0, 2.0)
+		shattered.emit(it)
+	elif hard:
 		var lost := before - it.value()
 		if lost > 0:
 			game.fx.float_text(it.global_position + Vector3(0, it.half_extents.length() + 0.15, 0), "−€%d" % lost,
