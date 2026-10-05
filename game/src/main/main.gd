@@ -271,12 +271,13 @@ func _on_player_spawned(p: Player) -> void:
 	if Net.mode == Net.Mode.HOST:
 		hud.toast("You're hosting. Friends join via Esc > Invite friends.", "info", 7.0)
 	_frame_since_spawn = 0
-	if CmdArgs.has("tuning-open"):
+	if CmdArgs.has("tuning-open") and CmdArgs.dev_mode():
 		_tuning_menu.toggle()
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("toggle_tuning"):
+	# Het tuningmenu is gereedschap voor ons, niet voor spelers: enkel in de ontwikkelaarsmodus.
+	if event.is_action_pressed("toggle_tuning") and CmdArgs.dev_mode():
 		_tuning_menu.toggle()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("toggle_stats"):

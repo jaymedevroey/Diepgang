@@ -17,6 +17,14 @@ func _ready() -> void:
 
 func _run() -> void:
 	await _frames(5)
+	# 0. Ontwikkelaarstoetsen (gevoel-07, ui-06): zonder ontwikkelaarsmodus (de release-build) geen
+	# F1 (tuning) en geen V (vliegen); in deze build enkel als de ontwikkelaarsmodus aan staat.
+	var plain := InputSetup.keys_for(false)
+	_expect(not plain.has("toggle_tuning") and not plain.has("toggle_fly") and InputSetup.keys_for(true).has("toggle_tuning"),
+			"release-build: geen toets voor het tuningmenu of vliegen")
+	var f1_bound := not InputMap.action_get_events("toggle_tuning").is_empty()
+	_expect(f1_bound == CmdArgs.dev_mode(), "F1 opent het tuningmenu enkel in de ontwikkelaarsmodus (nu %s, F1 %s)" % [
+			"aan" if CmdArgs.dev_mode() else "uit", "gebonden" if f1_bound else "vrij"])
 	# 1. Instellingen: openen, Esc sluit.
 	var settings := SettingsMenu.new()
 	main.get_node("HUD").add_child(settings)

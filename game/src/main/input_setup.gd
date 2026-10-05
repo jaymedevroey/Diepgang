@@ -1,7 +1,7 @@
 class_name InputSetup
 extends RefCounted
 ## Standaardtoetsen. Fysieke toetscodes, zodat WASD op AZERTY vanzelf ZQSD wordt.
-## Toetsen aanpassen in het spel komt later (GDD §7).
+## Omzetten kan in de instellingen (Settings.BINDABLE).
 
 const KEYS := {
 	"move_forward": KEY_W,
@@ -10,27 +10,42 @@ const KEYS := {
 	"move_right": KEY_D,
 	"jump": KEY_SPACE,
 	"crouch": KEY_CTRL,
-	"toggle_fly": KEY_V,
 	"toggle_stats": KEY_F3,
 	"tool_1": KEY_1,
 	"tool_2": KEY_2,
 	"interact": KEY_E,
-	"toggle_tuning": KEY_F1,
 	"horn": KEY_H,
 	"mol_view": KEY_C,
 	"sonar_ping": KEY_F,
 	"skip_cinematic": KEY_SPACE,
 }
+## Ontwikkelaarstoetsen: de actie bestaat altijd (de code mag ernaar vragen), maar krijgt enkel in
+## de ontwikkelaarsmodus een toets (CmdArgs.dev_mode: debug-build of --dev). In de demo doet V niets
+## en opent F1 geen tuningmenu (gevoel-07, ui-06).
+const DEV_KEYS := {
+	"toggle_fly": KEY_V,
+	"toggle_tuning": KEY_F1,
+}
+
+
+## De toetsen die deze build krijgt: in de ontwikkelaarsmodus ook de ontwikkelaarstoetsen.
+static func keys_for(dev: bool) -> Dictionary:
+	var keys := KEYS.duplicate()
+	if dev:
+		keys.merge(DEV_KEYS)
+	return keys
 
 
 static func ensure() -> void:
-	for action: String in KEYS:
+	var keys := keys_for(CmdArgs.dev_mode())
+	for action: String in KEYS.keys() + DEV_KEYS.keys():
 		if InputMap.has_action(action):
 			continue
 		InputMap.add_action(action)
-		var ev := InputEventKey.new()
-		ev.physical_keycode = KEYS[action]
-		InputMap.action_add_event(action, ev)
+		if keys.has(action):
+			var ev := InputEventKey.new()
+			ev.physical_keycode = keys[action]
+			InputMap.action_add_event(action, ev)
 	for pair in [["tool_prev", MOUSE_BUTTON_WHEEL_UP], ["tool_next", MOUSE_BUTTON_WHEEL_DOWN]]:
 		if not InputMap.has_action(pair[0]):
 			InputMap.add_action(pair[0])
