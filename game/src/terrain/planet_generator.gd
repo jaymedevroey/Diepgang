@@ -4,10 +4,10 @@ extends VoxelGeneratorScript
 ## SDF-conventie van godot_voxel: negatief = rots, positief = lucht.
 ## Draait op werkthreads: na setup() wordt enkel nog gelezen.
 ##
-## Bovenaan een kale buitenaardse vlakte: golvende heuvels, kraters met een rand, losse
-## rotsblokken, en in het midden een vlakke landingsplek voor de Mol. Daaronder grotten op elke
-## diepte (een paar groot genoeg voor de Mol) en kronkelende gangen. Rondom een onbreekbare
-## buitenmuur en bodem.
+## Bovenaan een kale buitenaardse vlakte: golvende heuvels, kraters met een rand, groepjes
+## gehakte rotsblokken (per planeet een eigen vorm), en in het midden een vlakke landingsplek voor
+## de Mol. Daaronder grotten op elke diepte (een paar groot genoeg voor de Mol) met druipsteen,
+## pilaren en neergestorte blokken, en kronkelende gangen. Rondom een onbreekbare buitenmuur en bodem.
 
 const CHANNEL := VoxelBuffer.CHANNEL_SDF
 const FAR := 10.0
@@ -34,6 +34,10 @@ const ROUGH_AMP := 1.8
 ## Per planeet (TerrainAPI zet ze voor setup): Fossielwereld is een vlakke kalkbodem met weinig kraters.
 var crater_count := 22
 var boulder_count := 70
+## Planeettype (PlanetType.Id): de vorm van de rotsblokken (release-audit buiten-8). Roestbol een
+## grof gehakte rots (zoals SurfaceDressing.rock_mesh erbuiten), Fossielwereld afgeschuinde
+## krijtblokken, Kristalmaan groepjes zeskantige basaltzuilen.
+var planet := 0
 ## Vormen van de landvorm in het speelgebied (TerrainAPI: Landform.near_height op een raster, in
 ## voxels, vóór setup gezet). Leeg = geen.
 var near := PackedFloat32Array()
@@ -42,7 +46,15 @@ var near_step := 1.0 # voxels
 var near_nx := 0
 var near_nz := 0
 var _craters: Array[Vector4] = [] # x, z, straal, diepte (voxels)
-var _boulders: Array[Vector4] = [] # x, y, z, straal
+var _boulders: Array[Vector4] = [] # x, y, z, straal (de omhullende bol van elke rots)
+## Rotsen als veelvlak: per rots [0] = (midden, omhullende straal), daarna de vlakken (normaal, afstand),
+## alles in voxels. Een rots is het snijpunt van zijn halfruimtes: platte vlakken met harde randen
+## (de voxels schuinen ze een halve voxel af), geen brood meer.
+var _rocks: Array[PackedVector4Array] = []
+## In de grotten (na het uithollen): neergestorte blokken (veelvlakken) en druipsteen (kegels:
+## punt, voet, straal van de voet, en de omhullende bol).
+var _cave_rocks: Array[PackedVector4Array] = []
+var _cones: Array[PackedFloat32Array] = []
 var _caverns: Array[Vector4] = [] # x, y, z, horizontale straal
 var _tunnels: Array = [] # [a: Vector3, b: Vector3, straal]
 
@@ -88,6 +100,7 @@ func setup(planet_seed: int, size: Vector3i) -> void:
 			continue
 		var r := rng.randf_range(2.0, 6.5)
 		_boulders.append(Vector4(p.x, surface_at(p.x, p.y) + r * 0.35, p.y, r))
+	_make_rocks(planet_seed)
 
 	# Grotten: veel kleine en middelgrote, een paar grote (voor de Mol), op elke diepte.
 	_caverns.clear()
@@ -114,6 +127,7 @@ func setup(planet_seed: int, size: Vector3i) -> void:
 					Vector3(size.x - wall - r - 6.0, surface_y - 24.0, size.z - wall - r - 6.0))
 			_tunnels.append([p, q, r])
 			p = q
+	_make_cave_features(planet_seed)
 
 
 ## Hoogte van het oppervlak (voxels) op kolom x/z, zonder rotsblokken.
@@ -150,7 +164,7 @@ func surface_at(x: float, z: float) -> float:
 
 
 func sdf_at(p: Vector3) -> float:
-	return _sdf(p, surface_at(p.x, p.z), _boulders, _caverns, _tunnels)
+	return _sdf(p, surface_at(p.x, p.z), _rocks, _caverns, _tunnels, _cave_rocks, _cones)
 
 
 ## Kraterprofiel (×diepte): een kom tot de rand (d = 1), met een opstaande rand erbuiten.
@@ -160,40 +174,251 @@ static func _crater_profile(d: float) -> float:
 	return bowl + rim
 
 
-## Vlakken van een gehakte rots (eenheidsnormalen; x/z draaien per rots). Een rots is het snijpunt
-## van deze halfruimtes: een veelvlak met een vlakke top en schuine flanken. Zo leest hij van ver
-## als gehakte steen (een afgeplatte bol leek op een brood).
-const BOULDER_N: Array[Vector3] = [Vector3(0.12, 0.99, 0.08), Vector3(0.83, 0.42, 0.37), Vector3(-0.2, 0.45, 0.87),
-		Vector3(-0.86, 0.38, 0.34), Vector3(-0.55, 0.4, -0.73), Vector3(0.36, 0.44, -0.82), Vector3(0.95, -0.1, -0.3),
-		Vector3(-0.3, -0.2, -0.93)]
+## Ruwheid op een veelvlak (voxels): klein, zodat de vlakken plat blijven en de randen hard.
+const ROCK_ROUGH := 0.12
+
+# --- Rotsblokken (release-audit buiten-8, buiten-12) ------------------------------------------
+#
+# Een rots is een veelvlak: het snijpunt van zijn halfruimtes (max van de afstanden tot de vlakken).
+# Binnenin is dat de echte afstand, erbuiten een ondergrens: genoeg voor de voxels. Per planeet een
+# eigen vorm, en in groepjes: om de ±60 m een groep van 2-5 met één grote, en losse ertussen. Zo
+# staat er in het middenplan iets van 2-8 m, zoals de rotsen erbuiten (SurfaceDressing).
 
 
-## Afstand tot een gehakte rots (b = x, y, z, straal). Draaiing en verhoudingen volgen uit zijn plek.
-static func _boulder_sdf(p: Vector3, b: Vector4) -> float:
-	var hseed := absf(sin(b.x * 12.9898 + b.z * 78.233) * 43758.5453)
-	var yaw := (hseed - floorf(hseed)) * TAU
-	var c := cos(yaw)
-	var sn := sin(yaw)
-	var q := p - Vector3(b.x, b.y, b.z)
-	q = Vector3(q.x * c - q.z * sn, q.y, q.x * sn + q.z * c)
+## Hoekpunten en vlakken van een icosaëder (zoals SurfaceDressing.rock_mesh).
+const ICO_T := 1.618034
+const ICO_V: Array[Vector3] = [Vector3(-1, ICO_T, 0), Vector3(1, ICO_T, 0), Vector3(-1, -ICO_T, 0), Vector3(1, -ICO_T, 0),
+	Vector3(0, -1, ICO_T), Vector3(0, 1, ICO_T), Vector3(0, -1, -ICO_T), Vector3(0, 1, -ICO_T),
+	Vector3(ICO_T, 0, -1), Vector3(ICO_T, 0, 1), Vector3(-ICO_T, 0, -1), Vector3(-ICO_T, 0, 1)]
+const ICO_F := [[0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11], [1, 5, 9], [5, 11, 4], [11, 10, 2],
+	[10, 7, 6], [7, 1, 8], [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9], [4, 9, 5], [2, 4, 11],
+	[6, 2, 10], [8, 6, 7], [9, 8, 1]]
+
+
+func _make_rocks(planet_seed: int) -> void:
+	_rocks.clear()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = planet_seed * 31 + 5
+	var centers := _boulders.duplicate()
+	_boulders.clear()
+	for i in centers.size():
+		var c: Vector4 = centers[i]
+		# Een op de drie wordt een groep, de rest blijft een losse (middelgrote) rots.
+		var group := i % 3 == 0
+		var main_r := rng.randf_range(4.0, 7.5) if group else rng.randf_range(2.2, 4.5)
+		_add_rock(Vector2(c.x, c.z), main_r, rng)
+		if group:
+			for k in rng.randi_range(1, 4):
+				var a := rng.randf() * TAU
+				var r := main_r * rng.randf_range(0.3, 0.6)
+				var d := (main_r + r) * rng.randf_range(0.7, 1.15)
+				_add_rock(Vector2(c.x + cos(a) * d, c.z + sin(a) * d), r, rng)
+
+
+## Eén rots op het oppervlak bij kolom `xz` (voxels), ±35% ingegraven.
+func _add_rock(xz: Vector2, r: float, rng: RandomNumberGenerator) -> void:
+	# Altijd evenveel trekkingen, ook als de rots wegvalt (zelfde rotsen op elke peer).
+	var shape := _rock_shape(rng, r, true)
+	if xz.distance_to(shaft_center) < landing_radius + r + 4.0:
+		return
+	if xz.x < wall + r + 6.0 or xz.y < wall + r + 6.0 or xz.x > dims.x - wall - r - 6.0 or xz.y > dims.z - wall - r - 6.0:
+		return
+	var sink: float = shape[1]
+	var c := Vector3(xz.x, surface_at(xz.x, xz.y) + sink, xz.y)
+	var rock := _place(shape[0], c, shape[2])
+	_rocks.append(rock)
+	_boulders.append(rock[0])
+
+
+## Een rotsvorm van `r` voxels in de stijl van de planeet: [vlakken (lokaal, rond 0), hoogte van het
+## midden boven de grond]. `on_ground`: de onderkant mag ruw zijn (hij zit in de grond).
+func _rock_shape(rng: RandomNumberGenerator, r: float, on_ground: bool) -> Array:
+	var planes: Array[Vector4] = []
+	var scale := Vector3.ONE
+	var tilt := Vector3(rng.randf_range(-0.3, 0.3), rng.randf() * TAU, rng.randf_range(-0.3, 0.3))
+	var sink := 0.0
+	match planet:
+		1:
+			# Krijtblok: een doos met afgeschuinde ribben en hoeken, plat en breed, wat verzakt.
+			for ax: Vector3 in [Vector3.RIGHT, Vector3.LEFT, Vector3.UP, Vector3.DOWN, Vector3.FORWARD, Vector3.BACK]:
+				planes.append(Vector4(ax.x, ax.y, ax.z, 1.0 + rng.randf_range(-0.06, 0.06)))
+			for sx in [-1.0, 1.0]:
+				for sy in [-1.0, 1.0]:
+					var e1 := Vector3(sx, sy, 0.0).normalized()
+					var e2 := Vector3(0.0, sy, sx).normalized()
+					var e3 := Vector3(sx, 0.0, sy).normalized()
+					for e: Vector3 in [e1, e2, e3]:
+						planes.append(Vector4(e.x, e.y, e.z, rng.randf_range(1.12, 1.24)))
+					for sz in [-1.0, 1.0]:
+						var cn := Vector3(sx, sy, sz).normalized()
+						planes.append(Vector4(cn.x, cn.y, cn.z, rng.randf_range(1.3, 1.45)))
+			scale = Vector3(rng.randf_range(1.1, 1.5), rng.randf_range(0.45, 0.7), rng.randf_range(0.8, 1.2)) * r
+			tilt.x *= 0.6
+			tilt.z *= 0.6
+			sink = scale.y * rng.randf_range(0.15, 0.4)
+		2:
+			# Basaltzuil: zeskantig, twee keer zo hoog als breed, met een schuin afgebroken top.
+			var a0 := rng.randf() * TAU
+			for k in 6:
+				var a := a0 + k * TAU / 6.0
+				planes.append(Vector4(cos(a), 0.0, sin(a), 1.0))
+			var th := rng.randf_range(0.15, 0.5)
+			var ph := rng.randf() * TAU
+			var tn := Vector3(sin(th) * cos(ph), cos(th), sin(th) * sin(ph))
+			planes.append(Vector4(tn.x, tn.y, tn.z, rng.randf_range(1.6, 2.4)))
+			planes.append(Vector4(0.0, -1.0, 0.0, 2.0))
+			scale = Vector3.ONE * r * 0.55
+			tilt.x *= 0.5
+			tilt.z *= 0.5
+			sink = scale.y * rng.randf_range(0.4, 0.9)
+		_:
+			# Grof gehakte rots: een icosaëder met verschoven hoekpunten (20 grote, scheve vlakken).
+			var v: Array[Vector3] = []
+			for p in ICO_V:
+				v.append(p.normalized() * rng.randf_range(0.78, 1.2))
+			for f in ICO_F:
+				var a: Vector3 = v[f[0]]
+				var b: Vector3 = v[f[1]]
+				var c: Vector3 = v[f[2]]
+				var n := (b - a).cross(c - a).normalized()
+				if n.dot(a + b + c) < 0.0:
+					n = -n
+				planes.append(Vector4(n.x, n.y, n.z, n.dot(a)))
+			scale = Vector3(rng.randf_range(0.95, 1.3), rng.randf_range(0.6, 0.95), rng.randf_range(0.85, 1.2)) * r
+			sink = scale.y * rng.randf_range(0.1, 0.35)
+	if not on_ground:
+		sink = scale.y * 0.5
+	var basis := Basis.from_euler(tilt)
+	var out := PackedVector4Array()
+	for pl in planes:
+		# Vlak in de geschaalde, gedraaide rots: n' = S⁻¹n / |S⁻¹n|, d' = d / |S⁻¹n|.
+		var ns := Vector3(pl.x / scale.x, pl.y / scale.y, pl.z / scale.z)
+		var l := ns.length()
+		var nw := basis * (ns / l)
+		out.append(Vector4(nw.x, nw.y, nw.z, pl.w / l))
+	var ext := maxf(scale.x, maxf(scale.y, scale.z)) * (2.6 if planet == 2 else 1.8)
+	return [out, sink, ext]
+
+
+## De vlakken van een vorm rond `c`: [0] = (c, omhullende straal), daarna (normaal, afstand t.o.v. c).
+func _place(shape: PackedVector4Array, c: Vector3, ext := -1.0) -> PackedVector4Array:
+	var out := PackedVector4Array()
+	var bound := ext
+	if bound < 0.0:
+		bound = 0.0
+		for pl in shape:
+			bound = maxf(bound, pl.w)
+		bound *= 1.9
+	out.append(Vector4(c.x, c.y, c.z, bound))
+	out.append_array(shape)
+	return out
+
+
+static func _poly_sdf(p: Vector3, rock: PackedVector4Array) -> float:
+	var c := rock[0]
+	var q := p - Vector3(c.x, c.y, c.z)
+	# Ver weg: de omhullende bol is genoeg (een ondergrens, en veel goedkoper).
+	var far := q.length() - c.w
+	if far > 2.5:
+		return far
 	var d := -INF
-	for i in BOULDER_N.size():
-		var k := 0.82 + 0.3 * fposmod(hseed * (1.7 + i * 0.37), 1.0) # elke flank een eigen afstand
-		if i == 0:
-			k *= 0.62 # vlakkere top
-		d = maxf(d, q.dot(BOULDER_N[i]) - b.w * k)
+	for i in range(1, rock.size()):
+		var pl := rock[i]
+		d = maxf(d, q.x * pl.x + q.y * pl.y + q.z * pl.z - pl.w)
 	return d
 
 
-func _sdf(p: Vector3, h: float, boulders: Array[Vector4], caverns: Array[Vector4], tunnels: Array) -> float:
+# --- Grotten: druipsteen, pilaren en neergestorte blokken (release-audit binnen-01) -------------
+#
+# Uit de seed, in de SDF: graafbaar terrein zoals de rest. Per grot een handvol druipstenen aan het
+# plafond, wat stalagmieten op de vloer, in de grote grotten een pilaar, en een paar blokken.
+
+
+func _make_cave_features(planet_seed: int) -> void:
+	_cave_rocks.clear()
+	_cones.clear()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = planet_seed * 53 + 11
+	for c in _caverns:
+		var r := c.w
+		var half_h := r / CAVERN_SQUASH
+		# Druipsteen aan het plafond.
+		for k in clampi(int(r / 4.0), 2, 10):
+			var a := rng.randf() * TAU
+			var d := rng.randf_range(0.0, 0.62) * r
+			var ceil_y := c.y + sqrt(maxf(r * r - d * d, 0.0)) / CAVERN_SQUASH
+			var length := rng.randf_range(0.22, 0.55) * half_h
+			var base_r := maxf(1.6, length * rng.randf_range(0.2, 0.32))
+			var top := Vector3(c.x + cos(a) * d, ceil_y + 2.5, c.z + sin(a) * d)
+			_add_cone(top - Vector3(0.0, length + 2.5, 0.0), top, base_r)
+		# Stalagmieten op de vloer.
+		for k in clampi(int(r / 7.0), 1, 6):
+			var a := rng.randf() * TAU
+			var d := rng.randf_range(0.15, 0.7) * r
+			var floor_y := c.y - sqrt(maxf(r * r - d * d, 0.0)) / CAVERN_SQUASH
+			var length := rng.randf_range(0.15, 0.4) * half_h
+			var base_r := maxf(1.8, length * rng.randf_range(0.3, 0.45))
+			var foot := Vector3(c.x + cos(a) * d, floor_y - 2.0, c.z + sin(a) * d)
+			_add_cone(foot + Vector3(0.0, length + 2.0, 0.0), foot, base_r)
+		# Een pilaar in de grote grotten: een stalactiet en een stalagmiet die elkaar raken.
+		if r > 28.0:
+			var a := rng.randf() * TAU
+			var d := rng.randf_range(0.3, 0.55) * r
+			var p := Vector2(c.x + cos(a) * d, c.z + sin(a) * d)
+			var span := sqrt(maxf(r * r - d * d, 0.0)) / CAVERN_SQUASH
+			var pr := rng.randf_range(2.6, 4.2)
+			var mid := c.y + rng.randf_range(-0.2, 0.2) * span
+			# De punten schuiven voorbij elkaar: zo heeft de pilaar een taille, geen naald in het midden.
+			_add_cone(Vector3(p.x, mid - span * 0.6, p.y), Vector3(p.x, c.y + span + 3.0, p.y), pr * 1.3)
+			_add_cone(Vector3(p.x, mid + span * 0.6, p.y), Vector3(p.x, c.y - span - 3.0, p.y), pr * 1.5)
+		# Neergestorte blokken op de vloer.
+		if r > 11.0:
+			for k in 1 + int(r / 15.0):
+				var shape := _rock_shape(rng, rng.randf_range(2.0, minf(5.0, r * 0.18)), false)
+				var a := rng.randf() * TAU
+				var d := rng.randf_range(0.1, 0.6) * r
+				var floor_y := c.y - sqrt(maxf(r * r - d * d, 0.0)) / CAVERN_SQUASH
+				var sink: float = shape[1]
+				_cave_rocks.append(_place(shape[0], Vector3(c.x + cos(a) * d, floor_y + sink * 0.5, c.z + sin(a) * d), shape[2]))
+
+
+## Kegel van `tip` naar `base` met voetstraal `base_r` (voxels).
+func _add_cone(tip: Vector3, base: Vector3, base_r: float) -> void:
+	var mid := (tip + base) * 0.5
+	var bound := tip.distance_to(base) * 0.5 + base_r
+	_cones.append(PackedFloat32Array([tip.x, tip.y, tip.z, base.x, base.y, base.z, base_r, mid.x, mid.y, mid.z, bound]))
+
+
+static func _cone_sdf(p: Vector3, cone: PackedFloat32Array) -> float:
+	var far := p.distance_to(Vector3(cone[7], cone[8], cone[9])) - cone[10]
+	if far > 2.5:
+		return far
+	var a := Vector3(cone[0], cone[1], cone[2])
+	var ab := Vector3(cone[3], cone[4], cone[5]) - a
+	var h := ab.length()
+	var axis := ab / h
+	var ap := p - a
+	var t := ap.dot(axis)
+	var radial := (ap - axis * t).length()
+	var k := cone[6] / h
+	# Druipsteen is niet glad: hij verdikt en versmalt in ringen.
+	var wobble := 0.25 * sin(t * 0.9 + cone[0] * 0.37)
+	var side := (radial - k * t - wobble) / sqrt(1.0 + k * k)
+	return maxf(side, maxf(-t, t - h))
+
+
+# --- De SDF ---------------------------------------------------------------------------------------
+
+func _sdf(p: Vector3, h: float, rocks: Array[PackedVector4Array], caverns: Array[Vector4], tunnels: Array,
+		cave_rocks: Array[PackedVector4Array], cones: Array[PackedFloat32Array]) -> float:
 	var s := p.y - h
 	var rough := NAN # 3D-ruis pas uitrekenen als een vorm in de buurt is (duur in GDScript)
-	for b in boulders:
-		var db := _boulder_sdf(p, b)
-		if db < 3.0:
+	for b in rocks:
+		var db := _poly_sdf(p, b)
+		if db < 1.5:
 			if is_nan(rough):
 				rough = _rough.get_noise_3dv(p) * ROUGH_AMP
-			db += rough * 0.25
+			db += rough * ROCK_ROUGH
 		s = minf(s, db)
 	for c in caverns:
 		var d := Vector3(p.x - c.x, (p.y - c.y) * CAVERN_SQUASH, p.z - c.z).length()
@@ -213,6 +438,21 @@ func _sdf(p: Vector3, h: float, boulders: Array[Vector4], caverns: Array[Vector4
 				rough = _rough.get_noise_3dv(p) * ROUGH_AMP
 			dt += rough * 0.7
 		s = maxf(s, dt)
+	# In de grotten (na het uithollen): blokken en druipsteen.
+	for b in cave_rocks:
+		var db := _poly_sdf(p, b)
+		if db < 1.5:
+			if is_nan(rough):
+				rough = _rough.get_noise_3dv(p) * ROUGH_AMP
+			db += rough * ROCK_ROUGH
+		s = minf(s, db)
+	for cn in cones:
+		var dk := _cone_sdf(p, cn)
+		if dk < 1.5:
+			if is_nan(rough):
+				rough = _rough.get_noise_3dv(p) * ROUGH_AMP
+			dk += rough * 0.25
+		s = minf(s, dk)
 	# Buitenmuur en bodem: enkel onder het oppervlak (geen wand die boven de vlakte uitsteekt).
 	if p.y < h + 2.0:
 		var edge := minf(minf(p.x, dims.x - 1 - p.x), minf(minf(p.z, dims.z - 1 - p.z), p.y))
@@ -231,10 +471,11 @@ func _generate_block(out_buffer: VoxelBuffer, origin: Vector3i, lod: int) -> voi
 	var center := Vector3(origin) + half
 	var reach := half.length() + 2.0
 
-	var boulders: Array[Vector4] = []
-	for b in _boulders:
-		if Vector3(b.x, b.y, b.z).distance_to(center) < b.w + reach:
-			boulders.append(b)
+	var rocks: Array[PackedVector4Array] = []
+	for b in _rocks:
+		var c := b[0]
+		if Vector3(c.x, c.y, c.z).distance_to(center) < c.w + reach:
+			rocks.append(b)
 	var caverns: Array[Vector4] = []
 	for c in _caverns:
 		if Vector3(c.x, c.y, c.z).distance_to(center) < c.w + reach:
@@ -246,9 +487,18 @@ func _generate_block(out_buffer: VoxelBuffer, origin: Vector3i, lod: int) -> voi
 		var k := clampf((center - a).dot(ab) / maxf(ab.length_squared(), 0.001), 0.0, 1.0)
 		if center.distance_to(a + ab * k) < float(t[2]) + reach:
 			tunnels.append(t)
+	var cave_rocks: Array[PackedVector4Array] = []
+	for b in _cave_rocks:
+		var c := b[0]
+		if Vector3(c.x, c.y, c.z).distance_to(center) < c.w + reach:
+			cave_rocks.append(b)
+	var cones: Array[PackedFloat32Array] = []
+	for cn in _cones:
+		if Vector3(cn[7], cn[8], cn[9]).distance_to(center) < cn[10] + reach:
+			cones.append(cn)
 
 	# Ver van elk oppervlak is het hele blok uniform (rots of lucht).
-	var c_sdf := _sdf(center, surface_at(center.x, center.z), boulders, caverns, tunnels)
+	var c_sdf := _sdf(center, surface_at(center.x, center.z), rocks, caverns, tunnels, cave_rocks, cones)
 	if c_sdf < -reach * UNIFORM_MARGIN:
 		out_buffer.fill_f(-FAR, CHANNEL)
 		return
@@ -267,4 +517,4 @@ func _generate_block(out_buffer: VoxelBuffer, origin: Vector3i, lod: int) -> voi
 			var h := heights[z * n.x + x]
 			for y in n.y:
 				var p := Vector3(origin.x + x * step, origin.y + y * step, origin.z + z * step)
-				out_buffer.set_voxel_f(clampf(_sdf(p, h, boulders, caverns, tunnels), -FAR, FAR), x, y, z, CHANNEL)
+				out_buffer.set_voxel_f(clampf(_sdf(p, h, rocks, caverns, tunnels, cave_rocks, cones), -FAR, FAR), x, y, z, CHANNEL)

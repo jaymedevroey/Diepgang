@@ -86,6 +86,7 @@ func _ready() -> void:
 	_generator = PlanetGenerator.new()
 	_generator.crater_count = [22, 6, 16][clampi(planet, 0, 2)]
 	_generator.boulder_count = [70, 40, 60][clampi(planet, 0, 2)]
+	_generator.planet = clampi(planet, 0, 2)
 	_bake_near(_generator, size_m)
 	_generator.setup(pit_seed, dims)
 
@@ -699,4 +700,30 @@ func _make_material() -> ShaderMaterial:
 		var l := c.srgb_to_linear()
 		ore_cols.append(Vector4(l.r, l.g, l.b, 1.0))
 	mat.set_shader_parameter("ore_colors", ore_cols)
+	# De ondergrond van deze planeet (kleuren, merklagen, gloed), en stof en puin in die kleuren.
+	Underground.apply(mat, clampi(planet, 0, 2))
+	Strata.DEBRIS_COLORS = Underground.debris_colors(clampi(planet, 0, 2))
+	_set_surface_height(mat)
 	return mat
+
+
+## Hoogte van het oppervlak op een raster (SURF_TEX_STEP m) als textuur voor de rotsshader: zo
+## weet hij hoe diep een punt onder zijn eigen oppervlak ligt (de korst is enkel de bovenste meter,
+## daaronder de ondergrond). Puur uit de seed, zonder bewerkingen.
+const SURF_TEX_STEP := 2.0
+
+
+func _set_surface_height(mat: ShaderMaterial) -> void:
+	var t0 := Time.get_ticks_usec()
+	var size := world_size()
+	var nx := int(ceil(size.x / SURF_TEX_STEP)) + 1
+	var nz := int(ceil(size.z / SURF_TEX_STEP)) + 1
+	var vals := PackedFloat32Array()
+	vals.resize(nx * nz)
+	for j in nz:
+		for i in nx:
+			vals[j * nx + i] = surface_height_at(i * SURF_TEX_STEP, j * SURF_TEX_STEP)
+	var img := Image.create_from_data(nx, nz, false, Image.FORMAT_RF, vals.to_byte_array())
+	mat.set_shader_parameter("surf_height", ImageTexture.create_from_image(img))
+	mat.set_shader_parameter("surf_height_rect", Vector4(SURF_TEX_STEP, nx, nz, 1.0))
+	print("[terrain] hoogte van het oppervlak voor de shader: %d×%d in %d ms" % [nx, nz, (Time.get_ticks_usec() - t0) / 1000])

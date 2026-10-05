@@ -48,7 +48,7 @@ func on_terrain_loaded(_stats: Dictionary) -> void:
 	t.add_viewer(_cam, 90.0, 30.0) # het terrein rond de camera laden (zo diep is er geen speler)
 	# De helmlamp van de speler (player.gd).
 	var lamp := SpotLight3D.new()
-	lamp.light_color = Color(1.0, 0.78, 0.5)
+	lamp.light_color = Color(1.0, 0.86, 0.68)
 	lamp.light_energy = 5.0
 	lamp.spot_range = 20.0
 	lamp.spot_angle = 52.0

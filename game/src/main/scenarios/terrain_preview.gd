@@ -7,8 +7,10 @@ extends Node
 ##   <shot>_p<planeet>_<laag>.png        langs de tunnel (scherende hoek op de wanden)
 ##   <shot>_p<planeet>_<laag>_wand.png   de bekapte wand van dichtbij
 ##   <shot>_p<planeet>_<laag>_grot.png   een grot uit de seed, van op de vloer
-## --only=klei,graniet om enkel bepaalde lagen te maken; --planet=0|1|2 (Roestbol, Fossielwereld,
-## Kristalmaan); --magma=1 laat het magma op zijn plek (anders ver weg).
+## --only=klei,graniet om enkel bepaalde lagen te maken (--only=oppervlak: de grond, de vlakte, een
+## rotsblok en een gat aan het oppervlak, in de zon); --planet=0|1|2 (Roestbol, Fossielwereld,
+## Kristalmaan); --magma=1 laat het magma op zijn plek (anders ver weg); --lamp=r,g,b en --fill=r,g,b
+## om een andere kleur van de helmlamp te proberen.
 
 const LAYERS := ["klei", "zandsteen", "graniet", "kristal"]
 
@@ -19,6 +21,7 @@ var _frames := -1
 var _shot := ""
 var _gpu: Array[float] = []
 var _started := false
+var _lamps: Array[Light3D] = []
 
 
 func on_terrain_loaded(_stats: Dictionary) -> void:
@@ -83,6 +86,8 @@ func on_terrain_loaded(_stats: Dictionary) -> void:
 				fy -= 0.25
 			eye.y = fy + 1.2
 			_queue.append([layer + "_grot", eye, Vector3(cc.x - best.w * 0.3, eye.y + 0.5, cc.z)])
+	if "oppervlak" in only:
+		_surface_shots(t, sc, top)
 	RenderingServer.viewport_set_measure_render_time(get_viewport().get_viewport_rid(), true)
 	_cam = Camera3D.new()
 	_cam.fov = 80.0
@@ -92,7 +97,7 @@ func on_terrain_loaded(_stats: Dictionary) -> void:
 	t.add_viewer(_cam, 70.0, 0.0)
 	# Exact de helmlamp van de speler (player.gd).
 	var lamp := SpotLight3D.new()
-	lamp.light_color = Color(1.0, 0.78, 0.5)
+	lamp.light_color = _color_arg("lamp", Color(1.0, 0.86, 0.68))
 	lamp.light_energy = 5.0
 	lamp.spot_range = 20.0
 	lamp.spot_angle = 52.0
@@ -102,7 +107,7 @@ func on_terrain_loaded(_stats: Dictionary) -> void:
 	_cam.add_child(lamp)
 	lamp.position = Vector3(0.18, 0.22, 0.05)
 	var fill := SpotLight3D.new()
-	fill.light_color = Color(1.0, 0.8, 0.58)
+	fill.light_color = _color_arg("fill", Color(1.0, 0.87, 0.72))
 	fill.light_energy = Tuning.get_f("player", "lamp_fill_energy", 0.9)
 	fill.spot_range = 13.0
 	fill.spot_angle = 80.0
@@ -110,7 +115,44 @@ func on_terrain_loaded(_stats: Dictionary) -> void:
 	fill.light_volumetric_fog_energy = 0.3
 	_cam.add_child(fill)
 	fill.position = lamp.position
+	_lamps = [lamp, fill]
 	_next()
+
+
+## Aan het oppervlak (zonder helmlamp, in de zon): de grond van dichtbij, de vlakte op ooghoogte met
+## de rotsblokken, het dichtste rotsblok, en een gat van 2 m (de korst tegenover de klei eronder).
+func _surface_shots(t: TerrainAPI, sc: Vector3, top: float) -> void:
+	var g := Vector3(sc.x + 30.0, 0.0, sc.z + 8.0)
+	g.y = t.surface_height_at(g.x, g.z)
+	_queue.append(["oppervlak_grond", g + Vector3(0.0, 1.7, 0.0), g + Vector3(5.0, 0.0, 1.5), false])
+	_queue.append(["oppervlak_kim", Vector3(sc.x + 18.0, top + 1.7, sc.z - 6.0), Vector3(sc.x + 80.0, top + 1.0, sc.z - 30.0), false])
+	# Het rotsblok het dichtst bij de landingsplek (generator, in voxels).
+	var best := Vector4.ZERO
+	var bd := 1e9
+	for b: Vector4 in t._generator._boulders:
+		var w := b * TerrainAPI.VOXEL_SIZE
+		var d := Vector2(w.x - sc.x, w.z - sc.z).length()
+		if d < bd and w.w > 1.2:
+			bd = d
+			best = w
+	if best != Vector4.ZERO:
+		var bc := Vector3(best.x, best.y, best.z)
+		var dir := Vector3(sc.x - bc.x, 0.0, sc.z - bc.z).normalized()
+		var eye := bc + dir * (best.w * 3.2 + 2.0)
+		eye.y = t.surface_height_at(eye.x, eye.z) + 1.7
+		_queue.append(["oppervlak_rots", eye, bc, false])
+	var hole := Vector3(sc.x - 26.0, 0.0, sc.z - 10.0)
+	hole.y = t.surface_height_at(hole.x, hole.z)
+	t.debug_dig(hole + Vector3(0.0, -0.6, 0.0), 2.0)
+	t.debug_dig(hole + Vector3(1.2, -1.2, 0.4), 1.6)
+	_queue.append(["oppervlak_gat", hole + Vector3(-3.2, 1.8, -1.0), hole + Vector3(0.6, -1.4, 0.2), false])
+
+
+func _color_arg(key: String, fallback: Color) -> Color:
+	var parts := str(CmdArgs.value(key, "")).split(",", false)
+	if parts.size() != 3:
+		return fallback
+	return Color(float(parts[0]), float(parts[1]), float(parts[2]))
 
 
 func _next() -> void:
@@ -119,6 +161,8 @@ func _next() -> void:
 		return
 	var item: Array = _queue.pop_front()
 	_shot = item[0]
+	for l: Light3D in _lamps:
+		l.visible = item.size() < 4 or bool(item[3])
 	_cam.global_position = item[1]
 	_cam.look_at(item[2])
 	_frames = 0

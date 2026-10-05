@@ -14,9 +14,11 @@ extends Node
 ## Alles lokaal per speler: elke client kijkt naar zijn eigen camera. Na een cameraknip: snap().
 
 # Per laag (0 kristal · 1 graniet · 2 zandsteen · 3 klei): mist, verstrooiing in lichtbundels, omgevingslicht.
+# Verstrooiing en omgevingslicht bijna neutraal tot koel (release-audit binnen-01): een oranje waas in
+# de lampbundel en warme schaduwen maakten van de klei één bruine soep. Schaduwen koel (stijlgids).
 const FOG := [Color(0.018, 0.022, 0.05), Color(0.03, 0.034, 0.042), Color(0.055, 0.042, 0.026), Color(0.05, 0.03, 0.022)]
-const SCATTER := [Color(0.6, 0.78, 1.0), Color(0.78, 0.8, 0.84), Color(0.95, 0.84, 0.64), Color(0.92, 0.74, 0.6)]
-const AMBIENT := [Color(0.22, 0.26, 0.42), Color(0.27, 0.28, 0.31), Color(0.36, 0.3, 0.22), Color(0.36, 0.26, 0.2)]
+const SCATTER := [Color(0.6, 0.78, 1.0), Color(0.72, 0.78, 0.86), Color(0.84, 0.8, 0.72), Color(0.78, 0.74, 0.72)]
+const AMBIENT := [Color(0.22, 0.26, 0.42), Color(0.22, 0.26, 0.34), Color(0.3, 0.28, 0.28), Color(0.25, 0.25, 0.31)]
 const SURFACE_FOG := Color(0.035, 0.032, 0.04)
 ## Kleur van het teruggekaatste licht per laag (de rots kleurt het licht van de helmlamp).
 const BOUNCE := [Color(0.3, 0.38, 0.62), Color(0.62, 0.62, 0.64), Color(0.9, 0.7, 0.44), Color(0.82, 0.55, 0.38)]
@@ -217,7 +219,7 @@ func _update(delta: float, snap_now: bool) -> void:
 	var under := lerpf(0.16, 0.1, smoothstep(5.0, 60.0, depth)) + 0.07 * float(f[0]) # kristal: wat indigo
 	var ship_ambient := Tuning.get_f("sky", "ship_ambient_energy", 0.3) # de hub heeft donkere wanden en kleine lampen
 	env.ambient_light_energy = lerpf(lerpf(under, float(_planet.get("ambient_energy", 0.3)), surface), ship_ambient, _ship_k)
-	env.volumetric_fog_density = lerpf(0.008, 0.022, smoothstep(2.0, 20.0, depth)) * lerpf(1.0, 0.35, surface) * lerpf(1.0, 0.6, _ship_k)
+	env.volumetric_fog_density = lerpf(0.008, 0.013, smoothstep(2.0, 20.0, depth)) * lerpf(1.0, 0.35, surface) * lerpf(1.0, 0.6, _ship_k)
 	# Hoog in de lucht (De Ekster, de drop): dunnere nevel, zodat je de planeet onder je ziet. Het
 	# verre landschap aan de horizon (4,6 km op 340 m) verdwijnt er toch voor ±90% in.
 	var high := Tuning.get_f("sky", "fog_altitude_factor", 0.4)
@@ -248,7 +250,10 @@ func _update_bounce(cam: Camera3D, depth: float, delta: float, snap_now := false
 		_bounce_pos = target if _bounce_energy < 0.01 else _bounce_pos.lerp(target, minf(1.0, delta * 10.0))
 		want = Tuning.get_f("player", "lamp_bounce_energy", 0.35) * (1.0 - smoothstep(3.0, BOUNCE_REACH, d))
 		var layer := terrain.layer_at(hit.position)
-		_bounce.light_color = (_bounce.light_color as Color).lerp(BOUNCE[layer], minf(1.0, delta * 4.0))
+		# De kleur van die rots op deze planeet (Strata.DEBRIS_COLORS volgt Underground), op volle sterkte.
+		var rc: Color = Strata.DEBRIS_COLORS[layer]
+		var tint := Color(rc.r, rc.g, rc.b) / maxf(0.01, maxf(rc.r, maxf(rc.g, rc.b)))
+		_bounce.light_color = (_bounce.light_color as Color).lerp(BOUNCE[layer].lerp(tint * 0.85, 0.7), minf(1.0, delta * 4.0))
 	_bounce_energy = want if snap_now else move_toward(_bounce_energy, want, delta * 2.0)
 	_bounce.global_position = _bounce_pos
 	_bounce.light_energy = _bounce_energy

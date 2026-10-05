@@ -4,12 +4,20 @@ render_mode blend_mix, cull_back, diffuse_burley, specular_schlick_ggx;
 // Gestileerde rots (docs/stijlgids.md, docs/research/rots-en-licht.md).
 // Alles in wereldruimte en procedureel: geen UV's nodig op het voxelterrein, geen naden.
 //   1. Facetten: 3D-voronoi; elke cel kantelt de normaal een beetje, zodat de wand uit
-//      afgebrokkelde vlakken bestaat (het DRG-trucje). Aan de randen van een cel vloeit de
-//      kanteling weg (afgeschuinde rand), met een donker barstje en een lichter randje.
-//   2. Kleur: grote vlekken, een tint per facet, en een eigen patroon per laag:
-//      klei kiezels en droge barstjes · zandsteen banden en platen · graniet spikkels ·
-//      kristal donker met spaarzame lichtgevende aders en glinsters.
-//   3. Stof op vloeren, donkerder onder overhangen, een naad op de laaggrens.
+//      afgebrokkelde vlakken bestaat (het DRG-trucje). Vlakken grenzen hard aan elkaar, zonder
+//      lijnen (lijnen op facetranden lazen als glas-in-lood, release-audit binnen-07).
+//   2. Kleur per planeet en per laag (Underground: ug_*), met een eigen patroon per laag:
+//      klei: gevlekt en fijn gelaagd, in eenheden van ±8 m met elk een merklaag (bleek, donker, koel, grind, of het eigen
+//        accent van de planeet: gloeiende geodes, botbedden, kristalinsluitsels) en hier en daar
+//        gloeiende knollen · zandsteen: banden met scheve gelaagdheid en een ijzerband ·
+//        graniet: koel, in blokken gebroken, met grote spikkels · kristal: donker, met brede
+//        kristalnaden en echte kristallen in de rots die oplichten waar je erdoor graaft.
+//   3. Aan het oppervlak (de bovenste meter, `surf_height`) een korst per planeet: Roestbol
+//      windribbels en stofsporen, Fossielwereld krijtplaten en gruis, Kristalmaan zeshoeken en
+//      glinsters. Onder de grond geen barstjes maar gruis op de vloer (binnen-07, buiten-12).
+//   4. Stof op vloeren, donkerder onder overhangen, een naad op de laaggrens.
+//   5. Erts vlak achter de wand: een verkleuring in de kleur van verweerd erts en grote glinsters
+//      die van ver te zien zijn (binnen-03).
 // Fijne details vervagen met de afstand (geen flikkeren). Laaggrenzen = strata.gd.
 // Wat verder ligt dan de fijne details (facetten 90 m, kiezels en barstjes 12-34 m), rekent de
 // shader niet meer uit: van hoog in de lucht is bijna al het terrein ver weg. Verder dan 150 m
@@ -59,10 +67,25 @@ uniform float top_graniet = 80.0;
 uniform float top_zandsteen = 125.0;
 uniform float vein_energy = 2.4;
 uniform float facet_strength = 1.0;
+// De ondergrond per planeet (Underground.apply), sRGB, per laag (0 kristal .. 3 klei onder de
+// korst): basis, licht, donker en een accent (kristal: ader, graniet: kwarts, zandsteen: ijzerband,
+// klei: gloed). Merklagen in de klei: 0 bleek, 1 donker, 2 koel, 3 grind.
+uniform int planet_id = 0;
+uniform vec3 ug_base[4];
+uniform vec3 ug_light[4];
+uniform vec3 ug_dark[4];
+uniform vec3 ug_accent[4];
+uniform vec3 ug_band[4];
+// Hoogte van het oppervlak van de generator (TerrainAPI): x = m per texel, y/z = texels, w = aan.
+// Zo weet de shader hoe diep een punt onder zijn eigen oppervlak ligt (korst of ondergrond).
+uniform sampler2D surf_height : filter_linear, repeat_disable;
+uniform vec4 surf_height_rect = vec4(2.0, 1.0, 1.0, 0.0);
 // Erts vlak achter de wand (OreField): xyz = cluster (wereld), w = soort. Kleuren lineair.
 uniform vec4 ore_points[16];
 uniform int ore_count = 0;
 uniform vec4 ore_colors[4];
+// Verkleuring rond een ader per soort (Underground.ORE_STAIN), lineair; a = hoe sterk.
+uniform vec4 ore_stain[4];
 // Grof raster van het speelgebied (PlanetSurface): dichter dan dit bij de camera is het echte
 // voxelterrein geladen, dus daar niet tekenen (anders sluit het gaten en tunnels af). 0 = uit.
 uniform float near_cutoff = 0.0;
@@ -78,16 +101,10 @@ varying vec3 wpos;
 varying vec3 wnrm;
 varying vec4 vtint; // verre landschap: tint van de landvorm (rgb maal de rotskleur, a = lagen)
 
-// Palet in sRGB (stijlgids), per laag: 0 kristal, 1 graniet, 2 zandsteen, 3 klei.
-const vec3 PAL_BASE[4] = vec3[](vec3(0.137, 0.157, 0.220), vec3(0.373, 0.392, 0.420), vec3(0.690, 0.541, 0.333), vec3(0.431, 0.290, 0.208));
-const vec3 PAL_LIGHT[4] = vec3[](vec3(0.227, 0.259, 0.376), vec3(0.604, 0.620, 0.639), vec3(0.820, 0.678, 0.447), vec3(0.604, 0.420, 0.298));
-const vec3 PAL_DARK[4] = vec3[](vec3(0.071, 0.078, 0.114), vec3(0.165, 0.176, 0.200), vec3(0.478, 0.357, 0.204), vec3(0.243, 0.165, 0.122));
 const vec3 PINK = vec3(0.659, 0.514, 0.471);
-const vec3 CYAN = vec3(0.310, 0.890, 0.941);
 // Facetgrootte (m), kanteling, ruwheid per laag.
 const float FACET_SIZE[4] = float[](1.25, 1.45, 1.1, 0.85);
 const float FACET_TILT[4] = float[](0.85, 0.8, 0.6, 0.48);
-const float CRACKS[4] = float[](0.0, 0.22, 0.0, 0.8); // hoeveel barstjes (klei: droge modder op vloeren, graniet: breuken)
 // Low-poly-facetten: fijnheid van het richtingenrooster (hoger = meer, kleinere vlakken) en sterkte.
 const float QUANT[4] = float[](2.6, 2.2, 2.3, 2.0);
 const float QUANT_AMT[4] = float[](0.95, 0.95, 0.85, 0.8);
@@ -151,6 +168,69 @@ vec2 voronoi(vec3 p, out vec3 cell) {
 	return vec2(sqrt(f1), (f2 - f1) / (2.0 * max(length(r2 - r1), 1e-3)));
 }
 
+// Een knol in een kubuscel van `size` m (enkel de eigen cel: de knol past er altijd in, dus geen
+// buren nodig). x = afstand tot het midden / straal (< 1 = erin), y = een hash per knol,
+// z = 1 als de cel een knol heeft, w = 1 binnen de cel, naar 0 aan haar rand (voor een schijn rond
+// de knol, die anders recht afgesneden wordt). `chance` = kans per cel, rmin/rmax = straal als deel
+// van de cel.
+vec4 nodule(vec3 p, float size, float chance, float rmin, float rmax, float salt) {
+	vec3 q = p / size;
+	vec3 ci = floor(q);
+	vec3 f = fract(q);
+	float h = hash1(ci + vec3(salt));
+	float r = mix(rmin, rmax, hash1(ci + vec3(salt + 7.3)));
+	vec3 c = vec3(0.5) + (hash33(ci + vec3(salt + 1.7)) - 0.5) * (1.0 - 2.0 * r) * 0.6;
+	float d = length(f - c) / r;
+	vec3 e = abs(f - 0.5);
+	float border = 1.0 - smoothstep(0.34, 0.49, max(max(e.x, e.y), e.z));
+	return vec4(d, hash1(ci + vec3(salt + 3.1)), step(1.0 - chance, h), border);
+}
+
+// Afstand van p tot een staafje (kristal of bot) in een kubuscel: x = afstand tot de as / straal,
+// y = positie langs de as (-1..1), z = 1 als de cel er een heeft. w = hash.
+vec4 rod(vec3 p, float size, float chance, float rad, float half_len, float salt) {
+	vec3 q = p / size;
+	vec3 ci = floor(q);
+	float h = hash1(ci + vec3(salt));
+	vec3 axis = normalize(hash33(ci + vec3(salt + 4.1)) * 2.0 - 1.0 + vec3(0.0, 0.001, 0.0));
+	float rr = rad * mix(0.6, 1.0, hash1(ci + vec3(salt + 2.2)));
+	float hl = half_len * mix(0.55, 1.0, hash1(ci + vec3(salt + 5.5)));
+	vec3 c = (ci + 0.5) * size;
+	vec3 d = p - c;
+	float t = clamp(dot(d, axis), -hl, hl);
+	float dist = length(d - axis * t);
+	return vec4(dist / rr, t / hl, step(1.0 - chance, h), hash1(ci + vec3(salt + 9.9)));
+}
+
+// Een zeskantig kristal in een kubuscel van `size` m (het kristal staat in het midden en past
+// erin): x = zeskantafstand tot de as / straal (< 1 = erin), y = welk zijvlak (0..5, hash erbij),
+// z = 1 als de cel er een heeft, w = 1 binnen de cel en 0 aan haar rand (voor de schijn errond).
+vec4 crystal(vec3 p, float size, float chance, float rad, float half_len, float salt) {
+	vec3 q = p / size;
+	vec3 ci = floor(q);
+	float h = hash1(ci + vec3(salt));
+	vec3 axis = normalize(hash33(ci + vec3(salt + 4.1)) * 2.0 - 1.0 + vec3(0.0, 0.001, 0.0));
+	vec3 u = normalize(cross(axis, abs(axis.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0)));
+	vec3 w = cross(axis, u);
+	float rr = rad * mix(0.55, 1.0, hash1(ci + vec3(salt + 2.2)));
+	float hl = half_len * mix(0.6, 1.0, hash1(ci + vec3(salt + 5.5)));
+	vec3 d = p - (ci + 0.5) * size;
+	float t = dot(d, axis);
+	vec2 r2 = vec2(dot(d, u), dot(d, w));
+	vec2 a = abs(r2);
+	float hexd = max(a.x * 0.8660254 + a.y * 0.5, a.y);
+	// Een punt aan het uiteinde: het kristal loopt toe (de zeskant krimpt naar de top).
+	float taper = clamp((hl - abs(t)) / (rr * 1.6), 0.0, 1.0);
+	float dd = hexd / (rr * max(taper, 0.02));
+	if (abs(t) > hl) {
+		dd = 9.0;
+	}
+	float side = floor((atan(r2.y, r2.x) + 3.14159265) / 1.0471976);
+	vec3 e = abs(fract(q) - 0.5);
+	float border = 1.0 - smoothstep(0.36, 0.49, max(max(e.x, e.y), e.z));
+	return vec4(dd, side + hash1(ci + vec3(salt + 9.9)), step(1.0 - chance, h), border);
+}
+
 void vertex() {
 	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	wnrm = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
@@ -173,6 +253,16 @@ void fragment() {
 	if (far_terrain) {
 		layer = 3;
 	}
+	// Diepte onder het eigen oppervlak (m). De korst is enkel de bovenste meter: een gat dat je aan
+	// het oppervlak graaft, toont meteen de klei eronder, geen droge barstjes.
+	float surf_h = surface_world_y;
+	if (surf_height_rect.w > 0.5 && !far_terrain) {
+		vec2 suv = (wpos.xz / surf_height_rect.x + 0.5) / surf_height_rect.yz;
+		surf_h = texture(surf_height, suv).r;
+	}
+	float depth = far_terrain ? 0.0 : surf_h - wpos.y;
+	float crust_k = 1.0 - smoothstep(0.6, 1.6, depth);
+	float under_k = smoothstep(1.2, 5.0, depth);
 	float near = 1.0 - smoothstep(12.0, 34.0, dist); // fijne details enkel van dichtbij
 	// Hoe groot een pixel hier is (m; gemiddelde van beide assen, zodat scherend kijken over de grond
 	// de facetten niet wegneemt). Wat kleiner is dan een paar pixels, vervaagt naar zijn gemiddelde:
@@ -186,13 +276,13 @@ void fragment() {
 	float dust_k = fine_k * (1.0 - smoothstep(0.15, 0.45, px)); // stof, 1,25 m
 	float aa = smoothstep(0.1, 0.35, px); // facetten en kromming: 0 = scherp, 1 = uitgemiddeld
 
-	vec3 base = lin(PAL_BASE[layer]);
-	vec3 light = lin(PAL_LIGHT[layer]);
-	vec3 dark = lin(PAL_DARK[layer]);
-	if (layer == 3) { // de bovenste laag: per planeet (PlanetType.ground)
-		base = lin(surf_base);
-		light = lin(surf_light);
-		dark = lin(surf_dark);
+	vec3 base = lin(ug_base[layer]);
+	vec3 light = lin(ug_light[layer]);
+	vec3 dark = lin(ug_dark[layer]);
+	if (layer == 3) { // de bovenste laag: aan het oppervlak de kleuren van de planeet (PlanetType.ground)
+		base = mix(lin(surf_base), base, under_k);
+		light = mix(lin(surf_light), light, under_k);
+		dark = mix(lin(surf_dark), dark, under_k);
 	}
 
 	// Grote golving in de wand (één ruisgradiënt): breekt de gladheid van de voxels.
@@ -219,6 +309,8 @@ void fragment() {
 	float edge = v.y * FACET_SIZE[layer]; // afstand (m) tot de grens met de buurfacet
 	float fw = max(fwidth(edge), 1e-4);
 	float up = wn.y;
+	// Vloeren onder de grond: gruis, geen platen (de facetten en kantelingen lazen als terrastegels).
+	float ug_floor = smoothstep(0.55, 0.85, up) * under_k;
 	// Low-poly: de normaal afronden op een vast (per laag gedraaid) rooster van richtingen. Een gebogen
 	// wand valt zo uiteen in vlakke facetten die zijn vorm volgen, zoals een grof gemodelleerde rots.
 	float ra = float(layer) * 1.7 + seed_s * 0.37;
@@ -227,9 +319,10 @@ void fragment() {
 	vec3 qv = rot * wn * QUANT[layer];
 	vec3 qi = round(qv);
 	vec3 nq = transpose(rot) * normalize(qi);
-	float facet_id = mix(0.5, hash1(qi + cell * 0.0 + vec3(float(layer) * 3.1)), 1.0 - aa);
+	float facet_id = mix(0.5, hash1(qi + vec3(float(layer) * 3.1)), 1.0 - aa);
 	float qamt = QUANT_AMT[layer] * facet_strength * mix(0.6, 1.0, near) * (1.0 - 0.85 * aa);
 	qamt *= 1.0 - 0.5 * smoothstep(0.55, 0.9, up); // vloeren zijn vlakker (stof vult op)
+	qamt *= 1.0 - 0.6 * ug_floor;
 	// De landingsplek: aangestampt stof in het midden, dat aan de rand (ruw, niet rond) overgaat in
 	// het gewone terrein. Daar minder platen en barsten, zodat het geen tegelvloer wordt.
 	float pad_k = 0.0;
@@ -244,7 +337,7 @@ void fragment() {
 	vec3 rv = hash33(cell + vec3(31.7, 5.1, 9.9)) * 2.0 - 1.0;
 	vec3 tilt = rv - dot(rv, n) * n;
 	// Geen afschuining: die tekende een omtrek rond elke cel. Vlakken grenzen hard aan elkaar.
-	n = normalize(n + tilt * FACET_TILT[layer] * 0.35 * facet_strength * near * (1.0 - 0.75 * pad_k));
+	n = normalize(n + tilt * FACET_TILT[layer] * 0.35 * facet_strength * near * (1.0 - 0.75 * pad_k) * (1.0 - 0.8 * ug_floor));
 
 	// 2. Kleur: grote vlekken, een tint per facet, af en toe een lichter of donkerder vlak.
 	float big = mix(0.5, vnoise(wpos * 0.11 + vec3(seed_s)), fine_k);
@@ -257,75 +350,276 @@ void fragment() {
 		col = mix(col, dark * 1.5, smoothstep(0.56, 0.8, lv) * 0.5 * far_k);
 		col = mix(col, light, smoothstep(0.44, 0.22, lv) * 0.3 * far_k);
 	}
-	col *= 0.9 + 0.2 * facet_id; // elk vlak een eigen tint, zoals geschilderd (van ver gemiddeld)
-	// Grens tussen twee vlakken: een dun licht lijntje, zoals een afgeschuinde rand die licht vangt.
-	float qedge = step(0.001, dot(fwidth(qi), vec3(1.0)));
-	col = mix(col, light * 1.15, qedge * 0.22 * near * qamt);
+	col *= 0.9 + 0.2 * mix(facet_id, 0.5, 0.6 * ug_floor); // elk vlak een eigen tint, zoals geschilderd (van ver gemiddeld)
 	col *= 0.96 + 0.08 * cid;
 	float rough = ROUGH[layer];
 	vec3 emit = vec3(0.0);
+	// Fijn detail tot hier (m): kleine dingen verdwijnen eerder, zodat ze niet flikkeren.
+	float det_k = near * (1.0 - smoothstep(0.03, 0.09, px));
 
 	if (layer == 3) {
-		// Klei: kleine lichte kiezels.
+		// Klei aan het oppervlak: kleine lichte kiezels.
 		if (dist < 12.0) {
 			float peb = smoothstep(0.86, 0.89, vnoise(wpos * 15.0 + vec3(9.0))) * step(0.5, vnoise(wpos * 1.3 + vec3(2.0)));
 			col = mix(col, mix(light, vec3(dot(light, vec3(0.333))), 0.4) * 1.1, peb * 0.35 * near * (1.0 - smoothstep(4.0, 12.0, dist)));
 		}
+		if (under_k > 0.0 && !far_terrain) {
+			// De klei onder de grond: eenheden van ±8 m, elk met een eigen tint en één merklaag van
+			// 1,5-3,5 m. Welke merklaag, hangt af van de diepte: bovenaan vooral bleek (kalk, krijt,
+			// as), in het midden koel en grind, onderaan donker en het accent van de planeet. Zo zie je
+			// om de 5-8 m iets nieuws, en zie je ongeveer hoe diep je zit.
+			float uy = y + 0.9 * sin(wpos.x * 0.047 + seed_s) + 0.7 * sin(wpos.z * 0.061 + seed_s * 1.7)
+					+ 0.8 * (vnoise(vec3(wpos.xz * 0.08, seed_s)) - 0.5);
+			float unit_h = 8.0;
+			float uid = floor(uy / unit_h);
+			float uf = uy - uid * unit_h; // m in de eenheid
+			float hu = hash1(vec3(uid, seed_s, 5.1));
+			// Gevlekte klei (zoals echte ondergrond): grijsgroene en donkere vlekken van 0,3-1 m.
+			float steep_k = 1.0 - smoothstep(0.55, 0.85, abs(up));
+			float mot = vnoise(wpos * 1.1 + vec3(seed_s, 2.0, 0.0)) * 0.65 + vnoise(wpos * 3.1 + vec3(5.0)) * 0.35;
+			col = mix(col, lin(ug_band[2]) * 0.95, smoothstep(0.6, 0.68, mot) * 0.55 * under_k);
+			col = mix(col, dark, (1.0 - smoothstep(0.3, 0.36, mot)) * 0.35 * under_k);
+			// Fijne horizontale laagjes (varven) op de wanden: elke wand leest als een doorsnede.
+			float vv = uy * 9.0 + 1.5 * vnoise(wpos * 0.7);
+			float varve = sin(vv) * 0.5 + sin(vv * 2.3 + 1.0) * 0.25;
+			col *= 1.0 + varve * 0.09 * steep_k * under_k * (1.0 - smoothstep(0.02, 0.06, px));
+			col *= mix(vec3(1.0), mix(vec3(0.88, 0.92, 1.0), vec3(1.1, 1.05, 0.98), hu), under_k); // elke eenheid een eigen tint
+			float mt = 1.5 + 2.0 * hash1(vec3(uid, seed_s, 9.7));
+			float mpos = 1.0 + (unit_h - mt - 2.0) * hash1(vec3(uid, seed_s, 2.3));
+			float bw = max(fwidth(uf), 1e-3) + 0.06;
+			float in_m = smoothstep(mpos - bw, mpos + bw, uf) * (1.0 - smoothstep(mpos + mt - bw, mpos + mt + bw, uf)) * under_k;
+			float dz = clamp(depth / 70.0, 0.0, 1.0);
+			// Gewichten: bleek, donker, koel, grind, accent.
+			float w0 = 1.3 * (1.0 - dz) + 0.15;
+			float w1 = 1.4 * dz;
+			float w2 = 0.8;
+			float w3 = 0.7;
+			float w4 = 0.25 + 0.6 * dz;
+			float r = hash1(vec3(uid, seed_s, 7.7)) * (w0 + w1 + w2 + w3 + w4);
+			int kind = r < w0 ? 0 : (r < w0 + w1 ? 1 : (r < w0 + w1 + w2 ? 2 : (r < w0 + w1 + w2 + w3 ? 3 : 4)));
+			vec3 nod_p = wpos + vec3(seed_s * 3.3, 0.0, seed_s * 1.9);
+			if (in_m > 0.0) {
+				if (kind == 0) {
+					// Bleek (kalk, krijt, as) met knollen: lichter, of vuursteen (zwart) op de Fossielwereld.
+					vec3 bc = lin(ug_band[0]);
+					col = mix(col, bc * (0.92 + 0.16 * vnoise(wpos * 1.7)), 0.85 * in_m);
+					vec4 nd = nodule(nod_p, 0.55, 0.3, 0.14, 0.3, 11.0);
+					float nx = nd.x + (vnoise(wpos * 9.0) - 0.5) * 0.5; // grillige rand
+					float k = (1.0 - smoothstep(0.85, 1.0, nx)) * nd.z * det_k * in_m * (1.0 - 0.75 * ug_floor);
+					vec3 ncol = planet_id == 1 ? lin(ug_band[1]) * 1.4 : bc * 1.18;
+					col = mix(col, ncol, k);
+					rough = mix(rough, 0.45, k * (planet_id == 1 ? 1.0 : 0.0));
+				} else if (kind == 1) {
+					// Donker (hematiet, vuursteen, obsidiaan): glanzend, met fijne glinsters.
+					col = mix(col, lin(ug_band[1]) * (0.9 + 0.2 * vnoise(wpos * 2.3)), 0.88 * in_m);
+					rough = mix(rough, 0.42, in_m);
+					float g = hash1(floor(wpos * 22.0) + vec3(seed_s));
+					rough = mix(rough, 0.12, step(0.96, g) * in_m * det_k);
+				} else if (kind == 2) {
+					// Koel (gley, mergel, blauwviolet) met fijne horizontale laagjes.
+					col = mix(col, lin(ug_band[2]) * (0.94 + 0.12 * vnoise(wpos * 1.1)), 0.82 * in_m);
+					float lam = sin(uy * 34.0 + 2.0 * vnoise(wpos * 0.9));
+					col *= 1.0 - 0.12 * smoothstep(0.6, 0.95, lam) * in_m * steep_k * (1.0 - smoothstep(0.02, 0.05, px));
+				} else if (kind == 3) {
+					// Grind: ronde stenen in drie tinten in een donkere matrix.
+					col = mix(col, dark * 1.1, 0.55 * in_m);
+					vec4 nd = nodule(nod_p, 0.3, 0.42, 0.12, 0.36, 23.0);
+					float nx = nd.x + (vnoise(wpos * 11.0) - 0.5) * 0.45; // geen ronde schijfjes: grillige stenen
+					float k = (1.0 - smoothstep(0.8, 1.0, nx)) * nd.z * in_m * (1.0 - smoothstep(0.03, 0.07, px)) * (1.0 - 0.6 * ug_floor);
+					vec3 sc = nd.y < 0.4 ? lin(ug_band[3]) : (nd.y < 0.75 ? lin(ug_band[0]) * 0.9 : lin(ug_band[1]) * 1.6);
+					col = mix(col, sc * (0.8 + 0.3 * (1.0 - nx)), k * 0.8);
+				} else {
+					// Het accent van de planeet.
+					if (planet_id == 1) {
+						// Botbed: ivoren botstukken in grijze mergel.
+						col = mix(col, lin(ug_band[2]) * 0.9, 0.8 * in_m);
+						vec4 b = rod(wpos + vec3(seed_s), 0.7, 0.55, 0.07, 0.3, 31.0);
+						float knob = smoothstep(0.75, 1.0, abs(b.y)) * 0.35; // knobbelige uiteinden
+						float k = (1.0 - smoothstep(0.85 + knob, 1.0 + knob, b.x)) * b.z * in_m * det_k;
+						col = mix(col, lin(vec3(0.91, 0.86, 0.75)) * (0.85 + 0.2 * b.w), k);
+						rough = mix(rough, 0.65, k);
+					} else if (planet_id == 2) {
+						// Obsidiaan met roze kristalinsluitsels die gloeien.
+						col = mix(col, lin(ug_band[1]) * 1.2, 0.85 * in_m);
+						rough = mix(rough, 0.25, in_m);
+						vec4 c = rod(wpos + vec3(seed_s), 0.6, 0.5, 0.05, 0.16, 37.0);
+						float k = (1.0 - smoothstep(0.8, 1.0, c.x)) * c.z * in_m;
+						vec3 gc = lin(ug_accent[3]);
+						col = mix(col, gc * 0.5, k);
+						emit += gc * k * (1.2 + 1.2 * (1.0 - c.x));
+						rough = mix(rough, 0.08, k);
+					} else {
+						// Roestbol: een laag vol geodes die koel gloeien, in donkere klei.
+						col = mix(col, dark * 0.95, 0.6 * in_m);
+					}
+				}
+			}
+			// Gloeiende knollen (geodes, fosfor, kristal): in zakken door de hele klei, het dichtst
+			// in de accentlaag en dieper. Klein (10-25 cm) maar fel: van ver lichtpuntjes in het donker.
+			if (planet_id != 1 || kind == 4) {
+				float pocket = smoothstep(0.58, 0.72, vnoise(wpos * 0.07 + vec3(seed_s, 3.0, 1.0)));
+				float chance = mix(0.015, 0.4, pocket) * mix(0.6, 1.4, dz);
+				chance = mix(chance, 0.55, (kind == 4 ? in_m : 0.0));
+				vec4 nd = nodule(nod_p + vec3(0.7), 1.4, chance, 0.08, 0.16, 47.0);
+				if (nd.z > 0.0 && nd.x < 3.2) {
+					vec3 gc = lin(ug_accent[3]);
+					float core = 1.0 - smoothstep(0.75, 1.0, nd.x);
+					float rim = (1.0 - smoothstep(1.0, 1.25, nd.x)) * (1.0 - core);
+					float halo = (1.0 - smoothstep(1.0, 3.2, nd.x)) * nd.w;
+					float pulse = 0.82 + 0.18 * sin(TIME * (0.6 + nd.y) + nd.y * 40.0);
+					col = mix(col, dark * 0.5, rim * 0.8 * under_k);
+					col = mix(col, gc * 0.6, core * under_k);
+					emit += gc * under_k * (core * (2.2 + 1.5 * nd.y) * pulse + halo * halo * 0.07);
+					rough = mix(rough, 0.1, core);
+				}
+			}
+			if (planet_id == 1 && kind != 4) {
+				// Fossielwereld: hier en daar een losse botsplinter in het krijt.
+				vec4 b = rod(wpos + vec3(seed_s * 2.0), 1.6, 0.18, 0.05, 0.22, 53.0);
+				float k = (1.0 - smoothstep(0.85, 1.0, b.x)) * b.z * under_k * det_k;
+				col = mix(col, lin(vec3(0.93, 0.88, 0.78)), k);
+			}
+			// Gruis op de vloer: fijne, ongelijke korrels (geen platen).
+			float gr = vnoise(wpos * 6.5 + vec3(seed_s));
+			col *= 1.0 + (gr - 0.5) * 0.28 * ug_floor * (1.0 - smoothstep(0.02, 0.06, px));
+		}
 	} else if (layer == 2) {
-		// Zandsteen: horizontale banden van wisselende dikte en tint, licht golvend.
+		// Zandsteen: horizontale banden van wisselende dikte en tint, licht golvend, met scheve
+		// gelaagdheid in de dikke banden en af en toe een roestrode ijzerband.
 		float yb = y * 2.6 + 0.6 * sin(wpos.x * 0.17 + wpos.z * 0.12 + seed_s);
 		yb += 0.35 * sin(yb * 0.57);
-		float h = hash1(vec3(floor(yb), seed_s, 3.3));
-		vec3 band = h < 0.25 ? mix(base, dark, 0.7) : (h < 0.78 ? base : mix(base, light, 0.6));
-		col = mix(col, band * (0.95 + 0.1 * cid), 0.7);
+		float bid = floor(yb);
+		float h = hash1(vec3(bid, seed_s, 3.3));
+		vec3 band = h < 0.22 ? mix(base, dark, 0.75) : (h < 0.72 ? base : mix(base, light, 0.7));
+		if (h > 0.9) {
+			band = lin(ug_accent[2]);
+		}
+		col = mix(col, band * (0.95 + 0.1 * cid), 0.75);
 		float bf = fract(yb);
 		float bfw = max(fwidth(yb), 1e-4);
 		float bline = 1.0 - smoothstep(0.035, 0.035 + bfw * 1.5, min(bf, 1.0 - bf));
-		col *= 1.0 - bline * 0.22 * clamp(0.035 / bfw, 0.0, 1.0);
+		col *= 1.0 - bline * 0.25 * clamp(0.035 / bfw, 0.0, 1.0);
+		// Scheve gelaagdheid: fijne schuine lijntjes binnen een band (per band een eigen richting).
+		float ang = hash1(vec3(bid, seed_s, 8.8)) * 6.2831;
+		float sl = yb * 5.0 + dot(wpos.xz, vec2(cos(ang), sin(ang))) * 1.6;
+		float lw = max(fwidth(sl), 1e-3);
+		float lam = 1.0 - smoothstep(0.06, 0.06 + lw * 1.5, abs(fract(sl) - 0.5) * 2.0 - 0.9);
+		col *= 1.0 - 0.09 * lam * step(0.22, h) * step(h, 0.9) * (1.0 - smoothstep(0.03, 0.08, px));
+		// IJzerconcreties: donkere ronde knollen.
+		vec4 nd = nodule(wpos + vec3(seed_s), 1.1, 0.08, 0.12, 0.3, 61.0);
+		float k = (1.0 - smoothstep(0.85, 1.0, nd.x)) * nd.z * det_k;
+		col = mix(col, dark * 0.7, k);
 	} else if (layer == 1) {
-		// Graniet: zwarte, witte en roze spikkels.
-		float k = near;
-		k *= 1.0 - smoothstep(3.0, 12.0, dist); // spikkels zijn klein: enkel van dichtbij
-		if (k > 0.0) {
-			col = mix(col, vec3(0.015), smoothstep(0.8, 0.84, vnoise(wpos * 24.0 + vec3(3.1))) * 0.55 * k);
-			col = mix(col, lin(vec3(0.88, 0.88, 0.86)), smoothstep(0.84, 0.88, vnoise(wpos * 28.0 + vec3(17.0))) * 0.4 * k);
-			col = mix(col, lin(PINK), smoothstep(0.83, 0.87, vnoise(wpos * 18.0 + vec3(41.0))) * 0.4 * k);
+		// Graniet: koel, in blokken gebroken (drie stelsels breukvlakken), met grote zwarte, witte en
+		// roze spikkels en een witte kwartsader hier en daar.
+		vec3 jw = wpos + 0.35 * vec3(vnoise(wpos * 0.4), vnoise(wpos * 0.4 + 7.0), vnoise(wpos * 0.4 + 13.0));
+		vec3 sp = vec3(2.3, 1.7, 2.9);
+		vec3 jd = abs(fract(vec3(jw.x * 0.8 + jw.z * 0.6, jw.y, jw.z * 0.8 - jw.x * 0.6) / sp) - 0.5) * 2.0;
+		vec3 jm = vec3(1.0) - jd; // 0 op het breukvlak
+		jm *= sp * 0.5; // in meter
+		float jmask = smoothstep(0.35, 0.6, vnoise(wpos * 0.25 + vec3(5.0)));
+		vec3 jwid = max(fwidth(jm), vec3(1e-3));
+		vec3 jl = vec3(1.0) - smoothstep(vec3(0.02), vec3(0.02) + jwid * 1.5, jm);
+		float jline = max(max(jl.x, jl.y), jl.z);
+		jline *= jmask * (1.0 - 0.7 * ug_floor) * (1.0 - smoothstep(0.04, 0.12, px));
+		col *= 1.0 - jline * 0.55;
+		float kd = 1.0 - smoothstep(3.0, 10.0, dist); // spikkels (1-2 cm): tot ±10 m
+		if (kd > 0.0) {
+			col = mix(col, lin(ug_dark[1]) * 0.3, smoothstep(0.8, 0.83, vnoise(wpos * 21.0 + vec3(3.1))) * 0.6 * kd);
+			col = mix(col, lin(ug_accent[1]), smoothstep(0.82, 0.85, vnoise(wpos * 24.0 + vec3(17.0))) * 0.5 * kd);
+			col = mix(col, lin(PINK), smoothstep(0.83, 0.86, vnoise(wpos * 17.0 + vec3(41.0))) * 0.4 * kd * (planet_id == 0 ? 1.0 : 0.0));
+			float mica = step(0.975, hash1(floor(wpos * 30.0) + vec3(seed_s)));
+			rough = mix(rough, 0.15, mica * kd);
 		}
-		col = mix(col, mix(col, lin(PINK), 0.25), smoothstep(0.55, 0.8, vnoise(wpos * 0.6 + vec3(2.0)))); // roze waas in vlekken
+		// Kwartsaders: een paar dunne witte banen door het blok.
+		float qz = abs(dot(wpos, normalize(vec3(0.6, 0.35, -0.7))) + 3.0 * vnoise(wpos * 0.15) + seed_s);
+		float qd = abs(fract(qz / 9.0) - 0.5) * 9.0;
+		float qwid = max(fwidth(qd), 1e-3);
+		float quartz = (1.0 - smoothstep(0.05, 0.05 + qwid * 1.5, qd)) * smoothstep(0.55, 0.7, vnoise(wpos * 0.2 + vec3(9.0)));
+		col = mix(col, lin(ug_accent[1]) * 1.05, quartz * 0.85);
+		rough = mix(rough, 0.3, quartz);
 	} else {
-		// Kristal: spaarzame lichtgevende aders langs grote breuklijnen, en glinsters.
+		// Kristalgesteente: donker, met dunne lichtgevende naden langs grote breuklijnen, en echte
+		// zeskantige kristallen in de rots: waar je erdoor graaft, zie je hun doorsnede oplichten
+		// (elk zijvlak een eigen helderheid), en de rots errond krijgt hun schijn.
+		vec3 vcol = lin(ug_accent[0]);
 		vec3 vc;
 		vec2 vv = voronoi(wpos / 2.8 + vec3(5.3, seed_s, 1.7), vc);
 		float ve = vv.y * 2.8; // afstand (m) tot de breuklijn
 		float vfw = max(fwidth(ve), 1e-4);
-		float mask = smoothstep(0.62, 0.74, vnoise(wpos * 0.17 + vec3(11.0))); // slechts een klein deel van de breuken
-		float vein = (1.0 - smoothstep(0.022, 0.022 + vfw * 1.5, ve)) * mask;
-		float halo = (1.0 - smoothstep(0.0, 0.45, ve)) * mask;
-		float glow = (1.0 - smoothstep(0.0, 1.6, ve)) * mask; // zachte cyane schijn op de rots rond een ader
-		float pulse = 0.78 + 0.22 * sin(TIME * 1.3 + hash1(vc) * 6.28);
-		vec3 cy = lin(CYAN);
-		emit = cy * (vein * vein_energy + halo * halo * 0.08 + glow * glow * 0.035) * pulse;
-		col = mix(col, cy * 0.35, vein);
-		col += cy * halo * 0.04;
-		col = mix(col, light, 0.3); // kristalgesteente iets lichter, anders verdwijnt het in het donker
-		rough = mix(rough, 0.15, vein);
-		float g = hash1(floor(wpos * 15.0) + vec3(seed_s));
-		float twinkle = pow(max(0.0, sin(TIME * 2.1 + g * 97.0)), 14.0);
-		emit += mix(cy, vec3(1.0), 0.5) * step(0.993, g) * twinkle * 1.6 * near;
+		float mask = smoothstep(0.62, 0.74, vnoise(wpos * 0.17 + vec3(11.0))); // slechts een deel van de breuken
+		float vw = mix(0.012, 0.03, vnoise(wpos * 0.6 + vec3(2.0)));
+		float vein = (1.0 - smoothstep(vw, vw + vfw * 1.5, ve)) * mask;
+		float glow = (1.0 - smoothstep(0.0, 1.2, ve)) * mask; // zachte schijn op de rots rond een naad
+		float pulse = 0.82 + 0.18 * sin(TIME * 1.1 + hash1(vc) * 6.28);
+		emit = vcol * (vein * vein_energy * 0.6 + glow * glow * 0.04) * pulse;
+		col = mix(col, vcol * 0.3, vein);
+		col = mix(col, light, 0.22); // kristalgesteente iets lichter, anders verdwijnt het in het donker
+		rough = mix(rough, 0.08, vein);
+		// Kristallen in de rots (een per cel van 2,4 m, 45%), plus kleine in de cellen ertussen.
+		vec4 c = crystal(wpos + vec3(seed_s * 2.7), 2.4, 0.45, 0.34, 0.85, 71.0);
+		vec4 c2 = crystal(wpos + vec3(1.1, seed_s, 0.6), 0.9, 0.3, 0.1, 0.3, 83.0);
+		if (c2.z > 0.5 && (c.z < 0.5 || c2.x < c.x)) {
+			c = c2;
+		}
+		if (c.z > 0.0 && c.x < 3.2) {
+			float in_c = 1.0 - smoothstep(0.9, 1.0, c.x);
+			float halo = (1.0 - smoothstep(1.0, 3.2, c.x)) * c.w;
+			float facet = 0.35 + 0.65 * hash1(vec3(floor(c.y), 3.7, 1.3)); // elk zijvlak een eigen helderheid
+			float edge_l = smoothstep(0.75, 0.95, c.x) * in_c; // de rand van de doorsnede: helder
+			vec3 cc = mix(vcol, vec3(1.0), 0.2);
+			col = mix(col, cc * (0.2 + 0.3 * facet), in_c);
+			emit += cc * (in_c * (0.5 + 1.4 * facet) + edge_l * 1.5) * pulse + vcol * halo * halo * 0.1;
+			rough = mix(rough, 0.04, in_c);
+		}
+		// Glinsters: klein en rond, enkel van dichtbij.
+		vec3 gp = wpos * 9.0 + vec3(seed_s);
+		float g = hash1(floor(gp));
+		float gd = 1.0 - smoothstep(0.12, 0.2, length(fract(gp) - 0.5));
+		float twinkle = pow(max(0.0, sin(TIME * 2.1 + g * 97.0)), 12.0);
+		emit += mix(vcol, vec3(1.0), 0.5) * step(0.99, g) * gd * twinkle * 1.4 * det_k;
 	}
 
-	// Barstjes op de facetgrenzen, en net erbinnen een lichter randje (afgeschuinde rand vangt licht).
-	// Enkel in vlekken: overal barstjes leest als tegels.
-	float cw = 0.018;
-	// (Enkel dichtbij uitrekenen: verder dan 34 m is camp nul.)
-	float cmask = near > 0.0 ? smoothstep(0.45, 0.7, vnoise(wpos * 0.33 + vec3(21.0))) * CRACKS[layer] * (1.0 - 0.8 * pad_k) : 0.0;
-	if (layer == 3) {
-		cmask *= smoothstep(0.45, 0.8, up); // klei: enkel droge barsten op de vloer
+	// 3. De korst aan het oppervlak: een eigen patroon per planeet (buiten-12), enkel in de bovenste
+	// meter, op vlakke grond en van dichtbij.
+	float flat_top = smoothstep(0.5, 0.85, up) * crust_k * (1.0 - 0.8 * pad_k) * (layer == 3 ? 1.0 : 0.0);
+	if (flat_top > 0.0 && near > 0.0) {
+		if (planet_id == 0) {
+			// Roestbol: windribbels (±0,55 m) en lange stofsporen in de windrichting.
+			vec2 wd = vec2(0.8, 0.6);
+			float along = dot(wpos.xz, wd);
+			float across = dot(wpos.xz, vec2(-wd.y, wd.x));
+			float rp = (along + 1.6 * vnoise(vec3(wpos.xz * 0.3, 3.0))) * 11.4;
+			float rpw = max(fwidth(rp), 1e-3);
+			// Asymmetrisch: een lichte kam en een donkere luwte, zoals echte ribbels in de zon.
+			float ph = fract(rp / 6.2831853);
+			float crest = smoothstep(0.0, 0.7, ph) * (1.0 - smoothstep(0.7, 0.82, ph));
+			float rip = (crest * 2.0 - 1.0) * clamp(2.0 / rpw, 0.0, 1.0);
+			col *= 1.0 + rip * 0.16 * flat_top * near * smoothstep(0.75, 0.95, up);
+			float streak = vnoise(vec3(along * 0.06, across * 0.7, seed_s));
+			col = mix(col, light * 1.05, smoothstep(0.62, 0.82, streak) * 0.22 * flat_top);
+		} else if (planet_id == 1) {
+			// Fossielwereld: grillige krijtplaten (geen veelhoeken) met een dunne donkere rand, en gruis.
+			float pn = vnoise(vec3(wpos.xz * 0.45, seed_s)) * 0.7 + vnoise(vec3(wpos.xz * 1.3, seed_s + 4.0)) * 0.3;
+			float pw = max(fwidth(pn), 1e-3);
+			float plate = smoothstep(0.55 - pw, 0.55 + pw, pn);
+			col = mix(col, light * 1.1, plate * 0.45 * flat_top);
+			col = mix(col, dark, (1.0 - smoothstep(0.3, 0.36, pn)) * 0.3 * flat_top);
+			float gr = vnoise(wpos * 9.0);
+			col *= 1.0 + (gr - 0.5) * 0.3 * flat_top * (1.0 - smoothstep(0.02, 0.05, px));
+			// Gruis: losse donkere vuursteensplinters en lichte schelpjes.
+			vec4 nd = nodule(wpos * vec3(1.0, 0.0, 1.0) + vec3(seed_s, 0.0, 0.0), 0.35, 0.22, 0.12, 0.26, 91.0);
+			float k = (1.0 - smoothstep(0.75, 1.0, nd.x + (vnoise(wpos * 14.0) - 0.5) * 0.5)) * nd.z * flat_top * det_k;
+			col = mix(col, nd.y < 0.55 ? lin(ug_band[1]) * 1.3 : light * 1.15, k * 0.85);
+		} else {
+			// Kristalmaan: fijne kristalglinsters in het stof (de zeshoeken komen uit near_tint).
+			vec3 gp = wpos * 7.0 + vec3(seed_s, 1.0, 2.0);
+			float g = hash1(floor(gp));
+			float gd = 1.0 - smoothstep(0.1, 0.18, length(fract(gp) - 0.5));
+			float tw = pow(max(0.0, sin(TIME * 1.7 + g * 80.0)), 10.0);
+			emit += mix(lin(ug_accent[3]), vec3(1.0), 0.4) * step(0.996, g) * gd * tw * 0.9 * flat_top * det_k;
+		}
 	}
-	float camp = clamp(cw / fw, 0.0, 1.0) * near; // ondermaats op afstand: vervagen i.p.v. flikkeren
-	float crack = 1.0 - smoothstep(cw, cw + fw * 1.5, edge);
-	col *= 1.0 - crack * 0.6 * camp * cmask;
-
 
 	// Kromming van de vorm zelf: bolle randen vangen licht, holtes worden donkerder (DRG-trucje).
 	vec3 g_n = normalize(wnrm);
@@ -334,9 +628,9 @@ void fragment() {
 	col = mix(col, light * 1.12, smoothstep(0.5, 2.2, curv) * 0.35 * near);
 	col *= 1.0 - smoothstep(0.5, 2.2, -curv) * 0.3;
 
-	// 3. Stof op vloeren, donkerder en iets koeler onder overhangen.
+	// 4. Stof op vloeren, donkerder en iets koeler onder overhangen.
 	float dn = dust_k > 0.0 ? mix(0.5, vnoise(wpos * 0.8 + vec3(4.0)), dust_k) : 0.5;
-	float dust = smoothstep(0.5, 0.88, up) * (0.5 + 0.5 * dn);
+	float dust = smoothstep(0.5, 0.88, up) * (0.5 + 0.5 * dn) * (1.0 - 0.4 * under_k);
 	vec3 dust_col = mix(light, vec3(dot(light, vec3(0.333))), 0.3);
 	col = mix(col, dust_col, dust * 0.45);
 	rough = mix(rough, 1.0, dust);
@@ -347,7 +641,7 @@ void fragment() {
 		col *= 1.0 - 0.28 * burn * pad_k;
 	}
 	float ceil_k = smoothstep(0.35, 0.85, -up);
-	col *= mix(vec3(1.0), vec3(0.66, 0.7, 0.8), ceil_k);
+	col *= mix(vec3(1.0), vec3(0.62, 0.68, 0.82), ceil_k);
 
 	// Naad op de laaggrens: een donkere lijn met een iets donkerdere contactzone.
 	float db = min(min(abs(y - top_kristal), abs(y - top_graniet)), abs(y - top_zandsteen));
@@ -359,34 +653,42 @@ void fragment() {
 	float lip = smoothstep(0.06, 0.1, db) * (1.0 - smoothstep(0.12, 0.22, db)) * near;
 	col = mix(col, light * 1.15, lip * 0.35);
 
-	// Erts vlak achter de wand: fonkelende spikkels in de kleur van het erts, en een lichte
-	// verkleuring rond de ader. Zo zie je waar je moet graven.
+	// 5. Erts vlak achter de wand: een verkleuring in de kleur van verweerd erts (koper groen,
+	// ijzer roestzwart), en grote glinsters in de kleur van het erts die in de lamp oplichten. De
+	// glinsters worden nooit kleiner dan een paar pixels, zodat je een ader ook van 15-20 m ziet.
 	float ore_k = 0.0;
 	vec3 ore_c = vec3(0.0);
+	vec4 ore_s = vec4(0.0);
 	for (int i = 0; i < ore_count; i++) {
-		float k = 1.0 - smoothstep(0.4, 1.8, distance(wpos, ore_points[i].xyz));
+		float k = 1.0 - smoothstep(0.5, 2.2, distance(wpos, ore_points[i].xyz));
 		if (k > ore_k) {
 			ore_k = k;
-			ore_c = ore_colors[int(ore_points[i].w)].rgb;
+			int kind = int(ore_points[i].w);
+			ore_c = ore_colors[kind].rgb;
+			ore_s = ore_stain[kind];
 		}
 	}
 	if (ore_k > 0.0) {
-		// Kleine ronde fonkels (±3 cm), weinig, meer naarmate je dichter bij de ader zit.
-		vec3 cp = wpos * 34.0 + vec3(seed_s * 3.1);
+		float sn = vnoise(wpos * 2.6 + vec3(seed_s));
+		float sk = smoothstep(0.05, 0.75, ore_k) * smoothstep(0.25, 0.6, sn + ore_k * 0.4);
+		col = mix(col, ore_s.rgb, sk * ore_s.a);
+		float gs = max(0.16, px * 5.0); // cel (m) van de glinsters
+		vec3 cp = wpos / gs + vec3(seed_s * 3.1);
 		vec3 ci = floor(cp);
 		float h = hash1(ci);
-		float r = 0.2 + 0.14 * hash1(ci + vec3(7.3));
-		float speck = step(1.0 - 0.14 * ore_k, h) * (1.0 - smoothstep(r * 0.55, r, length(fract(cp) - 0.5)));
-		float twinkle = 0.5 + 0.5 * sin(TIME * 2.6 + h * 60.0);
-		speck *= near;
-		col = mix(col, ore_c * 0.4, ore_k * ore_k * 0.28);
-		col = mix(col, ore_c, speck * 0.8);
-		emit += ore_c * (speck * twinkle * (0.9 + 1.6 * ore_k) + ore_k * ore_k * 0.04);
+		float r = 0.2 + 0.12 * hash1(ci + vec3(7.3));
+		float speck = step(1.0 - 0.3 * ore_k, h) * (1.0 - smoothstep(r * 0.5, r, length(fract(cp) - 0.5)));
+		// Kattenoog: het felst als je er recht naar kijkt (de lamp zit op je hoofd).
+		float facing = clamp(dot(n, normalize(CAMERA_POSITION_WORLD - wpos)), 0.0, 1.0);
+		float twinkle = 0.55 + 0.45 * sin(TIME * 2.4 + h * 60.0);
+		col = mix(col, ore_c, speck * 0.85);
+		emit += ore_c * (speck * twinkle * (0.8 + 2.6 * ore_k) * (0.35 + 0.65 * facing * facing) + sk * 0.025);
+		rough = mix(rough, 0.2, speck);
 	}
 
 	// Vlekken in de bovenste laag (binnen en buiten het speelgebied, zodat de rand wegvalt).
 	if (layer == 3 && (patch_dark.a > 0.0 || patch_light.a > 0.0)) {
-		float top_k = far_terrain ? 1.0 : smoothstep(surface_world_y - 9.0, surface_world_y - 3.0, wpos.y) * smoothstep(0.2, 0.6, n.y);
+		float top_k = far_terrain ? 1.0 : smoothstep(surface_world_y - 9.0, surface_world_y - 3.0, wpos.y) * smoothstep(0.2, 0.6, n.y) * (1.0 - under_k);
 		vec3 pp = vec3(wpos.x / patch_scale, 0.0, wpos.z / patch_scale);
 		float pm = vnoise(pp) * 0.7 + vnoise(pp * 2.7 + vec3(4.1, 0.0, 9.3)) * 0.3;
 		col *= mix(vec3(1.0), patch_dark.rgb, smoothstep(0.58, 0.72, pm) * patch_dark.a * top_k);
@@ -396,7 +698,7 @@ void fragment() {
 	// Het speelgebied: dezelfde tint als het verre landschap errond (duinen, bedding, korst, stralen),
 	// enkel in de bovenste meters (niet in de tunnels).
 	if (near_tint_on && !far_terrain && layer == 3) {
-		float nt_k = smoothstep(surface_world_y - 9.0, surface_world_y - 3.0, wpos.y) * smoothstep(0.0, 0.35, n.y);
+		float nt_k = smoothstep(surface_world_y - 9.0, surface_world_y - 3.0, wpos.y) * smoothstep(0.0, 0.35, n.y) * (1.0 - under_k);
 		if (nt_k > 0.0) {
 			vec2 nt_uv = ((wpos.xz - near_tint_rect.xy) / near_tint_rect.z + 0.5) / near_tint_rect.w;
 			vec4 nt = texture(near_tint, nt_uv);
@@ -472,15 +774,16 @@ void fragment() {
 	}
 
 	// Magma eronder: de rots warmt op naar donkerrood, vooral vlakken die naar beneden kijken, met
-	// een felle rand vlak boven het magma. Zo gloeit de plek waar rots en magma elkaar raken.
+	// een felle rand vlak boven het magma die oplaait. Zo gloeit de plek waar rots en magma elkaar raken.
 	float above_m = wpos.y - magma_height;
 	if (above_m < magma_heat_m && above_m > -3.0) {
 		float heat = 1.0 - smoothstep(0.0, magma_heat_m, max(above_m, 0.0));
 		float down = clamp(0.5 - 0.5 * n.y, 0.0, 1.0);
 		col = mix(col, col * vec3(0.5, 0.22, 0.15), heat * 0.65);
 		emit += vec3(1.0, 0.22, 0.03) * heat * heat * (0.06 + 0.3 * down);
-		float rim = 1.0 - smoothstep(0.0, 0.3, above_m);
-		emit += vec3(1.0, 0.36, 0.05) * rim * rim * 2.2;
+		float flare = 0.75 + 0.25 * sin(TIME * 2.3 + wpos.x * 0.7 + wpos.z * 0.5) * vnoise(vec3(wpos.xz * 0.8, TIME * 0.6));
+		float rim = 1.0 - smoothstep(0.0, 0.25 + 0.35 * flare, above_m);
+		emit += vec3(1.0, 0.4, 0.06) * rim * rim * 2.6 * flare;
 	}
 
 	NORMAL = normalize((VIEW_MATRIX * vec4(n, 0.0)).xyz);
@@ -488,8 +791,8 @@ void fragment() {
 	ROUGHNESS = rough;
 	// Stof en rots weerkaatsen weinig: zonder dit spiegelen vlakke kratervloeren onder een scherende
 	// hoek de lichte hemel (witte "meren").
-	SPECULAR = 0.18;
+	SPECULAR = 0.18 + 0.25 * (1.0 - rough) * under_k;
 	EMISSION = emit;
-	AO = (1.0 - contact * 0.3) * (1.0 - smoothstep(0.5, 2.2, -curv) * 0.35) * (1.0 - crack * 0.5 * camp * cmask);
+	AO = (1.0 - contact * 0.3) * (1.0 - smoothstep(0.5, 2.2, -curv) * 0.35);
 	AO_LIGHT_AFFECT = 0.5;
 }

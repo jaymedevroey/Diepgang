@@ -13,7 +13,8 @@ const TOPS_M: Array[float] = [60.0, 140.0, 215.0]
 ## Welk gereedschap een laag minstens nodig heeft (GDD §4, tabel Lagen).
 const MIN_TOOL: Array[Tool] = [Tool.BOOR_T2, Tool.BOOR_T2, Tool.BOOR_T1, Tool.HOUWEEL]
 ## Kleur van stof en brokjes per laag (iets lichter dan de wand, zodat puin leesbaar blijft).
-const DEBRIS_COLORS: Array[Color] = [
+## Per planeet anders: TerrainAPI zet ze bij elke nieuwe wereld (Underground.debris_colors).
+static var DEBRIS_COLORS: Array[Color] = [
 	Color(0.18, 0.2, 0.3),
 	Color(0.5, 0.5, 0.53),
 	Color(0.8, 0.64, 0.42),

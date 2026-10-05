@@ -90,7 +90,9 @@ func _ready() -> void:
 	add_child(head)
 
 	var lamp := SpotLight3D.new()
-	lamp.light_color = Color(1.0, 0.78, 0.5)
+	# Warm wit, niet amber (release-audit binnen-01/02): een amber bundel kleurde elke laag oranje,
+	# ook het koele graniet. De lamp blijft warm; de kleur van de rots leest nu zelf.
+	lamp.light_color = Color(1.0, 0.86, 0.68)
 	lamp.light_energy = 5.0
 	lamp.spot_range = 20.0
 	lamp.spot_angle = 52.0
@@ -107,7 +109,7 @@ func _ready() -> void:
 	# zoals een echte helmlamp met een hete kern en een zachte rand.
 	var fill := SpotLight3D.new()
 	fill.name = "LampFill"
-	fill.light_color = Color(1.0, 0.8, 0.58)
+	fill.light_color = Color(1.0, 0.87, 0.72)
 	fill.light_energy = Tuning.get_f("player", "lamp_fill_energy", 0.9)
 	fill.spot_range = 13.0
 	fill.spot_angle = 80.0
