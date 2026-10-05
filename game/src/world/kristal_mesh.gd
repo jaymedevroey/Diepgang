@@ -165,22 +165,30 @@ func cluster(base: Vector3, up: Vector3, size: float, rng: RandomNumberGenerator
 
 ## Een zeshoekige korstplaat: zes hoekpunten op hun eigen hoogte (`corner_y`) en het midden op
 ## `center.y`, `thick` boven de grond, met een rand die tot `skirt` onder de grond zakt.
+## `bevel` (0..1): zoveel van de straal is een afschuining van de bovenrand (kleur `bevel_col`), die
+## van thick tot 45 % van thick zakt: de plaat leest als een opgeheven, afgesleten schol.
 func hex_plate(center: Vector3, radius: float, rot: float, corner_y: PackedFloat32Array, thick: float,
-		skirt: float, col: Color, edge_col: Color) -> void:
+		skirt: float, col: Color, edge_col: Color, bevel := 0.0, bevel_col := Color()) -> void:
 	var top: Array[Vector3] = []
+	var rim: Array[Vector3] = []
 	var low: Array[Vector3] = []
 	for i in 6:
 		var a := rot + TAU * i / 6.0
-		var p := Vector3(center.x + cos(a) * radius, corner_y[i] + thick, center.z + sin(a) * radius)
-		top.append(p)
+		var r_top := radius * (1.0 - bevel)
+		var y_rim := corner_y[i] + (thick * 0.45 if bevel > 0.0 else thick)
+		top.append(Vector3(center.x + cos(a) * r_top, corner_y[i] + thick, center.z + sin(a) * r_top))
+		var p := Vector3(center.x + cos(a) * radius, y_rim, center.z + sin(a) * radius)
+		rim.append(p)
 		low.append(Vector3(p.x, corner_y[i] - skirt, p.z))
 	var mid := Vector3(center.x, center.y + thick, center.z)
 	for i in 6:
 		var j := (i + 1) % 6
 		# Bovenvlak: een waaier vanuit het midden (volgt de grond).
 		tri(mid, top[j], top[i], col, col, col)
+		if bevel > 0.0:
+			quad(top[i], top[j], rim[j], rim[i], bevel_col, bevel_col, bevel_col, bevel_col)
 		# De rand: een zichtbare dikte, iets donkerder.
-		quad(top[i], top[j], low[j], low[i], edge_col, edge_col, edge_col, edge_col)
+		quad(rim[i], rim[j], low[j], low[i], edge_col, edge_col, edge_col, edge_col)
 
 
 ## Een basaltzuil: zeshoekig prisma van `bottom` (onder de grond) tot `top_y`, met een vlakke top.
