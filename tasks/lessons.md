@@ -32,6 +32,12 @@ Wat we onderweg leerden en wat het GDD bijstuurt. Nieuwste bovenaan.
 - **Wat enkel in de release-build anders moet, hangt aan `CmdArgs.dev_mode()`** (`OS.is_debug_build()` of `--dev`). De tests en previews draaien op de editor-build (debug), dus F1 en V blijven daar werken; `ui_test` controleert dat de release-toetsen ze niet hebben.
 - **Een regel "tekst ≥ 18 px" houd je enkel met een test.** `ui_test` loopt nu elke Label in de HUD af (ook meldingen van elke soort, het rapport en de aftelling).
 
+## 2026-10-06 — Tests en parallelle agents
+
+- **Een test die een speler teleporteert, zet hem buiten alle botsvormen en wacht tot hij staat** (`is_on_floor`). Anders beslist de volgorde in de solver (Jolt duwt hem de ene keer naar buiten, de andere keer naar binnen): `on_doors` faalde zo de helft van de keren nadat de Mol 0,95 m verder in de baai kwam.
+- **Parallelle nettests op dezelfde poort verbinden met elkaar**: de client van de ene agent kwam op de host van een andere (andere code, "rpc node checksum failed"). Elke agent een eigen `--port`.
+- **Nooit Godot afsluiten op procesnaam** (`taskkill /IM …`): dat stopt ook de runs van andere agents. Op PID.
+
 ## 2026-10-05 — Alles in het Engels: woordenlijst
 
 Jayme: alle tekst in het spel in het Engels, ook de namen. Docs, commentaar en logregels blijven Nederlands; Nederlandse identifiers (`PlanetType.Id.ROESTBOL`) en dev-opties (`--planet=roestbol`) mogen blijven. Getallen met een decimale punt (12.5 m). Hou de DIG-humor: idiomatisch vertalen, niet woord voor woord.
