@@ -30,6 +30,13 @@ var surface: PlanetSurface
 var magma: Magma
 ## Onrust (lawaai) en bevingen.
 var unrest: Unrest
+## Dreiging (pakket F2, GDD §6): neergaan en redden, de Graafworm met de lichtbakens, gasbellen en
+## instortingen die met de diepte toenemen.
+var rescue: Rescue
+var worm: Worm
+var beacons: Beacons
+var gas: Gas
+var collapse: Collapse
 ## De firma: kas, kwartaal, opdracht, rapport.
 var company: Company
 ## Naam van de save van de firma (leeg = niet bewaren, bv. tests). Main zet dit.
@@ -94,6 +101,28 @@ func _ready() -> void:
 	unrest.game = self
 	add_child(unrest)
 	terrain_sync.host_player_op.connect(unrest.host_player_op)
+	rescue = Rescue.new()
+	rescue.name = "Rescue"
+	rescue.game = self
+	add_child(rescue)
+	worm = Worm.new()
+	worm.name = "Worm"
+	worm.game = self
+	add_child(worm)
+	beacons = Beacons.new()
+	beacons.name = "Beacons"
+	beacons.game = self
+	add_child(beacons)
+	gas = Gas.new()
+	gas.name = "Gas"
+	gas.game = self
+	add_child(gas)
+	collapse = Collapse.new()
+	collapse.name = "Collapse"
+	collapse.game = self
+	add_child(collapse)
+	terrain_sync.host_player_op.connect(worm.host_player_op)
+	terrain_sync.host_player_op.connect(gas.host_player_op)
 	company = Company.new()
 	company.name = "Company"
 	company.game = self
@@ -140,6 +169,10 @@ func _build_terrain(ops: Array, finds_state: Array = [], ores_state: Array = [])
 	ores.apply_snapshot(ores_state)
 	magma.attach_terrain(terrain)
 	unrest.attach_terrain(terrain)
+	worm.attach_terrain(terrain)
+	beacons.attach_terrain(terrain)
+	gas.attach_terrain(terrain)
+	collapse.attach_terrain(terrain)
 	if start_on_ship and ship == null:
 		exterior = EksterExterior.new()
 		exterior.name = "EksterExterior"
@@ -167,6 +200,14 @@ func _build_terrain(ops: Array, finds_state: Array = [], ores_state: Array = [])
 			if multiplayer.is_server():
 				magma.host_start(company.contract_magma()))
 		mol.noise_made.connect(func(amount: float, _where: Vector3) -> void: unrest.host_add(amount))
+		mol.noise_made.connect(worm.host_mol_noise)
+		mol.landed.connect(func() -> void:
+			if multiplayer.is_server():
+				beacons.host_refill())
+		# Einde van de dienst (aan boord, of zonder schip boven): iedereen weer heel.
+		mol.summary.connect(func(_c: int, _v: int, _l: int) -> void:
+			if multiplayer.is_server():
+				rescue.host_reset_all())
 	else:
 		mol.attach_terrain()
 	if ship:
@@ -335,6 +376,10 @@ func _accept(id: int) -> void:
 	mol.send_state(id)
 	magma.send_state(id)
 	unrest.send_state(id)
+	rescue.send_state(id)
+	worm.send_state(id)
+	beacons.send_state(id)
+	gas.send_state(id)
 	company.send_state(id)
 	var idx := _free_color()
 	_color_of[id] = idx
@@ -374,6 +419,7 @@ func _on_peer_left(id: int) -> void:
 	ready_peers.erase(id)
 	_world_seed_of.erase(id)
 	finds.drop_all_of(id)
+	rescue.host_peer_left(id)
 	_despawn(id)
 	for peer in multiplayer.get_peers():
 		_rpc_despawn.rpc_id(peer, id)

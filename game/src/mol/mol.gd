@@ -363,6 +363,8 @@ func _handle(sender: int, button: int, arg: float) -> void:
 	var p: Player = game.player_node(sender)
 	if p == null:
 		return
+	if game.rescue and not game.rescue.is_ok(sender):
+		return # neer, strompelend of als drone: geen knoppen (F2)
 	var inside := contains_point(p.global_position)
 	var near := p.global_position.distance_to(body.global_position) < 9.0
 	match button:
@@ -372,6 +374,8 @@ func _handle(sender: int, button: int, arg: float) -> void:
 		Cmd.HORN:
 			if inside:
 				_rpc_event.rpc(Event.HORN)
+				# De toeter lokt de worm naar de Mol (plezier-en-design C3: de piloot redt zo de gravers).
+				noise_made.emit(Tuning.get_f("mol", "horn_noise", 4.0), placed.origin)
 		Cmd.PING:
 			var now := Time.get_ticks_msec()
 			if inside and now >= _ping_ready_ms and pings_left > 0:
@@ -676,6 +680,8 @@ func _process(delta: float) -> void:
 		noise += Tuning.get_f("mol", "sonar_noise_drilling", 0.7)
 	sonar.noise = clampf(noise, 0.0, 1.0)
 	sonar.update(delta, body.global_transform, game.finds.items, contains_point)
+	# De Graafworm als grote stip (playtest 2026-10-06).
+	sonar.threat = game.worm.sonar_echo(body.global_position, sonar.noise, sonar.pinging()) if game.worm else {}
 	visual.sonar_screen.display(sonar, body.global_transform, delta)
 
 
@@ -1157,7 +1163,8 @@ func _extract(delta: float) -> void:
 		var left := 0
 		var left_peers: Array = []
 		for pl: Player in game.players.get_children():
-			if not pl.seated and not contains_point(pl.global_position):
+			var o: int = game.rescue.left_behind_override(pl.peer_id) if game.rescue else 0
+			if o > 0 or o == 0 and not pl.seated and not contains_point(pl.global_position):
 				pl.host_teleport(game.spawn_pos_of(pl.peer_id))
 				left += 1
 				left_peers.append(pl.peer_id)
@@ -1456,7 +1463,9 @@ func _dock() -> void:
 	var left := 0
 	var left_peers: Array = []
 	for pl: Player in game.players.get_children():
-		if not pl.seated and not contains_point(pl.global_position) and not ship.contains(pl.global_position):
+		# Kapot (F2): een wrak op de planeet telt als achtergebleven, een gesmolten robot is al aangerekend.
+		var o: int = game.rescue.left_behind_override(pl.peer_id) if game.rescue else 0
+		if o > 0 or o == 0 and not pl.seated and not contains_point(pl.global_position) and not ship.contains(pl.global_position):
 			pl.host_teleport(game.spawn_pos_of(pl.peer_id))
 			left += 1
 			left_peers.append(pl.peer_id)

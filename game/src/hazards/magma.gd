@@ -7,8 +7,11 @@ extends Node3D
 ##   stuurt ze door; elke peer rekent de hoogte zelf uit met dezelfde curve (magma.cfg).
 ## - Curve: eerst stil, dan steeds iets sneller (zie `risen`).
 ## - Regels (host): spelers die erin zakken, smelten (melt_s lang: het beeld wordt wit-oranje en
-##   dan zwart, daarna staat de vervanger in de Mol), losse buit is weg, de Mol krijgt alarmen en
-##   houdt het even uit, en op `recall_depth` vertrekt hij vanzelf.
+##   dan zwart). Een gesmolten robot is kapot (Rescue): je vliegt als spookdrone mee tot de dienst
+##   voorbij is, de vervanger wordt aangerekend en wat je droeg is weg (ontwerp-7: smelten is niet
+##   langer de snelste weg naar huis). Losse buit is weg, de Mol krijgt alarmen en houdt het even
+##   uit (te heet: DIG trekt hem op, maar de lading verschroeit), en op `recall_depth` vertrekt hij
+##   vanzelf.
 ## - Hitte (op elke peer, voor de eigen speler): boven de lava trilt het beeld (shimmer_m), en in de
 ##   hittezone (heat_m) komt er een rode, kloppende rand, schudt het beeld en volgt een waarschuwing.
 ##   Smelten is zo geen knip meer (release-audit gevoel-12).
@@ -344,7 +347,7 @@ func _update_heat(delta: float) -> void:
 	var cam := get_viewport().get_camera_3d()
 	var shimmer := 0.0
 	var danger := 0.0
-	if p and cam and visible and not p.seated:
+	if p and cam and visible and not p.seated and p.life != Rescue.Life.BROKEN:
 		var shimmer_m := Tuning.get_f("magma", "shimmer_m", 14.0)
 		var heat_m := Tuning.get_f("magma", "heat_m", 3.0)
 		shimmer = 1.0 - smoothstep(0.0, shimmer_m, cam.global_position.y - level)
@@ -526,6 +529,8 @@ func _rule_players() -> void:
 	for pl: Player in game.players.get_children():
 		if _melting.has(pl.peer_id) or pl.seated or pl.global_position.y > level - 0.3:
 			continue
+		if game.rescue and game.rescue.life_of(pl.peer_id) == Rescue.Life.BROKEN:
+			continue # een spookdrone smelt niet
 		if mol and mol.contains_point(pl.global_position) and mol.body.global_position.y > level - 1.0:
 			continue
 		_melting[pl.peer_id] = 0.0
@@ -542,13 +547,14 @@ func _rule_melting(dt: float) -> void:
 		var pl: Player = game.player_node(peer)
 		if pl == null:
 			continue
-		var to: Vector3 = game.spawn_pos_of(pl.peer_id)
-		if mol and mol.body.global_position.y + Mol.TRACK_BOTTOM > level + 2.0 and mol.mode != Mol.Mode.DOCKED:
-			to = mol.to_world_mol(Vector3(0.0, -1.2, 1.2))
 		game.ores.host_lose_bag(pl.peer_id)
 		game.company.host_melted()
-		pl.host_teleport(to)
 		_rpc_melted.rpc(pl.peer_id)
+		if game.rescue:
+			# Kapot: een spookdrone boven het magma, tot de dienst voorbij is (Rescue).
+			game.rescue.host_break(pl.peer_id, true)
+		else:
+			pl.host_teleport(game.spawn_pos_of(pl.peer_id))
 
 
 @rpc("authority", "call_local", "reliable")
@@ -590,7 +596,7 @@ func _rpc_melted(peer_id: int) -> void:
 	if p and p.is_local:
 		_melt_t = -1.0
 		_after_t = 0.0
-		game.notice.emit("Your robot melted in the magma. DIG sent a replacement (costs to follow).", "alarm")
+		game.notice.emit("Your robot melted in the magma. Everything it carried is gone, and DIG bills the replacement.", "alarm")
 	elif p:
 		game.notice.emit("A robot melted in the magma.", "warn")
 
@@ -627,8 +633,14 @@ func _rule_mol(dt: float) -> void:
 		_alarm_level += 1
 	if gap < 0.0:
 		_mol_heat += dt / maxf(1.0, Tuning.get_f("magma", "mol_heat_s", 25.0))
-		if _mol_heat >= 1.0 and mol.host_emergency(5.0, "The Mole is overheating: DIG is hauling it up!"):
+		if _mol_heat >= 1.0 and mol.host_emergency(5.0, "The Mole is overheating: DIG is hauling it up! The cargo got cooked."):
 			_mol_heat = 0.0
+			# Te heet: de lading verschroeit (ontwerp-7: het magma kost wat je bij je had).
+			var loss := Tuning.get_f("magma", "mol_heat_cargo_loss", 0.4)
+			for it: FindItem in mol.cargo_contents():
+				var cond := maxf(Tuning.get_f("finds", "min_condition", 0.25), it.condition - loss)
+				if cond < it.condition - 0.001:
+					game.finds._rpc_condition.rpc(it.find_id, cond)
 	else:
 		_mol_heat = maxf(0.0, _mol_heat - dt / 10.0)
 	if not _recalled and depth() <= Tuning.get_f("magma", "recall_depth", 60.0):
