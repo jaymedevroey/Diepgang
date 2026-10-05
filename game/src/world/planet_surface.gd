@@ -330,8 +330,16 @@ static func _with_normals(verts: PackedVector3Array, idx: PackedInt32Array, colo
 
 
 ## Twee driehoeken per vierhoek a-b-c-d, met de voorkant naar boven (Godot: met de klok mee gezien
-## van voren; dan wijst cross(b - a, c - a) naar beneden).
+## van voren; dan wijst cross(b - a, c - a) naar beneden). Gesplitst langs de diagonaal waarvan de
+## hoeken het minst in hoogte verschillen: die volgt de hoogtelijn, zodat een klifrand of rug die
+## schuin door het raster loopt een rechte rand blijft in plaats van een zaagtand (buiten-7).
 static func _quad(idx: PackedInt32Array, at: int, verts: PackedVector3Array, a: int, b: int, c: int, d: int) -> void:
+	if absf(verts[a].y - verts[c].y) > absf(verts[b].y - verts[d].y):
+		var t := a
+		a = b
+		b = c
+		c = d
+		d = t
 	var up := (verts[b] - verts[a]).cross(verts[c] - verts[a]).y < 0.0
 	if up:
 		idx[at] = a; idx[at + 1] = b; idx[at + 2] = c

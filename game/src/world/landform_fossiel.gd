@@ -567,8 +567,9 @@ func tint(x: float, z: float) -> Color:
 ## oker, dunne grijsblauwe kleilijnen, ook op de minder steile hellingen van de badlands, en één
 ## roestige ijzerband op ±60% van de klif.
 func shader_params(surface_y: float) -> Dictionary:
+	# Lagen enkel op de steile delen (vanaf ±35°): op zachte, ronde hellingen lazen ze als een taart.
 	return {"strata_scale": 9.0, "strata_cuts": Vector2(0.58, 0.9), "strata_strength": 0.75,
-			"strata_steep": Vector2(0.72, 0.94), "strata_key": Vector3(surface_y + cliff_h * 0.6, 5.5, 0.9)}
+			"strata_steep": Vector2(0.62, 0.84), "strata_key": Vector3(surface_y + cliff_h * 0.6, 5.5, 0.9)}
 
 
 ## Het reuzenskelet als donkere ribbenkast op de kaart van het planeetdek (van de hub uit gezien).
