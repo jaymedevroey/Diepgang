@@ -880,6 +880,8 @@ func play(name: String, pos := Vector3.ZERO, db := 0.0) -> void:
 
 func _build_feed() -> void:
 	_feed_viewport = SubViewport.new()
+	# Een SubViewport erft de fysica-interpolatie niet: deze camera beweegt in _process (gevoel-02).
+	_feed_viewport.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	_feed_viewport.size = Vector2i(640, 352)
 	_feed_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	add_child(_feed_viewport)

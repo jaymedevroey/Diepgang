@@ -3,9 +3,19 @@ extends CharacterBody3D
 ## Een robot. Op de peer die hem bestuurt (authority) is hij lokaal: invoer, camera,
 ## houweel, en hij stuurt zijn toestand ±20× per seconde. Op de andere peers is hij een
 ## kopie die geïnterpoleerd wordt (GDD §9: de client bepaalt de eigen beweging).
-## Opbouw lokaal: Player (yaw) > Head (pitch) > Camera3D (CameraFx) > Pickaxe, Drill
+## Opbouw lokaal: Player (yaw) > Head (pitch, logica) en CamRig (top_level) > Camera3D (CameraFx) > Pickaxe, Drill
 ## Gereedschap: 1 = houweel, 2 = boor (of het muiswieltje).
 ## Naam van de node = peer-id, onder Game/Players, zodat RPC-paden overal gelijk zijn.
+##
+## Fysica-interpolatie (gevoel-02): het lijf beweegt per physics-tick (60 Hz) en wordt getekend
+## tussen twee ticks in. De camera hangt NIET aan het lijf: CamRig staat los (top_level, zonder
+## interpolatie) en wordt elke frame gezet op de geïnterpoleerde plek van het lijf (of van de Mol als
+## je zit of vastzit), met de kijkrichting van nu. Zo volgt het beeld de muis meteen en loopt het
+## vloeiend op 144 Hz. Na een sprong of teleport: reset_physics_interpolation() (zie _check_jump).
+##
+## Bewegen (gevoel-01, waarden in player.cfg): versnellen en remmen in ±0,1 s, minder controle in
+## de lucht, sprint (Shift) en hurken (Ctrl), coyote-tijd en sprongbuffer, een landingsdip met stof,
+## en een lichte loopbeweging van de camera (uit te zetten: Settings interface/head_bob).
 
 const LAYER_PLAYERS := 1 << 2
 const MASK := Layers.TERRAIN | Layers.LOOT | Layers.LIFT | Layers.BOUNDS
@@ -26,8 +36,13 @@ var game: Node # Game
 var is_local := false
 
 var head: Node3D
+## Lokaal: het oog, los van het lijf (top_level), elke frame gezet (zie _update_rig).
+var cam_rig: Node3D
 var camera: Camera3D
 var camera_fx: CameraFx
+## Bewegen (lokaal).
+var sprinting := false
+var crouching := false
 ## Buitenzicht als piloot (C). Enkel bij de lokale speler.
 var chase: MolChaseCam
 ## Buitenbeeld tijdens de drop en het ophalen (enkel lokaal, zie DropCam).
@@ -56,8 +71,24 @@ var flying := false
 var seated := false
 
 var _shape: CollisionShape3D
+var _capsule: CapsuleShape3D
 var _look_yaw := 0.0
 const SEAT_FEET := Vector3(0.0, -1.12, -1.82)
+const STAND_HEIGHT := 1.4
+const EYE_STAND := 1.2
+
+# Bewegen en camera (lokaal).
+var _coyote := 0.0
+var _jump_buffer := 0.0
+var _ride_yaw := 0.0 # draaiing die de Mol in de laatste tick gaf (de camera mengt hem in, zie _update_rig)
+var _land_impulse := 0.0 # m/s neerwaarts bij de laatste landing, nog toe te passen op de dip
+var _dip := 0.0 # landingsdip van het oog (m, veer)
+var _dip_vel := 0.0
+var _bob_phase := 0.0
+var _bob_amount := 0.0
+var _tilt := 0.0
+var _last_pos := Vector3.ZERO
+var _was_attached := false
 
 var _send_timer := 0.0
 # Interpolatie (kopie): [lokale ontvangsttijd in ms, positie, yaw, pitch]
@@ -77,21 +108,35 @@ func _ready() -> void:
 
 	var capsule := CapsuleShape3D.new()
 	capsule.radius = 0.35
-	capsule.height = 1.4
+	capsule.height = STAND_HEIGHT
 	var shape := CollisionShape3D.new()
 	shape.shape = capsule
-	shape.position.y = 0.7
+	shape.position.y = STAND_HEIGHT * 0.5
 	add_child(shape)
 	_shape = shape
+	_capsule = capsule
 
 	head = Node3D.new()
 	head.name = "Head"
-	head.position.y = 1.2
+	head.position.y = EYE_STAND
 	add_child(head)
+	# Lokaal bewegt het lijf in de physics-tick: tekenen met interpolatie. Een kopie van een andere
+	# speler beweegt in _process (snapshots): zonder (Main staat standaard uit, zie main.tscn).
+	physics_interpolation_mode = PHYSICS_INTERPOLATION_MODE_ON if is_local else PHYSICS_INTERPOLATION_MODE_OFF
+	if is_local:
+		process_priority = -100 # het oog vóór de HUD en de rest zetten (die lezen de camera)
+		cam_rig = Node3D.new()
+		cam_rig.name = "CamRig"
+		cam_rig.top_level = true
+		cam_rig.physics_interpolation_mode = PHYSICS_INTERPOLATION_MODE_OFF
+		add_child(cam_rig)
+	var lamp_parent: Node3D = cam_rig if is_local else head
 
 	var lamp := SpotLight3D.new()
 	lamp.light_color = Color(1.0, 0.78, 0.5)
-	lamp.light_energy = 5.0
+	# Minder fel vlak voor je, iets meer in de verte (gevoel-19: op 1 m was de kern een egale vlek).
+	lamp.light_energy = Tuning.get_f("player", "lamp_energy", 5.0)
+	lamp.spot_attenuation = Tuning.get_f("player", "lamp_decay", 1.0)
 	lamp.spot_range = 20.0
 	lamp.spot_angle = 52.0
 	lamp.spot_angle_attenuation = 0.6
@@ -102,7 +147,7 @@ func _ready() -> void:
 	lamp.shadow_enabled = is_local or Tuning.value("player", "remote_lamp_shadows", true)
 	# Gereedschap in beeld (laag 2) niet: van zo dichtbij brandt het uit. Het heeft een eigen vullicht.
 	lamp.light_cull_mask = ~PickaxeModel.VIEWMODEL_LAYER
-	head.add_child(lamp)
+	lamp_parent.add_child(lamp)
 	# Brede, zwakke gloed rond de bundel: geen harde lichtcirkel (zaklamp-in-een-kelder-gevoel),
 	# zoals een echte helmlamp met een hete kern en een zachte rand.
 	var fill := SpotLight3D.new()
@@ -116,7 +161,7 @@ func _ready() -> void:
 	fill.light_volumetric_fog_energy = 0.3
 	fill.light_cull_mask = ~PickaxeModel.VIEWMODEL_LAYER
 	fill.position = lamp.position
-	head.add_child(fill)
+	lamp_parent.add_child(fill)
 
 	if is_local:
 		_setup_local()
@@ -131,7 +176,7 @@ func _setup_local() -> void:
 		if key == "video/fov":
 			camera.fov = Settings.get_f("video/fov"))
 	camera.near = 0.05
-	head.add_child(camera)
+	cam_rig.add_child(camera)
 	camera.make_current()
 
 	camera_fx = CameraFx.new()
@@ -181,9 +226,12 @@ func _setup_local() -> void:
 	chase = MolChaseCam.new()
 	chase.name = "ChaseCam"
 	chase.mol = game.mol
+	# Deze camera's zetten zichzelf elke frame (in _process): geen interpolatie van het lijf erbij.
+	chase.physics_interpolation_mode = PHYSICS_INTERPOLATION_MODE_OFF
 	add_child(chase)
 	drop_cam = DropCam.new()
 	drop_cam.name = "DropCam"
+	drop_cam.physics_interpolation_mode = PHYSICS_INTERPOLATION_MODE_OFF
 	add_child(drop_cam)
 	drop_cam.setup(game.mol)
 	game.mol.landed.connect(_on_mol_landed)
@@ -205,6 +253,7 @@ func _on_mol_snapped(old_xf: Transform3D, new_xf: Transform3D) -> void:
 	elif not seated and not Mol.INSIDE.has_point(local):
 		return
 	global_position = new_xf * local
+	reset_physics_interpolation()
 	_mol_ref = new_xf
 	_attached = [local, rotation.y - game.mol.yaw if _attached == null else float(_attached[1])]
 	_hold_ticks = 4
@@ -290,6 +339,7 @@ func _unseat() -> void:
 	_shape.disabled = false
 	var mol: Mol = game.mol
 	global_transform = Transform3D(Basis(Vector3.UP, mol.yaw), mol.to_world_mol(Vector3(0.0, -1.45, -0.65)))
+	reset_physics_interpolation()
 	head.rotation.x = 0.0
 	if (carry == null or carry.item == null) and not _holstered:
 		active_tool.set_active(true)
@@ -321,11 +371,12 @@ func aimed_interactable() -> Interactable:
 func hold_point(item_radius: float) -> Vector3:
 	var fwd := -head.global_basis.z
 	var from := head.global_position
-	var dist := Tuning.get_f("carry", "hold_distance", 1.25)
+	# Tussen je handen, vlak voor je: kleine dingen dichtbij, grote verder (gevoel-06).
+	var dist := Tuning.get_f("carry", "hold_near", 0.62) + item_radius * Tuning.get_f("carry", "hold_per_radius", 1.1)
 	var hit: Dictionary = game.terrain.raycast(from, from + fwd * (dist + item_radius))
 	if not hit.is_empty():
 		dist = maxf(0.4, from.distance_to(hit.position) - item_radius)
-	return from + fwd * dist + Vector3(0, -0.15, 0)
+	return from + fwd * dist + Vector3(0, -Tuning.get_f("carry", "hold_drop", 0.24), 0)
 
 
 func select_tool(index: int) -> void:
@@ -346,6 +397,10 @@ func _setup_remote() -> void:
 	rig.name = "Rig"
 	add_child(rig)
 	rig.setup(color)
+	# Breekt er iets in zijn handen, dan zie je hem grimassen.
+	game.finds.condition_changed.connect(func(it: FindItem, hard: bool) -> void:
+		if hard and (it.carriers.has(peer_id) or it.last_carriers.has(peer_id)):
+			rig.grimace())
 
 
 ## Muisgevoeligheid: spelgevoel (Tuning) × eigen voorkeur (Settings).
@@ -419,6 +474,7 @@ func _physics_process(delta: float) -> void:
 	# de Mol zit: die valt bij de drop eerst met de Mol door de luiken, de Mol neemt hem mee naar buiten.)
 	if _attached == null and game.ship and game.exterior and game.ship.below_floor(global_position):
 		global_position = game.from_hub(global_position)
+		reset_physics_interpolation()
 		_riding = false
 	# Drop en ophalen: de Mol beweegt snel verticaal, en meerijden met zijn verplaatsing per tick
 	# liep telkens een tick achter (de speler zakte steeds verder door de vloer). Dan zit je vast op
@@ -431,13 +487,15 @@ func _physics_process(delta: float) -> void:
 		_hold_ticks -= 1
 		velocity = Vector3.ZERO
 		return
+	if _attached != null:
+		reset_physics_interpolation() # los van de Mol: niet tekenen vanaf de vaste plek van vorige tick
 	_attached = null
-	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
-	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and DisplayServer.get_name() != "headless" or drop_cam.current or cinematic:
-		input = Vector2.ZERO
+	var can_move := not (Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and DisplayServer.get_name() != "headless" or drop_cam.current or cinematic)
+	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back") if can_move else Vector2.ZERO
 	if _stun > 0.0:
 		_stun -= delta
 		input = Vector2.ZERO
+		can_move = false
 	if flying:
 		var fly_speed := Tuning.get_f("player", "fly_speed", 12.0)
 		var v := head.global_basis * Vector3(input.x, 0.0, input.y) * fly_speed
@@ -446,19 +504,86 @@ func _physics_process(delta: float) -> void:
 		if Input.is_action_pressed("crouch"):
 			v.y -= fly_speed
 		velocity = v
+		move_and_slide()
+		return
+	var on_floor := is_on_floor()
+	_set_crouch(can_move and Input.is_action_pressed("crouch"))
+	# Sprint: enkel vooruit, niet gehurkt, niet met de boor aan of iets zwaars in je handen. Geen
+	# uithouding (zoals DRG): het gereedschap zakt weg terwijl je sprint, dat is de prijs.
+	var heavy: bool = carry != null and carry.item != null and carry.item.mass > Tuning.get_f("carry", "sprint_max_mass", 6.0)
+	var want_sprint: bool = can_move and InputMap.has_action("sprint") and Input.is_action_pressed("sprint") and input.y < -0.3 \
+			and not crouching and not heavy and active_tool.move_multiplier() > 0.99
+	sprinting = want_sprint and (on_floor or sprinting)
+	var speed := Tuning.get_f("player", "move_speed", 4.5)
+	if crouching:
+		speed = Tuning.get_f("player", "crouch_speed", 2.2)
+	elif sprinting:
+		speed = Tuning.get_f("player", "sprint_speed", 6.8)
+	speed *= active_tool.move_multiplier() * (carry.move_multiplier() if carry else 1.0) * (game.unrest.walk_factor() if game.unrest else 1.0)
+	var dir := (global_basis * Vector3(input.x, 0.0, input.y)).normalized()
+	var target := Vector3(dir.x, 0.0, dir.z) * speed
+	var hv := Vector3(velocity.x, 0.0, velocity.z)
+	var accel: float
+	if not on_floor:
+		accel = Tuning.get_f("player", "air_accel", 9.0)
+	elif target.length_squared() > 0.01:
+		accel = Tuning.get_f("player", "ground_accel", 40.0)
 	else:
-		var speed: float = Tuning.get_f("player", "move_speed", 4.5) * active_tool.move_multiplier() * (carry.move_multiplier() if carry else 1.0) 				* (game.unrest.walk_factor() if game.unrest else 1.0)
-		var dir := (global_basis * Vector3(input.x, 0.0, input.y)).normalized()
-		velocity.x = dir.x * speed
-		velocity.z = dir.z * speed
-		if not is_on_floor():
-			velocity += get_gravity() * delta
-			# Wie uit De Ekster springt, valt niet sneller dan dit (geen tunneling door de grond).
-			velocity.y = maxf(velocity.y, -Tuning.get_f("player", "max_fall_speed", 40.0))
-		elif Input.is_action_just_pressed("jump") and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and not cinematic:
-			velocity.y = Tuning.get_f("player", "jump_velocity", 4.5)
-		_step_up(delta)
+		accel = Tuning.get_f("player", "ground_decel", 48.0)
+	hv = hv.move_toward(target, accel * delta)
+	velocity.x = hv.x
+	velocity.z = hv.z
+	# Springen: even na het afstappen kan het nog (coyote-tijd), en te vroeg indrukken telt nog even.
+	_coyote = Tuning.get_f("player", "coyote_s", 0.1) if on_floor else _coyote - delta
+	if can_move and Input.is_action_just_pressed("jump") and not cinematic:
+		_jump_buffer = Tuning.get_f("player", "jump_buffer_s", 0.12)
+	else:
+		_jump_buffer -= delta
+	if not on_floor:
+		velocity += get_gravity() * delta
+		# Wie uit De Ekster springt, valt niet sneller dan dit (geen tunneling door de grond).
+		velocity.y = maxf(velocity.y, -Tuning.get_f("player", "max_fall_speed", 40.0))
+	if _jump_buffer > 0.0 and _coyote > 0.0 and not crouching:
+		velocity.y = Tuning.get_f("player", "jump_velocity", 4.5)
+		_jump_buffer = 0.0
+		_coyote = 0.0
+	_step_up(delta)
+	var fall := -velocity.y
 	move_and_slide()
+	if not on_floor and is_on_floor():
+		_on_landed(fall)
+
+
+## Hurken: lagere botsvorm en een lager oog. Opstaan kan enkel als er boven je ruimte is.
+func _set_crouch(want: bool) -> void:
+	if want == crouching:
+		return
+	var low := Tuning.get_f("player", "crouch_height", 0.95)
+	if not want:
+		# Past de hele capsule weer? (anders blijf je gehurkt, bv. onder een overhang in je tunnel)
+		if test_move(global_transform, Vector3(0.0, STAND_HEIGHT - low, 0.0)):
+			return
+	crouching = want
+	var h := low if crouching else STAND_HEIGHT
+	_capsule.height = h
+	_shape.position.y = h * 0.5
+
+
+## Geland met `speed` m/s naar beneden: het oog zakt even door (meer bij een hogere val), een
+## kleine schok, en bij een harde landing stof aan je voeten.
+func _on_landed(speed: float) -> void:
+	if speed < Tuning.get_f("player", "land_min_speed", 2.5):
+		return
+	_land_impulse = speed
+	var hard := speed > Tuning.get_f("player", "land_dust_speed", 6.0)
+	camera_fx.kick(-clampf(speed * 0.35, 0.0, 6.0), randf_range(-0.6, 0.6))
+	if hard:
+		camera_fx.add_trauma(clampf((speed - 6.0) * 0.04, 0.0, 0.35))
+		var at := global_position + Vector3(0, 0.05, 0)
+		var col := Strata.DEBRIS_COLORS[game.terrain.layer_at(at - Vector3(0, 0.5, 0))] if game.terrain else Color(0.55, 0.4, 0.3)
+		if game.ship == null or not game.ship.contains(at):
+			game.fx.land_dust(at, col, clampf(speed / 12.0, 0.4, 1.2))
+		game.fx.play("crumble", at, -14.0 + minf(speed, 12.0))
 
 
 ## Lage treden in De Ekster (de ringtreden van de verhoging, drempels): een CharacterBody loopt
@@ -493,6 +618,7 @@ func _step_up(delta: float) -> void:
 ## (De vloer alleen neemt je niet mee: dan glijd je weg en draait je blik rond als hij bijdraait.)
 func _ride_mol() -> void:
 	var mol: Mol = game.mol
+	_ride_yaw = 0.0
 	if mol == null or mol.body == null or flying or not mol.contains_point(global_position):
 		_riding = false
 		return
@@ -502,7 +628,9 @@ func _ride_mol() -> void:
 		global_position = d * global_position
 		var fwd := d.basis * -global_basis.z
 		if Vector2(fwd.x, fwd.z).length() > 0.01:
+			var was := rotation.y
 			rotation.y = atan2(-fwd.x, -fwd.z)
+			_ride_yaw = wrapf(rotation.y - was, -PI, PI)
 		# Verticale snelheid relatief tot de Mol: niet "vallen" als hij daalt, niet gelanceerd worden als hij stijgt.
 		if is_on_floor():
 			velocity.y = minf(velocity.y, 0.0)
@@ -547,10 +675,11 @@ func _seat_to_mol() -> void:
 func _process(delta: float) -> void:
 	if is_local:
 		if seated:
-			_seat_to_mol() # ook tussen physics-ticks, zodat de camera vloeiend meebeweegt
+			_seat_to_mol()
 		var mol: Mol = game.mol
 		if _attached != null:
 			_follow_attached(mol)
+		_update_rig(delta)
 		var in_mol := mol != null and (seated or mol.contains_point(global_position))
 		_update_drop_cam(mol, in_mol)
 		_update_cinematic(mol, in_mol, delta)
@@ -573,6 +702,62 @@ func _process(delta: float) -> void:
 					_rpc_state.rpc_id(peer, Time.get_ticks_msec(), pos, yaw, head.rotation.x, in_mol)
 	else:
 		_interpolate()
+
+
+## Het oog (CamRig) op de plek waar het lijf nu getekend wordt (geïnterpoleerd tussen twee ticks),
+## met de kijkrichting van nu, plus de loopbeweging, de landingsdip en het hurken.
+## Zit je in de stoel of vast in de Mol, dan volgt het oog de getekende Mol (die is ook
+## geïnterpoleerd), anders schuift de cabine onder je door.
+func _update_rig(delta: float) -> void:
+	var mol: Mol = game.mol
+	_check_jump()
+	var frac := Engine.get_physics_interpolation_fraction()
+	var anchor: Transform3D
+	if seated and mol and mol.body:
+		anchor = mol.body.get_global_transform_interpolated() * Transform3D(Basis(Vector3.UP, _look_yaw), SEAT_FEET)
+	elif _attached != null and mol and mol.body:
+		anchor = Transform3D(Basis(Vector3.UP, rotation.y), mol.body.get_global_transform_interpolated() * (_attached[0] as Vector3))
+	else:
+		anchor = Transform3D(Basis(Vector3.UP, rotation.y - _ride_yaw * (1.0 - frac)), get_global_transform_interpolated().origin)
+	# Hurken: het oog zakt vloeiend (de botsvorm wisselt meteen).
+	var eye_target := Tuning.get_f("player", "crouch_eye", 0.78) if crouching else EYE_STAND
+	head.position.y = move_toward(head.position.y, eye_target, delta * Tuning.get_f("player", "crouch_eye_speed", 3.5))
+	# Landingsdip: een veer die door de klap omlaag geduwd wordt.
+	if _land_impulse > 0.0:
+		var k := clampf((_land_impulse - 2.0) / 10.0, 0.0, 1.0)
+		_dip_vel += lerpf(0.4, Tuning.get_f("player", "land_dip_max", 2.2), k) * Settings.get_f("interface/camera_shake")
+		_land_impulse = 0.0
+	var left := minf(delta, 0.1)
+	while left > 0.0:
+		var h := minf(left, 1.0 / 120.0)
+		_dip_vel += (-_dip * Tuning.get_f("player", "land_dip_stiffness", 160.0) - _dip_vel * Tuning.get_f("player", "land_dip_damping", 15.0)) * h
+		_dip += _dip_vel * h
+		left -= h
+	# Loopbeweging en zijwaartse kanteling (uit te zetten in de instellingen).
+	var hv := Vector3(velocity.x, 0.0, velocity.z)
+	var speed := hv.length()
+	var grounded := is_on_floor() and not seated and _attached == null and not flying
+	var bob_on := Settings.get_b("interface/head_bob") if Settings.DEFAULTS.has("interface/head_bob") else true
+	var want_bob := clampf(speed / Tuning.get_f("player", "move_speed", 4.5), 0.0, 1.6) if grounded and bob_on else 0.0
+	_bob_amount = move_toward(_bob_amount, want_bob, delta * 4.0)
+	if grounded:
+		_bob_phase += delta * speed / maxf(Tuning.get_f("player", "step_length", 1.6), 0.1) * PI
+	var amp := Tuning.get_f("player", "bob_height", 0.022) * _bob_amount
+	var bob := Vector3(cos(_bob_phase) * amp * 0.55, -absf(sin(_bob_phase)) * amp, 0.0)
+	var side := (anchor.basis.inverse() * hv).x
+	var want_tilt := -side / maxf(Tuning.get_f("player", "move_speed", 4.5), 0.1) * deg_to_rad(Tuning.get_f("player", "strafe_tilt_deg", 1.2)) if bob_on and grounded else 0.0
+	_tilt = lerpf(_tilt, want_tilt, minf(1.0, delta * 8.0))
+	camera_fx.roll = _tilt
+	var eye := head.position + bob + Vector3(0.0, -_dip, 0.0)
+	cam_rig.global_transform = Transform3D(anchor.basis * Basis(Vector3.RIGHT, head.rotation.x), anchor * eye)
+
+
+## Grote sprong van het lijf zonder reset (een scenario, een test, de host die je verzet): niet
+## tekenen alsof je in één tick door de wereld vloog.
+func _check_jump() -> void:
+	if global_position.distance_to(_last_pos) > 3.0:
+		reset_physics_interpolation()
+	_last_pos = global_position
 
 
 ## In de Mol tijdens de drop of het ophalen: het heldenshot (DropCam). Bij de drop vanaf de sprong
@@ -656,8 +841,10 @@ func _rpc_state(sent_ms: int, pos: Vector3, yaw: float, pitch: float, in_mol: bo
 		rotation.y = _snap_yaw(_snapshots[0])
 
 
+## In de Mol: t.o.v. de Mol zoals hij nu getekend wordt (geïnterpoleerd), anders schuift de robot
+## bij een rijdende Mol heen en weer in de cabine.
 func _snap_pos(s: Array) -> Vector3:
-	return game.mol.to_world_mol(s[1]) if s[4] else s[1]
+	return game.mol.body.get_global_transform_interpolated() * (s[1] as Vector3) if s[4] else s[1]
 
 
 func _snap_yaw(s: Array) -> float:
@@ -714,6 +901,7 @@ func _teleport(pos: Vector3) -> void:
 	flying = false
 	velocity = Vector3.ZERO
 	global_position = pos
+	reset_physics_interpolation()
 	_riding = false
 
 

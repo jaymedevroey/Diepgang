@@ -131,6 +131,7 @@ var _ramp_shape: CollisionShape3D
 var _lever_button: Interactable
 var _visual_yaw := 0.0
 var _teleport: Variant = null # [pos, yaw, pitch], toegepast in de volgende physics-tick
+var _fti_reset_next := false # na een sprong: ook de volgende tick de interpolatie resetten
 var _braking := false # drop: de stuwraketten remmen
 var _hub_fall := false # drop: valt nog door de luiken van de hub (voor de sprong naar buiten)
 var _drop_t := 0.0 # drop: seconden sinds het loslaten
@@ -158,8 +159,12 @@ func setup(docked := false) -> void:
 	body.collision_layer = Layers.LIFT
 	body.collision_mask = 0
 	add_child(body)
+	# Fysica-interpolatie (gevoel-02): het lijf beweegt per tick en wordt ertussen getekend. Het model
+	# animeert zelf in _process (rupsen, hendels): dat zonder interpolatie, het volgt het lijf toch.
+	body.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_ON
 	visual = MolVisual.new()
 	visual.name = "Visual"
+	visual.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	body.add_child(visual)
 	_build_collision()
 	_build_buttons()
@@ -571,6 +576,9 @@ func _process(delta: float) -> void:
 func _physics_process(delta: float) -> void:
 	if body == null:
 		return
+	if _fti_reset_next:
+		_fti_reset_next = false
+		body.reset_physics_interpolation()
 	if multiplayer.is_server():
 		if _teleport != null:
 			_place(_teleport[0], _teleport[1], _teleport[2])
@@ -1204,10 +1212,16 @@ func _dock() -> void:
 
 
 func _place(pos: Vector3, y: float, p: float) -> void:
+	var jump := placed.origin.distance_to(pos) > 6.0
 	yaw = y
 	pitch = p
 	placed = Transform3D(Basis.from_euler(Vector3(p, y, 0.0)), pos)
 	body.global_transform = placed
+	if jump:
+		# Een sprong niet tekenen als een vlucht: met sync_to_physics staat het lijf pas na de
+		# physics-stap op de nieuwe plek, dus ook de volgende tick nog eens resetten (gemeten).
+		body.reset_physics_interpolation()
+		_fti_reset_next = true
 
 
 # --- Netwerk -------------------------------------------------------------------------------------

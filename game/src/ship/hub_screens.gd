@@ -239,6 +239,7 @@ func _make(key: String, mesh: MeshInstance3D, fps: float, holo := false) -> Scre
 	var h := int(round(WIDTH * s.height / maxf(s.width, 0.01) / 2.0)) * 2
 	s.size = Vector2(WIDTH, clampi(h, 96, 720))
 	s.viewport = SubViewport.new()
+	s.viewport.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF # beweegt in _process (gevoel-02)
 	s.viewport.name = key
 	s.viewport.size = Vector2i(s.size)
 	s.viewport.disable_3d = true

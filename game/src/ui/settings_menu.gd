@@ -196,6 +196,7 @@ func _rebuild(tab: String) -> void:
 		"interface":
 			_slider(page, "interface/ui_scale", "Interface size", 0.75, 2.0, 0.05, "%d%%", 100.0)
 			_slider(page, "interface/camera_shake", "Camera shake", 0.0, 1.0, 0.05, "%d%%", 100.0, "Less shake helps against motion sickness.")
+			_toggle(page, "interface/head_bob", "Head bob", "The view sways a little while you walk. Off helps against motion sickness.")
 			_toggle(page, "interface/hide_ip", "Hide IP address", "For streamers: your IP never appears on screen.")
 			var head := Label.new()
 			head.text = "HUD"
