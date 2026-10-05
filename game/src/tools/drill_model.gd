@@ -18,6 +18,12 @@ static func build(viewmodel_fov: float, color: Color, viewmodel := true) -> Node
 	bit_mesh.position = Vector3.ZERO
 	bit.add_child(bit_mesh)
 	root.add_child(bit)
+	# Boor T2 (F1): cyane band en het label T2 over de behuizing, enkel zichtbaar met de upgrade.
+	if PickaxeModel.has_part("Drill_T2"):
+		var t2 := PickaxeModel.part("Drill_T2", viewmodel_fov, color, viewmodel)
+		t2.name = "T2"
+		t2.visible = false
+		root.add_child(t2)
 	if viewmodel:
 		var glove := PickaxeModel.part("Glove", viewmodel_fov, color, viewmodel)
 		glove.rotation_degrees = Vector3(GRIP_TILT, 0, 0)

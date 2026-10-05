@@ -76,6 +76,16 @@ func generate(planet_seed: int) -> void:
 			if t.generated_rock_depth(p) > 0.15:
 				break
 		_add(rng, p, -dir)
+	# 4. Extra aders als de opdracht "ertsaders" heeft (Contracts, F1): in klei en zandsteen.
+	for v in Contracts.extra_veins(game.company.world_mods if game.company else []):
+		var layer := 2 + (v % 2) # zandsteen, klei
+		var top: float = Strata.TOPS_M[layer] if layer < 3 else size.y - 30.0
+		var p := Vector3(rng.randf_range(10.0, size.x - 10.0), rng.randf_range(bottoms[layer] + 3.0, top - 3.0),
+				rng.randf_range(10.0, size.z - 10.0))
+		if layer == 3:
+			p.y = minf(p.y, t.surface_height_at(p.x, p.z) - 3.0)
+		var dir := Vector3(rng.randf_range(-1, 1), rng.randf_range(-0.25, 0.25), rng.randf_range(-1, 1)).normalized()
+		_vein(rng, p, dir, rng.randi_range(5, 9))
 	print("[ore] %d ertsclusters geplaatst (seed %d)" % [clusters.size(), planet_seed])
 
 

@@ -9,7 +9,9 @@ extends Node
 ## - Company_Board (gang): kas, reputatie, kwartaal en dienst, de quota, de opdracht, de vorige dienst.
 ## - Terminal_Screen (brug): hologram boven de opdrachttafel: de planeet van de gekozen opdracht als
 ##   draadmodel, de claim en wat je nu moet doen (aanvullend op het menu, niet hetzelfde nog eens).
-## - Appraisal_Screen (kade): de taxatie van de vorige dienst (tot de echte taxatiepoort er is).
+## - Appraisal_Screen (kade, boven de taxatiepoort): de onthulling van elke vondst die door de poort
+##   gaat (soort, gaafheid, de waarde die optelt), hoeveel van de buit al getaxeerd is, wat verkocht
+##   is en wat aan het luik klaarligt (F1, Appraisal). Zonder open buit: de vorige dienst.
 ## Alles leest de toestand van de firma (Company) op deze peer, dus ook clients zien het juiste.
 ## Performance: een scherm rendert enkel als de camera binnen VIEW_RANGE × zijn breedte is, het in
 ## beeld staat en naar de camera kijkt, en dan nog op zijn eigen tempo (UPDATE_ONCE, `fps`);
@@ -107,9 +109,10 @@ var _share_up := 3.2
 var _share_down := 1.4
 var _share_curve := PackedFloat32Array()
 var _tv_light: OmniLight3D
-# Taxatie: lopende tekst.
+# Taxatie: lopende tekst, en de laatste onthulling (seconden geleden, voor het optellen).
 var _marquee_x := 0.0
 var _marquee_w := 0.0
+var _reveal_t := INF
 
 
 func _init() -> void:
@@ -132,6 +135,10 @@ func setup(game_node: Node, anchors: Dictionary) -> void:
 	var c: Company = game.company
 	c.changed.connect(_on_changed)
 	c.report_ready.connect(_on_report)
+	c.appraisal.revealed.connect(func(_info: Dictionary) -> void:
+		_reveal_t = 0.0
+		_on_changed())
+	c.appraisal.sold.connect(func(_info: Dictionary) -> void: _on_changed())
 	_tv_enter("ident")
 	for s: Screen in _screens.values():
 		_paint(s)
@@ -197,6 +204,7 @@ func fill(line: String) -> String:
 
 func _process(delta: float) -> void:
 	_time += delta
+	_reveal_t += delta
 	_tv_tick(delta)
 	var vp := get_viewport()
 	var cam := vp.get_camera_3d() if vp else null
@@ -1063,8 +1071,11 @@ func _build_board(s: Screen) -> void:
 func _paint_board(s: Screen) -> void:
 	var c := _company()
 	var q := c.quota()
-	_text(s, "status", "REP %+d  ·  SHIFT %d/%d" % [c.reputation, c.shift, _shifts()])
+	_text(s, "status", ("PROBATION  ·  SHIFT %d/%d" % [c.shift, _shifts()]) if c.on_probation() else "REP %+d  ·  SHIFT %d/%d" % [c.reputation, c.shift, _shifts()])
 	_text(s, "cash", UiTheme.euro(c.cash))
+	# Schuld = bevroren rekening (F1): geen upgrades tot de kas weer positief is.
+	_text(s, "cap_cash", "FUNDS · FROZEN" if c.in_debt() else "FUNDS")
+	(s.labels["cap_cash"] as Label).add_theme_color_override("font_color", UiTheme.DANGER if c.in_debt() else UiTheme.CREAM_DIM)
 	(s.labels["cash"] as Label).add_theme_color_override("font_color", UiTheme.DANGER if c.cash < 0 else UiTheme.YELLOW)
 	_text(s, "quota", "%s / %s" % [UiTheme.euro(c.earned), UiTheme.euro(q)])
 	var contract: Label = s.labels["contract"]
@@ -1229,6 +1240,12 @@ func _paint_appraisal(s: Screen) -> void:
 	var r := c.last_report
 	var marquee: Label = s.labels["marquee"]
 	var clip: Control = s.labels["clip"]
+	if c.haul_open():
+		_paint_haul(s, c, marquee, clip)
+		return
+	if not c.last_haul.is_empty():
+		_paint_last_haul(s, c.last_haul, r, marquee, clip)
+		return
 	if r.is_empty():
 		# Nog niets verkocht: een stilstaande, knipperende oproep. Geen belofte ("binnenkort"): de
 		# taxatie gebeurt echt, na elke dienst, met wat in de Mol ligt (ui-02, binnen-13).
@@ -1274,6 +1291,79 @@ func _paint_appraisal(s: Screen) -> void:
 	_text(s, "total", UiTheme.euro(gross))
 	var costs := int(r.get("costs", 0))
 	_text(s, "net", ("COSTS %s\n" % UiTheme.euro(-costs) if costs > 0 else "") + "NET %s" % UiTheme.euro(int(r.get("net", 0))))
+
+
+## De taxatie loopt (F1): de laatste onthulling groot (de waarde telt op), anders wat je moet doen;
+## links hoeveel van de buit getaxeerd is, rechts wat verkocht is en wat aan het luik klaarligt.
+func _paint_haul(s: Screen, c: Company, marquee: Label, clip: Control) -> void:
+	var a := c.appraisal
+	var total := (c.haul.get("ids", []) as Array).size()
+	var waiting := a.unappraised_items().size()
+	var ready := a.appraised_items()
+	var sold_n := (c.haul.get("sold", []) as Array).size()
+	_text(s, "when", "HAUL
+%d/%d" % [total - waiting, total])
+	var last := a.last_reveal
+	s.fps = 20.0 if _reveal_t < 2.0 else 6.0
+	marquee.position.x = 0.0
+	if not last.is_empty() and _reveal_t < 7.0 and a.in_haul(int(last.get("find_id", -1))):
+		# De waarde telt op in 0,6 s, na de naam en de gaafheid (zoals boven de vondst).
+		var k := clampf((_reveal_t - 0.5) / 0.6, 0.0, 1.0)
+		var shown := int(round(int(last.value) * k * k * (3.0 - 2.0 * k)))
+		var line := "%s  %d%%  %s" % [str(last.name).to_upper(), int(round(float(last.condition) * 100.0)), UiTheme.euro(shown) if _reveal_t > 0.5 else "€..."]
+		var col := UiTheme.YELLOW if _reveal_t > 1.1 or _blink(0.15, 0.5) else UiTheme.CREAM
+		_style(marquee, UiTheme.screen(), _fit_size(line, UiTheme.screen(), 46, 28, Vector2(clip.size.x, 60)), col)
+		_place(marquee, line, Rect2(0, 14, clip.size.x, 60), HORIZONTAL_ALIGNMENT_CENTER)
+		marquee.modulate.a = 1.0
+		var bonus := int(last.get("bonus", 0))
+		_text(s, "detail", ("TARGET BONUS %s" % UiTheme.euro_signed(bonus)) if bonus > 0 else ("%s TO APPRAISE" % UiTheme.count(waiting, "FIND", "FINDS") if waiting > 0 else "ALL APPRAISED · SELL AT THE HATCH"))
+	else:
+		var line2 := "CARRY FINDS THROUGH" if waiting > 0 else ("SELL AT THE HATCH" if not ready.is_empty() else "HAUL SOLD")
+		_style(marquee, UiTheme.screen(), 40, UiTheme.AMBER)
+		_place(marquee, line2, Rect2(0, 18, clip.size.x, 60), HORIZONTAL_ALIGNMENT_CENTER)
+		marquee.modulate.a = 1.0 if _blink(1.4, 0.75) else 0.55
+		_text(s, "detail", "%s WAITING IN THE MOLE" % UiTheme.count(waiting, "FIND", "FINDS") if waiting > 0 else "%s SOLD" % UiTheme.count(sold_n, "FIND", "FINDS"))
+	var ready_value := 0
+	for it: FindItem in ready:
+		ready_value += a.value_of(it)
+	_text(s, "total", UiTheme.euro(int(c.haul.get("sold_value", 0)) + int(c.haul.get("set_bonus", 0)) + int(c.haul.get("target_bonus", 0))))
+	_text(s, "net", "READY %s" % UiTheme.euro(ready_value) if ready_value > 0 else "")
+
+
+## De vorige buit is verkocht (F1): wat er verkocht werd, lopend, met de bonussen; rechts het totaal.
+func _paint_last_haul(s: Screen, h: Dictionary, r: Dictionary, marquee: Label, clip: Control) -> void:
+	marquee.modulate.a = 1.0
+	_text(s, "when", "SHIFT %d
+SOLD" % int(h.get("shift_total", 0)))
+	var parts := PackedStringArray()
+	for it: Array in h.get("sold", []):
+		parts.append("%s %s (%d%%)" % [str(it[0]).to_upper(), UiTheme.euro(int(it[1])), int(it[2])])
+	if int(h.get("set_bonus", 0)) > 0:
+		parts.append("SET BONUS %s" % UiTheme.euro(int(h.set_bonus)))
+	if int(h.get("leftover_value", 0)) > 0:
+		parts.append("HEAD OFFICE BOUGHT %d %s" % [int(h.get("leftover_count", 0)), UiTheme.euro(int(h.leftover_value))])
+	if int(r.get("ore_units", 0)) > 0:
+		parts.append("ORE ×%d %s" % [int(r.get("ore_units", 0)), UiTheme.euro(int(r.get("ore_value", 0)) + int(r.get("bonus", 0)))])
+	if parts.is_empty():
+		parts.append("NOTHING SOLD. HEAD OFFICE SIGHS.")
+	var text := "    ·    ".join(parts) + "    ·    "
+	if marquee.text != text:
+		_style(marquee, UiTheme.screen(), 44, UiTheme.AMBER)
+		marquee.text = text
+		marquee.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		_marquee_w = UiTheme.screen().get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 44).x
+		marquee.size = Vector2(_marquee_w + 8.0, 50)
+		marquee.position.y = 18
+		_marquee_x = 0.0
+	s.fps = 20.0
+	_marquee_x -= 60.0 / s.fps
+	if _marquee_x < -_marquee_w:
+		_marquee_x = clip.size.x
+	marquee.position.x = roundf(_marquee_x)
+	var n := (h.get("sold", []) as Array).size()
+	_text(s, "detail", "%s SOLD  ·  NEXT CONTRACT AT THE BRIDGE" % UiTheme.count(n, "FIND", "FINDS"))
+	_text(s, "total", UiTheme.euro(int(h.get("sold_value", 0)) + int(h.get("set_bonus", 0)) + int(h.get("target_bonus", 0)) + int(h.get("leftover_value", 0))))
+	_text(s, "net", "")
 
 
 func _draw_appraisal(c: Control) -> void:

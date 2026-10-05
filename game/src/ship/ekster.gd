@@ -10,7 +10,8 @@ extends Node3D
 ## Het schip dat je van buiten ziet, is een apart model (EksterExterior) boven de landingsplek; de
 ## hub hangt HUB_ABOVE daarboven, als een aparte ruimte. De Mol stapt over tussen beide baaien
 ## (drop en ophalen), wie door de open baai valt, valt uit het buitenschip (Game.from_hub).
-## Geen eigen spellogica: de luiken volgen wat de Mol (host) doet.
+## Geen eigen spellogica: de luiken volgen wat de Mol (host) doet; het verkoopluik en de toonbanken
+## geven door aan de firma (Company, Appraisal).
 
 const MODEL := preload("res://assets/models/ekster_hub.glb")
 ## De hub hangt zoveel boven de baai van het buitenschip (een aparte ruimte, ver uit beeld).
@@ -42,19 +43,17 @@ const PREVIEW_ONLY := ["Sign_", "Cam_", "Look_"]
 ## Wat je ziet als je mikt op een meubel zonder knop: [titel, gedempte regel eronder]. Geen
 ## "E:" in de titel (er gebeurt niets) en geen ": " (de HUD knipt daar). Een DIG-grap over het
 ## ding zelf, nooit een belofte ("komt later", "binnenkort"): de demo moet af aanvoelen (ui-02,
-## binnen-13). Wie hier later echt iets aan hangt (verkopen, upgrades: pakket F1), vervangt de
-## regel door een "E:"-knop.
+## binnen-13). Wat echt iets doet (verkopen, upgrades: pakket F1), staat in BUTTONS.
 const HINTS := {
-	"Appraisal_Gate": ["Appraisal gate", "Your haul is appraised here after every shift"],
-	"Sell_Hatch": ["Sell hatch", "DIG sells your haul after the shift, at DIG's price"],
+	"Appraisal_Gate": ["Appraisal gate", "Carry finds through: each one is appraised"],
 	"Vending": ["DIG vending machine · sold out", "No refunds, no restock date"],
 	"Locker": ["Paint booth · closed for fumes", "Your color is assigned by head office"],
-	"Niche_Tools": ["Tool rack · locked", "Head office keeps the key"],
-	"Niche_Supply": ["Supply desk · counter closed", "Open Tuesdays 10:00–10:05"],
 	"Niche_Free_A": ["Human resources · closed", "No humans left to resource"],
 	"Niche_Free_B": ["Break room · management only", "Your break is scheduled for quarter 7"],
-	"Mol_Werf": ["Mole yard · workshop closed", "Maintenance is billed per hour, so we skip it"],
 }
+## E-knoppen van de economie (F1): het verkoopluik en de drie toonbanken met upgrades. De tekst
+## volgt de toestand van de firma (_update_economy_hints).
+const BUTTONS := ["Sell_Hatch", "Niche_Tools", "Niche_Supply", "Mol_Werf"]
 ## Volgorde van de laadcapsules bij het spawnen: de eerste speler in capsule 02 (midden, zicht door
 ## de boog naar BRUG · OPDRACHTEN), dan 03 ("DEFECT"), 01, 04.
 const SPAWN_ORDER := [1, 2, 0, 3]
@@ -84,6 +83,8 @@ var _door_shape_rel: Array[Transform3D] = []
 var _rooms: Array[AABB] = []
 var _dock_local := Vector3.ZERO
 var _terminal_button: Interactable
+## Verkoopluik en toonbanken (BUTTONS): naam -> Interactable.
+var _buttons := {}
 
 
 func _ready() -> void:
@@ -194,6 +195,7 @@ func anchor_position(anchor_name: String) -> Vector3:
 
 func _process(delta: float) -> void:
 	_update_terminal_hint()
+	_update_economy_hints()
 	var target := 1.0 if doors_open else 0.0
 	if not is_equal_approx(door_amount, target):
 		door_amount = move_toward(door_amount, target, delta / 2.2)
@@ -402,6 +404,21 @@ func _build_buttons() -> void:
 		_terminal_button = term
 	var col: MeshInstance3D = anchors["Collision"]
 	var tri := col.mesh.generate_triangle_mesh()
+	for n: String in BUTTONS:
+		if not anchors.has(n):
+			continue
+		var bshape := BoxShape3D.new()
+		var b := Interactable.make("E: " + n, bshape)
+		b.name = n + "Button"
+		(anchors[n] as Node3D).add_child(b)
+		var bd := _free_ahead(anchors[n], col, tri)
+		bshape.size = Vector3(1.4, 1.8, HINT_DEPTH)
+		b.position = Vector3(0.0, 1.1, -(bd - HINT_GAP - HINT_DEPTH * 0.5))
+		_buttons[n] = b
+		if n == "Sell_Hatch":
+			b.used.connect(func(_p: Player) -> void: game.company.appraisal.request_sell())
+		else:
+			b.used.connect(func(_p: Player) -> void: game.company.shop_requested.emit(n))
 	for n: String in HINTS:
 		if not anchors.has(n):
 			continue
@@ -432,6 +449,46 @@ func _free_ahead(anchor: Node3D, col: MeshInstance3D, tri: TriangleMesh) -> floa
 		if not hit.is_empty():
 			best = minf(best, (_local(col) * (hit.position as Vector3)).distance_to(from))
 	return maxf(best, HINT_DEPTH + HINT_GAP + 0.05)
+
+
+## De E-knop van een toonbank of het verkoopluik (BUTTONS), of null.
+func economy_button(anchor_name: String) -> Interactable:
+	return _buttons.get(anchor_name)
+
+
+## Verkoopluik en toonbanken zeggen wat E nu doet, en waarom iets (nog) niet kan.
+func _update_economy_hints() -> void:
+	if game == null or game.company == null or _buttons.is_empty():
+		return
+	var c: Company = game.company
+	var hatch: Interactable = _buttons.get("Sell_Hatch")
+	if hatch:
+		var ready := c.appraisal.appraised_items().size()
+		var waiting := c.appraisal.unappraised_items().size()
+		if ready > 0:
+			hatch.hint = "E: sell %s" % UiTheme.count(ready, "appraised find")
+			hatch.sub = "%s still to appraise" % UiTheme.count(waiting, "find") if waiting > 0 else "That's the whole haul"
+		elif waiting > 0:
+			hatch.hint = "Sell hatch"
+			hatch.sub = "Carry finds through the appraisal gate first"
+		else:
+			hatch.hint = "Sell hatch"
+			hatch.sub = "Bring finds back from a shift to sell them here"
+	for n: String in Upgrades.COUNTERS:
+		var b: Interactable = _buttons.get(n)
+		if b == null:
+			continue
+		b.hint = "E: %s" % str(Upgrades.COUNTER_IN_TEXT[n])
+		var left := 0
+		for id: String in Upgrades.ORDER:
+			if str(Upgrades.info(id).counter) == n and not c.has_upgrade(id):
+				left += 1
+		if c.in_debt():
+			b.sub = "Account frozen while in debt (%s)" % UiTheme.euro(c.cash)
+		elif left == 0:
+			b.sub = "Everything here is yours"
+		else:
+			b.sub = "Upgrades · funds %s" % UiTheme.euro(c.cash)
 
 
 ## De terminalknop zegt wat E nu doet (kiezen, iets anders kiezen, of de Mol is weg).

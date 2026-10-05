@@ -64,8 +64,9 @@ func generate(pit_seed: int) -> void:
 			p.y = t.surface_height_at(p.x, p.z) - rng.randf_range(1.3, 2.6)
 			return [p, first if i == 0 else -1])
 	var caves := t.caves()
-	# 2. Fossielbedden: één skelet per bed, de stukken liggen zoals in het beest (PlanetLoot.SLOTS).
-	var beds := PlanetLoot.count(planet, "beds", 8)
+	# 2. Fossielbedden: één skelet per bed, de stukken liggen zoals in het beest (PlanetLoot.SLOTS). Plus
+	# extra bedden als de opdracht "rijke fossielbedden" heeft (Contracts, F1), bovenop die van de planeet.
+	var beds := PlanetLoot.count(planet, "beds", 8) + Contracts.extra_beds(game.company.world_mods if game.company else [])
 	var deep := PlanetLoot.count(planet, "deep_beds", 2)
 	var surface_y := t.surface_height_at(spawn.x, spawn.z)
 	for b in beds + deep:
@@ -382,13 +383,13 @@ func _rpc_freed(find_id: int, by := 0) -> void:
 	find_freed.emit(it)
 
 
-## Naam (en voorlopig de waarde) groot boven de vondst. Pakket F1 verhuist de onthulling van de
-## waarde naar de taxatiepoort: dan blijft hier enkel de naam en de waardeklasse.
+## Naam en waardeklasse groot boven de vondst. De waarde zelf blijft verborgen tot de taxatiepoort
+## aan boord (F1, ontwerp-9: Appraisal); de glans en deze regel verraden enkel de klasse.
 func _reveal_text(it: FindItem) -> void:
 	var col: Color = FindKinds.CLASS_GLINT[it.value_class]
 	var at := it.global_position + Vector3(0, it.half_extents.length() + 0.25, 0)
 	game.fx.float_text(at, it.display_name().to_upper(), col.lerp(Color.WHITE, 0.2), 1.0 + 0.15 * it.value_class, 2.6)
-	game.fx.float_text(at - Vector3(0, 0.13, 0), "€%d" % it.value(), Color(0.95, 0.92, 0.82), 0.6, 2.6)
+	game.fx.float_text(at - Vector3(0, 0.13, 0), FindKinds.CLASS_NAMES[it.value_class].to_upper(), Color(0.95, 0.92, 0.82), 0.6, 2.6)
 
 
 # --- Het magma slokt op ----------------------------------------------------
@@ -435,6 +436,25 @@ func _remove(it: FindItem) -> void:
 	_prev_velocity.erase(it.find_id)
 	_gone.append(it.find_id)
 	it.queue_free()
+
+
+## Host: een vondst uit het laadruim op de grond zetten (te zwaar voor de grijper, F1): los van
+## wie hem droeg, niet meer vastgesjord in de Mol, stil op `world`.
+func host_eject(find_id: int, world: Vector3) -> void:
+	var it := item(find_id)
+	if it == null:
+		return
+	for peer in it.carriers.duplicate():
+		_release(peer, find_id, it.global_transform, Vector3.ZERO)
+	_stowed.erase(find_id)
+	_prev_velocity.erase(find_id)
+	it.global_position = world
+	it.reset_physics_interpolation()
+	it.last_safe = world
+	it.freeze = false
+	it.linear_velocity = Vector3.ZERO
+	it.angular_velocity = Vector3.ZERO
+	it.sleeping = false
 
 
 # --- De Mol schept op ------------------------------------------------------
@@ -798,7 +818,7 @@ static func impact_condition(it: FindItem, dv: float) -> float:
 	return minf(it.condition, maxf(Tuning.get_f("finds", "min_condition", 0.25), it.condition - loss))
 
 
-## Schade zie je meteen (gevoel-06, plezier-en-design §10): "−€X" boven de vondst, een krak (de
+## Schade zie je meteen (gevoel-06, plezier-en-design §10): "−X%" boven de vondst, een krak (de
 ## bestaande tok, M6 brengt een eigen geluid) en schilfers. Het signaal condition_changed blijft
 ## voor de HUD en het robotgezicht.
 @rpc("authority", "call_local", "reliable")
@@ -808,6 +828,7 @@ func _rpc_condition(find_id: int, cond: float) -> void:
 		return
 	var hard := cond < it.condition - 0.001
 	var before := it.value()
+	var before_cond := it.condition
 	var was_whole := not it.is_shattered()
 	it.condition = cond
 	it.update_glow()
@@ -819,9 +840,10 @@ func _rpc_condition(find_id: int, cond: float) -> void:
 				Color(1.0, 0.32, 0.22), 1.0, 2.0)
 		shattered.emit(it)
 	elif hard:
-		var lost := before - it.value()
-		if lost > 0:
-			game.fx.float_text(it.global_position + Vector3(0, it.half_extents.length() + 0.15, 0), "−€%d" % lost,
+		# De gaafheid die verloren ging, niet het bedrag: de waarde is pas aan boord bekend (F1).
+		var lost := int(round((before_cond - cond) * 100.0))
+		if lost > 0 and before > 0:
+			game.fx.float_text(it.global_position + Vector3(0, it.half_extents.length() + 0.15, 0), "−%d%%" % lost,
 					Color(1.0, 0.32, 0.22), 0.9, 1.6)
 		game.fx.crust_hit(it.global_position, Vector3.UP, false)
 		game.fx.play("tok", it.global_position, 0.0)
