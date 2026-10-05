@@ -72,6 +72,18 @@ var _t0 := 0 # µs: start van build()
 var _main_us := 0 # µs op de hoofdthread (build + in de scène hangen)
 var _compute_us := 0 # µs op de werkthread
 var _phase_ms: Dictionary = {} # ms per stap op de werkthread (voor de log)
+## Reliëf (planeten.md §3.5: de kleur volgt de vorm): hoogte min het gemiddelde in een venster van
+## ±RELIEF_CELLS cellen van de ring, op het raster van de ring (ook over het speelgebied). Laagtes
+## worden donkerder, hoogtes en randen lichter (PlanetType.ground relief_*), in het verre landschap
+## én in de tint van het voxelterrein: drie waardegroepen die aan de vormen hangen, niet aan ruis.
+const RELIEF_CELLS := 5
+var _rel_field := PackedFloat32Array()
+var _rel_n := 0
+var _rel_o := 0.0
+var _rel_step := 1.0
+var _relief_m := 0.0 # m hoogteverschil voor het volle effect (0 = uit)
+var _relief_dark := Color(1, 1, 1)
+var _relief_light := Color(1, 1, 1)
 
 
 func build(t: TerrainAPI, planet_seed: int, planet_id := PlanetType.Id.ROESTBOL) -> void:
@@ -115,6 +127,9 @@ func build(t: TerrainAPI, planet_seed: int, planet_id := PlanetType.Id.ROESTBOL)
 		mat.set_shader_parameter(["strata_light", "strata_mid", "strata_dark"][i], Vector3(col.r, col.g, col.b))
 	if t.landform == null:
 		landform.setup(planet_seed, Vector2(c.x, c.z), Vector2(_size.x, _size.z))
+	_relief_m = float(g.get("relief_m", 0.0))
+	_relief_dark = g.get("relief_dark", Color(1, 1, 1))
+	_relief_light = g.get("relief_light", Color(1, 1, 1))
 	var pd: Color = g.patch_dark
 	var pl: Color = g.patch_light
 	mat.set_shader_parameter("patch_dark", Vector4(pd.r, pd.g, pd.b, pd.a))
@@ -346,6 +361,7 @@ func _far_arrays() -> Array:
 			var x := (k0 + i) * step
 			var z := (k0 + j) * step
 			verts[j * n + i] = Vector3(x, far_height(x, z), z)
+	_build_relief(verts, n, k0 * step, step)
 	var quads: Array[PackedInt32Array] = []
 	var ring_idx := PackedInt32Array()
 	ring_idx.resize((n - 1) * (n - 1) * 6)
@@ -410,9 +426,66 @@ func _far_arrays() -> Array:
 	colors.resize(verts.size())
 	for i in verts.size():
 		# Hoekpuntkleuren zijn 8-bit (0..1): de tint (1 = neutraal, tot 2 = lichter) gaat er gehalveerd in.
-		var tc := landform.tint(verts[i].x, verts[i].z)
+		var tc := _relief_tint(landform.tint(verts[i].x, verts[i].z), verts[i].x, verts[i].z)
 		colors[i] = Color(tc.r * 0.5, tc.g * 0.5, tc.b * 0.5, tc.a)
 	return _with_normals(verts, idx, colors)
+
+
+## Het reliëfveld uit de hoogtes van het raster van de ring (n × n, vanaf origin, om de step m), met
+## een sommentabel (een vak van ±RELIEF_CELLS cellen kost zo vier opzoekingen).
+func _build_relief(verts: PackedVector3Array, n: int, origin: float, step: float) -> void:
+	_rel_n = n
+	_rel_o = origin
+	_rel_step = step
+	_rel_field = PackedFloat32Array()
+	if _relief_m <= 0.0:
+		_rel_n = 0
+		return
+	var w := n + 1
+	var sat := PackedFloat64Array()
+	sat.resize(w * w)
+	for j in n:
+		var row := 0.0
+		for i in n:
+			row += verts[j * n + i].y
+			sat[(j + 1) * w + i + 1] = sat[j * w + i + 1] + row
+	_rel_field.resize(n * n)
+	var r := RELIEF_CELLS
+	for j in n:
+		var j0 := maxi(j - r, 0)
+		var j1 := mini(j + r + 1, n)
+		for i in n:
+			var i0 := maxi(i - r, 0)
+			var i1 := mini(i + r + 1, n)
+			var sum := sat[j1 * w + i1] - sat[j0 * w + i1] - sat[j1 * w + i0] + sat[j0 * w + i0]
+			_rel_field[j * n + i] = verts[j * n + i].y - sum / float((j1 - j0) * (i1 - i0))
+
+
+## Reliëf hier (m boven het gemiddelde van de omgeving), bilineair; 0 buiten de fijne ring (en naar
+## haar buitenrand toe uitdovend, zodat de grove schijf aansluit).
+func relief_at(x: float, z: float) -> float:
+	if _rel_n == 0:
+		return 0.0
+	var fx := (x - _rel_o) / _rel_step
+	var fz := (z - _rel_o) / _rel_step
+	if fx < 0.0 or fz < 0.0 or fx >= _rel_n - 1 or fz >= _rel_n - 1:
+		return 0.0
+	var i := int(fx)
+	var j := int(fz)
+	var tx := fx - i
+	var tz := fz - j
+	var k := j * _rel_n + i
+	var v := lerpf(lerpf(_rel_field[k], _rel_field[k + 1], tx), lerpf(_rel_field[k + _rel_n], _rel_field[k + _rel_n + 1], tx), tz)
+	return v * (1.0 - smoothstep(RING - 110.0, RING - 30.0, outside(x, z)))
+
+
+## De tint van de landvorm, met het reliëf erbij (laagtes donker, hoogtes licht).
+func _relief_tint(tc: Color, x: float, z: float) -> Color:
+	if _rel_n == 0:
+		return tc
+	var k := clampf(relief_at(x, z) / _relief_m, -1.0, 1.0)
+	var m := Color(1, 1, 1).lerp(_relief_dark, -k) if k < 0.0 else Color(1, 1, 1).lerp(_relief_light, k)
+	return Color(minf(tc.r * m.r, 2.0), minf(tc.g * m.g, 2.0), minf(tc.b * m.b, 2.0), tc.a)
 
 
 ## Naadstrook rond het speelgebied, in de cellen tussen de rand en de eerste rasterlijn van de ring
@@ -521,7 +594,7 @@ func _near_tint_data() -> PackedByteArray:
 		for i in n:
 			var x := i * NEAR_TINT_STEP
 			var z := j * NEAR_TINT_STEP
-			var tc := landform.tint(x, z)
+			var tc := _relief_tint(landform.tint(x, z), x, z)
 			var seams := landform.crust_seams(x, z)
 			var pad := smoothstep(LANDING_PAD.x, LANDING_PAD.y, Vector2(x - c.x, z - c.y).length())
 			var at := (j * n + i) * 4
