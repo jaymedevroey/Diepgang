@@ -117,7 +117,7 @@ func _run(p: Player) -> void:
 ## Speler ergens neerzetten en wachten tot het terrein daar klaar is (met collision).
 ## Het verre landschap (docs: geen "groot vierkant" meer van hoog in de lucht):
 ## - de buitenrand ligt van op dropphoogte overal achter de horizon (onder de kim van de hemel);
-## - de ring sluit zonder kier aan op het raster van het speelgebied (zelfde hoogte op de rand);
+## - de ring sluit zonder trede aan op het speelgebied (zelfde hoogte als het voxelterrein op de rand);
 ## - de rok kijkt naar binnen; van ver weg (de hub) is alles verborgen, de paaltjes van boven ook.
 func _check_horizon(t: TerrainAPI, surf: PlanetSurface) -> void:
 	var size := t.world_size()
@@ -150,8 +150,9 @@ func _check_horizon(t: TerrainAPI, surf: PlanetSurface) -> void:
 	for k in 33:
 		var s := size.x * k / 32.0
 		for q in [Vector2(s, 0.0), Vector2(s, size.z), Vector2(0.0, s), Vector2(size.x, s)]:
-			seam = maxf(seam, absf(surf.far_height(q.x, q.y) - (t.surface_height_at(q.x, q.y) - 0.5)))
-	_expect(seam < 0.001, "ring sluit aan op het raster van het speelgebied (verschil %.4f m)" % seam)
+			seam = maxf(seam, absf(surf.far_height(q.x, q.y) - t.surface_height_at(q.x, q.y)))
+	# Op exact de hoogte van het voxelterrein (vroeger 0,5 m lager, op het raster: van op de grond een trede).
+	_expect(seam < 0.001, "verre landschap sluit op de rand aan op het oppervlak van het speelgebied (verschil %.4f m)" % seam)
 	var far := surf.get_node("FarTerrain") as MeshInstance3D
 	var skirt := far.mesh.surface_get_arrays(1)
 	var verts: PackedVector3Array = skirt[Mesh.ARRAY_VERTEX]
