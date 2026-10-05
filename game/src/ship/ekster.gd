@@ -42,15 +42,15 @@ const PREVIEW_ONLY := ["Sign_", "Cam_", "Look_"]
 ## Wat je ziet als je mikt op iets dat er nog niet is: [titel, gedempte regel eronder]. Geen
 ## "E:" in de titel (er gebeurt niets) en geen ": " (de HUD knipt daar).
 const HINTS := {
-	"Appraisal_Gate": ["Taxatiepoort · buiten dienst", "DIG taxeert en verkoopt je buit na de dienst zelf"],
-	"Sell_Hatch": ["Verkoopluik · gesloten", "verkopen gaat na de dienst vanzelf (tegen onze prijs)"],
-	"Vending": ["DIG-automaat · leeg", "bevoorrading volgt · geen terugbetaling"],
-	"Locker": ["Spuitcabine · verf op eigen kosten", "kleuren kiezen komt later"],
-	"Niche_Tools": ["Gereedschap · upgrades", "komt in een latere versie"],
-	"Niche_Supply": ["Uitgifte · loket gesloten", "open di 10:00–10:05 (komt later)"],
-	"Niche_Free_A": ["In aanbouw", "hier komt later iets"],
-	"Niche_Free_B": ["Binnenkort", "hier komt later iets"],
-	"Mol_Werf": ["Mol-werf · upgrades voor de Mol", "komt in een latere versie"],
+	"Appraisal_Gate": ["Appraisal gate · out of order", "DIG appraises and sells your haul itself after the shift"],
+	"Sell_Hatch": ["Sell hatch · closed", "selling happens automatically after the shift (at our price)"],
+	"Vending": ["DIG vending machine · empty", "restock pending · no refunds"],
+	"Locker": ["Paint booth · paint at your own expense", "picking colors comes later"],
+	"Niche_Tools": ["Tools · upgrades", "coming in a later version"],
+	"Niche_Supply": ["Supply desk · counter closed", "open Tue 10:00–10:05 (coming later)"],
+	"Niche_Free_A": ["Under construction", "something will go here later"],
+	"Niche_Free_B": ["Coming soon", "something will go here later"],
+	"Mol_Werf": ["Mole yard · upgrades for The Mole", "coming in a later version"],
 }
 ## Volgorde van de laadcapsules bij het spawnen: de eerste speler in capsule 02 (midden, zicht door
 ## de boog naar BRUG · OPDRACHTEN), dan 03 ("DEFECT"), 01, 04.
@@ -137,19 +137,19 @@ func zone_at(world: Vector3) -> String:
 		return ""
 	var p := global_transform.affine_inverse() * world + PLAN_ORIGIN # plancoördinaten
 	if p.z >= 40.0:
-		return "LAADREK"
+		return "LOADING RACK"
 	if p.z >= 30.0:
-		return "WERKDEK"
+		return "WORK DECK"
 	if p.z >= 26.0:
-		return "GANG"
+		return "CORRIDOR"
 	if p.z >= 21.0 and p.y > 0.9:
-		return "BRUG"
+		return "BRIDGE"
 	if p.x >= 16.0 and p.y > 0.9:
-		return "GALERIJ"
+		return "GALLERY"
 	if p.x >= 12.0 and p.z < 2.6 and p.y < -0.3:
-		return "UITKIJKPUT"
+		return "LOOKOUT PIT"
 	if p.z >= 16.0:
-		return "KADE"
+		return "QUAY"
 	return "HANGAR"
 
 
@@ -383,7 +383,7 @@ func _build_buttons() -> void:
 	if anchors.has("Terminal_Use"):
 		var term_shape := BoxShape3D.new()
 		term_shape.size = Vector3(2.4, 1.6, 1.0)
-		var term := Interactable.make("E: opdracht kiezen", term_shape)
+		var term := Interactable.make("E: choose a contract", term_shape)
 		term.name = "TerminalButton"
 		(anchors["Terminal_Use"] as Node3D).add_child(term)
 		term.position = Vector3(0.0, 1.2, -0.9)
@@ -430,11 +430,11 @@ func _update_terminal_hint() -> void:
 	var c: Company = game.company
 	var docked: bool = game.mol == null or game.mol.mode == Mol.Mode.DOCKED
 	if not docked:
-		_terminal_button.hint = "E: opdrachten bekijken"
-		_terminal_button.sub = "de Mol is onderweg · kiezen kan als hij terug is"
+		_terminal_button.hint = "E: view contracts"
+		_terminal_button.sub = "The Mole is away · you can choose once it is back"
 	elif c.contract_ready():
-		_terminal_button.hint = "E: andere opdracht kiezen"
-		_terminal_button.sub = "gekozen: %s" % str(c.contract.get("name", ""))
+		_terminal_button.hint = "E: choose another contract"
+		_terminal_button.sub = "chosen: %s" % str(c.contract.get("name", ""))
 	else:
-		_terminal_button.hint = "E: opdracht kiezen"
+		_terminal_button.hint = "E: choose a contract"
 		_terminal_button.sub = ""

@@ -248,7 +248,7 @@ func cargo_contents() -> Array:
 
 func press(button: Cmd, arg: float = 0.0) -> void:
 	if button == Cmd.WORKBENCH:
-		message.emit("Werkbank: upgrades voor de Mol komen later.")
+		message.emit("Workbench: upgrades for The Mole are coming later.")
 		return
 	if Net.is_host():
 		_handle(Net.my_id(), button, arg)
@@ -331,15 +331,15 @@ func _handle(sender: int, button: int, arg: float) -> void:
 				_auto_level_dist = 0.0
 				_rpc_flags.rpc(false, lights_on)
 				_set_mode(Mode.AUTO_DOWN, pilot)
-				_rpc_message.rpc("Autopiloot: afdalen tot −%d m" % int(arg))
+				_rpc_message.rpc("Autopilot: descending to −%d m" % int(arg))
 		Cmd.DEPART:
 			if inside and mode == Mode.DOCKED and not game.company.contract_ready():
-				_rpc_message.rpc("Eerst een opdracht kiezen, aan de terminal in de hub.")
+				_rpc_message.rpc("Choose a contract first, at the terminal in the hub.")
 			elif inside and mode == Mode.DOCKED and not game.world_ready():
-				_rpc_message.rpc("De Ekster is nog onderweg naar de concessie. Even geduld.")
+				_rpc_message.rpc("The Magpie is still en route to the claim. Hang tight.")
 			elif inside and mode == Mode.DOCKED and not game.world_ready_everywhere():
 				# Een client die de nieuwe wereld nog bouwt, zou in het niets vallen.
-				_rpc_message.rpc("Nog niet iedereen is aangekomen boven de concessie. Even geduld.")
+				_rpc_message.rpc("Not everyone has arrived above the claim yet. Hang tight.")
 			elif inside and mode == Mode.DOCKED:
 				countdown = Tuning.get_f("ship", "drop_countdown_s", 8.0)
 				_all_aboard_said = _all_aboard()
@@ -349,8 +349,8 @@ func _handle(sender: int, button: int, arg: float) -> void:
 				_rpc_event.rpc(Event.HORN)
 				_set_mode(Mode.DROP_COUNTDOWN, 0)
 				var solo: bool = game.players.get_child_count() <= 1
-				_rpc_message.rpc(("Drop over %d seconden." if solo else ("Iedereen aan boord: drop over %d seconden."
-						if _all_aboard_said else "Drop over %d seconden: iedereen in de Mol!")) % int(ceil(countdown)))
+				_rpc_message.rpc(("Drop in %d seconds." if solo else ("Everyone aboard: drop in %d seconds."
+						if _all_aboard_said else "Drop in %d seconds: everyone into The Mole!")) % int(ceil(countdown)))
 			elif inside and mode in [Mode.PARKED, Mode.DRIVING, Mode.AUTO_DOWN] and (_path.size() > 1 or game.ship != null):
 				countdown = Tuning.get_f("mol", "countdown_s", 10.0)
 				_beep_timer = 0.0
@@ -493,7 +493,7 @@ func _handle_skip(sender: int) -> void:
 	_rpc_skip_votes.rpc(votes, needed)
 	if votes >= needed:
 		_rpc_drop_variant.rpc(DropVariant.SHORT)
-		_rpc_message.rpc("Drop ingekort.")
+		_rpc_message.rpc("Drop shortened.")
 		# Niet hier springen: dit loopt buiten de physics-tick (invoer, RPC), en dan zette de volgende
 		# _drop de Mol terug op de plek waar zijn lichaam nog stond. _drop springt in de tick.
 		_skip_pending = not _hub_fall
@@ -871,7 +871,7 @@ func _autopilot_down(delta: float) -> Vector3:
 	var auto_speed := Tuning.get_f("mol", "auto_speed", 6.0)
 	if blocked and d < auto_depth - 1.0:
 		auto_depth = d
-		_rpc_message.rpc(("Rand van de put" if at_edge else "Harde laag") + ": de autopiloot stopt op %d m" % int(d))
+		_rpc_message.rpc(("Pit edge" if at_edge else "Hard layer") + ": autopilot stops at %d m" % int(d))
 	if d < auto_depth - 1.0:
 		var want := deg_to_rad(-Tuning.get_f("mol", "auto_pitch_deg", 22.0))
 		var p_in := clampf((want - pitch) * 4.0, -1.0, 1.0)
@@ -899,7 +899,7 @@ func _extract(delta: float) -> void:
 		_grab_timer = 0.0
 		_rpc_flags.rpc(true, lights_on) # wie nog buiten is, kan instappen tot de grijper vastzit
 		_set_mode(Mode.GRAPPLE_DOWN, 0)
-		_rpc_message.rpc("Op de landingsplek. De grijper van De Ekster komt eraan: iedereen erin!")
+		_rpc_message.rpc("At the landing site. The Magpie's grapple is coming: everyone in!")
 		return
 	if _path_index < 0:
 		speed = 0.0
@@ -1009,7 +1009,7 @@ func _drop_countdown(delta: float) -> void:
 		_rpc_countdown.rpc(countdown)
 		if not _all_aboard_said:
 			_all_aboard_said = true
-			_rpc_message.rpc("Iedereen aan boord: drop over %d seconden." % int(ceil(countdown)))
+			_rpc_message.rpc("Everyone aboard: drop in %d seconds." % int(ceil(countdown)))
 	_beep_timer -= delta
 	if _beep_timer <= 0.0:
 		_beep_timer = 1.0
@@ -1149,7 +1149,7 @@ func _lift(delta: float) -> void:
 		if _grab_timer == 0.0:
 			_rpc_flags.rpc(false, lights_on)
 			_rpc_event.rpc(Event.GRAPPLED)
-			_rpc_message.rpc("Grijper vast. Naar boven!")
+			_rpc_message.rpc("Grapple locked. Going up!")
 		_grab_timer += delta
 		if _grab_timer > Tuning.get_f("ship", "grapple_hold_s", 2.0):
 			_vy = 0.0
@@ -1296,7 +1296,7 @@ func _update_visual() -> void:
 	else:
 		visual.over_ground = false
 	if _lever_button:
-		_lever_button.hint = "E: droppen op de planeet" if mode == Mode.DOCKED else "E: vertrekken naar boven (10 s)"
+		_lever_button.hint = "E: drop onto the planet" if mode == Mode.DOCKED else "E: launch to The Magpie (10 s)"
 	if drilling:
 		var layer: Strata.Layer = game.terrain.layer_at(body.global_position + forward() * (BORE_AHEAD + 2.0))
 		visual.dust_color = Strata.DEBRIS_COLORS[layer]
@@ -1308,27 +1308,27 @@ func _update_visual() -> void:
 		var value := 0
 		for it: FindItem in cargo:
 			value += it.value()
-		var states := ["GEPARKEERD", "RIJDEN", "AUTOPILOOT", "VERTREK %d" % int(ceil(countdown)), "NAAR BOVEN",
-				"IN DE EKSTER", "DROP %d" % int(ceil(countdown)), "DROP", "GRIJPER KOMT", "NAAR DE EKSTER"]
-		var state: String = ("! RAND PUT" if at_edge else "! TE HARD") if blocked else ("BOREN" if drilling and mode == Mode.DRIVING else states[mode])
+		var states := ["PARKED", "DRIVING", "AUTOPILOT", "LAUNCH %d" % int(ceil(countdown)), "GOING UP",
+				"IN THE MAGPIE", "DROP %d" % int(ceil(countdown)), "DROP", "GRAPPLE INBOUND", "TO THE MAGPIE"]
+		var state: String = ("! PIT EDGE" if at_edge else "! TOO HARD") if blocked else ("DRILLING" if drilling and mode == Mode.DRIVING else states[mode])
 		var ore: PackedInt32Array = game.ores.hold
 		visual.set_readout("%s
-DIEPTE   %4d M
+DEPTH    %4d M
 %s
-ONRUST   %4d%%
-BRANDST. %4d%%
-LAADRUIM %d · €%d
-ERTS     %d · €%d" % [state, int(depth()), _magma_line(), int(game.unrest.value / maxf(1.0, Tuning.get_f("unrest", "stage", 100.0)) * 100.0),
+UNREST   %4d%%
+FUEL     %4d%%
+CARGO    %d · €%d
+ORE      %d · €%d" % [state, int(depth()), _magma_line(), int(game.unrest.value / maxf(1.0, Tuning.get_f("unrest", "stage", 100.0)) * 100.0),
 				int(fuel * 100.0), cargo.size(), value, OreField.units(ore), OreField.value(ore)])
 		visual.feed_text = "%d M  ·  %s  ·  %.1f M/S" % [int(depth()), Strata.NAMES[front].to_upper(), absf(speed)]
 		if mode == Mode.DROP_COUNTDOWN:
-			visual.feed_text = "LUIKEN  ·  DROP OVER %d S" % int(ceil(countdown))
+			visual.feed_text = "HATCHES  ·  DROP IN %d S" % int(ceil(countdown))
 		elif mode == Mode.DROPPING:
 			var bp := body.global_position
 			if in_hub():
-				visual.feed_text = "LOSGEKOPPELD  ·  %d M/S" % int(absf(vertical_speed))
+				visual.feed_text = "RELEASED  ·  %d M/S" % int(absf(vertical_speed))
 			else:
-				visual.feed_text = "HOOGTE %d M  ·  %d M/S" % [int(maxf(0.0, bp.y + TRACK_BOTTOM - game.terrain.surface_height_at(bp.x, bp.z))), int(absf(vertical_speed))]
+				visual.feed_text = "ALTITUDE %d M  ·  %d M/S" % [int(maxf(0.0, bp.y + TRACK_BOTTOM - game.terrain.surface_height_at(bp.x, bp.z))), int(absf(vertical_speed))]
 	# Camerascherm enkel renderen als de lokale speler in de Mol is (en niet door het buitenbeeld kijkt).
 	var me: Player = game.player_node(Net.my_id())
 	visual.feed_active = me != null and contains_point(me.global_position) and not (me.drop_cam != null and me.drop_cam.current)
@@ -1341,7 +1341,7 @@ func _magma_line() -> String:
 		return "MAGMA       -"
 	var gap := body.global_position.y + TRACK_BOTTOM - magma.level
 	if gap <= 0.0:
-		return "! MAGMA: HEET"
+		return "! MAGMA: HOT"
 	if gap < Tuning.get_f("magma", "alarm_1", 40.0):
 		var s := magma.seconds_until(body.global_position.y + TRACK_BOTTOM)
 		var eta := "" if s == INF else " %d:%02d" % [int(s) / 60, int(s) % 60]
@@ -1407,18 +1407,18 @@ func _build_buttons() -> void:
 	var depths := [20.0, 40.0, 60.0]
 	for i in 3:
 		var d: float = depths[i]
-		_button(a["Btn_Auto_%d" % i], "E: autopiloot · afdalen tot −%d m" % int(d), Cmd.AUTO, d, 0.16)
-	_button(a["Btn_Horn"], "E: toeteren", Cmd.HORN, 0.0, 0.18)
-	_button(a["SonarPing"], "E: sonar-PING (24 m, maar luid)", Cmd.PING, 0.0, 0.14)
-	_button(a["Btn_Lights"], "E: lampen aan/uit", Cmd.LIGHTS, 0.0, 0.16)
-	_button(a["Btn_Ramp_Cockpit"], "E: laadklep open/dicht", Cmd.RAMP, 0.0, 0.16)
-	_button(a["Btn_Ramp_Back"], "E: laadklep open/dicht", Cmd.RAMP, 0.0, 0.3)
-	_lever_button = _button(a["Lever"], "E: vertrekken naar boven (10 s)", Cmd.DEPART, 0.0, 0.3)
-	_button(a["Workbench"], "Werkbank (upgrades komen later)", Cmd.WORKBENCH, 0.0, 0.6)
+		_button(a["Btn_Auto_%d" % i], "E: autopilot · descend to −%d m" % int(d), Cmd.AUTO, d, 0.16)
+	_button(a["Btn_Horn"], "E: honk", Cmd.HORN, 0.0, 0.18)
+	_button(a["SonarPing"], "E: sonar PING (24 m, but loud)", Cmd.PING, 0.0, 0.14)
+	_button(a["Btn_Lights"], "E: lights on/off", Cmd.LIGHTS, 0.0, 0.16)
+	_button(a["Btn_Ramp_Cockpit"], "E: open/close ramp", Cmd.RAMP, 0.0, 0.16)
+	_button(a["Btn_Ramp_Back"], "E: open/close ramp", Cmd.RAMP, 0.0, 0.3)
+	_lever_button = _button(a["Lever"], "E: launch to The Magpie (10 s)", Cmd.DEPART, 0.0, 0.3)
+	_button(a["Workbench"], "Workbench (upgrades coming later)", Cmd.WORKBENCH, 0.0, 0.6)
 	# Ertstrechter: storten gaat rechtstreeks naar het ertsveld (host controleert de afstand).
 	var chute_shape := BoxShape3D.new()
 	chute_shape.size = Vector3(0.8, 0.7, 0.8)
-	var chute := Interactable.make("E: erts storten", chute_shape)
+	var chute := Interactable.make("E: dump ore", chute_shape)
 	chute.set_meta("ore_chute", true)
 	a["Ore_Chute"].add_child(chute)
 	chute.used.connect(func(_p: Player) -> void: game.ores.deposit())
@@ -1427,7 +1427,7 @@ func _build_buttons() -> void:
 	var seat := Node3D.new()
 	body.add_child(seat)
 	seat.position = Vector3(0, -0.95, -2.05)
-	_button(seat, "E: de Mol besturen", Cmd.SEAT, 0.0, Vector3(1.2, 1.1, 1.1))
+	_button(seat, "E: drive The Mole", Cmd.SEAT, 0.0, Vector3(1.2, 1.1, 1.1))
 
 
 func _button(anchor: Node3D, hint: String, button: Cmd, arg: float, size: Variant) -> Interactable:

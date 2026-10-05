@@ -553,7 +553,7 @@ static func commit(lf: LandformRoestbol, root: Node3D, out: Dictionary) -> void:
 		for c in rig.get_children():
 			if c is GeometryInstance3D:
 				(c as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		_label(rig, "CONCESSION 7A — DEPLETED.\nTHANK YOU FOR YOUR SACRIFICE.", Transform3D(Basis(), Vector3(-0.2, 8.6, -5.78)).rotated_local(Vector3.UP, PI), 0.006, Color(0.1, 0.1, 0.1), 5.4)
+		_label(rig, "CLAIM 7A — DEPLETED.\nTHANK YOU FOR YOUR SACRIFICE.", Transform3D(Basis(), Vector3(-0.2, 8.6, -5.78)).rotated_local(Vector3.UP, PI), 0.006, Color(0.1, 0.1, 0.1), 5.4)
 	if out.has("rb_pipe"):
 		var n := 0
 		for ch: Array in out.rb_pipe:
