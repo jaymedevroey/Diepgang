@@ -198,9 +198,9 @@ def build_sign(x, z):
     box((2.6, 1.3, 0.08), (x, y + 2.0, z), "Yellow", g, bevel=0.03, rot=rot)
     a = math.radians(30)
     fx, fz = math.sin(a) * 0.05, math.cos(a) * 0.05
-    text("DIEPGANG BV", 0.3, (x + fx, y + 2.35, z + fz), rot, "DecalDark", g, extrude=0.006)
-    text("PUT 7  ·  BOORPLOEG", 0.16, (x + fx, y + 1.95, z + fz), rot, "DecalDark", g, extrude=0.006)
-    text("BETREDEN OP EIGEN RISICO", 0.11, (x + fx, y + 1.62, z + fz), rot, "Red", g, extrude=0.006)
+    text("DIEPGANG LTD", 0.3, (x + fx, y + 2.35, z + fz), rot, "DecalDark", g, extrude=0.006)
+    text("PIT 7  ·  DRILL CREW", 0.16, (x + fx, y + 1.95, z + fz), rot, "DecalDark", g, extrude=0.006)
+    text("ENTER AT YOUR OWN RISK", 0.11, (x + fx, y + 1.62, z + fz), rot, "Red", g, extrude=0.006)
     box((0.3, 0.12, 0.25), (x, y + 2.75, z), "Anthracite", g, bevel=0.03, rot=rot)
     cyl(0.07, 0.03, (x + fx, y + 2.7, z + fz * 1.6), "Bulb", g, verts=12, bevel=0.0, rot=(90, 30, 0))
     return (x + fx * 3, y + 2.6, z + fz * 3)

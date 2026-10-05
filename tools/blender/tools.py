@@ -104,7 +104,7 @@ def build_drill():
     # Label op de flank.
     for s in (-1, 1):
         box((0.003, 0.04, 0.1), (s * 0.075, by - 0.005, -0.06), "Cream", g, bevel=0.0)
-        text("BOOR T1", 0.017, (s * 0.0772, by - 0.006, -0.06), (0, 90 * s, 0), "DecalDark", g, extrude=0.0015)
+        text("DRILL T1", 0.017, (s * 0.0772, by - 0.006, -0.06), (0, 90 * s, 0), "DecalDark", g, extrude=0.0015)
 
 
 def build_bit():

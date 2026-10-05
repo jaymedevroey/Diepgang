@@ -215,8 +215,8 @@ def build_screen(ctx, g):
         # Korte schoor van het railuiteinde naar de lichtkroon (die hangt aan de luifel).
         top = Vector((DAIS[0], 4.11, DAIS[1])) + (end - Vector((DAIS[0], end.y, DAIS[1]))).normalized() * 1.5
         tbox(P, tuple(end), tuple(top), 0.04, 0.04, "Steel")
-    text(D, "OPDRACHTEN", 0.05, tuple(c + n * 0.061), SCREEN_N, "Yellow")
-    text(D, "DIG  -  NIET AANRAKEN", 0.04, tuple(c - n * 0.061), tuple(-n), "Yellow")
+    text(D, "CONTRACTS", 0.05, tuple(c + n * 0.061), SCREEN_N, "Yellow")
+    text(D, "DIG  -  DO NOT TOUCH", 0.04, tuple(c - n * 0.061), tuple(-n), "Yellow")
     # Voedingskabel van de rail naar de naaf van de kroon.
     p0 = c + r * (ex - 0.05) + Vector((0, 0.04, 0))
     hub = Vector((DAIS[0], 4.1, DAIS[1]))

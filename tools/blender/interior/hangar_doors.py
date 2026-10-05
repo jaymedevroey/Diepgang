@@ -54,9 +54,9 @@ def door_mesh(b, sx, mol_dz):
         B(0.5, 0.7, TOP, TOP + 0.002, zz - 0.15, zz + 0.15, "Soot")
     # Opschrift aan de buitenkant (te lezen vanaf de looproute langs de baai).
     up = (sx, 0, 0)
-    text(b, "BAAI 1" if sx > 0 else "MAX 14 T", 0.22, _plan(sx * 0.42, TOP + 0.003, 4.6), (0, 1, 0), up,
+    text(b, "BAY 1" if sx > 0 else "MAX 14 T", 0.22, _plan(sx * 0.42, TOP + 0.003, 4.6), (0, 1, 0), up,
          "DecalDark", fit=2.0)
-    text(b, "NIET OPENEN TIJDENS GEBRUIK", 0.07, _plan(sx * 0.42, TOP + 0.003, -3.2), (0, 1, 0), up, "DecalDark",
+    text(b, "DO NOT OPEN DURING USE", 0.07, _plan(sx * 0.42, TOP + 0.003, -3.2), (0, 1, 0), up, "DecalDark",
          fit=2.6, res=1)
     # Sporen van de rupsen (de Mol staat hier tussen twee drops) en olie eronder.
     for c in (2.31, 2.69):

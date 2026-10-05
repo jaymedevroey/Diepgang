@@ -128,7 +128,7 @@ def niche_tools(ctx, S, R, PN, D, RD, P, rng):
     n = Niche("Niche_Tools", *NICHES["Niche_Tools"])
     bf = n.back_face()
     board = (0.55, 3.15, 1.0, 1.9)  # a0, a1, c0, c1 op de achterwand
-    shell(ctx, S, R, PN, D, RD, P, n, rng, "GEREEDSCHAP", "LedGreen",
+    shell(ctx, S, R, PN, D, RD, P, n, rng, "TOOLS", "LedGreen",
           back_skip=lambda a, c: board[0] - 0.2 < a < board[1] + 0.2 and c > 0.6,
           side_skip=(lambda a, c: 1.5 < a < 2.6 and 0.6 < c < 1.8, None))
     # Schaduwbord: gele plaat met donkere omtrekken; wat er hangt, hangt erop. Drie zijn weg.
@@ -136,11 +136,11 @@ def niche_tools(ctx, S, R, PN, D, RD, P, rng):
     bf.box(P, ac, cc, 0.0, (board[1] - board[0] + 0.08, board[3] - board[2] + 0.08, 0.03), "DarkSteel")
     bf.box(D, ac, cc, 0.03, (board[1] - board[0], board[3] - board[2], 0.006), "Yellow")
     h = 0.037
-    text(D, "SCHADUWBORD", 0.05, bf.at(ac, board[3] - 0.07, h), tuple(bf.n), "DecalDark")
-    text(D, "ONTBREKEND GEREEDSCHAP WORDT INGEHOUDEN OP UW LOON", 0.028, bf.at(ac, board[2] + 0.05, h),
+    text(D, "SHADOW BOARD", 0.05, bf.at(ac, board[3] - 0.07, h), tuple(bf.n), "DecalDark")
+    text(D, "MISSING TOOLS WILL BE DEDUCTED FROM YOUR WAGES", 0.028, bf.at(ac, board[2] + 0.05, h),
          tuple(bf.n), "DecalDark", max_w=2.3)
-    tools = [(0.9, PICK, False, "IN REPARATIE"), (1.35, SHOVEL, True, None), (1.85, DRILL, False, "ONTBREEKT"),
-             (2.3, SCANNER, False, "UITGELEEND AAN: ???"), (2.68, HAMMER, True, None), (2.98, WRENCH, True, None)]
+    tools = [(0.9, PICK, False, "IN REPAIR"), (1.35, SHOVEL, True, None), (1.85, DRILL, False, "MISSING"),
+             (2.3, SCANNER, False, "LENT TO: ???"), (2.68, HAMMER, True, None), (2.98, WRENCH, True, None)]
     for a, parts, present, note in tools:
         _shape(D, bf, a, 1.47, h, parts, "DecalDark", 1.12)
         cyl(D, bf.at(a, 1.47 + 0.2, 0.036), tuple(bf.n), 0.05, 0.012, 6, "Steel")  # haak
@@ -228,18 +228,18 @@ def niche_tools(ctx, S, R, PN, D, RD, P, rng):
     blk(D, 1.82, 2.58, 2.18, 2.76, 31.27, 31.276, "Screen")
     f = Face((0.0, Y0, 31.276), (1, 0, 0), (0, 1, 0))
     text(D, "UPGRADES", 0.05, f.at(2.2, 1.47), (0, 0, 1), "ScreenAmber", lift=0.002)
-    for i, row in enumerate(("HOUWEEL MK2 ..... 450", "BOOR MK1 ........ 900", "SCANNER+ ........ 1200")):
+    for i, row in enumerate(("PICKAXE MK2 ..... 450", "DRILL MK1 ....... 900", "SCANNER+ ........ 1200")):
         text(D, row, 0.026, f.at(2.2, 1.34 - i * 0.06), (0, 0, 1), "ScreenAmber", lift=0.002, max_w=0.68)
-    text(D, "PRIJZEN ONDER VOORBEHOUD", 0.018, f.at(2.2, 1.06), (0, 0, 1), "ScreenAmber", lift=0.002, max_w=0.6)
+    text(D, "PRICES SUBJECT TO CHANGE", 0.018, f.at(2.2, 1.06), (0, 0, 1), "ScreenAmber", lift=0.002, max_w=0.6)
     for i, m in enumerate(("LedAmber", "LedAmber", "LensRed", "LedGreen")):
         blk(D, 1.92 + i * 0.17, 2.02 + i * 0.17, 2.02, 2.1, 31.27, 31.29, m)
     ctx.col_box(1.75, 2.65, 1.95, 2.85, 31.15, 31.3)
     # Affiche op de andere zijwand (z 34,85, kijkt −z).
     sf, _ = n.side_face(True)
-    sign(D, D, sf, 3.0 - 1.95, 1.55, 0.95, 1.05, [("HOUWEEL MK2", 0.08), ("NU MET HANDVAT*", 0.05), ("", 0.18),
-                                                   ("*HANDVAT APART", 0.035), ("VERKRIJGBAAR", 0.035)],
+    sign(D, D, sf, 3.0 - 1.95, 1.55, 0.95, 1.05, [("PICKAXE MK2", 0.08), ("NOW WITH HANDLE*", 0.05), ("", 0.26),
+                                                   ("*HANDLE SOLD", 0.035), ("SEPARATELY", 0.035)],
          bg="Red", fg="Cream", gap=0.5, h0=0.07)
-    _shape(D, sf, 1.05, 1.52, 0.101, PICK, "Yellow", 0.55)
+    _shape(D, sf, 1.05, 1.54, 0.101, PICK, "Yellow", 0.55)
     # Rubberen mat voor de bank.
     blk(D, 1.3, 2.1, Y0 + 0.018, Y0 + 0.026, 32.0, 34.0, "Anthracite")
     for k in range(6):
@@ -251,7 +251,7 @@ def niche_tools(ctx, S, R, PN, D, RD, P, rng):
 
 def niche_supply(ctx, S, R, PN, D, RD, P, rng):
     n = Niche("Niche_Supply", *NICHES["Niche_Supply"])
-    shell(ctx, S, R, PN, D, RD, P, n, rng, "UITGIFTE", "LedGreen", back_skip=lambda a, c: c < 1.95)
+    shell(ctx, S, R, PN, D, RD, P, n, rng, "SUPPLIES", "LedGreen", back_skip=lambda a, c: c < 1.95)
     # Rek tegen de achterwand.
     for x in (0.22, 0.72):
         for z in (35.4, 36.95, 38.5):
@@ -261,13 +261,13 @@ def niche_supply(ctx, S, R, PN, D, RD, P, rng):
         blk(P, 0.2, 0.76, y, y + 0.025, 35.38, 38.52, "DarkSteel")
         blk(D, 0.74, 0.76, y + 0.025, y + 0.06, 35.38, 38.52, "Yellow")
     items = [
-        (0, 35.5, 36.2, 0.32, "Cardboard", "TOUW"), (0, 36.35, 36.9, 0.4, "Cardboard", "SCANNERS"),
+        (0, 35.5, 36.2, 0.32, "Cardboard", "ROPE"), (0, 36.35, 36.9, 0.4, "Cardboard", "SCANNERS"),
         (0, 37.05, 37.6, 0.28, "GreyGreen", ""), (0, 37.7, 38.4, 0.36, "Cardboard", "LADDERS?"),
-        (1, 35.45, 36.0, 0.3, "Cardboard", "HELMLAMPEN"), (1, 36.1, 36.85, 0.42, "DarkSteel", ""),
-        (1, 37.6, 38.45, 0.3, "Cardboard", "WALKIETALKIES"),
-        (2, 35.5, 36.3, 0.36, "Cardboard", "DEFECT"), (2, 37.1, 37.7, 0.24, "Cardboard", ""),
-        (2, 37.75, 38.45, 0.38, "Yellow", "RESERVE"),
-        (3, 35.45, 36.1, 0.22, "Cardboard", ""), (3, 36.2, 37.2, 0.28, "Cardboard", "ARCHIEF 2163"),
+        (1, 35.45, 36.0, 0.3, "Cardboard", "HEADLAMPS"), (1, 36.1, 36.85, 0.42, "DarkSteel", ""),
+        (1, 37.6, 38.45, 0.3, "Cardboard", "WALKIE-TALKIES"),
+        (2, 35.5, 36.3, 0.36, "Cardboard", "BROKEN"), (2, 37.1, 37.7, 0.24, "Cardboard", ""),
+        (2, 37.75, 38.45, 0.38, "Yellow", "SPARE"),
+        (3, 35.45, 36.1, 0.22, "Cardboard", ""), (3, 36.2, 37.2, 0.28, "Cardboard", "ARCHIVE 2163"),
     ]
     for (k, za, zb, hh, m, label) in items:
         y = shelves[k] + 0.025
@@ -303,7 +303,7 @@ def niche_supply(ctx, S, R, PN, D, RD, P, rng):
     s30, c30 = math.sin(math.radians(30)), math.cos(math.radians(30))
     box(D, (2.43 + s30 * 0.15, 1.85 - c30 * 0.15, 37.0), (0.58, 0.3, 0.015), u=(0, 0, 1), v=(-s30, c30, 0),
         m="DarkSteel")
-    text(D, "UITGIFTELUIK", 0.035, cf.at(1.5, 0.74, 0.0), (1, 0, 0), "Yellow")
+    text(D, "SUPPLY HATCH", 0.035, cf.at(1.5, 0.74, 0.0), (1, 0, 0), "Yellow")
     # Een pakje dat net uit het luik glijdt (wat je koopt, komt hieruit).
     blk(D, 2.3, 2.62, 1.52, 1.58, 36.86, 37.16, "Cardboard")
     blk(D, 2.3, 2.622, 1.58, 1.584, 36.99, 37.03, "DuctTape")
@@ -311,12 +311,12 @@ def niche_supply(ctx, S, R, PN, D, RD, P, rng):
     blk(P, 2.08, 2.92, 2.35, 3.25, 35.15, 35.2, "Anthracite")
     blk(D, 2.12, 2.88, 2.39, 3.21, 35.2, 35.204, "Screen")
     pf = Face((0.0, Y0, 35.204), (1, 0, 0), (0, 1, 0))
-    text(D, "PRIJZEN", 0.05, pf.at(2.5, 1.9), (0, 0, 1), "ScreenAmber", lift=0.002)
-    for i, row in enumerate(("TOUW .......... 40", "HELMLAMP ...... 75", "LADDER ....... 120", "SCANNER ...... 300",
-                             "WALKIETALKIE . 150")):
+    text(D, "PRICES", 0.05, pf.at(2.5, 1.9), (0, 0, 1), "ScreenAmber", lift=0.002)
+    for i, row in enumerate(("ROPE .......... 40", "HEADLAMP ...... 75", "LADDER ....... 120", "SCANNER ...... 300",
+                             "WALKIE-TALKIE . 150")):
         text(D, row, 0.024, pf.at(2.5, 1.76 - i * 0.075), (0, 0, 1), "ScreenAmber", lift=0.002, max_w=0.66)
-    text(D, "ONDER VOORBEHOUD", 0.018, pf.at(2.5, 1.27), (0, 0, 1), "LensRed", lift=0.002)
-    sign(D, D, cf, 2.55, 0.62, 0.62, 0.14, [("RETOURNEREN KAN NIET", 0.018), ("RUILEN OOK NIET", 0.018)],
+    text(D, "SUBJECT TO CHANGE", 0.018, pf.at(2.5, 1.27), (0, 0, 1), "LensRed", lift=0.002)
+    sign(D, D, cf, 2.55, 0.62, 0.62, 0.14, [("NO RETURNS", 0.018), ("NO EXCHANGES EITHER", 0.018)],
          bg="Cream", fg="DecalDark", depth=0.006, gap=0.6, h0=0.05)
     # Loket: stijlen, rolluikkast, half neergelaten rolluik.
     for (za, zb) in ((35.5, 35.62), (38.38, 38.5)):
@@ -327,21 +327,21 @@ def niche_supply(ctx, S, R, PN, D, RD, P, rng):
         blk(D, 2.02, 2.06, y - 0.052, y, 35.62, 38.38, "HullGrey")
     blk(D, 2.0, 2.09, 2.72, 2.77, 35.62, 38.38, "DarkSteel")
     blk(D, 2.09, 2.12, 2.73, 2.76, 36.9, 37.1, "Steel")
-    text(D, "LOKET", 0.1, (2.36, 3.46, 37.55), (1, 0, 0), "Yellow")
-    text(D, "OPEN: DI 10:00 - 10:05", 0.035, (2.36, 3.36, 37.55), (1, 0, 0), "Cream")
+    text(D, "COUNTER", 0.1, (2.36, 3.46, 37.55), (1, 0, 0), "Yellow")
+    text(D, "OPEN: TUE 10:00 - 10:05", 0.035, (2.36, 3.36, 37.55), (1, 0, 0), "Cream")
     blk(D, 2.36, 2.38, 3.33, 3.59, 35.7, 36.4, "Screen")
-    text(D, "NU: 12", 0.06, (2.38, 3.51, 36.05), (1, 0, 0), "ScreenAmber", lift=0.002)
-    text(D, "U: 4818", 0.045, (2.38, 3.4, 36.05), (1, 0, 0), "ScreenAmber", lift=0.002)
+    text(D, "NOW: 12", 0.06, (2.38, 3.51, 36.05), (1, 0, 0), "ScreenAmber", lift=0.002)
+    text(D, "YOU: 4818", 0.045, (2.38, 3.4, 36.05), (1, 0, 0), "ScreenAmber", lift=0.002)
     # Op de balie: bel, kaartje, nummerautomaat.
     cyl(D, (2.3, 2.08, 36.0), (0, 1, 0), 0.015, 0.06, 10, "DarkSteel")
     cyl(D, (2.3, 2.095, 36.0), (0, 1, 0), 0.05, 0.05, 10, "Steel", r2=0.015)
     box(D, (2.38, 2.15, 36.35), (0.012, 0.12, 0.26), u=(0.97, 0.26, 0), v=(-0.26, 0.97, 0), m="Cream")
-    lines(D, [("BEL VOOR SERVICE", 0.02), ("SERVICE NIET GEGARANDEERD", 0.013)], (2.388, 2.152, 36.35),
-          (0.97, 0.26, 0), "DecalDark", up=(-0.26, 0.97, 0), gap=0.7)
+    lines(D, [("RING FOR SERVICE", 0.02), ("SERVICE NOT GUARANTEED", 0.013)], (2.388, 2.152, 36.35),
+          (0.97, 0.26, 0), "DecalDark", up=(-0.26, 0.97, 0), gap=0.7, max_w=0.23)
     cyl(D, (2.38, 2.08, 38.25), (0, 1, 0), 0.48, 0.02, 6, "DarkSteel")
     blk(D, 2.32, 2.44, 2.56, 2.72, 38.17, 38.33, "Red")
     blk(D, 2.44, 2.46, 2.6, 2.62, 38.22, 38.28, "Cream")
-    text(D, "NEEM EEN NUMMER", 0.022, (2.44, 2.68, 38.25), (1, 0, 0), "Cream", max_w=0.15)
+    text(D, "TAKE A NUMBER", 0.022, (2.44, 2.68, 38.25), (1, 0, 0), "Cream", max_w=0.15)
     # Hanglamp boven de balie.
     cyl(D, (1.3, 3.36, 37.0), (0, 1, 0), 0.44, 0.008, 6, "Rubber")
     cyl(D, (1.3, 3.36, 37.0), (0, -1, 0), 0.16, 0.05, 12, "Anthracite", r2=0.2)
@@ -349,7 +349,7 @@ def niche_supply(ctx, S, R, PN, D, RD, P, rng):
     ctx.glow("ffd6aa", (1.35, 3.05, 37.0))
     # Op de vloer: wachtlijn.
     blk(D, 2.82, 2.88, Y0 + 0.018, Y0 + 0.022, 35.9, 38.1, "Yellow")
-    text(D, "WACHT HIER", 0.07, (2.68, Y0 + 0.02, 37.0), (0, 1, 0), "Yellow", up=(-1, 0, 0))
+    text(D, "WAIT HERE", 0.07, (2.68, Y0 + 0.02, 37.0), (0, 1, 0), "Yellow", up=(-1, 0, 0))
     ctx.col_box(1.72, 2.52, Y0, 3.62, 35.45, 38.55)
     ctx.col_box(0.18, 0.78, Y0, 3.1, 35.36, 38.54)
     ctx.col_box(0.88, 1.38, Y0, 1.62, 35.35, 35.9)
@@ -361,7 +361,7 @@ def niche_free_a(ctx, S, R, PN, D, RD, P, rng):
     n = Niche("Niche_Free_A", *NICHES["Niche_Free_A"])
     bf = n.back_face()  # a = z − 31,15
     strip = (0.8, 2.6, 0.4, 1.85)
-    shell(ctx, S, R, PN, D, RD, P, n, rng, "IN AANBOUW", "LensOrange",
+    shell(ctx, S, R, PN, D, RD, P, n, rng, "UNDER CONSTRUCTION", "LensOrange",
           back_skip=lambda a, c: strip[0] - 0.1 < a < strip[1] + 0.1 and strip[2] - 0.1 < c < strip[3] + 0.1)
     # Gestripte wand: kale plaat, spanten, isolatie (één hangt los), kabels die eruit hangen.
     a0, a1, c0, c1 = strip
@@ -397,9 +397,10 @@ def niche_free_a(ctx, S, R, PN, D, RD, P, rng):
         cyl(D, (xf, y, 33.0), (0, 1, 0), 0.05, 0.03, 6, "Hazard")
     # Borden op de steiger (naar het dek).
     sf = Face((xf - 0.04, Y0, 31.15), (0, 0, 1), (0, 1, 0))
-    sign(P, D, sf, 2.6, 1.55, 1.3, 0.62, [("IN AANBOUW", 0.11), ("BETREDEN OP EIGEN KOSTEN", 0.035)],
+    sign(P, D, sf, 2.6, 1.55, 1.3, 0.62, [("UNDER", 0.08), ("CONSTRUCTION", 0.08),
+                                         ("ENTER AT YOUR OWN EXPENSE", 0.035)],
          bg="Yellow", fg="DecalDark", border="Hazard", gap=0.6)
-    sign(P, D, sf, 1.1, 1.9, 1.25, 0.42, [("BINNENKORT:", 0.06), ("IETS WAT U", 0.05), ("ZELF BETAALT", 0.05)],
+    sign(P, D, sf, 1.1, 1.9, 1.25, 0.42, [("COMING SOON:", 0.06), ("SOMETHING YOU", 0.05), ("PAY FOR YOURSELF", 0.05)],
          bg="DecalLight", fg="DecalDark", tilt=3, gap=0.4)
     for z in (31.75, 32.75):
         cyl(D, (xf - 0.03, 3.27, z), (0, 1, 0), 0.1, 0.006, 4, "Steel")
@@ -407,9 +408,9 @@ def niche_free_a(ctx, S, R, PN, D, RD, P, rng):
     blk(P, 17.35, 18.15, Y0, 1.8, 34.0, 34.75, "Wood")
     for (x, z) in ((17.35, 34.0), (18.15, 34.0), (17.35, 34.75), (18.15, 34.75)):
         blk(D, x - 0.03, x + 0.03, Y0, 1.8, z - 0.03, z + 0.03, "DarkSteel")
-    lines(D, [("NIET OPENEN", 0.05), ("VOOR Q7", 0.05)], (17.346, 1.5, 34.375), (-1, 0, 0), "DecalDark", gap=0.4)
+    lines(D, [("DO NOT OPEN", 0.05), ("BEFORE Q7", 0.05)], (17.346, 1.5, 34.375), (-1, 0, 0), "DecalDark", gap=0.4)
     box(P, (17.75, 2.02, 34.35), (0.6, 0.44, 0.55), u=(math.cos(0.18), 0, math.sin(0.18)), v=(0, 1, 0), m="GreyGreen")
-    text(D, "BREEKBAAR (WSL.)", 0.035, (17.75, 2.25, 34.35), (0, 1, 0), "DecalDark", up=(0, 0, -1), max_w=0.5)
+    text(D, "FRAGILE (PROBABLY)", 0.035, (17.75, 2.25, 34.35), (0, 1, 0), "DecalDark", up=(0, 0, -1), max_w=0.5)
     ctx.col_box(17.32, 18.2, Y0, 2.25, 33.95, 34.8)
     blk(D, 18.3, 18.42, 1.95, 2.05, 31.4, 32.7, "Hazard")
     for z in (31.5, 32.6):
@@ -440,17 +441,17 @@ def niche_free_b(ctx, S, R, PN, D, RD, P, rng):
     n = Niche("Niche_Free_B", *NICHES["Niche_Free_B"])
     bf = n.back_face()  # a = z − 35,15
     hole = (1.3, 2.7, 0.45, 1.2)  # ontbrekende plaat
-    shell(ctx, S, R, PN, D, RD, P, n, rng, "BINNENKORT", "LensOrange",
+    shell(ctx, S, R, PN, D, RD, P, n, rng, "COMING SOON", "LensOrange",
           back_skip=lambda a, c: (hole[0] < a < hole[1] and hole[2] < c < hole[3]) or (2.6 < a < 3.7 and 0.9 < c < 1.8))
     # Waar een plaat ontbreekt: kaal, met gespoten tekst; een scheve plaat hangt aan één hoek.
     bf.box(D, (hole[0] + hole[1]) / 2, (hole[2] + hole[3]) / 2, 0.0, (hole[1] - hole[0], hole[3] - hole[2], 0.004), "Soot")
-    text(D, "HIER KOMT IETS", 0.065, bf.at(2.0, 0.95, 0.004), tuple(bf.n), "Red", tilt=4, max_w=1.2)
+    text(D, "SOMETHING GOES HERE", 0.065, bf.at(2.0, 0.95, 0.004), tuple(bf.n), "Red", tilt=4, max_w=1.2)
     bf.box(D, 2.0, 0.75, 0.006, (0.5, 0.03, 0.002), "Red")
     bf.tilted(D, 2.25, 0.72, 0.006, (0.12, 0.03, 0.002), -35, "Red")
     bf.tilted(PN, 3.1, 1.32, 0.0, (0.9, 0.75, 0.04), 8, "GreyGreen")
     tape(D, bf, 2.6, 1.6, 2.9, 1.75, 0.045, 0.06)
-    sign(D, D, bf, 2.0, 1.55, 1.2, 0.5, [("UPGRADE IN ONTWIKKELING", 0.045), ("OPLEVERING: BINNENKORT*", 0.04),
-                                         ("*BINNENKORT IS GEEN DATUM", 0.025)], bg="Yellow", fg="DecalDark", gap=0.6,
+    sign(D, D, bf, 2.0, 1.55, 1.2, 0.5, [("UPGRADE IN DEVELOPMENT", 0.045), ("DELIVERY: SOON*", 0.04),
+                                         ("*SOON IS NOT A DATE", 0.025)], bg="Yellow", fg="DecalDark", gap=0.6,
          h0=0.07)
     # Trapladder (A-vorm) tegen de achterwand, opzij.
     zl = (35.5, 35.95)

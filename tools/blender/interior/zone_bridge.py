@@ -146,7 +146,7 @@ def front_edge(ctx, g, rng):
     for (a, c, arrow) in ((4.66, 5.76, 1), (9.74, 10.84, -1)):
         xm = (a + c) / 2
         block(g["detail"], a, c, 0.5, 0.92, 20.86, 20.876, "Yellow")
-        text(g["detail"], "BRUG", 0.17, (xm - arrow * 0.14, 0.71, 20.857), (0, 0, -1), "DecalDark")
+        text(g["detail"], "BRIDGE", 0.17, (xm - arrow * 0.14, 0.71, 20.857), (0, 0, -1), "DecalDark")
         prism(g["detail"], [(0.0, 0.1), (0.0, -0.1), (0.17 * arrow, 0.0)], (xm + arrow * 0.2, 0.71, 20.857),
               (0, 0, 1), 0.003, "DecalDark")
 
@@ -216,19 +216,20 @@ def back_wall(ctx, g, rng):
     bx = 6.05
     fr.box(P, -bx, 2.47, 0.16, 0.36, 0.42, 0.2, "Yellow")
     fr.box(D, -bx, 2.62, 0.262, 0.2, 0.025, 0.006, "Soot")
-    fr.text(D, "IDEEËNBUS", 0.052, -bx, 2.47, 0.263, "DecalDark")
+    fr.text(D, "SUGGESTION", 0.046, -bx, 2.5, 0.263, "DecalDark")
+    fr.text(D, "BOX", 0.046, -bx, 2.43, 0.263, "DecalDark")
     D.pipe([G(bx, 2.26, 25.86), G(bx, 1.95, 25.8), G(bx, 1.66, 25.76)], 0.035, 8, "DarkSteel")
     trash_bin(P, D, bx, Y, 25.74, rng)
     ctx.col_box(bx - 0.23, bx + 0.23, Y, 2.7, 25.5, 26.0)
     poster(P, D, fr, -bx, 3.35, 0.09, 0.95, 0.62,
-           [("UW MENING", 0.1, 0.13), ("TELT", 0.16, -0.04), ("(NIET)", 0.032, -0.23)])
+           [("YOUR OPINION", 0.1, 0.13), ("COUNTS", 0.16, -0.04), ("(NOT)", 0.032, -0.23)])
     # Werknemer van het kwartaal (stuurboord).
     poster(P, D, fr, -17.6, 3.42, 0.09, 0.72, 0.95,
-           [("WERKNEMER VAN", 0.058, 0.39), ("HET KWARTAAL", 0.058, 0.32)], frame="Yellow")
+           [("EMPLOYEE OF", 0.058, 0.39), ("THE QUARTER", 0.058, 0.32)], frame="Yellow")
     fr.box(D, -17.6, 3.33, 0.11, 0.48, 0.5, 0.004, "DecalDark")
     fr.text(D, "[VACANT]", 0.075, -17.6, 3.33, 0.1135, "Cream")
     fr.box(D, -17.6, 2.99, 0.11, 0.42, 0.06, 0.004, "Yellow")
-    fr.text(D, "SOLLICITEER NU", 0.034, -17.6, 2.99, 0.1135, "DecalDark")
+    fr.text(D, "APPLY NOW", 0.034, -17.6, 2.99, 0.1135, "DecalDark")
 
 
 def console_bank(ctx, g, x0, x1, rng, wedges):
@@ -305,7 +306,7 @@ def port_console(ctx, g, rng):
     fr.box(D, cxk + 0.03, 3.62 + 0.04, 0.13, 0.012, 0.11, 0.006, "DecalDark", roll=-0.6)
     fr.box(D, cxk - 0.04, 3.62 + 0.0, 0.13, 0.08, 0.012, 0.006, "DecalDark", roll=0.3)
     fr.box(D, cxk, 3.355, 0.09, 0.42, 0.07, 0.01, "Cream")
-    fr.text(D, "TIJD IS GELD", 0.04, cxk, 3.355, 0.0965, "DecalDark")
+    fr.text(D, "TIME IS MONEY", 0.04, cxk, 3.355, 0.0965, "DecalDark")
 
 
 def starboard_console(ctx, g, rng):
@@ -322,13 +323,13 @@ def starboard_console(ctx, g, rng):
     for j in range(4):
         block(D, cx0 + 0.16 + j * 0.13, cx0 + 0.24 + j * 0.13, 2.3, 2.36, 25.305, 25.322,
               "LensOrange" if j else "LensRed")
-    text(D, "KOFFIE", 0.11, (19.465, 2.58, 25.315), (0, 0, -1), "Red")
+    text(D, "COFFEE", 0.11, (19.465, 2.58, 25.315), (0, 0, -1), "Red")
     block(D, cx0 + 0.12, cx1 - 0.12, 2.04, 2.1, 25.317, 25.322, "Yellow")
-    text(D, "2 CR + BEKER 1 CR", 0.026, (19.465, 2.07, 25.314), (0, 0, -1), "DecalDark")
+    text(D, "2 CR + CUP 1 CR", 0.026, (19.465, 2.07, 25.314), (0, 0, -1), "DecalDark")
     fr2 = Frame((19.47, 1.82, 25.30), (0, 0, -1))
     fr2.box(D, 0.08, 0.0, 0.0, 0.3, 0.17, 0.003, "Cream", roll=0.08)
-    fr2.text(D, "BUITEN", 0.045, 0.08, 0.03, 0.002, "DecalDark")
-    fr2.text(D, "GEBRUIK", 0.045, 0.08, -0.03, 0.002, "DecalDark")
+    fr2.text(D, "OUT OF", 0.045, 0.08, 0.03, 0.002, "DecalDark")
+    fr2.text(D, "ORDER", 0.045, 0.08, -0.03, 0.002, "DecalDark")
     for k in range(3):
         mug(D, Frame((19.3 + k * 0.14, 2.75 + (0.1 if k == 1 else 0.0), 25.7), (0, 0, -1)), 0, 0, 0,
             ["Cream", "Red", "Blue"][k])
@@ -358,10 +359,10 @@ def side_walls(ctx, g, rng):
     fr = Frame((0.0, 0.0, 22.3), (1, 0, 0))
     fr.box(P, 0, 2.65, 0.11, 1.3, 0.85, 0.06, "DarkSteel")
     fr.box(D, 0, 2.86, 0.142, 1.2, 0.36, 0.004, "Yellow")
-    fr.text(D, "KOERS", 0.11, 0, 2.86, 0.145, "DecalDark")
+    fr.text(D, "HEADING", 0.11, 0, 2.86, 0.145, "DecalDark")
     fr.box(D, 0, 2.47, 0.142, 1.1, 0.34, 0.004, "Soot")
-    fr.text(D, "WINST", 0.2, 0, 2.5, 0.145, "LensRed")
-    fr.text(D, "AANKOMST: ALS HET UITKOMT", 0.03, 0, 2.34, 0.145, "Cream")
+    fr.text(D, "PROFIT", 0.2, 0, 2.5, 0.145, "LensRed")
+    fr.text(D, "ARRIVAL: WHEN IT SUITS US", 0.03, 0, 2.34, 0.145, "Cream")
     fr.box(P, 0, 3.32, 0.12, 0.2, 0.06, 0.1, "DarkSteel")
     fr.box(P, 0, 3.3, 0.24, 0.04, 0.03, 0.2, "DarkSteel")
     fr.cyl(L, 0, 3.24, 0.32, (0, 1, 0), 0.05, 0.05, 10, "Bulb")
@@ -374,9 +375,9 @@ def side_walls(ctx, g, rng):
     fr = Frame((20.0, 0.0, 22.2), (-1, 0, 0))
     fr.box(P, 0, 2.55, 0.11, 0.62, 0.5, 0.18, "Cream")
     fr.box(D, 0, 2.55, 0.201, 0.5, 0.06, 0.004, "Red")
-    fr.text(D, "REPARATIESET", 0.05, 0, 2.7, 0.203, "DecalDark")
+    fr.text(D, "REPAIR KIT", 0.05, 0, 2.7, 0.203, "DecalDark")
     sticky(D, fr, 0.12, 2.42, 0.203, random.Random(5))
-    fr.text(D, "LEEG", 0.022, 0.12, 2.42, 0.2055, "DecalDark")
+    fr.text(D, "EMPTY", 0.022, 0.12, 2.42, 0.2055, "DecalDark")
     fr.cyl(P, -0.5, Y + 0.05, 0.12, (0, 1, 0), 0.5, 0.075, 12, "Red")
     fr.cyl(D, -0.5, Y + 0.55, 0.12, (0, 1, 0), 0.07, 0.03, 8, "DarkSteel")
     ctx.col_box(19.75, 20.0, Y, 2.85, 21.6, 22.55)
@@ -452,11 +453,11 @@ def fascia(ctx, g, rng):
     prism(D, hexi, (10.0, 7.15, 23.36), (0, 0, -1), 0.012, "DecalDark")
     text(D, "DIG", 0.95, (10.0, 7.12, 23.345), (0, 0, -1), "Yellow", extrude=0.015, res=3)
     block(P, 5.7, 14.3, 5.35, 5.78, 23.4, 23.42, "DecalDark")
-    text(D, "DIEPGANG INTERPLANETAIRE GRONDWERKEN", 0.25, (10.0, 5.565, 23.397), (0, 0, -1), "Cream")
+    text(D, "DIEPGANG INTERPLANETARY GROUNDWORKS", 0.25, (10.0, 5.565, 23.397), (0, 0, -1), "Cream")
     block(P, 7.6, 12.4, 4.9, 5.2, 23.405, 23.42, "DecalDark")
-    text(D, "WINST IS EEN TEAMPRESTATIE", 0.15, (10.0, 5.05, 23.402), (0, 0, -1), "Yellow")
+    text(D, "PROFIT IS A TEAM EFFORT", 0.15, (10.0, 5.05, 23.402), (0, 0, -1), "Yellow")
     # Twee banieren (zwart met gele rand en een zwaluwstaart).
-    for (x, lines) in ((2.78, ("GRAAF", "DIEPER")), (17.22, ("KLAGEN", "KOST EXTRA"))):
+    for (x, lines) in ((2.78, ("DIG", "DEEPER")), (17.22, ("COMPLAINING", "COSTS EXTRA"))):
         banner(g, x, lines)
 
 
