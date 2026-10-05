@@ -2,6 +2,20 @@
 
 Wat we onderweg leerden en wat het GDD bijstuurt. Nieuwste bovenaan.
 
+## 2026-10-05 — Release-audit, pakket F2: dreiging en climax
+
+De keuzes waar het GDD zweeg staan in GDD §6 ("Uitwerking (pakket F2)").
+- **Een nieuwe `class_name` bestaat pas na een import.** Headless tests met een nieuw script gaven "Could not find type" en hingen tot hun time-out. Na elk nieuw script met `class_name`: `tools\godot.cmd --headless --path game --import`. (`--script` als controle helpt niet: daar zijn de autoloads er niet.)
+- **`var x := game.iets()` faalt waar `game` als `Node` getypt is** ("Cannot infer the type"), en dan compileert niets meer dat ervan afhangt (een parse-fout in één gevarenscript stopte alle tests). Expliciet typen: `var x: Dictionary = game.terrain.raycast(...)`.
+- **Valschade en tests:** scenario's zetten de speler door de rots heen, en zijn snelheid bouwt zich daar op. Zonder controle "landde" hij dan aan 25 m/s. Nu telt de snelheid enkel zover als de valhoogte toelaat, en een sprong van buitenaf (meer dan de snelheid × de tick) is het begin van een nieuwe val. Uit De Ekster springen telt niet (de val begon hoog boven het oppervlak).
+- **Een open ruimte meten met de SDF:** 1,2 m boven een vloer kan de afstand tot de rots nooit groter zijn dan 1,2 m. Hoger meten (2 m) en dan de drempel.
+- **Een boog door een punt:** bij een kubische Bézier is het midden (P0 + 3P1 + 3P2 + P3) / 8. De hoogte van P1 en P2 daaruit berekenen, en de worm gaat precies op borsthoogte door de ruimte (eerst ging hij er 2 m boven).
+- **Een krater midden in een open grot haalt niets weg.** De ontploffing van een gasbel graaft nu in de vloer eronder.
+- **Zones per laag apart tellen gaf het omgekeerde van "dieper = meer":** 24 vaste zones in de klei tegenover 70 verspreide maakten de bovenste 60 m dichter dan 110-160 m. Eén verdeling waarvan de kans meegroeit met de diepte.
+- **Een onderdeel uit een geïmporteerde scène loskoppelen:** eerst `owner = null` (ook voor de kinderen), anders klaagt Godot bij elke ragdoll en elke worm.
+- **`--shot` is van main.gd** (screenshot na N frames, dan afsluiten): een eigen scenario met `--shot=` sloot meteen af. Films gebruiken `--take=`.
+- **Godot stoppen op PID, met de boom:** `tools\godot.cmd` start een console-exe die zelf een kind start; `taskkill /PID <id> /T /F` stopt beide, en geen andere runs. In PowerShell eerst `$p.Handle` opvragen, anders is `ExitCode` leeg.
+
 ## 2026-10-05 — Release-audit, pakket F1: economie en voortgang
 
 **Keuzes waar het GDD zweeg** (ter info voor Jayme; getallen in `company.cfg` en `economy.cfg`):

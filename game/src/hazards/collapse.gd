@@ -8,6 +8,7 @@ extends Node
 ## - Eerst een waarschuwing (stof dat uit het plafond spuit, warn_s), dan vallen er rotsen (Unrest):
 ##   wie eronder staat, wordt geraakt (Rescue). Grote rotsen blijven liggen als puin (Rubble) dat de
 ##   weg verspert en dat je wegbikt. De rots zelf groeit nooit aan.
+## - Een opdracht met "Shaky ground" (pakket F1, Contracts.UNSTABLE): meer zones en een grotere kans.
 ## Netwerk: de host rolt de kans en kiest de rotsen (met id), elk peer laat ze zelf vallen.
 
 ## Een zone stort in (op elk peer; voor geluid en tests).
@@ -39,6 +40,15 @@ static func rate_at(depth: float, unrest_frac := 0.0, tension := 0.0, planet := 
 	base = minf(base, Tuning.get_f("collapse", "max_rate", 0.12))
 	return base * (1.0 + Tuning.get_f("collapse", "unrest_k", 1.5) * unrest_frac) \
 			* (1.0 + Tuning.get_f("collapse", "tension_k", 1.0) * tension) * planet
+
+
+## Factor voor de opdracht: "Shaky ground" (Contracts.UNSTABLE) maakt instortingen waarschijnlijker
+## (`key`: unstable_rate of unstable_zones in collapse.cfg). Uit de voorwaarden van deze wereld, op
+## elke peer gelijk (Company.world_mods).
+static func contract_factor(game: Node, key: String) -> float:
+	if game == null or game.company == null:
+		return 1.0
+	return Tuning.get_f("collapse", key, 1.0) if Contracts.has(game.company.world_mods, Contracts.UNSTABLE) else 1.0
 
 
 ## Hoeveel instortingen er deze dienst al waren (host).
@@ -90,7 +100,7 @@ func _host_roll(step: float) -> void:
 	var near := Tuning.get_f("collapse", "near_m", 28.0)
 	var unrest_frac := clampf(game.unrest.value / maxf(1.0, Tuning.get_f("unrest", "stage", 100.0)), 0.0, 1.0)
 	var tension: float = game.worm.tension() if game.worm else 0.0
-	var planet := HazardParams.of(game, "collapse", 1.0)
+	var planet := HazardParams.of(game, "collapse", 1.0) * contract_factor(game, "unstable_rate")
 	var spots: Array[Vector3] = []
 	for pl: Player in game.players.get_children():
 		if game.rescue == null or game.rescue.life_of(pl.peer_id) != Rescue.Life.BROKEN:

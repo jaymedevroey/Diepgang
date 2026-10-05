@@ -132,7 +132,8 @@ func _make_zones(terrain: TerrainAPI) -> void:
 	# Verspreid in de rots: hoe dieper, hoe dichter (playtest 2026-10-06). Een plek op diepte d blijft
 	# met kans 0,15 + d / 180 (vanaf ±150 m altijd).
 	var size := terrain.world_size()
-	var want := int(round(Tuning.get_i("collapse", "zones", 90) * HazardParams.of(game, "collapse", 1.0)))
+	var want := int(round(Tuning.get_i("collapse", "zones", 90) * HazardParams.of(game, "collapse", 1.0)
+			* Collapse.contract_factor(game, "unstable_zones")))
 	var tries := 0
 	var placed := 0
 	while placed < want and tries < want * 8:
