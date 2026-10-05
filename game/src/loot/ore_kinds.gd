@@ -57,16 +57,17 @@ static func material(kind: Kind) -> Material:
 	return _materials[kind]
 
 
-## 4–7 zeshoekige naalden met een punt, uit een gemeenschappelijke voet, naar buiten gekanteld.
+## 6–9 zeshoekige naalden met een punt, uit een gemeenschappelijke voet, in alle richtingen (een ster):
+## zo steken er altijd naalden uit de wand, aan welke kant je de cluster ook vrijgraaft (binnen-03).
 ## Oorsprong = voet (in de rots); de punten steken ±0,35–0,6 m uit.
 static func _build(kind: Kind, variant: int) -> ArrayMesh:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = kind * 101 + variant * 7 + 3
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var count := rng.randi_range(4, 7)
+	var count := rng.randi_range(6, 9)
 	for i in count:
-		var dir := Vector3(rng.randf_range(-1, 1), rng.randf_range(0.2, 1.0), rng.randf_range(-1, 1)).normalized()
+		var dir := Vector3(rng.randf_range(-1, 1), rng.randf_range(-0.8, 1.0), rng.randf_range(-1, 1)).normalized()
 		var length := rng.randf_range(0.28, 0.6) * (1.25 if i == 0 else 1.0)
 		var radius := length * rng.randf_range(0.14, 0.22)
 		var base := Vector3(rng.randf_range(-0.08, 0.08), -0.05, rng.randf_range(-0.08, 0.08))

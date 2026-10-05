@@ -26,10 +26,10 @@ func setup(id: int, kind_value: OreKinds.Kind, units: int, variant: int) -> void
 	_mesh.visibility_range_end = Tuning.get_f("ore", "draw_distance", 55.0)
 	add_child(_mesh)
 	var shape := SphereShape3D.new()
-	shape.radius = 0.42
+	shape.radius = 0.5 # de naalden steken in alle richtingen uit (OreKinds._build)
 	var cs := CollisionShape3D.new()
 	cs.shape = shape
-	cs.position = Vector3(0, 0.22, 0)
+	cs.position = Vector3(0, 0.1, 0)
 	add_child(cs)
 
 
