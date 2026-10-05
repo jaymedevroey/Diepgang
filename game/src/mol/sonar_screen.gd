@@ -68,7 +68,9 @@ func setup(screen: MeshInstance3D, lamp: MeshInstance3D, ping_button: MeshInstan
 	_label("warn", "", Vector2(TEXT_X, 300), 40, 1.0)
 	_label("ping", "", Vector2(TEXT_X, 400), 36, 0.9)
 	_label("range", "", Vector2(TEXT_X, 448), 30, 0.55)
-	_label("status", "", Vector2(TEXT_X, 482), 36, 0.8)
+	# Lawaai van de Mol zelf: wat het met de echo's doet staat erbij (ui-13: QUIET/NOISY werd nergens
+	# uitgelegd).
+	_label("status", "", Vector2(TEXT_X, 482), 28, 0.8)
 	# Beeldbuis: zelfde effect als het camerascherm, zonder ontzadigen (het beeld is al groen).
 	var m := ShaderMaterial.new()
 	m.shader = FEED_SHADER
@@ -143,13 +145,17 @@ func display(sonar: Sonar, origin: Transform3D, delta: float) -> void:
 		_ping_glow = 1.0
 	_was_pinging = pinging
 	_ping_glow = maxf(0.0, _ping_glow - delta * 2.5)
-	var ready := sonar.ping_cool <= 0.0
+	var ready := sonar.ping_ready()
 	var idle := (1.1 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * 2.2)) if ready else 0.12
+	# Geweigerd (te vroeg of op): de knop knippert kort.
+	var denied := sonar.denied_age < 0.6
+	if denied:
+		idle = 2.5 if fmod(sonar.denied_age, 0.2) < 0.1 else 0.1
 	_ping_mat.emission_energy_multiplier = idle + 6.0 * _ping_glow
-	_ping_mat.albedo_color = Color(0.55, 0.22, 0.05) if ready or _ping_glow > 0.0 else Color(0.16, 0.07, 0.03)
+	_ping_mat.albedo_color = Color(0.55, 0.22, 0.05) if ready or _ping_glow > 0.0 or denied else Color(0.16, 0.07, 0.03)
 
 	_text_timer -= delta
-	if _text_timer > 0.0:
+	if _text_timer > 0.0 and sonar.denied_age > 1.0:
 		return
 	_text_timer = 0.1
 	var blink := fmod(Time.get_ticks_msec() / 1000.0, 0.8) < 0.5
@@ -172,16 +178,25 @@ func display(sonar: Sonar, origin: Transform3D, delta: float) -> void:
 		var close := dist < Tuning.get_f("mol", "sonar_warn", 8.0)
 		_text("warn", "! CLOSE\nSTOP HERE" if close else "")
 		(_labels["warn"] as Label).modulate.a = 1.0 if blink else 0.35
+	# PING: hoeveel er deze dienst nog over zijn, en of hij opgeladen is. Te vroeg gedrukt: het getal
+	# licht op en knippert (gevoel-13: een toets zonder antwoord voelt kapot).
+	var max_pings := Tuning.get_i("mol", "sonar_pings", 4)
 	if sonar.pinging():
 		_text("ping", "PING!")
+	elif sonar.pings_left <= 0:
+		_text("ping", "NO PINGS")
 	elif sonar.ping_cool > 0.0:
-		_text("ping", "PING %d S" % int(ceil(sonar.ping_cool)))
+		_text("ping", "PING %d s" % int(ceil(sonar.ping_cool)))
 	else:
-		_text("ping", "PING READY")
-	(_labels["ping"] as Label).modulate.a = 1.0 if sonar.ping_cool <= 0.0 or sonar.pinging() else 0.45
+		_text("ping", "PING %d/%d" % [sonar.pings_left, max_pings])
+	var pl: Label = _labels["ping"]
+	if sonar.denied_age < 0.9:
+		pl.modulate = Color(1.6, 1.6, 1.6, 1.0) if fmod(sonar.denied_age, 0.3) < 0.15 else Color(1, 1, 1, 0.3)
+	else:
+		pl.modulate = Color(1, 1, 1, 1.0 if sonar.ping_ready() or sonar.pinging() else 0.45)
 	_text("range", "RANGE %d m" % int(sonar.range_m))
 	var noisy := sonar.noise > 0.3
-	_text("status", "NOISY" if noisy else "QUIET")
+	_text("status", "NOISY: BLURRY" if noisy else "QUIET: SHARP")
 	(_labels["status"] as Label).modulate.a = (1.0 if blink else 0.4) if noisy else 0.8
 
 

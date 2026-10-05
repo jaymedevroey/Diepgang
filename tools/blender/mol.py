@@ -74,15 +74,17 @@ def tf(side, p):
 def build_hull():
     hull = prism(octagon(HULL_W, HULL_H, HULL_CH), HULL_Z0, HULL_Z1, "Yellow", "Hull", bevel=0.0)
     # Binnenruimte uitsnijden (achteraan open voor de laadklep).
-    inner = prism(octagon(IN_W, 0, IN_CH, IN_Y0, IN_Y1, cut_bottom=False), IN_Z0, HULL_Z1 + 0.5, "Panel", "_cut", bevel=0.0)
+    # Binnenwanden donker grijsgroen (binnen-14: geen egaal verlichte crème doos; het licht komt
+    # van een paar warme lampjes, de wanden vangen het op en vallen daartussen weg).
+    inner = prism(octagon(IN_W, 0, IN_CH, IN_Y0, IN_Y1, cut_bottom=False), IN_Z0, HULL_Z1 + 0.5, "GreyGreen", "_cut", bevel=0.0)
     unregister(inner)
     boolean(hull, inner)
     # Patrijspoorten links en rechts, cabineramen.
     for s in (-1, 1):
-        c = cyl(PORTHOLE_R, 1.2, (s * 2.3, PORTHOLE_Y, 0.0), "Panel", "_cut", axis="x", verts=32, bevel=0.0)
+        c = cyl(PORTHOLE_R, 1.2, (s * 2.3, PORTHOLE_Y, 0.0), "GreyGreen", "_cut", axis="x", verts=32, bevel=0.0)
         unregister(c)
         boolean(hull, c)
-        w = box((1.2, 0.55, 0.9), (s * 2.3, 0.55, -2.7), "Panel", "_cut", bevel=0.0)
+        w = box((1.2, 0.55, 0.9), (s * 2.3, 0.55, -2.7), "GreyGreen", "_cut", bevel=0.0)
         unregister(w)
         boolean(hull, w)
     m = hull.modifiers.new("Bevel", "BEVEL")
@@ -457,6 +459,7 @@ def build_interior():
     build_cockpit(g)
     build_living(g)
     build_cargo(g)
+    build_homely(g)
 
 
 # Bedieningsconsole: een paneel dat DESK_TILT graden naar de bestuurder kantelt, van wand tot wand.
@@ -519,10 +522,10 @@ def build_cockpit(g):
         desk_label(name, u, -0.11, size=0.04)
     # Autopiloot: drie gele knoppen met de diepte eronder.
     desk_label("AUTOPILOT", BTN_AUTO[1], 0.2, size=0.05)
-    for u, d in zip(BTN_AUTO, (20, 40, 60)):
+    for u, d in zip(BTN_AUTO, ("CLAY", "SAND", "DEEP")):
         cyl(0.075, 0.03, desk(u, 0.02, 0.045), "Anthracite", g, verts=18, bevel=0.008, rot=DESK_ROT)
         cyl(0.06, 0.05, desk(u, 0.02, 0.07), "Yellow", g, verts=18, bevel=0.012, rot=DESK_ROT)
-        desk_label(f"{d} M", u, -0.14, size=0.05)
+        desk_label(d, u, -0.14, size=0.045)
     # Klep (blauwe knop), lichten (tuimelschakelaars), toeter (rode paddenstoel).
     cyl(0.07, 0.03, desk(BTN_RAMP_U, 0.02, 0.045), "Anthracite", g, verts=16, bevel=0.008, rot=DESK_ROT)
     cyl(0.055, 0.05, desk(BTN_RAMP_U, 0.02, 0.07), "Blue", g, verts=16, bevel=0.012, rot=DESK_ROT)
@@ -537,7 +540,9 @@ def build_cockpit(g):
     desk_label("HORN", BTN_HORN_U, -0.14)
     # Vertrekhendel: geel-zwart voetplaatje; de hendel zelf is het object Lever.
     box((0.2, 0.012, 0.26), desk(LEVER_U, 0.02, 0.037), "Hazard", g, bevel=0.0, rot=DESK_ROT)
-    desk_label("LAUNCH", LEVER_U, -0.17, material="Red")
+    # LAUNCH: geel op een zwart plaatje, het best leesbare label op de console (ui-13).
+    box((0.27, 0.006, 0.075), desk(LEVER_U, -0.17, 0.034), "DecalDark", g, bevel=0.0, rot=DESK_ROT)
+    desk_label("LAUNCH", LEVER_U, -0.17, material="Yellow")
     # Mok koffie op de hoek (het is vroeg, het is altijd vroeg).
     cyl(0.045, 0.1, desk(-1.82, -0.18, 0.09), "Red", g, verts=16, bevel=0.005, rot=DESK_ROT)
     cyl(0.038, 0.005, desk(-1.82, -0.18, 0.141), "Wood", g, verts=16, bevel=0.0, rot=DESK_ROT)
@@ -572,7 +577,7 @@ def build_living(g):
             box((0.05, 0.85, 0.05), (-(hw - 0.38) + dx, -1.08, zb + dz), "Anthracite", g, bevel=0.01)
     box((0.6, 0.3, 0.85), (-(hw - 0.34), -0.9, zb), "Anthracite", g, bevel=0.02)  # lade
     box((0.3, 0.03, 0.04), (-(hw - 0.5), -0.88, zb), "Steel", g, bevel=0.005)
-    box((0.04, 1.0, 1.0), (-(hw - 0.03), 0.15, zb), "Panel", g, bevel=0.01)  # bord
+    box((0.04, 1.0, 1.0), (-(hw - 0.03), 0.15, zb), "Wood", g, bevel=0.01)  # bord (gaatjesplaat)
     for i, (y, z) in enumerate(((0.45, 0.75), (0.45, 1.05), (0.1, 0.8), (0.1, 1.3), (-0.2, 1.0))):
         box((0.03, 0.25, 0.05), (-(hw - 0.07), y, z), "Steel", g, bevel=0.01, rot=(0, 0, 15 * (i % 3 - 1)))
         torus(0.04, 0.012, (-(hw - 0.07), y + 0.14, z), "Steel", g, axis="x", major_seg=10, minor_seg=4)
@@ -591,7 +596,7 @@ def build_living(g):
     cyl(0.06, 0.12, (-(hw - 0.3), -0.35, -1.12), "Glass", g, verts=12, bevel=0.0)
     cyl(0.07, 0.38, (hw - 0.12, -1.0, -1.35), "Red", g, verts=14, bevel=0.03)
     sphere(0.07, (hw - 0.12, -0.8, -1.35), "Red", g, segments=10, rings=5)
-    box((0.02, 0.62, 0.46), (hw - 0.01, 0.55, -1.05), "Cream", g, bevel=0.0)
+    box((0.02, 0.62, 0.46), (hw - 0.01, 0.55, -1.05), "Padded", g, bevel=0.0)
     text("SAFETY?", 0.07, (hw - 0.025, 0.72, -1.05), (0, -90, 0), "DecalDark", g)
     text("NEVER", 0.055, (hw - 0.025, 0.6, -1.05), (0, -90, 0), "DecalDark", g)
     text("HEARD OF IT", 0.055, (hw - 0.025, 0.52, -1.05), (0, -90, 0), "DecalDark", g)
@@ -606,7 +611,9 @@ def build_cargo(g):
         box((0.14, 0.012, 2.5), (s * (hw - 0.12), IN_Y0 + 0.016, 2.9), "Hazard", g, bevel=0.0)
         tube([(s * 1.1, IN_Y0 + 0.05, 1.85), (s * 1.1, IN_Y0 + 0.05, 4.0)], 0.03, "Steel", g, verts=8)
         for y in (-0.7, 0.55):
-            tube([(s * (hw - 0.06), y, 1.75), (s * (hw - 0.06), y, 4.05)], 0.03, "Steel", g, verts=8)
+            # Links loopt de onderste rail niet door de ertstrechter.
+            z0 = 3.15 if (s < 0 and y < 0.0) else 1.75
+            tube([(s * (hw - 0.06), y, z0), (s * (hw - 0.06), y, 4.05)], 0.03, "Steel", g, verts=8)
     # Kratten (decor) links voor in het laadruim.
     for (x, y, z, sz) in ((-1.55, IN_Y0 + 0.35, 1.95, 0.7), (-1.6, IN_Y0 + 0.95, 1.98, 0.5)):
         box((sz, sz, sz), (x, y, z), "Wood", g, bevel=0.03)
@@ -614,17 +621,150 @@ def build_cargo(g):
             box((sz + 0.02, sz + 0.02, 0.05), (x, y, z + dz), "Anthracite", g, bevel=0.01)
     text("CARGO HOLD", 0.16, (hw - 0.02, 0.9, 2.32), (0, -90, 0), "DecalDark", g)
     text("MAX 400 KG  ·  DO NOT STACK", 0.06, (hw - 0.02, 0.72, 2.32), (0, -90, 0), "DecalDark", g)
-    # Ertstrechter op de linkerwand: brede gele mond, smalle pijp naar de vloer (in het onderstel).
-    tx, ty, tz = -(hw - 0.36), 0.05, 3.3
-    cyl(0.32, 0.36, (tx, ty, tz), "Yellow", g, verts=12, bevel=0.015, r2=0.1)
-    torus(0.31, 0.025, (tx, ty + 0.18, tz), "Steel", g, axis="y", major_seg=24, minor_seg=6)
-    tube([(tx, ty - 0.16, tz), (tx, IN_Y0 + 0.04, tz), (-(hw - 0.05), IN_Y0 + 0.04, tz)], 0.07, "DarkSteel", g, verts=10)
-    box((0.06, 0.5, 0.08), (-(hw - 0.04), ty - 0.05, tz - 0.3), "Anthracite", g, bevel=0.01)
-    box((0.06, 0.5, 0.08), (-(hw - 0.04), ty - 0.05, tz + 0.3), "Anthracite", g, bevel=0.01)
-    text("ORE", 0.12, (-(hw - 0.02), 0.62, tz), (0, 90, 0), "DecalDark", g)
+    build_hopper(g)
     # Bediening laadklep bij de klep.
     box((0.08, 0.32, 0.22), (hw - 0.04, -0.25, 3.7), "Anthracite", g, bevel=0.02)
     cyl(0.05, 0.05, (hw - 0.09, -0.25, 3.7), "Yellow", g, axis="x", verts=12, bevel=0.0)
+
+
+# Ertstrechter (binnen-15): een brede trechtermond die uit de linkerwand van het laadruim steekt,
+# op heuphoogte, met een rooster, een gele-zwarte rand, een geel bord met ORE en een pijl naar
+# beneden, en een stortpijp naar de vloer. Erts dat ernaast viel, ligt op de vloer. Tussen de kratten
+# en het laatste spant: de ingang langs de klep blijft vrij (looproute eerst), en ze steekt maar
+# HOPPER_MX uit de wand.
+HOPPER = (-1.83, -0.44, 2.7)  # midden van de mond (bovenkant)
+HOPPER_MX, HOPPER_MZ = 0.48, 0.62  # mond: uit de wand, langs de wand
+
+
+def build_hopper(g):
+    hw = IN_W / 2
+    hx, hy, hz = HOPPER
+    mx, mz = HOPPER_MX, HOPPER_MZ
+    depth = 0.46
+    # Trechter (kegel met 4 zijden, 45° gedraaid, smal onderaan), platgedrukt tot de mond mx × mz.
+    o = cyl(0.18, depth, (0, 0, 0), "Yellow", g, verts=4, bevel=0.012, r2=0.5, rot=(0, 45, 0))
+    o.scale = (mx / 0.7, mz / 0.7, 1.0)  # Blender x = Godot x, Blender y = −Godot z
+    o.location = G(hx, hy - depth / 2, hz)
+    bpy.ops.object.select_all(action="DESELECT")
+    o.select_set(True)
+    bpy.context.view_layer.objects.active = o
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+    # De opening: donker, net onder de rand, met een rooster van stalen staven erover.
+    box((mx - 0.08, 0.02, mz - 0.08), (hx, hy - 0.03, hz), "Soot", g, bevel=0.0)
+    n = int((mz - 0.1) / 0.085)
+    for k in range(-(n // 2), n // 2 + 1):
+        box((mx - 0.06, 0.025, 0.022), (hx, hy + 0.012, hz + k * 0.085), "DarkSteel", g, bevel=0.004)
+    box((0.022, 0.03, mz - 0.06), (hx, hy + 0.016, hz), "DarkSteel", g, bevel=0.004)
+    # Rand met waarschuwingsstrepen.
+    for sgn in (-1, 1):
+        box((mx + 0.04, 0.035, 0.05), (hx, hy + 0.01, hz + sgn * (mz / 2 - 0.005)), "Hazard", g, bevel=0.006)
+        box((0.05, 0.035, mz + 0.04), (hx + sgn * (mx / 2 - 0.005), hy + 0.01, hz), "Hazard", g, bevel=0.006)
+    # Ophanging aan de wand en de stortpijp naar de vloer (in het onderstel).
+    box((0.05, 0.7, mz - 0.02), (-(hw - 0.03), hy - 0.25, hz), "Anthracite", g, bevel=0.012)
+    for sgn in (-1, 1):
+        box((0.3, 0.05, 0.05), (-(hw - 0.17), hy - 0.4, hz + sgn * (mz / 2 - 0.06)), "Anthracite", g, bevel=0.008, rot=(0, 0, -35))
+    tube([(hx, hy - depth + 0.02, hz), (hx, IN_Y0 + 0.08, hz), (-(hw - 0.05), IN_Y0 + 0.08, hz)], 0.07, "DarkSteel", g, verts=10)
+    # Bord: geel, ORE, een pijl naar beneden.
+    by = hy + 0.52
+    box((0.03, 0.4, 0.5), (-(hw - 0.02), by, hz), "Yellow", g, bevel=0.01)
+    text("ORE", 0.13, (-(hw - 0.04), by + 0.07, hz), (0, 90, 0), "DecalDark", g, extrude=0.004)
+    # Pijl naar beneden: een steel en een punthaak (twee schuine balkjes).
+    box((0.012, 0.11, 0.03), (-(hw - 0.04), by - 0.06, hz), "DecalDark", g, bevel=0.0)
+    for sgn in (-1, 1):
+        box((0.012, 0.075, 0.026), (-(hw - 0.04), by - 0.1, hz + sgn * 0.024), "DecalDark", g, bevel=0.0, rot=(sgn * 45, 0, 0))
+    # Gemorst erts op de vloer onder de mond: kleine roestbruine brokjes.
+    for i, (dx, dz, sz) in enumerate(((0.3, -0.2, 0.05), (0.42, 0.1, 0.035), (0.26, 0.24, 0.04), (0.5, -0.05, 0.03),
+                                      (0.36, 0.3, 0.028), (0.58, 0.2, 0.025))):
+        box((sz, sz * 0.8, sz * 1.1), (hx + dx, IN_Y0 + FLOOR_LIFT + sz * 0.4, hz + dz), "RedOxide" if i % 2 else "Copper", g,
+            bevel=0.008, rot=(i * 23, i * 41, i * 17))
+
+
+# Gezellig in het donker (binnen-14, de stijlgids: "warme lampjes, rommelig"): een slinger kleine
+# lampjes langs het plafond, een bureaulamp op de werkbank, een donkere lambrisering met een rail,
+# vuil op de vloer en rommel van vorige diensten op vaste plekken (mokken, tape, briefjes, stickers).
+STRING_X = 0.45
+STRING_Z = (-2.4, 3.6)
+
+
+def build_homely(g):
+    hw = IN_W / 2
+    # Lambrisering: onderaan de wanden een donkere band met een rail erboven.
+    zc = (IN_Z0 + HULL_Z1) / 2
+    length = HULL_Z1 - IN_Z0 - 0.3
+    for sgn in (-1, 1):
+        box((0.02, 0.62, length), (sgn * (hw - 0.012), IN_Y0 + 0.31, zc), "HullDark", g, bevel=0.0)
+        box((0.04, 0.035, length), (sgn * (hw - 0.025), IN_Y0 + 0.63, zc), "Anthracite", g, bevel=0.008)
+    # Lampjesslinger aan haakjes langs het plafond, met een doorhangende draad.
+    z0, z1 = STRING_Z
+    y_hook = IN_Y1 - 0.1
+    hooks = [z0 + (z1 - z0) * k / 5 for k in range(6)]
+    pts = []
+    for i in range(len(hooks) - 1):
+        a, b = hooks[i], hooks[i + 1]
+        for t in range(6):
+            u = t / 6
+            pts.append((STRING_X, y_hook - 0.09 * math.sin(math.pi * u), a + (b - a) * u))
+        cyl(0.012, 0.03, (STRING_X, y_hook + 0.02, a), "Anthracite", g, verts=6, bevel=0.0)
+    pts.append((STRING_X, y_hook, z1))
+    tube(pts, 0.006, "Rubber", g, verts=5)
+    for i in range(len(hooks) - 1):
+        a, b = hooks[i], hooks[i + 1]
+        for u in (0.25, 0.5, 0.75):
+            z = a + (b - a) * u
+            y = y_hook - 0.09 * math.sin(math.pi * u) - 0.035
+            cyl(0.011, 0.02, (STRING_X, y + 0.025, z), "DarkSteel", g, verts=6, bevel=0.0)
+            sphere(0.024, (STRING_X, y, z), "Bulb", g, segments=8, rings=5)
+    # Bureaulamp op de werkbank (scharnierarm, kap naar het werkblad).
+    zb = 1.05
+    lx, lz = -(hw - 0.62), zb - 0.32
+    top = -0.585
+    cyl(0.07, 0.025, (lx, top + 0.012, lz), "Anthracite", g, verts=14, bevel=0.006)
+    tube([(lx, top + 0.02, lz), (lx + 0.04, top + 0.3, lz + 0.05), (lx + 0.2, top + 0.42, lz + 0.12)], 0.012, "Steel", g, verts=6)
+    cyl(0.03, 0.12, (lx + 0.22, top + 0.38, lz + 0.13), "Yellow", g, verts=12, bevel=0.005, r2=0.075, rot=(-150, 0, -25))
+    sphere(0.022, (lx + 0.23, top + 0.35, lz + 0.14), "Bulb", g, segments=8, rings=5)
+    # Rommel op de werkbank: een mok, een rol tape, een poetslap, een klembord tegen de wand.
+    cyl(0.04, 0.09, (-(hw - 0.3), top + 0.045, zb + 0.05), "Blue", g, verts=14, bevel=0.005)
+    torus(0.028, 0.008, (-(hw - 0.3) + 0.045, top + 0.05, zb + 0.05), "Blue", g, axis="z", major_seg=10, minor_seg=4)
+    torus(0.045, 0.018, (-(hw - 0.48), top + 0.018, zb - 0.05), "HullLight", g, axis="y", major_seg=14, minor_seg=6)
+    sphere(0.07, (-(hw - 0.62), top + 0.02, zb + 0.28), "RedOxide", g, scale=(1.3, 0.25, 0.9), segments=10, rings=5)
+    box((0.012, 0.3, 0.22), (-(hw - 0.025), -0.12, zb + 0.36), "Wood", g, bevel=0.004)
+    box((0.006, 0.24, 0.18), (-(hw - 0.032), -0.14, zb + 0.36), "Padded", g, bevel=0.0)
+    for k in range(4):
+        box((0.004, 0.006, 0.13 - k * 0.02), (-(hw - 0.036), -0.06 - k * 0.04, zb + 0.35), "DecalDark", g, bevel=0.0)
+    # Briefjes van vorige diensten op de wand naast de werkbank en op het camerascherm.
+    notes = (((-(hw - 0.058), 0.5, zb + 0.36), (0, 90, 6), "Yellow", "WHO TOOK\nMY MUG?"),
+             ((-(hw - 0.058), 0.2, zb - 0.36), (0, 90, -8), "Padded", "PING\nSPARINGLY"),
+             ((0.82, 1.07, -3.45), (0, 0, 4), "Yellow", "FEED\nTHE MOLE"))
+    for pos, rot, m, body in notes:
+        box((0.1, 0.1, 0.004), (0, 0, 0), m, g, bevel=0.0)
+        note = PARTS[g][-1]
+        place = Matrix.Translation(G(*pos)) @ _godot_euler(rot).to_matrix().to_4x4()
+        note.matrix_world = place
+        text(body, 0.018, (0, 0.005, 0.004), (0, 0, 0), "DecalDark", g, extrude=0.001)
+        t = PARTS[g][-1]
+        t.matrix_world = place @ t.matrix_world
+    # Stickers op de kastjes (rechts): de firma, een smiley, een waarschuwing.
+    for (y, z, m) in ((0.25, 0.7, "Red"), (-0.15, 0.95, "Blue"), (0.55, 1.12, "Green"), (-0.5, 0.62, "DecalLight")):
+        cyl(0.045, 0.004, (hw - 0.475, y, z), m, g, axis="x", verts=16, bevel=0.0)
+    text("DIG", 0.03, (hw - 0.479, 0.245, 0.7), (0, -90, 0), "DecalLight", g, extrude=0.001)
+    # Een gereedschapskist en een opgerolde kabel in het laadruim, een thermos in de koffiehoek.
+    box((0.5, 0.24, 0.26), (hw - 0.4, IN_Y0 + 0.13, 3.75), "Red", g, bevel=0.02)
+    box((0.3, 0.03, 0.03), (hw - 0.4, IN_Y0 + 0.28, 3.75), "Anthracite", g, bevel=0.006)
+    torus(0.16, 0.022, (hw - 0.06, -0.35, 2.55), "Rubber", g, axis="x", major_seg=16, minor_seg=5)
+    torus(0.14, 0.02, (hw - 0.08, -0.37, 2.55), "Rubber", g, axis="x", major_seg=16, minor_seg=5)
+    cyl(0.04, 0.2, (-(hw - 0.2), -0.32, -1.38), "Green", g, verts=12, bevel=0.01)
+    # Vuil op de vloer: smalle sporen van laarzen en kratten die over de vloer schoven, en een paar
+    # olievlekjes (niet egaal schoon; geen grote zwarte vlekken, die lezen als gaten).
+    for (x, z, rx, rz, a) in ((0.35, 3.5, 0.55, 0.035, 12), (0.5, 3.2, 0.45, 0.03, 8), (-0.55, 2.7, 0.5, 0.03, -20),
+                              (0.2, 0.9, 0.6, 0.03, 75), (-0.35, -0.2, 0.4, 0.025, 95), (0.6, -1.1, 0.07, 0.05, 0),
+                              (-0.9, 1.6, 0.06, 0.045, 30)):
+        o = cyl(1.0, 0.004, (x, IN_Y0 + FLOOR_LIFT + 0.004, z), "Soot", g, verts=16, bevel=0.0)
+        o.scale = (rx, rz, 1.0)
+        o.rotation_euler.z = math.radians(a)
+        bpy.ops.object.select_all(action="DESELECT")
+        o.select_set(True)
+        bpy.context.view_layer.objects.active = o
+        bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
 
 
 # Sonar: een kast met een ronde beeldbuis, rechts naast het camerascherm en naar de piloot gedraaid.
@@ -858,7 +998,11 @@ def main():
         "Btn_Ramp_Cockpit": (desk(BTN_RAMP_U, 0.02, 0.07), DESK_ROT),
         "Btn_Ramp_Back": ((IN_W / 2 - 0.09, -0.25, 3.7), (0, 0, 0)),
         "Workbench": ((-(IN_W / 2 - 0.38), -0.5, 1.05), (0, 0, 0)),
-        "Ore_Chute": ((-(IN_W / 2 - 0.36), 0.25, 3.3), (0, 0, 0)),
+        "Ore_Chute": ((HOPPER[0], HOPPER[1] + 0.12, HOPPER[2]), (0, 0, 0)),
+        "Lamp_Bench": ((-(IN_W / 2 - 0.62) + 0.23, -0.585 + 0.33, 1.05 - 0.32 + 0.14), (-90, 0, 0)),
+        "Lamp_String_0": ((STRING_X, IN_Y1 - 0.3, -1.4), (0, 0, 0)),
+        "Lamp_String_1": ((STRING_X, IN_Y1 - 0.3, 1.6), (0, 0, 0)),
+        "Lamp_Hopper": ((-(IN_W / 2 - 0.25), HOPPER[1] + 0.95, HOPPER[2]), (0, 0, 0)),
         "Exhaust_L": ((-0.55, 3.0, 1.85), (0, 0, 0)),
         "Exhaust_R": ((0.55, 3.0, 1.85), (0, 0, 0)),
         "Label_Depth": ((-1.44, 0.35, -3.31), (0, 22, 0)),

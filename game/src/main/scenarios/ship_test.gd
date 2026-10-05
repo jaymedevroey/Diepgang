@@ -237,9 +237,15 @@ func _drop_and_check(p: Player, mol: Mol, game: Game, label: String, max_s: floa
 	_expect(cine_all, "%s: de hele val een filmpje (geen besturing, geen gereedschap)" % label)
 	_expect(always_inside, "%s: speler bleef de hele val in de Mol" % label)
 	_expect(max_down > 25.0, "%s: vrije val haalt snelheid (max %.0f m/s)" % [label, max_down])
-	_expect(landed_speed < 4.5, "%s: zachte landing (%.1f m/s)" % [label, landed_speed])
-	await get_tree().process_frame
-	_expect(p.camera.current and not p.drop_cam.current, "%s: bij de klap terug door de eigen camera" % label)
+	# De klap is bewust stevig (gevoel-17): drop_touch_speed, niet meer.
+	_expect(landed_speed < Tuning.get_f("ship", "drop_touch_speed", 7.0) + 0.5, "%s: gecontroleerde landing (%.1f m/s)" % [label, landed_speed])
+	# Na de klap nog even het buitenbeeld (de stofring), dan de knip naar binnen.
+	var land0 := Engine.get_physics_frames()
+	while p.drop_cam.current and (Engine.get_physics_frames() - land0) / hz < 1.0:
+		await get_tree().process_frame
+	var hold_s := (Engine.get_physics_frames() - land0) / hz
+	_expect(p.camera.current and not p.drop_cam.current and hold_s <= Tuning.get_f("ship", "drop_cam_land_hold_s", 0.22) + 0.1,
+			"%s: %.2f s na de klap terug door de eigen camera" % [label, hold_s])
 	var hand0 := Engine.get_physics_frames()
 	while p.cinematic and (Engine.get_physics_frames() - hand0) / hz < 3.0:
 		await get_tree().physics_frame

@@ -8,6 +8,7 @@ const MODEL := preload("res://assets/models/mol.glb")
 const MACHINE := preload("res://src/mol/machine.gdshader")
 const FEED_SHADER := preload("res://src/mol/feed.gdshader")
 const FLAME_SHADER := preload("res://src/ship/drop_flame.gdshader")
+const HAZE_SHADER := preload("res://src/mol/heat_haze.gdshader")
 
 # Rupspad (lokaal rupsframe: x dwars, y omhoog, z langs) — gelijk aan tools/blender/mol.py.
 const TRACK_ZF := -2.8
@@ -105,15 +106,26 @@ var dust_color := Color(0.55, 0.38, 0.27)
 var thrust := 0.0
 ## True als de lokale speler in de cabine zit of ernaar kijkt: dan draait het camerascherm.
 var feed_active := true
+## Camerascherm: de boorkop, door de buik naar beneden (drop, optrekken), of op het dak naar boven
+## (de grijper komt).
+enum Feed { HEAD, BELLY, ROOF }
 ## Drop (gezet door Mol): binnenlicht 0 = gewoon, 1 = amber (aftellen), 2 = rood (laatste tellen,
-## de val); het camerascherm kijkt dan door de buik naar beneden; valsnelheid (m/s); hoogte van
-## de grond onder de Mol, en of hij boven de planeet hangt (niet in de hub).
+## de val); valsnelheid (m/s); hoogte van de grond onder de Mol, en of hij boven de planeet hangt
+## (niet in de hub).
 var alert := 0
-var belly_cam := false
+var feed_cam := Feed.HEAD
 var fall_speed := 0.0
 var ground_y := 0.0
 var over_ground := false
 var terrain: TerrainAPI
+## Rijden (gezet door Mol): versnelling (m/s²) en draaisnelheid (rad/s), voor het veren en hellen van
+## het model; enkel als de lokale speler van buiten kijkt (`outside_view`), anders zinderen de
+## wanden rond wie binnen staat (daar doet MolRideFeel het met de camera).
+var drive_acc := 0.0
+var drive_turn := 0.0
+var outside_view := true
+## Aan de kabel van de grijper (zwaait wat).
+var lifting := false
 
 var model: Node3D
 var ramp_hinge: Node3D
@@ -141,6 +153,7 @@ var _dust: GPUParticles3D
 var _grit: GPUParticles3D
 var _sparks: GPUParticles3D
 var _trail: GPUParticles3D
+var _spoil: GPUParticles3D # boorpuin dat achteraan onder de rupsen uitvalt
 var _flames: Array[MeshInstance3D] = []
 var _flame_mats: Array[ShaderMaterial] = []
 var _smoke: Array[GPUParticles3D] = []
@@ -155,6 +168,13 @@ var _flash := 0.0 # ontsteken: felle gloed die uitdooft
 var _wobble_t := 0.0
 var _sag := 0.0 # veren na de landing (m), enkel het model
 var _sag_v := 0.0
+var _lever_angle := 0.0
+var _lever_v := 0.0
+var _ping_light: OmniLight3D
+var _ping_glow := 0.0
+var _shake_t := 0.0
+var _haze: MeshInstance3D
+var _haze_mat: ShaderMaterial
 var _rumble: AudioStreamPlayer3D
 var _duck := 0.0
 var _feed_top: Label
@@ -166,7 +186,12 @@ var _snd: Dictionary = {}
 var _feed_viewport: SubViewport
 var _feed_camera: Camera3D
 var _rng := RandomNumberGenerator.new()
-var _label_left: Label3D
+## De schermen in de cabine spreken één taal (ui-13): dezelfde beeldbuis (feed.gdshader), hetzelfde
+## schermlettertype, een kop linksboven in dezelfde vorm. Amber is de Mol zelf (status, camera),
+## groen is de sonar (een apart instrument, zoals elke sonar).
+const SCREEN_AMBER := Color(1.0, 0.72, 0.3)
+var _status_viewport: SubViewport
+var _status_body: Label
 ## Sonarscherm rechts in de cabine (Mol zet de toestand via sonar_screen.display).
 var sonar_screen: SonarScreen
 
@@ -200,7 +225,7 @@ func _ready() -> void:
 	_build_thrusters()
 	_build_audio()
 	_build_feed()
-	_label_left = _screen_label("Label_Depth")
+	_build_status()
 	sonar_screen = SonarScreen.new()
 	sonar_screen.name = "SonarScreen"
 	add_child(sonar_screen)
@@ -213,26 +238,63 @@ func set_gauges(values: Array) -> void:
 		_needles[k][3] = deg_to_rad(135.0 - 270.0 * clampf(values[k], 0.0, 1.0))
 
 
-## Tekst op het statusscherm links van het camerascherm (amber, zoals een oud dotmatrixscherm).
+## Tekst op het statusscherm links van het camerascherm (amber, op dezelfde beeldbuis als de rest).
 func set_readout(text: String) -> void:
-	_label_left.text = text
+	if _status_body.text != text:
+		_status_body.text = text
 
 
-func _screen_label(anchor: String) -> Label3D:
-	var l := Label3D.new()
-	l.font = UiTheme.screen()
-	l.font_size = 44
-	l.line_spacing = -6.0
-	l.pixel_size = 0.0016
-	l.modulate = Color(1.0, 0.72, 0.3)
-	l.outline_size = 0
-	l.shaded = false
-	l.double_sided = false
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	l.width = 360.0
-	l.autowrap_mode = TextServer.AUTOWRAP_OFF
-	anchors[anchor].add_child(l)
-	l.position = Vector3(-0.28, 0.0, 0.03)
+## Statusscherm: een SubViewport met een kop en de toestand, op een vlak voor het scherm in het model
+## (Label_Depth), met hetzelfde beeldbuiseffect als het camerascherm en de sonar.
+func _build_status() -> void:
+	_status_viewport = SubViewport.new()
+	_status_viewport.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF # tekent in _process (gevoel-02)
+	_status_viewport.size = Vector2i(520, 320)
+	_status_viewport.disable_3d = true
+	_status_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	add_child(_status_viewport)
+	var bg := ColorRect.new()
+	bg.color = Color(0.03, 0.02, 0.012)
+	bg.size = Vector2(520, 320)
+	_status_viewport.add_child(bg)
+	var head := _screen_text("STATUS  ·  THE MOLE", Vector2(22, 8), 22, Color(SCREEN_AMBER, 0.7))
+	_status_viewport.add_child(head)
+	var rule := ColorRect.new()
+	rule.color = Color(SCREEN_AMBER, 0.35)
+	rule.position = Vector2(22, 38)
+	rule.size = Vector2(476, 2)
+	_status_viewport.add_child(rule)
+	# Zo groot als het past: vanuit de stoel is een scherm klein (lessons: tekst ≥ 40 px op het scherm).
+	_status_body = _screen_text("", Vector2(22, 44), 36, SCREEN_AMBER)
+	_status_body.add_theme_constant_override("line_spacing", -8)
+	_status_viewport.add_child(_status_body)
+	var quad := MeshInstance3D.new()
+	var q := QuadMesh.new()
+	q.size = Vector2(0.62, 0.38)
+	quad.mesh = q
+	var m := ShaderMaterial.new()
+	m.shader = FEED_SHADER
+	m.set_shader_parameter("feed", _status_viewport.get_texture())
+	m.set_shader_parameter("tint", Color(1, 1, 1))
+	m.set_shader_parameter("desaturate", 0.0)
+	m.set_shader_parameter("vignette", 0.3)
+	m.set_shader_parameter("brightness", 1.6)
+	m.set_shader_parameter("lines", 160.0)
+	m.set_shader_parameter("flip_v", false)
+	quad.material_override = m
+	quad.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	anchors["Label_Depth"].add_child(quad)
+	quad.position = Vector3(0.0, 0.0, 0.004)
+
+
+## Tekst op een scherm in de cabine (schermlettertype, één kleur).
+static func _screen_text(text: String, pos: Vector2, size: int, color: Color) -> Label:
+	var l := Label.new()
+	l.text = text
+	l.position = pos
+	l.add_theme_font_override("font", UiTheme.screen())
+	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_color_override("font_color", color)
 	return l
 
 
@@ -416,21 +478,54 @@ func _build_lights() -> void:
 	_spot("Light_Roof_L", Color(1.0, 0.85, 0.65), 1.4, 12.0, 50.0, false)
 	_spot("Light_Roof_R", Color(1.0, 0.85, 0.65), 1.4, 12.0, 50.0, false)
 	_spot("Light_Rear", Color(1.0, 0.8, 0.55), 2.4, 13.0, 65.0, false)
+	# Binnen: geen egaal licht maar plassen warm licht (binnen-14). De kooilampen reiken minder ver
+	# en vallen sneller af; daartussen een bureaulamp op de werkbank, de lampjesslinger aan het
+	# plafond en een lampje boven de ertstrechter. Allemaal zonder schaduw (GDD §9: budget).
 	for i in 3:
 		var o := OmniLight3D.new()
-		o.light_color = Color(1.0, 0.8, 0.55)
-		o.light_energy = 1.1
-		o.omni_range = 4.8
+		o.light_color = Color(1.0, 0.78, 0.5)
+		o.light_energy = 1.25
+		o.omni_range = 3.6
+		o.omni_attenuation = 1.5
 		o.shadow_enabled = false
 		anchors["Cage_%d" % i].add_child(o)
 		_lights.append(o)
 		_cage_lights.append(o)
+	if anchors.has("Lamp_Bench"):
+		var bench := _spot("Lamp_Bench", Color(1.0, 0.72, 0.42), 3.2, 2.6, 58.0, false)
+		bench.spot_angle_attenuation = 1.4
+	for a in ["Lamp_String_0", "Lamp_String_1"]:
+		if anchors.has(a):
+			var st := OmniLight3D.new()
+			st.light_color = Color(1.0, 0.66, 0.36)
+			st.light_energy = 0.45
+			st.omni_range = 2.4
+			st.omni_attenuation = 1.2
+			st.shadow_enabled = false
+			anchors[a].add_child(st)
+			_lights.append(st)
+	if anchors.has("Lamp_Hopper"):
+		var hop := OmniLight3D.new()
+		hop.light_color = Color(1.0, 0.6, 0.25)
+		hop.light_energy = 0.7
+		hop.omni_range = 1.8
+		hop.shadow_enabled = false
+		anchors["Lamp_Hopper"].add_child(hop)
+		_lights.append(hop)
 	var glow := OmniLight3D.new()
 	glow.light_color = Color(0.5, 0.75, 1.0)
 	glow.light_energy = 0.5
 	glow.omni_range = 2.6
 	anchors["Seat_Head"].add_child(glow)
 	glow.position = Vector3(0, 0.55, -1.05)
+	_ping_light = OmniLight3D.new()
+	_ping_light.light_color = SonarScreen.PHOSPHOR
+	_ping_light.light_energy = 0.0
+	_ping_light.omni_range = 5.5
+	_ping_light.shadow_enabled = false
+	_ping_light.visible = false
+	add_child(_ping_light)
+	_ping_light.position = Vector3(0.6, 0.6, -2.4)
 	for side in ["Beacon_L", "Beacon_R"]:
 		var b := SpotLight3D.new()
 		b.light_color = Color(1.0, 0.45, 0.05)
@@ -523,6 +618,34 @@ func _build_particles() -> void:
 	sm.albedo_color = Color(4.0, 2.4, 1.0)
 	spark.material = sm
 	_sparks = _burst_emitter(head_front, 90, 0.45, spark, 5.0, 11.0, 80.0, Vector3(0, -3.0, 0))
+	# Boorpuin: brokken die achteraan tussen de rupsen uitvallen terwijl hij boort (gevoel-04: je
+	# ziet van buiten dat hij werkt, niet enkel een paar spikkels vooraan).
+	_spoil = GPUParticles3D.new()
+	var sm2 := ParticleProcessMaterial.new()
+	sm2.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	sm2.emission_box_extents = Vector3(1.6, 0.2, 0.3)
+	sm2.direction = Vector3(0, -0.3, 1)
+	sm2.spread = 25.0
+	sm2.initial_velocity_min = 0.6
+	sm2.initial_velocity_max = 1.8
+	sm2.gravity = Vector3(0, -9.8, 0)
+	sm2.angular_velocity_min = -300.0
+	sm2.angular_velocity_max = 300.0
+	sm2.scale_min = 0.8
+	sm2.scale_max = 2.2
+	_spoil.process_material = sm2
+	var spoil_mesh := DigFx._scaled(FindKinds.chunk(4), 0.12)
+	var spm := StandardMaterial3D.new()
+	spm.vertex_color_use_as_albedo = true
+	spm.roughness = 0.95
+	spoil_mesh.surface_set_material(0, spm)
+	_spoil.draw_pass_1 = spoil_mesh
+	_spoil.amount = 40
+	_spoil.lifetime = 1.4
+	_spoil.local_coords = false
+	_spoil.emitting = false
+	model.add_child(_spoil)
+	_spoil.position = Vector3(0, -2.1, 3.9)
 	(_sparks.process_material as ParticleProcessMaterial).particle_flag_align_y = true
 	(_sparks.process_material as ParticleProcessMaterial).color_ramp = _gradient_tex(Color(1, 0.9, 0.6, 1), Color(1, 0.35, 0.05, 0))
 
@@ -581,6 +704,23 @@ func _build_thrusters() -> void:
 			smoke.position = Vector3(x, -3.4, z)
 			_smoke.append(smoke)
 			k += 1
+	# Warmtetrilling rond de vlammen (een kolom die het beeld erachter laat trillen).
+	var col := CylinderMesh.new()
+	col.top_radius = 3.0
+	col.bottom_radius = 3.8
+	col.height = 1.0
+	col.radial_segments = 20
+	col.rings = 4
+	col.cap_top = false
+	col.cap_bottom = false
+	_haze = MeshInstance3D.new()
+	_haze.mesh = col
+	_haze_mat = ShaderMaterial.new()
+	_haze_mat.shader = HAZE_SHADER
+	_haze.material_override = _haze_mat
+	_haze.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_haze.visible = false
+	model.add_child(_haze)
 	_thrust_light = OmniLight3D.new()
 	_thrust_light.light_color = Color(1.0, 0.55, 0.2)
 	_thrust_light.light_energy = 0.0
@@ -629,34 +769,34 @@ func _build_thrusters() -> void:
 	_ellipse_emission(dm, 5.0, 7.4, 48)
 	dm.direction = Vector3(0, 0, 1) # langs de normaal: naar buiten
 	dm.spread = 12.0
-	dm.initial_velocity_min = 7.0
-	dm.initial_velocity_max = 13.0
+	dm.initial_velocity_min = 9.0
+	dm.initial_velocity_max = 17.0
 	dm.damping_min = 3.0
 	dm.damping_max = 5.0
-	dm.gravity = Vector3(0, 0.3, 0)
-	dm.scale_min = 1.2
-	dm.scale_max = 2.2
+	dm.gravity = Vector3(0, 1.4, 0) # de wolk kolkt op, hij blijft niet plat in de grond (proximity fade)
+	dm.scale_min = 1.5
+	dm.scale_max = 2.8
 	# Klein bij de romp, groot verder weg (een grote wolk vlak naast de romp stak door de wand).
 	dm.scale_curve = _curve_tex([Vector2(0, 0.3), Vector2(0.15, 0.9), Vector2(1, 2.4)])
 	dm.color_ramp = _gradient_tex(Color(1, 1, 1, 0.9), Color(1, 1, 1, 0.0))
 	_landing_dust.process_material = dm
 	_landing_dust.draw_pass_1 = _outside_dust_quad(false, 3.5)
-	_landing_dust.amount = 110
+	_landing_dust.amount = 150
 	_landing_dust.lifetime = 3.0
 	_landing_dust.one_shot = true
 	_landing_dust.explosiveness = 0.92
 	_landing_dust.local_coords = false
 	_landing_dust.emitting = false
 	model.add_child(_landing_dust)
-	_landing_dust.position = Vector3(0, -2.6, 0)
+	_landing_dust.position = Vector3(0, -1.9, 0)
 	# Brokjes die opspatten bij de klap.
 	_debris = GPUParticles3D.new()
 	var bm := ParticleProcessMaterial.new()
 	_ellipse_emission(bm, 3.6, 5.8, 32)
 	bm.direction = Vector3(0, 0.0, 1)
 	bm.spread = 25.0
-	bm.initial_velocity_min = 4.0
-	bm.initial_velocity_max = 9.0
+	bm.initial_velocity_min = 5.5
+	bm.initial_velocity_max = 12.0
 	bm.gravity = Vector3(0, -9.8, 0)
 	bm.angular_velocity_min = -400.0
 	bm.angular_velocity_max = 400.0
@@ -669,7 +809,7 @@ func _build_thrusters() -> void:
 	cm.roughness = 0.95
 	chunk.surface_set_material(0, cm)
 	_debris.draw_pass_1 = chunk
-	_debris.amount = 28
+	_debris.amount = 40
 	_debris.lifetime = 1.6
 	_debris.one_shot = true
 	_debris.explosiveness = 1.0
@@ -728,8 +868,27 @@ func landing_burst() -> void:
 		s.visible = false
 	(_debris.process_material as ParticleProcessMaterial).color = dust_color.darkened(0.25)
 	_debris.restart()
-	_sag_v = -1.6
+	_sag_v = -3.2 # de vering slaat door: de klap van 7 m/s
 	_flicker = 0.15
+
+
+## Een ruk door de romp (de grijper klikt vast): het model schiet even op en veert terug. Enkel
+## van buiten (binnen schokt de camera, zie MolRideFeel).
+func jolt(strength: float) -> void:
+	if outside_view:
+		_sag_v += 1.4 * strength
+	_flicker = maxf(_flicker, 0.12)
+
+
+## PING: een groene puls door de cabine en een ping met zijn echo ([plaatshouder]: het piepje van de
+## Mol, hoger; het echte geluid komt met M6).
+func ping_pulse() -> void:
+	_ping_glow = 1.0
+	var at := (anchors["SonarPing"] as Node3D).position if anchors.has("SonarPing") else Vector3(1.4, 0.0, -3.0)
+	play("mol_beep", at, -2.0, 1.8)
+	get_tree().create_timer(0.38).timeout.connect(func() -> void:
+		if is_inside_tree():
+			play("mol_beep", at, -14.0, 1.75))
 
 
 ## De klemmen laten los: de lichten haperen, de motor houdt even de adem in.
@@ -860,7 +1019,7 @@ func _loop(name: String, pos: Vector3, unit: float, max_d: float, db: float) -> 
 	return p
 
 
-func play(name: String, pos := Vector3.ZERO, db := 0.0) -> void:
+func play(name: String, pos := Vector3.ZERO, db := 0.0, pitch := 1.0) -> void:
 	var stream := _stream(name)
 	if stream == null:
 		return
@@ -870,6 +1029,7 @@ func play(name: String, pos := Vector3.ZERO, db := 0.0) -> void:
 	p.unit_size = 10.0
 	p.max_distance = 80.0
 	p.volume_db = db
+	p.pitch_scale = pitch
 	add_child(p)
 	p.position = pos
 	p.finished.connect(p.queue_free)
@@ -896,38 +1056,37 @@ func _build_feed() -> void:
 	m.shader = FEED_SHADER
 	m.set_shader_parameter("feed", _feed_viewport.get_texture())
 	screen.material_override = m
-	# Overlay zoals een bewakingscamera: naam, REC, vizier, diepte.
+	# Beeld licht warm (niet groengrijs), zodat het naast het amberen statusscherm hoort.
+	m.set_shader_parameter("tint", Color(1.0, 0.95, 0.86))
+	# Overlay zoals een bewakingscamera: naam, REC, vizier, diepte. Amber in het schermlettertype,
+	# de kop zoals op het statusscherm (ui-13).
 	var hud := Control.new()
 	hud.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_feed_viewport.add_child(hud)
-	var font_col := Color(0.85, 1.0, 0.85, 0.9)
-	_feed_top = Label.new()
-	_feed_top.text = "CAM 1  ·  DRILL HEAD"
-	_feed_top.position = Vector2(18, 12)
-	_feed_top.add_theme_font_size_override("font_size", 20)
-	_feed_top.add_theme_color_override("font_color", font_col)
+	var font_col := Color(SCREEN_AMBER, 1.0)
+	# Donkere banden achter de kop en de voetregel: leesbaar, ook tegen een lichte hemel.
+	for band in [Rect2(0, 0, 640, 46), Rect2(0, 300, 640, 52)]:
+		var b := ColorRect.new()
+		b.color = Color(0.0, 0.0, 0.0, 0.55)
+		b.position = band.position
+		b.size = band.size
+		hud.add_child(b)
+	_feed_top = _screen_text("CAM 1  ·  DRILL HEAD", Vector2(18, 10), 24, Color(SCREEN_AMBER, 0.9))
 	hud.add_child(_feed_top)
 	_feed_rec = ColorRect.new()
 	_feed_rec.color = Color(1.0, 0.15, 0.1)
 	_feed_rec.size = Vector2(12, 12)
 	_feed_rec.position = Vector2(580, 20)
 	hud.add_child(_feed_rec)
-	var rec := Label.new()
-	rec.text = "REC"
-	rec.position = Vector2(538, 12)
-	rec.add_theme_font_size_override("font_size", 20)
-	rec.add_theme_color_override("font_color", font_col)
+	var rec := _screen_text("REC", Vector2(528, 10), 24, Color(SCREEN_AMBER, 0.9))
 	hud.add_child(rec)
 	for r in [Rect2(310, 175, 20, 2), Rect2(319, 166, 2, 20), Rect2(250, 175, 30, 2), Rect2(360, 175, 30, 2)]:
 		var cr := ColorRect.new()
-		cr.color = Color(0.85, 1.0, 0.85, 0.55)
+		cr.color = Color(SCREEN_AMBER, 0.5)
 		cr.position = r.position
 		cr.size = r.size
 		hud.add_child(cr)
-	_feed_label = Label.new()
-	_feed_label.position = Vector2(18, 312)
-	_feed_label.add_theme_font_size_override("font_size", 20)
-	_feed_label.add_theme_color_override("font_color", font_col)
+	_feed_label = _screen_text("", Vector2(18, 310), 26, font_col)
 	hud.add_child(_feed_label)
 
 
@@ -953,7 +1112,15 @@ func _process(delta: float) -> void:
 	ramp_hinge.rotation.x = _ramp_angle
 	if is_equal_approx(was, 0.0) and _ramp_angle > 0.0 or is_equal_approx(was, deg_to_rad(RAMP_OPEN_DEG)) and _ramp_angle < was:
 		play("mol_hydraulic", Vector3(0, -1.0, 4.0), -2.0)
-	_lever.transform = _lever_rest * Transform3D(Basis(Vector3.RIGHT, deg_to_rad(35.0) if lever_pulled else 0.0), Vector3.ZERO)
+	# Hendel: zichtbaar overhalen (±0,3 s, een veer die even naveert), niet in één beeld.
+	var lever_want := deg_to_rad(35.0) if lever_pulled else 0.0
+	var lever_left := minf(delta, 0.1)
+	while lever_left > 0.0:
+		var h := minf(lever_left, 1.0 / 120.0)
+		_lever_v += ((lever_want - _lever_angle) * 220.0 - _lever_v * 17.0) * h
+		_lever_angle += _lever_v * h
+		lever_left -= h
+	_lever.transform = _lever_rest * Transform3D(Basis(Vector3.RIGHT, _lever_angle), Vector3.ZERO)
 
 	# Meternaalden: draaien rond de normaal van het schuine paneel (35° naar de bestuurder).
 	for nd in _needles:
@@ -979,7 +1146,7 @@ func _process(delta: float) -> void:
 		m.emission_energy_multiplier = 3.0 if lights_on and not off else 0.05
 	var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * TAU * 1.3)
 	var cage_col := Color(1.0, 0.8, 0.55)
-	var cage_e := 1.1
+	var cage_e := 1.25
 	if alert == 1:
 		cage_col = Color(1.0, 0.52, 0.14)
 		cage_e = 1.0
@@ -1006,19 +1173,22 @@ func _process(delta: float) -> void:
 	if _trail.emitting:
 		(_trail.draw_pass_1.surface_get_material(0) as StandardMaterial3D).albedo_color = Color(dust_color.lightened(0.15), 1.0)
 	_grit.emitting = drilling
+	_spoil.emitting = drilling
 	_sparks.emitting = blocked
 	if drilling:
 		var dm := _dust.draw_pass_1.surface_get_material(0) as StandardMaterial3D
 		dm.albedo_color = Color(dust_color.lightened(0.1), 0.55)
 		(_grit.process_material as ParticleProcessMaterial).color = dust_color.darkened(0.2)
+		(_spoil.process_material as ParticleProcessMaterial).color = dust_color.darkened(0.3)
 	_update_drop_fx(delta)
 
 	# Geluid.
+	# De motor brult meteen op als de piloot gas geeft (throttle volgt de invoer), en zakt trager weg.
 	var eng: AudioStreamPlayer3D = _snd.engine
-	eng.pitch_scale = lerpf(eng.pitch_scale, 0.85 + 0.45 * absf(throttle) + (0.15 if drilling else 0.0)
-			+ (0.25 if alert > 0 else 0.0), delta * 3.0)
+	var eng_want := 0.85 + 0.45 * absf(throttle) + (0.15 if drilling else 0.0) + (0.25 if alert > 0 else 0.0)
+	eng.pitch_scale = lerpf(eng.pitch_scale, eng_want, minf(1.0, delta * (9.0 if eng_want > eng.pitch_scale else 2.5)))
 	_duck = maxf(0.0, _duck - delta)
-	eng.volume_db = -4.0 - 18.0 * clampf(_duck / 0.3, 0.0, 1.0)
+	eng.volume_db = -4.0 + 2.5 * absf(throttle) - 18.0 * clampf(_duck / 0.3, 0.0, 1.0)
 	_fade(_snd.cutter, -2.0 if drilling else -80.0, delta)
 	_fade(_snd.tracks, -6.0 if absf(speed) > 0.15 else -80.0, delta)
 	(_snd.tracks as AudioStreamPlayer3D).pitch_scale = clampf(0.5 + absf(speed) * 0.2, 0.5, 1.8)
@@ -1028,15 +1198,23 @@ func _process(delta: float) -> void:
 
 	# Camerascherm. Bij de drop kijkt het door de buik naar beneden (de luiken, dan de diepte).
 	_feed_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS if feed_active else SubViewport.UPDATE_DISABLED
+	_status_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS if feed_active else SubViewport.UPDATE_DISABLED
 	if sonar_screen.active != feed_active:
 		sonar_screen.active = feed_active
 	if feed_active:
-		if belly_cam:
+		if feed_cam == Feed.BELLY:
 			_feed_camera.global_transform = global_transform * Transform3D(
 					Basis.looking_at(Vector3.DOWN, Vector3.FORWARD), Vector3(0.0, -2.55, -1.0))
 			_feed_camera.near = 0.05
 			_feed_camera.far = 3000.0
 			_feed_top.text = "CAM 2  ·  BELLY"
+		elif feed_cam == Feed.ROOF:
+			# Op het dak, naar boven: de grijper die neerdaalt, De Ekster erboven.
+			_feed_camera.global_transform = global_transform * Transform3D(
+					Basis.looking_at(Vector3(0.0, 1.0, -0.12), Vector3.FORWARD), Vector3(0.0, 2.75, -1.6))
+			_feed_camera.near = 0.1
+			_feed_camera.far = 3000.0
+			_feed_top.text = "CAM 3  ·  ROOF"
 		else:
 			_feed_camera.global_transform = (anchors["Cam_Feed"] as Node3D).global_transform
 			_feed_camera.near = 0.1
@@ -1056,11 +1234,17 @@ func _update_drop_fx(delta: float) -> void:
 		var fl := _flames[i]
 		fl.visible = on
 		if on:
-			var length := (1.8 + 3.2 * thrust) * (0.92 + 0.16 * sin(now * 47.0 + i * 1.7)) + _flash * 2.5
-			var w := 1.0 + 0.35 * _flash
+			var length := (2.6 + 4.6 * thrust) * (0.9 + 0.2 * sin(now * 47.0 + i * 1.7)) + _flash * 3.5
+			var w := 1.35 + 0.45 * _flash
 			fl.scale = Vector3(w, length, w)
 			fl.position.y = -2.55 - length * 0.5
 			_flame_mats[i].set_shader_parameter("intensity", clampf(0.6 + 0.4 * thrust + _flash * 0.6, 0.0, 1.6))
+	_haze.visible = on
+	if on:
+		var hl := 3.0 + 6.0 * thrust
+		_haze.scale = Vector3(1.0, hl, 1.0)
+		_haze.position.y = -2.7 - hl * 0.5
+		_haze_mat.set_shader_parameter("intensity", clampf(0.35 + 0.65 * thrust + _flash * 0.5, 0.0, 1.0))
 	for s in _smoke:
 		s.emitting = on
 		if on:
@@ -1101,7 +1285,24 @@ func _update_drop_fx(delta: float) -> void:
 	var wob := clampf(fall_speed / 55.0, 0.0, 1.0) * (1.0 - clampf(thrust * 1.5, 0.0, 1.0)) if over_ground else 0.0
 	var amp := deg_to_rad(2.4) * wob
 	var want := Vector3(amp * (0.8 * sin(_wobble_t * 2.3) + 0.35 * sin(_wobble_t * 5.3)), 0.0, amp * sin(_wobble_t * 1.7 + 0.6))
-	model.rotation = model.rotation.lerp(want, minf(1.0, delta * 4.0))
+	var shake_off := Vector3.ZERO
+	if outside_view and not over_ground:
+		# Rijden, van buiten (gevoel-04): de neus komt op bij het optrekken en duikt bij het remmen,
+		# de romp helt naar buiten in de bocht, en bij het boren trilt hij.
+		var lean := deg_to_rad(Tuning.get_f("mol", "model_lean_deg", 1.4))
+		var roll := deg_to_rad(Tuning.get_f("mol", "model_roll_deg", 1.6))
+		want.x += clampf(drive_acc, -3.0, 3.0) * lean
+		want.z += clampf(-drive_turn / 0.3, -1.0, 1.0) * roll * clampf(0.35 + absf(speed), 0.0, 1.0)
+		if drilling or blocked:
+			_shake_t += delta * 23.0
+			var sa := Tuning.get_f("mol", "model_drill_shake", 0.025) * (1.6 if blocked else 1.0)
+			shake_off = Vector3(sin(_shake_t * 1.3) * 0.6, sin(_shake_t * 1.9 + 1.0), 0.0) * sa
+			want.x += sin(_shake_t * 1.7) * sa * 0.25
+		if lifting:
+			# Aan de kabel: een trage slinger.
+			want.x += deg_to_rad(2.5) * sin(_wobble_t * 0.9)
+			want.z += deg_to_rad(3.5) * sin(_wobble_t * 0.7 + 1.2)
+	model.rotation = model.rotation.lerp(want, minf(1.0, delta * (9.0 if outside_view and not over_ground else 4.0)))
 	var left := minf(delta, 0.1) # veer in kleine stapjes (stabiel, ook bij een lang frame)
 	while left > 0.0:
 		var step := minf(left, 1.0 / 120.0)
@@ -1111,7 +1312,11 @@ func _update_drop_fx(delta: float) -> void:
 	if absf(_sag) < 0.0005 and absf(_sag_v) < 0.005:
 		_sag = 0.0
 		_sag_v = 0.0
-	model.position.y = _sag
+	model.position = Vector3(shake_off.x, _sag + shake_off.y, 0.0)
+	# PING: een groene puls door de cabine.
+	_ping_glow = maxf(0.0, _ping_glow - delta * 1.8)
+	_ping_light.light_energy = 3.0 * _ping_glow * _ping_glow
+	_ping_light.visible = _ping_glow > 0.01
 
 
 var _sun: DirectionalLight3D

@@ -327,22 +327,33 @@ func _sit() -> void:
 	_riding = false # meerijden opnieuw beginnen na het uitstappen (anders een oude Mol-positie)
 	flying = false
 	_shape.disabled = true
-	_look_yaw = 0.0
-	head.rotation.x = 0.0
+	# Dezelfde kijkrichting houden (binnen wat de stoel toelaat) en de camera naar de stoel laten
+	# glijden: geen harde knip (gevoel-20).
+	var cam_was := camera.global_position if camera else global_position
+	_look_yaw = clampf(angle_difference(game.mol.yaw, rotation.y), -1.5, 1.5)
+	head.rotation.x = clampf(head.rotation.x, -0.9, 0.7)
 	velocity = Vector3.ZERO
 	active_tool.set_active(false)
+	_seat_to_mol()
+	ViewGlide.start(self, camera, cam_was, 0.32, 0.3) # met een boogje over de rugleuning
 
 
 func _unseat() -> void:
 	seated = false
 	_riding = false # zie _ride_mol: de Mol-positie van vóór het zitten is ongeldig
+	var cam_was := camera.global_position if camera else global_position
+	var was_chase := chase.current
 	if chase.current:
 		camera.make_current()
 	_shape.disabled = false
 	var mol: Mol = game.mol
-	global_transform = Transform3D(Basis(Vector3.UP, mol.yaw), mol.to_world_mol(Vector3(0.0, -1.45, -0.65)))
+	# Opstaan met dezelfde kijkrichting, en de camera glijdt uit de stoel (gevoel-14, gevoel-20). Het
+	# lijf zelf springt (geen interpolatie ertussen); het oog glijdt (ViewGlide).
+	global_transform = Transform3D(Basis(Vector3.UP, mol.yaw + _look_yaw), mol.to_world_mol(Vector3(0.0, -1.45, -0.65)))
 	reset_physics_interpolation()
-	head.rotation.x = 0.0
+	head.rotation.x = clampf(head.rotation.x, -1.2, 1.2)
+	if not was_chase:
+		ViewGlide.start(self, camera, cam_was, 0.32, 0.3)
 	if (carry == null or carry.item == null) and not _holstered:
 		active_tool.set_active(true)
 
@@ -442,6 +453,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		var sens := _sensitivity()
 		var rel := _mouse(event.relative)
 		rotate_y(-rel.x * sens)
+		if _attached != null: # vast in de Mol (ophalen): rondkijken mag wel (gevoel-05)
+			_attached[1] = float(_attached[1]) - rel.x * sens
 		head.rotation.x = clampf(head.rotation.x - rel.y * sens, -1.55, 1.55)
 	elif event is InputEventMouseButton and event.pressed and not captured:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -482,7 +495,8 @@ func _physics_process(delta: float) -> void:
 	# liep telkens een tick achter (de speler zakte steeds verder door de vloer). Dan zit je vast op
 	# je plek in de Mol: geen zwaartekracht, geen eigen beweging.
 	var mol: Mol = game.mol
-	if mol.mode in [Mol.Mode.DROPPING, Mol.Mode.GRAPPLE_DOWN, Mol.Mode.LIFTING] and (_attached != null or _riding) or _hold_ticks > 0:
+	# (Terwijl de grijper zakt, staat de Mol stil: dan loop je vrij rond.)
+	if mol.mode in [Mol.Mode.DROPPING, Mol.Mode.LIFTING] and (_attached != null or _riding) or _hold_ticks > 0:
 		if _attached == null:
 			_attached = [mol.to_local_mol(global_position), rotation.y - mol.yaw]
 		_follow_attached(mol)

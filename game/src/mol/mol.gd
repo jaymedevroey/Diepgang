@@ -37,7 +37,8 @@ enum Event { HORN, BLOCKED, DEPART, BEEP, ARRIVED, DOORS, LANDED, GRAPPLED, PING
 ## begint lager, al op snelheid). Overslaan maakt van een lange drop een korte.
 enum DropVariant { FULL, SHORT }
 signal skip_changed(votes: int, needed: int)
-## Een moment van de drop (Event.DOORS, RELEASE, THRUST), op elk peer (voor camera en effecten).
+## Een moment van de drop of het ophalen (Event.DOORS, RELEASE, THRUST, GRAPPLED) of een PING, op elk
+## peer (voor camera en effecten).
 signal drop_event(event: Event)
 
 ## De Mol beweegt zonder piloot (laadruim vastsjorren, enz.). Ook het aftellen voor de drop: dan
@@ -49,6 +50,8 @@ const BUSY_MODES := [Mode.COUNTDOWN, Mode.EXTRACTING, Mode.DROP_COUNTDOWN, Mode.
 const CINEMATIC_MODES := [Mode.DROPPING, Mode.LIFTING]
 ## Haakpunt op het dak (lokaal), waar de grijper de Mol vastpakt.
 const HOOK := Vector3(0.0, 2.9, 0.0)
+## De drie knoppen van de autopiloot: een diepte per laag (zie auto_target).
+const AUTO_LAYERS := ["clay", "sandstone, where the bones start", "deep sandstone"]
 
 const TIER := Strata.Tool.BOOR_T1
 const BORE_RADIUS := 3.2
@@ -113,6 +116,14 @@ var drops_done := 0
 ## Overslaan: stemmen van wie in de Mol zit, en hoeveel er nodig zijn (bij iedereen gekend).
 var skip_votes := 0
 var skip_needed := 0
+## PINGs die deze dienst nog over zijn (de host beslist, iedereen kent het).
+var pings_left := 4
+## Invoer van de piloot (gas, sturen), voor hendels en motor op elk peer: de host kent hem, de
+## clients krijgen hem met de toestand mee, en de piloot zelf gebruikt zijn eigen invoer meteen.
+var drive_input := Vector2.ZERO
+## Gevoel (lokaal, MolRideFeel): gefilterde versnelling (m/s²) en draaisnelheid (rad/s).
+var ride_acc := 0.0
+var ride_turn := 0.0
 
 # Host.
 var _input := Vector3.ZERO # throttle, steer, pitch
@@ -142,6 +153,17 @@ var _skip_voters: Dictionary = {}
 var _skip_pending := false # overslaan: de sprong gebeurt in de volgende physics-tick (zie _drop)
 var _all_aboard_said := false
 var _grab_timer := 0.0
+var _yaw_vel := 0.0 # rad/s: draaien komt op gang en valt stil (hoekversnelling)
+var _pitch_vel := 0.0
+## Autopiloot: draairichting (+1 = links) en straal van de spiraal, gekozen bij de start (zie _plan_spiral).
+var _spiral_turn := 1.0
+var _spiral_radius := 11.0
+## Opgeschepte vondsten die nog gemeld moeten worden (samen, niet elk apart): [naam, verlies in €].
+var _wrecked: Array = []
+var _wrecked_t := 0.0
+var _auto_buttons: Array[Interactable] = []
+var _ride_feel: MolRideFeel
+var _nudge_t := 0.0 # host: seconden na de landing waarin wie naast de Mol neerkomt, opzij gezet wordt
 
 # Clients.
 var _snapshots: Array = [] # [tijd ms, pos, yaw, pitch, speed]
@@ -152,6 +174,8 @@ var _clock_offset := INF
 
 # Piloot (lokaal).
 var _pilot_send := 0.0
+var _local_input := Vector2.ZERO
+var _local_input_ms := -100000
 
 
 ## `docked`: in de dropbaai van De Ekster beginnen (anders aan de oppervlakte, bij de landingsplek).
@@ -171,6 +195,12 @@ func setup(docked := false) -> void:
 	body.add_child(visual)
 	_build_collision()
 	_build_buttons()
+	_ride_feel = MolRideFeel.new()
+	_ride_feel.name = "RideFeel"
+	_ride_feel.mol = self
+	add_child(_ride_feel)
+	pings_left = Tuning.get_i("mol", "sonar_pings", 4)
+	sonar.pings_left = pings_left
 	attach_terrain()
 	if docked:
 		mode = Mode.DOCKED
@@ -207,6 +237,22 @@ func teleport(pos: Vector3, new_yaw: float, new_pitch: float) -> void:
 
 func forward() -> Vector3:
 	return -body.global_basis.z
+
+
+## Diepte (m onder het oppervlak) voor knop `i` van de autopiloot, volgens de lagen hier:
+## 0 = in de klei, 1 = net in het zandsteen (waar de botten beginnen), 2 = diep in het zandsteen,
+## ruim boven het graniet (dat de T1-kop niet aankan). ontwerp-15: de knoppen brengen je naar een
+## laag, niet naar een getal dat toevallig in de rommel van de klei ligt.
+func auto_target(i: int) -> float:
+	var t: TerrainAPI = game.terrain
+	var p := placed.origin
+	var surface := t.surface_height_at(p.x, p.z)
+	var sand_top := surface - Strata.TOPS_M[Strata.Layer.ZANDSTEEN] # diepte van de bovenkant van het zandsteen
+	var granite_top := surface - Strata.TOPS_M[Strata.Layer.GRANIET]
+	var clay := minf(Tuning.get_f("mol", "auto_clay_m", 25.0), sand_top - 6.0)
+	var sand := sand_top + Tuning.get_f("mol", "auto_sand_below_m", 8.0)
+	var deep := maxf(sand + 10.0, granite_top - Tuning.get_f("mol", "auto_deep_above_m", 25.0))
+	return [clay, sand, deep][clampi(i, 0, 2)]
 
 
 func depth() -> float:
@@ -275,6 +321,9 @@ func leave_seat() -> void:
 
 ## Piloot: invoer (gas, sturen, neus) naar de host, ±20×/s.
 func send_input(throttle: float, steer: float, pitch_in: float, delta: float) -> void:
+	# Voor de eigen hendels en motor: meteen, niet pas als de host antwoordt (zie _update_visual).
+	_local_input = Vector2(clampf(throttle, -1, 1), clampf(steer, -1, 1))
+	_local_input_ms = Time.get_ticks_msec()
 	_pilot_send += delta
 	if _pilot_send < SEND_INTERVAL and Net.is_host() == false:
 		return
@@ -325,10 +374,17 @@ func _handle(sender: int, button: int, arg: float) -> void:
 				_rpc_event.rpc(Event.HORN)
 		Cmd.PING:
 			var now := Time.get_ticks_msec()
-			if inside and now >= _ping_ready_ms:
+			if inside and now >= _ping_ready_ms and pings_left > 0:
 				_ping_ready_ms = now + int(Tuning.get_f("mol", "sonar_ping_cooldown", 8.0) * 1000.0)
+				_rpc_pings.rpc(pings_left - 1)
 				_rpc_event.rpc(Event.PING)
 				noise_made.emit(Tuning.get_f("mol", "sonar_ping_noise", 1.0), placed.origin)
+			elif inside:
+				# Te vroeg of op: een "nog niet"-klik en het scherm licht op, enkel bij wie drukte.
+				if sender == multiplayer.get_unique_id():
+					_rpc_ping_denied()
+				else:
+					_rpc_ping_denied.rpc_id(sender)
 		Cmd.LIGHTS:
 			if inside:
 				_rpc_flags.rpc(ramp_open, not lights_on)
@@ -336,12 +392,18 @@ func _handle(sender: int, button: int, arg: float) -> void:
 			if (inside or near) and absf(speed) < 0.3 and not mode in BUSY_MODES:
 				_rpc_flags.rpc(not ramp_open, lights_on)
 		Cmd.AUTO:
-			if inside and mode in [Mode.PARKED, Mode.DRIVING] and arg > depth() + 2.0:
-				auto_depth = arg
+			# arg 0..2: een knop (een laag, zie auto_target); groter: een diepte in meter (scenario's).
+			var target := auto_target(int(arg)) if arg < 3.0 else arg
+			if inside and mode in [Mode.PARKED, Mode.DRIVING] and target > depth() + 2.0:
+				auto_depth = target
 				_auto_level_dist = 0.0
+				_plan_spiral(target)
 				_rpc_flags.rpc(false, lights_on)
 				_set_mode(Mode.AUTO_DOWN, pilot)
-				_rpc_message.rpc("Autopilot: descending to −%d m" % int(arg), "mol")
+				_rpc_message.rpc(("Autopilot: descending to −%d m (%s)" % [int(target), AUTO_LAYERS[int(arg)]]) if arg < 3.0
+						else "Autopilot: descending to −%d m" % int(target), "mol")
+			elif inside and mode in [Mode.PARKED, Mode.DRIVING]:
+				_rpc_message.rpc("Autopilot: already at −%d m or deeper." % int(target), "mol")
 		Cmd.DEPART:
 			if inside and mode == Mode.DOCKED and not game.company.contract_ready():
 				_rpc_message.rpc("Choose a contract first, at the terminal in the hub.", "warn")
@@ -365,7 +427,9 @@ func _handle(sender: int, button: int, arg: float) -> void:
 				countdown = Tuning.get_f("mol", "countdown_s", 10.0)
 				_beep_timer = 0.0
 				_rpc_event.rpc(Event.HORN)
-				_set_mode(Mode.COUNTDOWN, 0)
+				# De piloot blijft zitten (geen knip naar achter de stoel); hij stuurt niet meer, maar
+				# kijkt rond tot de grijper komt. Opstaan kan met E.
+				_set_mode(Mode.COUNTDOWN, pilot)
 
 
 func _handle_leave(sender: int) -> void:
@@ -418,7 +482,11 @@ func _rpc_event(event: int) -> void:
 			visual.landing_burst()
 			landed.emit()
 		Event.GRAPPLED:
+			# De klauwen klikken vast: een harde klik, de romp schokt (model en cabine, zie MolRideFeel).
 			visual.play("mol_hydraulic", Vector3(0, 2.5, 0.0), 0.0)
+			visual.play("drop_clamp", Vector3(0, 2.8, 0.0), -2.0)
+			visual.jolt(0.9)
+			drop_event.emit(event)
 		Event.BLOCKED:
 			visual.play("mol_blocked", Vector3(0, 0, -7.0), -2.0)
 		Event.DEPART:
@@ -433,12 +501,36 @@ func _rpc_event(event: int) -> void:
 			visual.play("mol_hydraulic", Vector3(0, -1.0, 4.0), -4.0)
 		Event.PING:
 			sonar.ping()
+			visual.ping_pulse()
+			drop_event.emit(event)
 
 
 @rpc("authority", "call_local", "reliable")
 func _rpc_message(text: String, kind: String) -> void:
 	message.emit(text)
 	notice.emit(text, kind)
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_pings(n: int) -> void:
+	pings_left = n
+	sonar.pings_left = n
+
+
+## Een PING die niet mag (opladen, of op voor deze dienst): enkel bij wie drukte.
+@rpc("authority", "reliable")
+func _rpc_ping_denied() -> void:
+	sonar.deny()
+	visual.play("mol_beep", Vector3(0.9, 0.2, -3.0), -12.0, 0.55)
+	if pings_left <= 0:
+		var t := "No PINGs left this shift: the capacitor recharges aboard the Magpie."
+		message.emit(t)
+		notice.emit(t, "warn")
+
+
+## Host: de PINGs weer vol (een nieuwe dienst begint, of terug aan boord).
+func _refill_pings() -> void:
+	_rpc_pings.rpc(Tuning.get_i("mol", "sonar_pings", 4))
 
 
 ## Host: het aftellen korter maken (iedereen is aan boord). De clients tellen zelf verder af.
@@ -547,13 +639,15 @@ func _rpc_summary(count: int, value: int, left_behind: int, ore_units: int, ore_
 func send_state(peer: int) -> void:
 	var ship: Ekster = game.ship
 	_rpc_full.rpc_id(peer, placed.origin, yaw, pitch, mode, pilot, ramp_open, lights_on, fuel,
-			ship != null and ship.doors_open, game.exterior.grapple_depth if game.exterior else 0.0)
+			ship != null and ship.doors_open, game.exterior.grapple_depth if game.exterior else 0.0, pings_left)
 
 
 @rpc("authority", "reliable")
 func _rpc_full(pos: Vector3, y: float, p: float, m: int, pl: int, ramp: bool, lights: bool, f: float,
-		doors: bool, grapple: float) -> void:
+		doors: bool, grapple: float, pings: int) -> void:
 	_place(pos, y, p)
+	pings_left = pings
+	sonar.pings_left = pings
 	mode = m
 	pilot = pl
 	ramp_open = ramp
@@ -567,8 +661,14 @@ func _rpc_full(pos: Vector3, y: float, p: float, m: int, pl: int, ramp: bool, li
 
 # --- Simulatie (host) --------------------------------------------------------------------------
 
-## Sonar: elke frame (vloeiende veeg), enkel als de lokale speler in de Mol is.
+## Sonar: elke frame (vloeiende veeg), enkel als de lokale speler in de Mol is. Tijdens het optrekken
+## ook de grijper op het getekende dak (de Mol wordt geïnterpoleerd getekend, de grijper niet).
 func _process(delta: float) -> void:
+	if body != null and mode == Mode.LIFTING and game.exterior:
+		var ex: EksterExterior = game.exterior
+		var hook_y := (body.get_global_transform_interpolated() * HOOK).y
+		ex.grapple_depth = maxf(0.0, ex.grapple_rest_world().y - EksterExterior.GRAPPLE_REACH - hook_y)
+		ex.update_grapple()
 	if body == null or not visual.feed_active:
 		return
 	var noise := clampf(absf(speed) / 3.0, 0.0, 1.0) * Tuning.get_f("mol", "sonar_noise_driving", 0.35)
@@ -591,6 +691,8 @@ func _physics_process(delta: float) -> void:
 			_path = [_teleport[0] as Vector3]
 			_vy = 0.0
 			speed = 0.0
+			_yaw_vel = 0.0
+			_pitch_vel = 0.0
 			_teleport = null
 			return
 		if game.terrain.is_loaded:
@@ -610,6 +712,8 @@ func _physics_process(delta: float) -> void:
 func _simulate(delta: float) -> void:
 	var now := Time.get_ticks_msec() / 1000.0
 	var inp := _input if now - _input_time < 0.5 else Vector3.ZERO
+	_flush_wrecked(delta)
+	drive_input = Vector2.ZERO
 	match mode:
 		Mode.DOCKED:
 			_hold_docked()
@@ -629,6 +733,7 @@ func _simulate(delta: float) -> void:
 			inp = Vector3.ZERO
 			countdown -= delta
 			_beep_timer -= delta
+			_grapple_ahead(delta)
 			if _beep_timer <= 0.0:
 				_beep_timer = 1.0
 				_rpc_event.rpc(Event.BEEP)
@@ -636,12 +741,17 @@ func _simulate(delta: float) -> void:
 				_rpc_event.rpc(Event.DEPART)
 				_rpc_flags.rpc(false, lights_on)
 				_path_index = _path.size() - 2
-				_set_mode(Mode.EXTRACTING, 0)
+				_set_mode(Mode.EXTRACTING, pilot) # de piloot rijdt mee terug in zijn stoel
 		Mode.EXTRACTING:
+			_grapple_ahead(delta)
 			_extract(delta)
 			return
 		Mode.PARKED:
 			inp = Vector3.ZERO
+			if _nudge_t > 0.0:
+				_nudge_t -= delta
+				_nudge_from_under()
+	drive_input = Vector2(inp.x, inp.y)
 	_drive(inp, delta)
 
 
@@ -649,19 +759,32 @@ func _drive(inp: Vector3, delta: float) -> void:
 	var throttle := inp.x
 	var auto := mode == Mode.AUTO_DOWN
 	# Neus en draaien.
+	# Een zware machine: draaien en kantelen komen op gang en vallen stil (hoekversnelling), ze
+	# springen niet in één tick naar volle snelheid.
 	var max_pitch := deg_to_rad(Tuning.get_f("mol", "max_pitch_deg", 25.0))
 	var pitch_was := pitch
-	pitch = clampf(pitch + inp.z * deg_to_rad(Tuning.get_f("mol", "pitch_rate_deg", 12.0)) * delta, -max_pitch, max_pitch)
-	var turn := -inp.y * deg_to_rad(Tuning.get_f("mol", "yaw_rate_deg", 22.0)) * delta * (0.7 if drilling and not auto else 1.0)
+	var pitch_want := inp.z * deg_to_rad(Tuning.get_f("mol", "pitch_rate_deg", 10.0))
+	_pitch_vel = move_toward(_pitch_vel, pitch_want, deg_to_rad(Tuning.get_f("mol", "pitch_accel_deg", 30.0)) * delta)
+	pitch = clampf(pitch + _pitch_vel * delta, -max_pitch, max_pitch)
+	if absf(pitch) >= max_pitch - 0.0001 and signf(_pitch_vel) == signf(pitch):
+		_pitch_vel = 0.0
+	var yaw_want := -inp.y * deg_to_rad(Tuning.get_f("mol", "yaw_rate_deg", 18.0)) * (0.7 if drilling and not auto else 1.0)
+	_yaw_vel = move_toward(_yaw_vel, yaw_want, deg_to_rad(Tuning.get_f("mol", "yaw_accel_deg", 36.0)) * delta)
+	var turn := _yaw_vel * delta
 	var yaw_was := yaw
-	var overlap_was := _edge_overlap(body.global_position, forward())
+	var overlap_was := _edge_overlap(placed.origin, -placed.basis.z)
 	yaw += turn
 	_place(body.global_position, yaw, pitch)
-	# Draaien of kantelen dat kop of staart in de buitenmuur zwaait: niet doen.
-	if _edge_overlap(body.global_position, forward()) > overlap_was + 0.001:
+	# Draaien of kantelen dat kop of staart in de buitenmuur zwaait: niet doen. Gemeten op de plek die
+	# net gezet is (`placed`): het lichaam (sync_to_physics) toont die pas na de physics-stap, en dan
+	# kwam de controle een tick te laat. Streng: met de hoekversnelling begint een draai met
+	# piepkleine stapjes, die anders één voor één doorgingen.
+	if _edge_overlap(placed.origin, -placed.basis.z) > overlap_was + 0.00001:
 		turn = 0.0
 		yaw = yaw_was
 		pitch = pitch_was
+		_yaw_vel = 0.0
+		_pitch_vel = 0.0
 		_place(body.global_position, yaw, pitch)
 	_yaw_since_bore += absf(turn) + absf(pitch - pitch_was)
 
@@ -675,9 +798,10 @@ func _drive(inp: Vector3, delta: float) -> void:
 	var hull_rock: bool = rock or _probe_ring(ahead, fwd, HULL_PROBE, 12)[0]
 	var too_hard: bool = probe[1]
 	var rear_rock: bool = _probe_ring(body.global_position - fwd * 5.4, fwd)[0]
-	var bore_speed := Tuning.get_f("mol", "bore_speed", 3.0)
-	var open_speed := Tuning.get_f("mol", "open_speed", 5.0)
-	var auto_speed := Tuning.get_f("mol", "auto_speed", 6.0)
+	var bore_speed := Tuning.get_f("mol", "bore_speed", 1.3)
+	var open_speed := Tuning.get_f("mol", "open_speed", 1.8)
+	# De autopiloot is nooit sneller dan zelf sturen (ontwerp-6): door rots zo snel als de piloot boort.
+	var auto_speed := minf(Tuning.get_f("mol", "auto_speed", 1.3), bore_speed if rock else open_speed)
 	var target := 0.0
 	if throttle > 0.0:
 		target = throttle * (auto_speed if auto else (bore_speed if rock else open_speed))
@@ -830,13 +954,38 @@ func _clear_headroom(pos: Vector3, fwd: Vector3) -> void:
 
 
 ## Vondsten die nog in de rots zitten en binnen het bereik van deze boorbol liggen, schept de
-## boorkop op en legt hij in het laadruim, zwaar beschadigd (FindField.host_mol_scoop). Anders
-## bleef de korst in de tunnel of in de Mol zweven. Zelf uitbikken blijft zo de moeite waard.
+## boorkop op en legt hij in het laadruim, kapot (finds.cfg mol_condition: een paar procent van de
+## waarde). Anders bleef de korst in de tunnel of in de Mol zweven. De Mol is geen vondstenmachine
+## (ontwerp-6): wie een blip ziet, stopt en bikt hem met de hand uit. De melding komt samen (zie
+## _flush_wrecked), niet per vondst.
 func _scoop_finds(center: Vector3) -> void:
 	var reach := BORE_RADIUS + 0.6 # boorbol plus de happen uit de wand
 	for it: FindItem in game.finds.items:
 		if not it.freed and it.global_position.distance_to(center) < reach + it.half_extents.length():
-			game.finds.host_mol_scoop(it, self)
+			var before := it.value()
+			game.finds.host_mol_scoop(it, self, true)
+			if _wrecked.is_empty():
+				_wrecked_t = 0.0
+			_wrecked.append([it.display_name(), maxi(0, before - int(round(it.base_value * minf(it.condition,
+					Tuning.get_f("finds", "mol_condition", 0.05)))))])
+
+
+## Host: opgeschepte vondsten samen melden, kort na de eerste (een boorbol raakt er soms meer).
+func _flush_wrecked(delta: float) -> void:
+	if _wrecked.is_empty():
+		return
+	_wrecked_t += delta
+	if _wrecked_t < 0.8:
+		return
+	var names: PackedStringArray = []
+	var lost := 0
+	for w: Array in _wrecked:
+		if not names.has(str(w[0])):
+			names.append(str(w[0]))
+		lost += int(w[1])
+	var what := "a find (%s)" % names[0] if _wrecked.size() == 1 else "%d finds (%s)" % [_wrecked.size(), ", ".join(names)]
+	_rpc_message.rpc("The drill head wrecked %s: %s. Stop at a blip and dig finds out by hand!" % [what, UiTheme.euro_signed(-lost)], "warn")
+	_wrecked.clear()
 
 
 ## De rupsen rusten op de grond. Gemeten in de terreindata (SDF), niet met botsvormen:
@@ -881,17 +1030,17 @@ func _record_path(pos: Vector3) -> void:
 
 func _autopilot_down(delta: float) -> Vector3:
 	var d := depth()
-	var radius := Tuning.get_f("mol", "spiral_radius", 11.0)
-	var auto_speed := Tuning.get_f("mol", "auto_speed", 6.0)
+	var radius := _spiral_radius
+	var auto_speed := Tuning.get_f("mol", "auto_speed", 1.3)
 	if blocked and d < auto_depth - 1.0:
 		auto_depth = d
 		_rpc_message.rpc(("Pit edge" if at_edge else "Hard layer") + ": autopilot stops at −%d m" % int(d), "warn")
 	if d < auto_depth - 1.0:
 		var want := deg_to_rad(-Tuning.get_f("mol", "auto_pitch_deg", 22.0))
 		var p_in := clampf((want - pitch) * 4.0, -1.0, 1.0)
-		var yaw_rate := auto_speed / radius
-		# De autopiloot mag scherper draaien dan een piloot (steer > 1).
-		var steer := -rad_to_deg(yaw_rate) / Tuning.get_f("mol", "yaw_rate_deg", 22.0)
+		var yaw_rate := maxf(minf(absf(speed), auto_speed), 0.4) / radius # straal ook tijdens het optrekken
+		# De autopiloot mag scherper draaien dan een piloot (steer > 1). Draairichting: zie _plan_spiral.
+		var steer := -_spiral_turn * rad_to_deg(yaw_rate) / Tuning.get_f("mol", "yaw_rate_deg", 18.0)
 		return Vector3(1.0, steer, p_in)
 	# Waterpas komen en nog een stukje rechtdoor.
 	var p_in2 := clampf(-pitch * 4.0, -1.0, 1.0)
@@ -906,14 +1055,89 @@ func _autopilot_down(delta: float) -> Vector3:
 	return Vector3(0.6, 0.0, p_in2)
 
 
+## Host, bij de start van de autopiloot: een draairichting en straal kiezen waarbij de boorkop (en
+## de romp, die in de bocht de wanden schaaft) geen vondsten in de rots raakt. De eerste rit van een
+## nieuwe speler mag geen vondst kapotboren (gevoel-18); de vondsten rond de landingsplek liggen
+## ondiep, precies waar de spiraal begint. Een voorspelling zonder terrein (de steun en het vallen in
+## een grot tellen niet mee): genoeg voor de spiraal, die in rots loopt.
+func _plan_spiral(target: float) -> void:
+	var base := Tuning.get_f("mol", "spiral_radius", 11.0)
+	var spread := Tuning.get_f("mol", "spiral_radius_spread", 3.0)
+	var start := placed.origin
+	var near: Array[FindItem] = []
+	var reach := 2.0 * (base + spread) + BORE_AHEAD + BORE_RADIUS + 4.0
+	for it: FindItem in game.finds.items:
+		if it.freed:
+			continue
+		var rel := it.global_position - start
+		if Vector2(rel.x, rel.z).length() < reach and rel.y < 6.0 and rel.y > -(target + 14.0):
+			near.append(it)
+	var best := INF
+	var best_hits := 0
+	var tried: PackedStringArray = []
+	for r: float in [base, base - spread, base + spread]:
+		for turn: float in [1.0, -1.0]:
+			var hits := _spiral_hits(start, maxf(4.0, r), turn, target, near)
+			tried.append("%s%.0f:%d" % ["L" if turn > 0.0 else "R", r, hits])
+			var score := hits * 100.0 + absf(r - base) + (0.0 if turn > 0.0 else 0.5)
+			if score < best:
+				best = score
+				best_hits = hits
+				_spiral_radius = maxf(4.0, r)
+				_spiral_turn = turn
+	print("[mol] autopiloot naar %.0f m: spiraal %s, straal %.0f m, %d vondst(en) in de weg (%d in de buurt; %s)" % [
+			target, "links" if _spiral_turn > 0.0 else "rechts", _spiral_radius, best_hits, near.size(), " ".join(tried)])
+
+
+## Hoeveel vondsten de tunnel van een spiraal (straal, draairichting) tot op `target` zou raken.
+func _spiral_hits(start: Vector3, radius: float, turn: float, target: float, finds: Array[FindItem]) -> int:
+	var t: TerrainAPI = game.terrain
+	var pos := start
+	var y := yaw
+	var p := pitch
+	var v := absf(speed)
+	var dt := 0.5
+	var v_max := Tuning.get_f("mol", "auto_speed", 1.3)
+	var acc := Tuning.get_f("mol", "acceleration", 0.9)
+	var want_p := deg_to_rad(-Tuning.get_f("mol", "auto_pitch_deg", 22.0))
+	var p_rate := deg_to_rad(Tuning.get_f("mol", "pitch_rate_deg", 10.0))
+	var hit := {}
+	var level := -1.0 # meter rechtdoor na het bereiken van de diepte, of −1
+	for step in 3000:
+		v = move_toward(v, v_max, acc * dt)
+		var d := t.surface_height_at(pos.x, pos.z) - (pos.y + TRACK_BOTTOM)
+		if level < 0.0 and d >= target - 1.0:
+			level = 0.0
+		if level >= 0.0:
+			p = move_toward(p, 0.0, p_rate * dt)
+			level += v * dt
+			if level > 8.0 and absf(p) < 0.02:
+				break
+		else:
+			p = move_toward(p, want_p, p_rate * dt)
+			y += turn * maxf(v, 0.4) / radius * dt
+		var fwd := Basis.from_euler(Vector3(p, y, 0.0)) * Vector3.FORWARD
+		pos += fwd * v * dt
+		var head := pos + fwd * (BORE_AHEAD + 0.5)
+		var tail := pos - fwd * 4.6
+		for it: FindItem in finds:
+			if hit.has(it.find_id):
+				continue
+			var q := Geometry3D.get_closest_point_to_segment(it.global_position, head, tail)
+			if q.distance_to(it.global_position) < BORE_RADIUS + 1.0 + it.half_extents.length():
+				hit[it.find_id] = true
+	return hit.size()
+
+
 func _extract(delta: float) -> void:
 	if _path_index < 0 and game.ship:
 		speed = 0.0
 		drilling = false
 		_grab_timer = 0.0
 		_rpc_flags.rpc(true, lights_on) # wie nog buiten is, kan instappen tot de grijper vastzit
+		# De piloot staat op (de rit is voorbij); wie binnen is, loopt vrij rond tot de grijper vastklikt.
 		_set_mode(Mode.GRAPPLE_DOWN, 0)
-		_rpc_message.rpc("At the landing site. The Magpie's grapple is coming: everyone in!", "mol")
+		_rpc_message.rpc("At the landing site. The Magpie's grapple is coming down: everyone in!", "mol")
 		return
 	if _path_index < 0:
 		speed = 0.0
@@ -926,6 +1150,7 @@ func _extract(delta: float) -> void:
 		fuel = 1.0 # boven wordt bijgetankt: brandstof is per dienst
 		_rpc_flags.rpc(true, lights_on)
 		_set_mode(Mode.PARKED, 0)
+		_refill_pings()
 		_rpc_event.rpc(Event.ARRIVED)
 		game.magma.host_start() # zonder schip: meteen de volgende dienst, de klok opnieuw
 		# Wie niet aan boord was, klom te voet door de tunnel naar boven.
@@ -984,7 +1209,7 @@ func host_emergency(seconds: float, text: String) -> bool:
 	countdown = seconds
 	_beep_timer = 0.0
 	_rpc_event.rpc(Event.HORN)
-	_set_mode(Mode.COUNTDOWN, 0)
+	_set_mode(Mode.COUNTDOWN, pilot)
 	_rpc_message.rpc(text, "alarm") # noodophaling: altijd een alarm (ui-04)
 	return true
 
@@ -1123,6 +1348,9 @@ func _drop(delta: float) -> void:
 func _land() -> void:
 	_hub_fall = false
 	_nudge_from_under()
+	# Wie apart viel (van de luiken van de hub, uit de baai), kan nu pas neerkomen: de Mol remt op
+	# het einde minder af dan vroeger (een stevige klap, gevoel-17) en is er dus eerder.
+	_nudge_t = 4.0
 	_vy = 0.0
 	vertical_speed = 0.0
 	speed = 0.0
@@ -1131,11 +1359,13 @@ func _land() -> void:
 	_start_pos = body.global_position
 	_rpc_flags.rpc(true, lights_on)
 	_set_mode(Mode.PARKED, 0)
+	_refill_pings() # een nieuwe dienst: de condensator van de sonar is vol
 	_rpc_event.rpc(Event.LANDED)
 
 
-## Host, bij de landing: wie onder de Mol staat (niet erin, bv. uit de hub gesprongen en op de
-## landingsplek gewacht), wordt opzij gezet, naast de rupsen, in plaats van ertussen te belanden.
+## Host, bij de landing (en de seconden erna): wie onder of tegen de Mol staat (niet erin, bv. uit de
+## hub gesprongen en op de landingsplek gewacht, of net naast hem neergekomen), wordt opzij gezet,
+## naast de rupsen, in plaats van ertussen te belanden.
 func _nudge_from_under() -> void:
 	var t: TerrainAPI = game.terrain
 	for pl: Player in game.players.get_children():
@@ -1144,10 +1374,25 @@ func _nudge_from_under() -> void:
 		var local := placed.affine_inverse() * pl.global_position # (het lichaam staat pas na deze tick op zijn plek)
 		if absf(local.x) > 3.4 or absf(local.z) > 5.2 or local.y < TRACK_BOTTOM - 2.0 or local.y > 3.0:
 			continue
+		if local.y > TRACK_BOTTOM + 0.6 and not pl.is_on_floor():
+			continue # valt nog: pas als hij neerkomt
 		var side := 1.0 if local.x >= 0.0 else -1.0
 		var out := placed * Vector3(side * 4.6, 0.0, local.z)
 		out.y = t.surface_height_at(out.x, out.z) + 0.1
 		pl.host_teleport(out)
+
+
+## Host: de grijper vertrekt al tijdens het aftellen en de rit terug, en wacht grapple_wait_m boven
+## de landingsplek. Zo duurt het ophalen niet 10 s langer dan nodig (gevoel-05), en wie buiten
+## staat, ziet hem komen.
+func _grapple_ahead(delta: float) -> void:
+	var ship: EksterExterior = game.exterior
+	if game.ship == null or ship == null or _path.is_empty():
+		return
+	var landing: Vector3 = _path[0]
+	var wait := landing.y + HOOK.y + Tuning.get_f("ship", "grapple_wait_m", 14.0)
+	var want := maxf(0.0, ship.grapple_rest_world().y - EksterExterior.GRAPPLE_REACH - wait)
+	ship.grapple_depth = move_toward(ship.grapple_depth, want, Tuning.get_f("ship", "grapple_down_speed", 40.0) * delta)
 
 
 ## Grijper zakt tot op het dak, klep dicht, dan omhoog tot in de baai van het buitenschip; daar
@@ -1157,7 +1402,10 @@ func _lift(delta: float) -> void:
 	var rest := ship.grapple_rest_world()
 	if mode == Mode.GRAPPLE_DOWN:
 		var want := rest.y - EksterExterior.GRAPPLE_REACH - (body.global_transform * HOOK).y
-		ship.grapple_depth = move_toward(ship.grapple_depth, want, Tuning.get_f("ship", "grapple_down_speed", 40.0) * delta)
+		# Het laatste stuk trager: de klauwen zakken zichtbaar op het dak.
+		var left := want - ship.grapple_depth
+		var v := Tuning.get_f("ship", "grapple_down_speed", 40.0) if left > 12.0 else Tuning.get_f("ship", "grapple_final_speed", 9.0)
+		ship.grapple_depth = move_toward(ship.grapple_depth, want, v * delta)
 		if ship.grapple_depth < want - 0.01:
 			return
 		if _grab_timer == 0.0:
@@ -1165,7 +1413,7 @@ func _lift(delta: float) -> void:
 			_rpc_event.rpc(Event.GRAPPLED)
 			_rpc_message.rpc("Grapple locked. Going up!", "mol")
 		_grab_timer += delta
-		if _grab_timer > Tuning.get_f("ship", "grapple_hold_s", 2.0):
+		if _grab_timer > Tuning.get_f("ship", "grapple_hold_s", 1.2):
 			_vy = 0.0
 			_set_mode(Mode.LIFTING, 0)
 		return
@@ -1197,6 +1445,7 @@ func _dock() -> void:
 	fuel = 1.0
 	_rpc_flags.rpc(true, lights_on)
 	_set_mode(Mode.DOCKED, 0)
+	_refill_pings()
 	_rpc_event.rpc(Event.ARRIVED)
 	game.magma.host_stop()
 	var items := cargo_contents()
@@ -1243,13 +1492,15 @@ func _send_state(delta: float) -> void:
 	for peer: int in game.ready_peers:
 		if peer != multiplayer.get_unique_id():
 			_rpc_state.rpc_id(peer, Time.get_ticks_msec(), placed.origin, yaw, pitch, speed, flags, fuel,
-					Vector2(thrust, grapple))
+					Vector2(thrust, grapple), drive_input)
 
 
 @rpc("authority", "unreliable_ordered")
-func _rpc_state(sent_ms: int, pos: Vector3, y: float, p: float, spd: float, flags: int, f: float, extra: Vector2) -> void:
+func _rpc_state(sent_ms: int, pos: Vector3, y: float, p: float, spd: float, flags: int, f: float, extra: Vector2,
+		inp: Vector2) -> void:
 	if sent_ms <= _snap_host_ms:
 		return
+	drive_input = inp
 	var now := float(Time.get_ticks_msec())
 	_clock_offset = minf(_clock_offset, now - sent_ms)
 	_snapshots.append([float(sent_ms) + _clock_offset, pos, y, p, spd, extra])
@@ -1284,29 +1535,43 @@ func _interpolate() -> void:
 
 
 func _update_visual() -> void:
-	# Hendels uit wat de Mol doet (zo zien alle peers ze bewegen): gas en draaien als rupsverschil.
+	# Hendels en motor volgen de invoer van de piloot (meteen: zo reageert een zware machine toch op
+	# je hand), niet enkel de snelheid. De piloot zelf gebruikt zijn eigen invoer, zonder de omweg
+	# langs de host. Zonder invoer (extractie): uit de beweging, gas en draaien als rupsverschil.
 	var dt := get_physics_process_delta_time()
 	var turn_rate := angle_difference(_visual_yaw, yaw) / maxf(dt, 0.001)
 	_visual_yaw = yaw
-	var gas := clampf(speed / 3.0, -1.0, 1.0)
-	var steer := clampf(-turn_rate / deg_to_rad(22.0), -1.0, 1.0)
+	var top := maxf(0.1, Tuning.get_f("mol", "open_speed", 1.8))
+	var hand := drive_input
+	if pilot != 0 and pilot == multiplayer.get_unique_id() and Time.get_ticks_msec() - _local_input_ms < 300 			and mode in [Mode.DRIVING, Mode.PARKED]:
+		hand = _local_input
+	var gas := hand.x
+	var steer := hand.y
+	if mode == Mode.EXTRACTING:
+		gas = clampf(speed / top, -1.0, 1.0)
+		steer = clampf(-turn_rate / deg_to_rad(Tuning.get_f("mol", "yaw_rate_deg", 18.0)), -1.0, 1.0)
 	visual.sticks = Vector2(clampf(gas + steer, -1.0, 1.0), clampf(gas - steer, -1.0, 1.0))
 	_update_ramp_shape()
-	visual.set_gauges([depth() / 60.0, absf(speed) / 6.0, fuel])
+	visual.set_gauges([depth() / 120.0, absf(speed) / 2.0, fuel])
 	visual.speed = speed
-	visual.throttle = clampf(absf(speed) / 3.0, 0.0, 1.0)
+	visual.throttle = clampf(maxf(maxf(absf(gas), absf(steer) * 0.7), absf(speed) / top), 0.0, 1.0)
+	visual.drive_acc = ride_acc
+	visual.drive_turn = ride_turn
 	visual.drilling = drilling
 	visual.blocked = blocked
 	visual.ramp_open = ramp_open
 	visual.lights_on = lights_on
 	visual.beacons = mode in [Mode.AUTO_DOWN, Mode.COUNTDOWN, Mode.EXTRACTING, Mode.DROP_COUNTDOWN, Mode.DROPPING, Mode.GRAPPLE_DOWN, Mode.LIFTING]
 	visual.lever_pulled = mode in [Mode.COUNTDOWN, Mode.EXTRACTING, Mode.DROP_COUNTDOWN, Mode.DROPPING]
+	visual.lifting = mode == Mode.LIFTING
 	visual.thrust = thrust
 	# Drop: binnen eerst amber, de laatste tellen rood; de buikcamera op het scherm; in de lucht
 	# wiebelt het model mee met de snelheid (enkel beeld, de botsvorm blijft recht).
 	var red_at := Tuning.get_f("ship", "drop_ramp_close_s", 3.0)
 	visual.alert = 0 if not mode in [Mode.DROP_COUNTDOWN, Mode.DROPPING] else (2 if mode == Mode.DROPPING or countdown <= red_at else 1)
-	visual.belly_cam = mode in [Mode.DROP_COUNTDOWN, Mode.DROPPING]
+	# Camerascherm: door de buik bij de drop en het optrekken (de grond die wegzakt), naar boven op
+	# het dak terwijl de grijper komt (de speler in de Mol ziet hem neerdalen).
+	visual.feed_cam = MolVisual.Feed.BELLY if mode in [Mode.DROP_COUNTDOWN, Mode.DROPPING, Mode.LIFTING] 			else (MolVisual.Feed.ROOF if mode == Mode.GRAPPLE_DOWN or (mode == Mode.EXTRACTING and _path_index <= 1) 			else MolVisual.Feed.HEAD)
 	visual.fall_speed = absf(vertical_speed) if mode == Mode.DROPPING else 0.0
 	if mode == Mode.DROPPING and game.terrain:
 		var bp := body.global_position
@@ -1323,6 +1588,8 @@ func _update_visual() -> void:
 	_readout_timer -= get_physics_process_delta_time()
 	if _readout_timer <= 0.0:
 		_readout_timer = 0.25
+		for i in _auto_buttons.size():
+			_auto_buttons[i].hint = "E: autopilot · descend to −%d m (%s)" % [int(auto_target(i)), AUTO_LAYERS[i]]
 		var front: Strata.Layer = game.terrain.layer_at(body.global_position + forward() * (BORE_AHEAD + 2.0))
 		var cargo := cargo_contents()
 		var value := 0
@@ -1340,7 +1607,7 @@ FUEL     %4d%%
 CARGO    %d · €%d
 ORE      %d · €%d" % [state, int(depth()), _magma_line(), int(game.unrest.value / maxf(1.0, Tuning.get_f("unrest", "stage", 100.0)) * 100.0),
 				int(fuel * 100.0), cargo.size(), value, OreField.units(ore), OreField.value(ore)])
-		visual.feed_text = "%d m  ·  %s  ·  %.1f m/s" % [int(depth()), Strata.NAMES[front].to_upper(), absf(speed)]
+		visual.feed_text = "%d m  ·  %s  ·  %.1f m/s" % [int(depth()), HudCompass.layer_name(front, int(game.planet_type)), absf(speed)]
 		if mode == Mode.DROP_COUNTDOWN:
 			visual.feed_text = "HATCHES  ·  DROP IN %d s" % int(ceil(countdown))
 		elif mode == Mode.DROPPING:
@@ -1352,6 +1619,9 @@ ORE      %d · €%d" % [state, int(depth()), _magma_line(), int(game.unrest.val
 	# Camerascherm enkel renderen als de lokale speler in de Mol is (en niet door het buitenbeeld kijkt).
 	var me: Player = game.player_node(Net.my_id())
 	visual.feed_active = me != null and contains_point(me.global_position) and not (me.drop_cam != null and me.drop_cam.current)
+	# Het model veert en helt enkel voor wie van buiten kijkt; binnen doet de cabinecamera dat
+	# (MolRideFeel), anders zinderen de wanden rond je.
+	visual.outside_view = me == null or me.camera == null or not me.camera.current or not (me.seated or contains_point(me.global_position))
 
 
 ## Statusscherm: hoe ver het magma onder de Mol staat, en dichtbij ook wanneer het hier is.
@@ -1396,6 +1666,7 @@ func _build_collision() -> void:
 	_box(Vector3(0.45, 0.6, 1.1), Vector3(1.85, -1.2, 0.0))
 	_box(Vector3(0.75, 1.3, 0.75), Vector3(-1.57, -0.85, 1.97))
 	_box(Vector3(0.6, 0.95, 0.6), Vector3(0, -1.03, -1.85))
+	_box(Vector3(0.5, 1.0, 0.64), Vector3(-1.85, -0.98, 2.7)) # ertstrechter (tools/blender/mol.py HOPPER)
 	# Laadklep: een vorm van het Mol-lichaam zelf die elke tick de scharnierhoek volgt
 	# (een apart lichaam onder de visuele klep belandde op een verkeerde plek).
 	var rb := BoxShape3D.new()
@@ -1424,10 +1695,9 @@ func _box(size: Vector3, pos: Vector3) -> void:
 
 func _build_buttons() -> void:
 	var a := visual.anchors
-	var depths := [20.0, 40.0, 60.0]
 	for i in 3:
-		var d: float = depths[i]
-		_button(a["Btn_Auto_%d" % i], "E: autopilot · descend to −%d m" % int(d), Cmd.AUTO, d, 0.16)
+		# arg = de knop (laag), de diepte rekent de host uit bij het drukken (auto_target).
+		_auto_buttons.append(_button(a["Btn_Auto_%d" % i], "E: autopilot · %s" % AUTO_LAYERS[i], Cmd.AUTO, float(i), 0.16))
 	_button(a["Btn_Horn"], "E: honk", Cmd.HORN, 0.0, 0.18)
 	_button(a["SonarPing"], "E: sonar PING (24 m, but loud)", Cmd.PING, 0.0, 0.14)
 	_button(a["Btn_Lights"], "E: lights on/off", Cmd.LIGHTS, 0.0, 0.16)

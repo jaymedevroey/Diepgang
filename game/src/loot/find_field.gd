@@ -306,14 +306,15 @@ func _remove(it: FindItem) -> void:
 ## Host: de boorkop van de Mol raakt een vondst die nog in de rots zit. Hij schept hem op en legt
 ## hem in het laadruim, zwaar beschadigd: zelf uitbikken loont (GDD §5A: de Mol is traag, luid
 ## en beperkt, met de hand graven blijft de kern).
-func host_mol_scoop(it: FindItem, mol: Mol) -> void:
+func host_mol_scoop(it: FindItem, mol: Mol, quiet := false) -> void:
 	if it.freed:
 		return
-	var cond := minf(it.condition, Tuning.get_f("finds", "mol_condition", 0.3))
+	var cond := minf(it.condition, Tuning.get_f("finds", "mol_condition", 0.05))
 	var local := Transform3D(Basis(Vector3.UP, randf() * TAU), _cargo_spot(it, mol))
 	_rpc_scooped.rpc(it.find_id, cond, local)
-	mol.announce("The drill head scooped up a find (%s): it's in the cargo hold, but damaged (%d%%)" % [
-			it.display_name(), int(round(cond * 100.0))], "warn")
+	if not quiet: # (de Mol meldt het zelf, samen met de andere van dezelfde boorbol)
+		mol.announce("The drill head scooped up a find (%s): it's in the cargo hold, but damaged (%d%%)" % [
+				it.display_name(), int(round(cond * 100.0))], "warn")
 
 
 ## Plek op de vloer van het laadruim, zo ver mogelijk van wat er al ligt (Mol-ruimte).

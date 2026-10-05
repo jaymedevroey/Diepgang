@@ -98,9 +98,12 @@ func _run(p: Player) -> void:
 				quiet_n += 1
 	# (Headless kan de muis niet vangen, dus de toets zelf gaat niet door Player; enkel de koppeling.)
 	_expect(InputMap.has_action("sonar_ping") and Settings.key_of("sonar_ping") == "F", "PING op de F-toets")
+	var pings_max := Tuning.get_i("mol", "sonar_pings", 4)
+	_expect(mol.pings_left == pings_max, "een dienst begint met %d PINGs" % pings_max)
 	mol.press(Mol.Cmd.PING)
 	await get_tree().process_frame
 	_expect(sonar.pinging(), "de PING-knop start een PING (de ring loopt)")
+	_expect(mol.pings_left == pings_max - 1 and sonar.pings_left == pings_max - 1, "een PING minder over (%d)" % mol.pings_left)
 	await _wait(sonar.ping_range / Tuning.get_f("mol", "sonar_ping_speed", 40.0) + 0.2)
 	var sharp := 0
 	var far := 0
@@ -121,6 +124,14 @@ func _run(p: Player) -> void:
 	mol.press(Mol.Cmd.PING)
 	await _wait(0.3)
 	_expect(noise[0] == 1 and sonar.ping_cool < cool, "tijdens het opladen doet een tweede PING niets")
+	_expect(sonar.denied_age < 1.0 and mol.pings_left == pings_max - 1, "te vroeg gedrukt: het scherm zegt het (geen stilte), en het kost niets")
+	# Op voor deze dienst: een PING doet niets meer, ook na het opladen.
+	mol._rpc_pings(0)
+	mol._ping_ready_ms = 0
+	mol.press(Mol.Cmd.PING)
+	await _wait(0.2)
+	_expect(noise[0] == 1 and mol.pings_left == 0, "zonder PINGs geen PING meer")
+	mol._rpc_pings(pings_max)
 
 	# 3. Opscheppen: een vondst diep in de rots, de Mol 12 m ervoor in een uitgegraven stuk tunnel.
 	var size := t.world_size()
@@ -172,10 +183,11 @@ func _run(p: Player) -> void:
 	_expect(victim in mol.cargo_contents(), "de vondst ligt in het laadruim")
 	var local := mol.to_local_mol(victim.global_position)
 	_expect(local.y > -1.6 and local.y < -0.6, "en ligt op de vloer van het laadruim (lokaal y %.2f)" % local.y)
-	var max_cond := Tuning.get_f("finds", "mol_condition", 0.3)
+	var max_cond := Tuning.get_f("finds", "mol_condition", 0.05)
 	_expect(victim.condition <= max_cond + 0.001 and victim.condition < cond_before,
 			"zwaar beschadigd: gaafheid %d%% (max %d%%)" % [int(victim.condition * 100), int(max_cond * 100)])
-	_expect(_messages.any(func(m: String) -> bool: return m.begins_with("The drill head scooped up")), "melding voor de ploeg")
+	var said := _messages.filter(func(m: String) -> bool: return m.begins_with("The drill head"))
+	_expect(said.size() == 1, "één melding voor de ploeg (%s)" % (said[0] if said.size() > 0 else "geen"))
 	_expect(not sonar.contacts.has(victim.find_id), "vondsten in het laadruim staan niet op de sonar")
 	_finish()
 

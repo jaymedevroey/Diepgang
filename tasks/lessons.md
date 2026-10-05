@@ -2,6 +2,17 @@
 
 Wat we onderweg leerden en wat het GDD bijstuurt. Nieuwste bovenaan.
 
+## 2026-10-05 — Release-audit, pakket C: de Mol, de drop en het ophalen
+
+- **Zwaar voelen komt uit reactie, niet uit lage getallen.** De Mol rijdt nu zoals het GDD zegt (1,3–1,8 m/s), maar wat hem zwaar maakt: motor en hendels die meteen op de hand antwoorden, een cabinecamera die met de versnelling helt (een veer: de ruk bij het stoppen) en een dreun die met het werk meegaat. Een helling op de camera van iemand anders z'n CameraFx: een node met een hogere `process_priority` telt ze erbij na CameraFx, die de rotatie elke frame opnieuw zet.
+- **Het model laten veren, de camera niet meenemen:** wie binnen staat, zou de wanden zien zinderen. Het model veert en helt enkel als de lokale speler van buiten kijkt (`MolVisual.outside_view`); binnen doet de camera hetzelfde.
+- **Een controle na `global_transform = x` op een AnimatableBody met `sync_to_physics` meet de vorige plek.** De controle "draait de kop in de buitenmuur?" las `body.global_position` na het zetten en kwam dus een tick te laat. Met de nieuwe hoekversnelling begon een draai met piepkleine stapjes onder de drempel, en die kropen één voor één de muur in. Meten op `Mol.placed`.
+- **Een test die op een volgorde in de tijd steunt, breekt bij ander tempo.** `on_doors` slaagde enkel omdat de Mol trager landde dan de speler viel; met een stevigere landing kwam de speler na de Mol neer, tegen zijn flank. Nu zet de Mol ook de seconden na de landing wie tegen of onder hem neerkomt opzij.
+- **Een nieuw voorwerp in de looproute breekt een looptest:** de ertstrechter bij de klep hield de speler tegen die van de landingsplek de Mol in liep. Verplaatst tussen de kratten en het spant (looproute eerst, zie 2026-10-04).
+- **Wat de autopiloot doet, kan hij vooraf narekenen.** De spiraal wordt bij de start voor zes varianten (richting × straal) gesimuleerd tegen de vondsten in de buurt; op seed 1 raakte de oude (links, 11 m) er twee, de gekozen geen. Goedkoop (±20 vondsten, stappen van 0,65 m) en het voorkomt een straf voor iets wat de speler niet deed.
+- **Keuzes waar het GDD zweeg** (ter info voor Jayme): een PING kost onrust (12) én er zijn er 4 per dienst (bijgeladen bij de landing en in de hub); een vondst die de boorkop opschept, is kapot (5 % van de waarde, één melding per boorbol); de autopiloot heeft een knop per laag (klei, net in het zandsteen waar de botten beginnen, diep in het zandsteen) en is nooit sneller dan zelf boren; brandstof 600 m boren per dienst. De piloot blijft zitten bij de vertrekhendel.
+- **Een helden-volgshot hoeft niet steil omlaag om de rand van het landschap te verbergen** sinds de ring tot 6,5 km: 17° omlaag op 300 m toont de kim, de kraterwand en de ringen van de reus. Vlakker kijken toont de reus zelf niet (hij staat 22–25° hoog): die komt bij het ophalen, als de camera opzij van de Mol omhoog kijkt.
+
 ## 2026-10-05 — Release-audit, pakket A1: UI, HUD en tekst
 
 **Stijlregels voor tekst in het spel** (ui-07). Bij nieuwe tekst deze regels volgen:

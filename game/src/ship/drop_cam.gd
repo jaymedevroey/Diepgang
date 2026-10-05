@@ -7,16 +7,21 @@ extends Camera3D
 ## - SHIP (enkel de lange drop, ±1,2 s): een vaste camera onder het buitenschip, schuin achter de Mol,
 ##   omhoog kijkend: de buik van De Ekster boven in beeld, de Mol valt naar de camera toe en schiet
 ##   onderaan uit beeld. Nooit lager dan drop_cam_min_up_deg (geen horizon in beeld).
-## - CHASE: achter en boven de staart, steil omlaag langs de neus (horizon boven het beeld), met
-##   naijlen bij versnellen, een breder beeld met de snelheid, strepen en wind. Bij het remmen schuift
-##   hij naar beneden en dichterbij, tot hij vooruit over het dak kijkt (zoals het eerste binnenbeeld).
-## - LIFT (ophalen): een vaste plek op de grond die de Mol nakijkt (de eerste LIFT_SHOT seconden).
+## - CHASE: achter en boven de staart, schuin omlaag langs de neus. Hoog in de lucht vlak genoeg dat
+##   de kim, de hemel en de landmarken in beeld staan (buiten-1: niet recht omlaag op een egale
+##   vlakte), lager steiler op de landingsplek. Met naijlen bij versnellen, een breder beeld met de
+##   snelheid, traag rollen en inhalen, strepen en wind. Bij het remmen schuift hij naar beneden en
+##   dichterbij, tot hij vooruit over het dak kijkt (zoals het eerste binnenbeeld). Na de klap blijft
+##   hij nog even staan (stofring, schok), dan pas de knip naar binnen (gevoel-17).
+## - LIFT (ophalen): een kraanshot opzij van de Mol, met de reus erachter, dat met hem mee stijgt tot
+##   onder het schip; de Mol verdwijnt in de baai, en in het zwart knipt het naar binnen (buiten-5).
 ## Ook van hier: de balken boven en onder, de tip "overslaan", zwart bij overslaan, het stof bij de
-## klap (een flits), het oorsuizen en de klank op het moment dat je de besturing terugkrijgt.
+## klap (een flits), het oorsuizen en de klank op het moment dat je de besturing terugkrijgt. De muis
+## laat de blik een klein beetje opzij kijken (veert terug), nooit rond de Mol draaien.
 
 enum Shot { NONE, SHIP, CHASE, LIFT }
 
-const LIFT_SHOT := 6.0 # seconden van het buitenbeeld bij het ophalen
+const LIFT_SHOT := 24.0 # hooguit zoveel seconden buitenbeeld bij het ophalen (het loopt tot in de baai)
 const SHIP_SHOT_MAX := 1.6 # het shot onder het schip duurt hooguit zo lang
 const BAR := 0.075 # hoogte van een balk (deel van het beeld)
 
@@ -29,7 +34,6 @@ var _t := 0.0
 var _brake_t := -1.0 # seconden sinds de stuwraketten begonnen (−1 = nog niet)
 var _chase_t := 0.0 # seconden in het volgshot (de camera haalt de Mol eerst nog in)
 var _lift_done := false
-var _ground_pos := Vector3.ZERO
 var _ship_cam := Vector3.ZERO
 var _lag := 0.0 # naijlen in de hoogte (m), volgt de versnelling
 var _lag_v := 0.0
@@ -37,6 +41,14 @@ var _vy_was := 0.0
 var _acc := 0.0
 var _noise := FastNoiseLite.new()
 var _ignite := 0.0 # schok bij het ontsteken
+var _land_t := -1.0 # seconden sinds de klap (−1 = niet geland in dit shot)
+var _land_flash := false # de flits van de klap komt bij de knip naar binnen
+var _look := Vector2.ZERO # kleine blik opzij met de muis (radialen: yaw, pitch), veert terug
+var _look_idle := 0.0
+var _lift_dir := Vector3.FORWARD # ophalen: horizontale kijkrichting (naar de reus)
+var _lift_cam := Vector3.ZERO
+var _black_until_docked := false
+var _dust_col := Color(0.86, 0.74, 0.6)
 
 var _overlay: CanvasLayer
 var _bars: Array[ColorRect] = []
@@ -71,6 +83,7 @@ func _ready() -> void:
 func setup(m: Mol) -> void:
 	mol = m
 	mol.drop_event.connect(_on_drop_event)
+	mol.landed.connect(_on_landed)
 
 
 # --- Aan en uit ----------------------------------------------------------------------------------
@@ -82,14 +95,18 @@ func activate() -> void:
 	_lag = 0.0
 	_lag_v = 0.0
 	_ignite = 0.0
+	_land_t = -1.0
+	_land_flash = false
+	_look = Vector2.ZERO
 	_vy_was = mol.vertical_speed
 	_acc = 0.0
+	var params := PlanetType.params(mol.game.planet_type)
+	var sky: Dictionary = params.get("sky", {})
+	if params.get("fog") is Color and sky.get("haze_band") is Color:
+		_dust_col = (params["fog"] as Color).lerp(sky["haze_band"], 0.5)
 	if mol.mode == Mol.Mode.LIFTING:
 		shot = Shot.LIFT
-		var p := mol.body.global_position + Vector3(14.0, 0.0, 26.0)
-		if mol.game.terrain:
-			p.y = mol.game.terrain.surface_height_at(p.x, p.z) + 1.7
-		_ground_pos = p
+		_start_lift_shot()
 	else:
 		var ex: EksterExterior = mol.game.exterior
 		var below := ex.dock_position().y - mol.placed.origin.y if ex else INF
@@ -114,14 +131,22 @@ func activate() -> void:
 
 
 func deactivate() -> void:
+	var was := shot
 	_t = 0.0
 	shot = Shot.NONE
 	_wind.stop()
 	_roar.stop()
 	_streaks.emitting = false
 	_hint.visible = false
-	if mol.mode == Mol.Mode.LIFTING:
+	if was == Shot.LIFT:
 		_bars_want = 0.0 # bij de drop gaan de balken pas weg bij de overdracht
+		if _fade.color.a > 0.5:
+			# In het zwart naar binnen: zwart blijven tot de Mol in de hub staat (de sprong).
+			_black_until_docked = true
+			_black_hold = 0.0
+	if _land_t >= 0.0:
+		_cut_in_jolt()
+	_land_t = -1.0
 	_snap_atmosphere()
 
 
@@ -143,22 +168,39 @@ func hold_black() -> void:
 	_fade.color.a = 1.0
 
 
-## Ophalen: het buitenbeeld enkel de eerste LIFT_SHOT seconden, één keer per ophaling.
+## Buitenbeeld buiten de val zelf: het ophalen (tot de Mol in de baai verdwijnt, hooguit LIFT_SHOT
+## seconden, één keer per ophaling), en na de klap van de landing nog drop_cam_land_hold_s.
 func wants_lift_shot() -> bool:
-	if mol == null or mol.mode != Mol.Mode.LIFTING:
+	if mol == null:
+		return false
+	if current and shot == Shot.CHASE and _land_t >= 0.0:
+		return _land_t < Tuning.get_f("ship", "drop_cam_land_hold_s", 0.22)
+	if mol.mode != Mol.Mode.LIFTING:
 		_lift_done = false
 		return false
-	if current and shot == Shot.LIFT and _t > LIFT_SHOT:
+	if current and shot == Shot.LIFT and (_t > LIFT_SHOT or _lift_in_bay()):
 		_lift_done = true
 	return not _lift_done
 
 
-func look(_relative: Vector2, _sensitivity: float) -> void:
-	pass # vaste camera: de muis doet niets (geen rondjes, zie het onderzoek)
+## Ophalen: de Mol is (bijna) in de baai en het beeld is zwart: naar binnen.
+func _lift_in_bay() -> bool:
+	var ex: EksterExterior = mol.game.exterior
+	return ex != null and _fade.color.a >= 0.99 and ex.dock_position().y - mol.placed.origin.y < 4.0
+
+
+## De muis: de blik een beetje opzij (geen rondjes rond de Mol, zie het onderzoek); veert terug.
+func look(relative: Vector2, sensitivity: float) -> void:
+	_look.x = clampf(_look.x - relative.x * sensitivity * 0.5, -0.3, 0.3)
+	_look.y = clampf(_look.y - relative.y * sensitivity * 0.5, -0.2, 0.2)
+	_look_idle = 0.0
 
 
 ## De Mol sprong terwijl dit beeld liep (overslaan): even zwart, dan het volgshot opnieuw.
 func on_mol_snapped() -> void:
+	if shot == Shot.LIFT:
+		_fade.color.a = 1.0 # in de baai: zwart tot het beeld binnen er staat
+		return
 	_fade.color.a = 1.0
 	var tw := create_tween()
 	tw.tween_interval(0.12)
@@ -171,8 +213,16 @@ func on_mol_snapped() -> void:
 	_snap_atmosphere()
 
 
-## De klap van de landing (Player knipt dan naar binnen): stof voor de ogen, oorsuizen, gedempt geluid.
+## De klap van de landing: stof voor de ogen, oorsuizen, gedempt geluid. Staat het buitenbeeld nog
+## (de stofring na de klap), dan komt de flits pas bij de knip naar binnen.
 func impact() -> void:
+	if current and _land_t >= 0.0:
+		_land_flash = true
+		return
+	_flash_now()
+
+
+func _flash_now() -> void:
 	var dust := Color(0.78, 0.6, 0.45)
 	if mol and mol.visual:
 		dust = mol.visual.dust_color.lightened(0.35)
@@ -195,6 +245,24 @@ func _on_drop_event(event: Mol.Event) -> void:
 		_play2d("drop_thrust_ignite", -4.0)
 
 
+## Geland terwijl dit beeld loopt: nog even buiten blijven, met een harde schok (de stofring).
+func _on_landed() -> void:
+	if current and shot == Shot.CHASE:
+		_land_t = 0.0
+		_ignite = 1.6
+
+
+## De knip naar binnen na de klap: de flits, en de schok in de eigen camera van de speler.
+func _cut_in_jolt() -> void:
+	if _land_flash:
+		_land_flash = false
+		_flash_now()
+	var p := get_parent() as Player
+	if p and p.camera_fx:
+		p.camera_fx.add_trauma(0.45)
+		p.camera_fx.kick(-5.0, randf_range(-2.0, 2.0))
+
+
 func _snap_atmosphere() -> void:
 	var atm := get_tree().current_scene.find_child("Atmosphere", true, false) if get_tree().current_scene else null
 	if atm and atm.has_method("snap"):
@@ -206,9 +274,13 @@ func _snap_atmosphere() -> void:
 func _process(delta: float) -> void:
 	if _black_hold >= 0.0:
 		_black_hold += delta
-		if mol_synced() and not current or _black_hold > 0.3:
+		var docked := not _black_until_docked or mol == null or mol.mode == Mol.Mode.DOCKED
+		if mol_synced() and not current and docked or _black_hold > (3.0 if _black_until_docked else 0.3):
 			_black_hold = -1.0
+			_black_until_docked = false
 			_fade.color.a = 0.0
+	if _land_t >= 0.0:
+		_land_t += delta
 	_update_overlay(delta)
 	_update_lowpass(delta)
 	if mol == null or mol.body == null or not current:
@@ -233,9 +305,12 @@ func _update(delta: float) -> void:
 	# dan volgt de camera wat er getekend wordt, anders is er een beeld zonder de Mol.
 	if not mol_synced():
 		m = mol.body.global_position
+	# De blik met de muis veert terug als je loslaat.
+	_look_idle += delta
+	if _look_idle > 0.5:
+		_look = _look.lerp(Vector2.ZERO, minf(1.0, delta * 2.5))
 	if shot == Shot.LIFT:
-		global_position = _ground_pos
-		look_at(m + Vector3(0, 2.0, 0), Vector3.UP)
+		_update_lift(m, delta)
 		return
 	var shake_k := Settings.get_f("interface/camera_shake")
 	var speed := absf(mol.vertical_speed)
@@ -268,24 +343,25 @@ func _update(delta: float) -> void:
 			_lag_v = 0.0
 		else:
 			return
-	# Volgshot: achter en boven de staart, steil omlaag; bij het remmen lager, dichter, vlakker.
+	# Volgshot: achter en boven de staart, schuin omlaag langs de neus; bij het remmen lager, dichter
+	# en vlakker, vooruit over het dak.
 	var b := smoothstep(0.0, Tuning.get_f("ship", "drop_cam_brake_blend_s", 2.0), maxf(_brake_t, 0.0))
 	# In het begin van het volgshot nog wat verder: de camera haalt de Mol langzaam in.
 	_chase_t += delta
-	var catch := lerpf(1.35, 1.0, smoothstep(0.0, 3.5, _chase_t))
-	# Hoog in de lucht bijna recht boven de Mol, steil omlaag: de Mol valt naar de landingsplek, de rand
-	# van het landschap blijft ver boven het beeld. Lager schuift hij naar achter en boven de staart en
-	# kijkt hij verder vooruit; bij het remmen bijna vlak, vooruit over het dak.
+	var catch := lerpf(Tuning.get_f("ship", "drop_cam_catch", 1.45), 1.0,
+			smoothstep(0.0, Tuning.get_f("ship", "drop_cam_catch_s", 5.0), _chase_t))
+	# Hoog in de lucht kijkt hij vlakker (de kim en de reus in het bovenste deel, de landmarken en het
+	# hele landschap eronder: buiten-1); dichter bij de grond steiler, op de landingsplek. De rand van
+	# het verre landschap ligt achter de kim (de ring tot 6,5 km buigt mee met de planeet).
 	var alt := m.y - (t.surface_height_at(m.x, m.z) if t else 0.0)
-	var hi := smoothstep(90.0, 220.0, alt)
-	var back_k := lerpf(Tuning.get_f("ship", "drop_cam_back", 12.0), Tuning.get_f("ship", "drop_cam_high_back", 7.0), hi)
-	var up_k := lerpf(Tuning.get_f("ship", "drop_cam_up", 12.0), Tuning.get_f("ship", "drop_cam_high_up", 18.0), hi)
+	var hi := smoothstep(60.0, 240.0, alt)
+	var back_k := lerpf(Tuning.get_f("ship", "drop_cam_back", 12.0), Tuning.get_f("ship", "drop_cam_high_back", 17.0), hi)
+	var up_k := lerpf(Tuning.get_f("ship", "drop_cam_up", 9.0), Tuning.get_f("ship", "drop_cam_high_up", 6.0), hi)
+	var pitch := deg_to_rad(lerpf(Tuning.get_f("ship", "drop_cam_pitch_deg", 30.0), Tuning.get_f("ship", "drop_cam_high_pitch_deg", 17.0), hi))
 	var dist := lerpf(back_k * catch, Tuning.get_f("ship", "drop_cam_brake_back", 13.0), b)
 	var up := lerpf(up_k * catch, Tuning.get_f("ship", "drop_cam_brake_up", 6.0), b)
-	var look_ahead := lerpf(3.0, 16.0, b)
-	var look_down := lerpf(lerpf(5.0, Tuning.get_f("ship", "drop_cam_high_down", 26.0), hi), 3.0, b)
 	# Naijlen: versnelt de Mol naar beneden, dan blijft de camera wat hoger hangen (en omgekeerd
-	# bij het remmen), als een veer. Dat verkoopt de versnelling.
+	# bij het remmen en de klap), als een veer. Dat verkoopt de versnelling.
 	if delta > 0.0:
 		var a := (mol.vertical_speed - _vy_was) / delta
 		_vy_was = mol.vertical_speed
@@ -300,17 +376,25 @@ func _update(delta: float) -> void:
 	var pos := m + back * dist + Vector3.UP * (up + _lag)
 	if t:
 		pos.y = maxf(pos.y, t.surface_height_at(pos.x, pos.z) + 2.0)
-	var target := m + fwd * look_ahead + Vector3.DOWN * look_down
-	# Schok: buffelen in de wind (met de snelheid), harder bij de stuwraketten en het ontsteken.
+	var free_target := pos + (fwd * cos(pitch) + Vector3.DOWN * sin(pitch)) * 30.0
+	var brake_target := m + fwd * 16.0 + Vector3.DOWN * 3.0
+	var target := free_target.lerp(brake_target, b)
+	# Schok: buffelen in de wind (met de snelheid), harder bij de stuwraketten, het ontsteken en de klap.
 	var trauma := clampf(sk * sk * 0.45 + mol.thrust * 0.5 + _ignite * 0.6, 0.0, 1.0)
 	var amp := deg_to_rad(Tuning.get_f("ship", "drop_cam_shake_deg", 1.4)) * trauma * trauma * shake_k
 	var f := _t * 9.0
 	global_position = pos
 	look_at(target, Vector3.UP)
+	# Traag rollen in de vrije val (het buitenbeeld leeft), weg bij het remmen.
+	var roll := deg_to_rad(Tuning.get_f("ship", "drop_cam_roll_deg", 2.2)) * sk * (1.0 - b) \
+			* (0.75 * sin(_chase_t * 0.6 + 0.4) + 0.25 * sin(_chase_t * 1.45))
+	rotate_object_local(Vector3.FORWARD, roll)
+	rotate_object_local(Vector3.UP, _look.x)
+	rotate_object_local(Vector3.RIGHT, _look.y)
 	rotate_object_local(Vector3.RIGHT, amp * _noise.get_noise_2d(f, 0.0))
 	rotate_object_local(Vector3.UP, amp * _noise.get_noise_2d(0.0, f))
 	rotate_object_local(Vector3.FORWARD, amp * 0.6 * _noise.get_noise_2d(f, f))
-	var fov_want := lerpf(Tuning.get_f("ship", "drop_cam_fov", 70.0), Tuning.get_f("ship", "drop_cam_fov_fast", 82.0), sk)
+	var fov_want := lerpf(Tuning.get_f("ship", "drop_cam_fov", 70.0), Tuning.get_f("ship", "drop_cam_fov_fast", 80.0), sk)
 	fov = lerpf(fov, lerpf(fov_want, 66.0, b), minf(1.0, delta * 3.0)) if delta > 0.0 else fov_want
 	# Strepen en wind met de snelheid, gebrul met de stuwraketten.
 	_update_streaks(sk * (1.0 - b))
@@ -320,15 +404,72 @@ func _update(delta: float) -> void:
 	_roar.pitch_scale = 0.85 + 0.25 * mol.thrust
 
 
+## Ophalen: de camera staat opzij van de Mol, met de reus erachter (de Mol hangt tussen de kijker en
+## de reus), eerst op ooghoogte op de grond.
+func _start_lift_shot() -> void:
+	fov = Tuning.get_f("ship", "lift_cam_fov", 62.0)
+	var dir := Vector3.FORWARD
+	var sky: Variant = PlanetType.params(mol.game.planet_type).get("sky", {})
+	if sky is Dictionary and (sky as Dictionary).get("giant_dir") is Vector3:
+		var g: Vector3 = (sky as Dictionary)["giant_dir"]
+		dir = Vector3(g.x, 0.0, g.z)
+	if dir.length() < 0.1:
+		dir = Vector3.FORWARD
+	# Iets schuin op de reus: de kabel en het schip staan dan niet recht voor zijn schijf.
+	_lift_dir = dir.normalized().rotated(Vector3.UP, deg_to_rad(20.0))
+	var m := mol.placed.origin
+	_lift_cam = m - _lift_dir * Tuning.get_f("ship", "lift_cam_side", 24.0)
+	var t: TerrainAPI = mol.game.terrain
+	var ground := t.surface_height_at(_lift_cam.x, _lift_cam.z) if t else m.y - 3.0
+	_lift_cam.y = maxf(m.y - Tuning.get_f("ship", "lift_cam_below", 5.0), ground + 1.7)
+
+
+## Kraanshot: de camera stijgt met de Mol mee (iets trager, zodat de ruk van de kabel in beeld komt),
+## tot lift_cam_stop_m onder de baai. Daar blijft ze hangen: de Mol verdwijnt in het schip, dat groot
+## boven in beeld hangt. Als hij in de baai is, wordt het zwart (de knip naar binnen).
+func _update_lift(m: Vector3, delta: float) -> void:
+	var ex: EksterExterior = mol.game.exterior
+	var dock := ex.dock_position() if ex else m + Vector3(0.0, 300.0, 0.0)
+	var t: TerrainAPI = mol.game.terrain
+	var ground := t.surface_height_at(_lift_cam.x, _lift_cam.z) if t else -INF
+	var want_y := minf(m.y - Tuning.get_f("ship", "lift_cam_below", 5.0), dock.y - Tuning.get_f("ship", "lift_cam_stop_m", 46.0))
+	want_y = maxf(want_y, ground + 1.7)
+	_lift_cam.y = lerpf(_lift_cam.y, want_y, minf(1.0, delta * 2.2)) if delta > 0.0 else want_y
+	global_position = _lift_cam
+	# Kijken naar de Mol; naarmate hij het schip nadert, schuift de blik naar de baai, zodat beide in
+	# beeld staan.
+	var near := clampf(1.0 - (dock.y - m.y) / 90.0, 0.0, 1.0)
+	var target := m.lerp(dock, 0.45 * near) + Vector3(0.0, lerpf(-1.5, 2.5, near), 0.0)
+	look_at(target, Vector3.UP)
+	rotate_object_local(Vector3.UP, _look.x)
+	rotate_object_local(Vector3.RIGHT, _look.y)
+	# De kabel ratelt: een kleine schok, en een ruk bij het optrekken.
+	var sk := clampf(absf(mol.vertical_speed) / 30.0, 0.0, 1.0)
+	var amp := deg_to_rad(0.5) * (0.3 + 0.7 * sk) * Settings.get_f("interface/camera_shake") * (1.0 - smoothstep(0.0, 1.0, _t - 0.8) * 0.6)
+	var f := _t * 7.0
+	rotate_object_local(Vector3.RIGHT, amp * _noise.get_noise_2d(f, 3.0))
+	rotate_object_local(Vector3.UP, amp * _noise.get_noise_2d(3.0, f))
+	# In de baai: zwart (de Mol springt dan naar de hub).
+	var in_bay := clampf(1.0 - (dock.y - m.y - 3.0) / 9.0, 0.0, 1.0)
+	_fade.color.a = maxf(_fade.color.a if _black_hold >= 0.0 else 0.0, in_bay)
+
+
 func _update_streaks(k: float) -> void:
 	_streaks.emitting = k > 0.15
 	_streaks.amount_ratio = clampf(k, 0.05, 1.0)
 	var m := _streaks.process_material as ParticleProcessMaterial
 	# De wind komt van onder (de Mol en de camera vallen): in cameraruimte.
 	m.direction = global_basis.inverse() * Vector3.UP
-	m.initial_velocity_min = 30.0 * k + 5.0
-	m.initial_velocity_max = 45.0 * k + 8.0
-	_streak_mat.albedo_color = Color(1.0, 0.97, 0.9, 0.16 * k)
+	m.initial_velocity_min = 26.0 * k + 5.0
+	m.initial_velocity_max = 38.0 * k + 8.0
+	# Stof in de kleur van de lucht van de planeet (niet wit), en niet optellend: zachte vegen.
+	var dust := _streak_color()
+	_streak_mat.albedo_color = Color(dust.r, dust.g, dust.b, 0.22 * k)
+
+
+## Kleur van de snelheidsstrepen: de stofwaas van deze planeet (mist en waasband van de hemel).
+func _streak_color() -> Color:
+	return _dust_col
 
 
 # --- Opbouw --------------------------------------------------------------------------------------
@@ -461,21 +602,43 @@ func _build_streaks() -> void:
 	m.particle_flag_align_y = true
 	m.initial_velocity_min = 20.0
 	m.initial_velocity_max = 30.0
+	# Enkel aan de zijranden van het beeld (een brede ring rond de kijkrichting: boven en onder valt
+	# hij buiten beeld), niet midden over de Mol en het landschap.
+	m.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_RING
+	m.emission_ring_axis = Vector3(0.0, 0.0, 1.0)
+	m.emission_ring_radius = 12.0
+	m.emission_ring_inner_radius = 8.0
+	m.emission_ring_height = 6.0
 	_streaks.process_material = m
+	# Dikker en korter, met zachte uiteinden en randen (buiten-13: geen witte krassen op de lens).
 	var q := QuadMesh.new()
-	q.size = Vector2(0.025, 1.8)
+	q.size = Vector2(0.2, 0.9)
 	_streak_mat = StandardMaterial3D.new()
 	_streak_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_streak_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_streak_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 	_streak_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_streak_mat.albedo_color = Color(1, 1, 1, 0.0)
+	_streak_mat.albedo_texture = _streak_texture()
 	q.material = _streak_mat
 	_streaks.draw_pass_1 = q
-	_streaks.amount = 60
-	_streaks.lifetime = 0.35
+	_streaks.amount = 46
+	_streaks.lifetime = 0.28
 	_streaks.local_coords = true
 	_streaks.emitting = false
 	_streaks.visibility_aabb = AABB(Vector3(-20, -20, -30), Vector3(40, 40, 40))
 	add_child(_streaks)
-	_streaks.position = Vector3(0.0, 0.0, -11.0)
+	_streaks.position = Vector3(0.0, 0.0, -8.0)
+
+
+## Een zachte veeg: doorzichtig aan beide uiteinden en aan de zijkanten.
+static func _streak_texture() -> ImageTexture:
+	var w := 8
+	var h := 64
+	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	for y in h:
+		var along := float(y) / float(h - 1)
+		var a_len := smoothstep(0.0, 0.35, along) * (1.0 - smoothstep(0.55, 1.0, along))
+		for x in w:
+			var across := absf((float(x) + 0.5) / float(w) - 0.5) * 2.0
+			img.set_pixel(x, y, Color(1, 1, 1, a_len * (1.0 - across * across)))
+	return ImageTexture.create_from_image(img)

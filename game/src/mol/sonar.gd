@@ -41,6 +41,10 @@ var ping_range := 24.0
 var ping_r := -1.0
 ## Seconden tot een PING weer kan (lokaal bijgehouden vanaf de laatste PING).
 var ping_cool := 0.0
+## PINGs die deze dienst nog over zijn (de host beslist, zie Mol.pings_left).
+var pings_left := 4
+## Seconden sinds een PING geweigerd werd (te vroeg of op), voor het scherm; INF = niet recent.
+var denied_age := INF
 var _period := 2.4
 # Op de klok, niet per stap: de sonar rekent enkel als iemand in de Mol kijkt, maar een PING die
 # intussen vertrok, moet toch even ver zijn als bij de anderen.
@@ -73,6 +77,7 @@ func update(delta: float, origin: Transform3D, items: Array, inside: Callable) -
 	sweep = fposmod(sweep + swept, TAU)
 	var now := Time.get_ticks_msec() / 1000.0
 	ping_cool = maxf(0.0, _ping_ready - now)
+	denied_age += delta
 	for c: Contact in contacts.values():
 		c.age += delta
 	# De PING-ring loopt uit; wat hij deze stap passeert, geeft een scherpe echo.
@@ -136,6 +141,16 @@ func ping() -> void:
 
 func pinging() -> bool:
 	return _ping_start >= 0.0
+
+
+## Er werd op PING gedrukt, maar het mocht niet (opladen, of geen PINGs meer): het scherm licht op.
+func deny() -> void:
+	denied_age = 0.0
+
+
+## Kan er nu een PING vertrekken (opgeladen en nog over)?
+func ping_ready() -> bool:
+	return ping_cool <= 0.0 and pings_left > 0
 
 
 func _ping_echo(it: FindItem, dist: float, age: float) -> void:
