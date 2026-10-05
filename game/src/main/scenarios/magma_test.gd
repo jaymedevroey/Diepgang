@@ -148,14 +148,22 @@ func _run(p: Player) -> void:
 
 func _late(p: Player, game: Game, magma: Magma, mol: Mol) -> void:
 	# 6. Een speler die erin zakt, smelt: een vervanger staat in de Mol.
+	# Smelten is een moment van melt_s (gevoel-12), geen knip: eerst "smelt", dan pas de vervanger.
 	var melted := [0]
+	var melting := [0]
 	magma.melted.connect(func(_id: int) -> void: melted[0] += 1)
+	magma.melting.connect(func(_id: int) -> void: melting[0] += 1)
 	magma.debug_depth = 30.0
 	await _wait(0.2)
 	p.set_physics_process(false)
-	p.global_position = Vector3(p.global_position.x, magma.level - 1.0, p.global_position.z)
+	var sunk := Vector3(p.global_position.x, magma.level - 1.0, p.global_position.z)
+	p.global_position = sunk
 	await _wait(0.6)
+	_expect(melting[0] == 1 and melted[0] == 0 and p.global_position.distance_to(sunk) < 0.5,
+			"de speler begint te smelten, nog niet weg (%d/%d)" % [melting[0], melted[0]])
+	await _wait(Tuning.get_f("magma", "melt_s", 1.5))
 	p.set_physics_process(true)
+	_expect(melting[0] == 1, "één keer gesmolten, niet opnieuw tijdens het smelten")
 	_expect(melted[0] == 1, "de speler smolt in het magma")
 	_expect(mol.contains_point(p.global_position), "en staat als vervanger in de Mol")
 
