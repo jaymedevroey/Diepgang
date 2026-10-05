@@ -46,6 +46,8 @@ func _run(p: Player) -> void:
 			"van de spawn de klep op gelopen, tot in de Mol (z %.1f)" % feet.z)
 	_expect(feet.y > -1.75 and feet.y < -1.2, "staat op de vloer van de Mol (y %.2f)" % feet.y)
 
+	await _side_scan(p, mol, finds)
+
 	# 2. Een vondst vrijmaken en in het laadruim leggen.
 	var it: FindItem = finds.items[0]
 	for i in 20: # zoveel slagen als de korst levens heeft (7-13)
@@ -245,6 +247,53 @@ func _run(p: Player) -> void:
 	for f in _failures:
 		print("[mol_test] MISLUKT: ", f)
 	get_tree().quit(0 if _failures.is_empty() else 1)
+
+
+## De zijscan voor wie meerijdt (F3, ontwerp-8): een regel met een vondst opzij, de felste echo vastzetten,
+## een pijltje in de wand ernaartoe, en op is op.
+func _side_scan(p: Player, mol: Mol, finds: FindField) -> void:
+	var scan: SideScan = mol.side_scan
+	var m := mol.body.global_position
+	var best: FindItem = null
+	for it in finds.items:
+		var flat := Vector2(it.global_position.x - m.x, it.global_position.z - m.z).length()
+		if not it.freed and flat > 4.0 and flat < 28.0 and absf(it.global_position.y - m.y) < 9.0 \
+				and (best == null or Sonar.size_of(it) > Sonar.size_of(best)):
+			best = it
+	_expect(best != null, "een vondst opzij van de Mol voor de zijscan")
+	if best == null:
+		return
+	# De Mol zo gedraaid dat die vondst recht opzij ligt (in het vlak van de zijscan).
+	var side := best.global_position - m
+	side.y = 0.0
+	var fwd := side.normalized().cross(Vector3.UP)
+	scan.rows.clear()
+	scan.scan_row(Transform3D(Basis.looking_at(fwd, Vector3.UP), m))
+	var row: SideScan.Row = scan.rows[0]
+	var lit := 0.0
+	for b in SideScan.BINS * 2:
+		lit = maxf(lit, row.power[b])
+	_expect(row.best_id >= 0 and lit > 0.2, "zijscan: een echo opzij (%s op %.0f m, sterkte %.2f)" % [
+			best.display_name(), side.length(), lit])
+	_expect(scan.lock() != null, "zijscan: de felste echo staat vast")
+	var target: FindItem = finds.item(scan.lock().best_id)
+	var darts := scan.darts
+	scan.mark()
+	await _wait(0.3)
+	_expect(scan.markers.size() == 1 and scan.darts == darts - 1, "pijltje in de wand (%d over)" % scan.darts)
+	if scan.markers.size() == 1:
+		var mk: Node3D = scan.markers[0]
+		_expect(mk.global_position.distance_to(target.global_position) <= m.distance_to(target.global_position) + 0.5,
+				"het pijltje zit tussen de Mol en de vondst (%.1f m ervan)" % mk.global_position.distance_to(target.global_position))
+	scan._rpc_darts(0)
+	await _wait(1.6) # (afkoelen)
+	scan.mark()
+	await _wait(0.3)
+	_expect(scan.markers.size() == 1, "op is op: geen pijltje meer zonder pijltjes")
+	scan.host_refill()
+	await _wait(0.1)
+	_expect(scan.darts == Tuning.get_i("mol", "side_scan_darts", 6), "pijltjes bijgeladen (%d)" % scan.darts)
+	scan.clear()
 
 
 ## Geen rots binnen de romp: punten op 2,3 m van de as, over de hele lengte.
