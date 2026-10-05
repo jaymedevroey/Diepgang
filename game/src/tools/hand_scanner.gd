@@ -13,7 +13,7 @@ extends Node3D
 
 const VIEWMODEL_FOV := 68.0
 ## Links onder in beeld, het scherm schuin naar je toe.
-const POSE := [Vector3(-0.2, -0.27, -0.44), Vector3(24, 14, 6)]
+const POSE := [Vector3(-0.19, -0.27, -0.4), Vector3(24, 14, 6)]
 const POSE_LOW := [Vector3(-0.3, -0.8, -0.4), Vector3(-30, 20, 0)]
 const SCREEN_PX := Vector2i(320, 240)
 const PHOSPHOR := Color(0.42, 1.0, 0.52)
@@ -200,7 +200,7 @@ class _ScanView extends Control:
 			var dist := clampf(flat.length() / range_m, 0.0, 1.0)
 			var at := c + Vector2(sin(bearing), -cos(bearing)) * dist * r
 			var fade := clampf(1.0 - age / hold, 0.0, 1.0)
-			var rad: float = [4.0, 6.0, 8.5][int(b[1])]
+			var rad: float = [6.0, 8.0, 11.0][int(b[1])]
 			draw_circle(at, rad + 3.0, Color(ph, 0.18 * fade))
 			draw_circle(at, rad, Color(ph, 0.85 * fade))
 			if absf(rel.y) > 1.5:

@@ -478,7 +478,7 @@ func _update_economy_hints() -> void:
 		var b: Interactable = _buttons.get(n)
 		if b == null:
 			continue
-		b.hint = "E: %s" % str(Upgrades.COUNTER_NAMES[n]).to_lower()
+		b.hint = "E: %s" % str(Upgrades.COUNTER_IN_TEXT[n])
 		var left := 0
 		for id: String in Upgrades.ORDER:
 			if str(Upgrades.info(id).counter) == n and not c.has_upgrade(id):

@@ -97,6 +97,7 @@ De Ekster (moederschip) → planeet en opdracht kiezen → drop met de Mol → b
     - Wie het doel mist, krijgt een **boete** (schuld) en verliest reputatie.
     - **Upgrades en het museum blijven altijd behouden.** Reputatie bepaalt welke planeten je mag doen.
     - Eerste versie (M3): drie concessies per dienst met een risico (meer opbrengst, sneller magma), doel €2.000 voor 4 spelers (40/65/85/100% voor 1–4), ×1,25 per kwartaal, boete 50% van het tekort. Cijfers in `company.cfg`.
+    - **Bijgestuurd 2026-10-05 (release-audit, F1):** doel €5.000 voor 4 spelers, ×1,4 per kwartaal. Een dienst is pas afgesloten als de buit verkocht is (of het hoofdkantoor hem opkoopt aan 60% als je tekent); pas dan valt het oordeel over het kwartaal. **Schuld bevriest de rekening** (geen upgrades) en kost 10% rente per dienst; **reputatie onder 0 = proeftijd**: geen opdracht met hoog risico. Elke opdracht heeft 2–3 voorwaarden (een troef van de planeet, risico's, soms een doelvondst). Een volledige skeletset verkocht na dezelfde dienst = dubbele waarde. Zie lessons.md (2026-10-05, F1).
 
 ### Waarom deze lus werkt
 - De quota met boete zorgt voor spanning: "nog één fossiel of nu naar boven?"
@@ -170,7 +171,7 @@ Na Early Access komen nog een eindeloze "diepe dienst" en een wekelijkse planeet
 | **Houweel** (start) | sneller bikken, precisiemodus |
 | **Boor** T1 → T2 | zandsteen, daarna graniet en kristal. Snel en luid, beschadigt buit |
 | **Grijphandschoen** | zwaardere stukken solo, groter bereik, demper tegen botsschade |
-| **Scanner** | T1: blips. T2: waarde en type. **Nooit** "alles zichtbaar". De Mol heeft een vaste sonar (T1: stil 12 m, PING 24 m maar luid) in de cabine; de handscanner is voor te voet |
+| **Scanner** | T1: blips. T2: waarde en type. **Nooit** "alles zichtbaar". De Mol heeft een vaste sonar (T1: stil 12 m, PING 24 m maar luid) in de cabine; de handscanner is voor te voet (F1: Q, in de linkerhand, één stille puls tot 10 m) |
 | **Takel en touw** | anker plaatsen en buit door schachten omhoog lieren |
 | **Ladders** | zelf verticale routes maken |
 | **Springlading** (verbruik) | grote kraters, maar een beving en kans op schade |
@@ -218,6 +219,7 @@ Een grote rupsvoertuig-drilboor (±10 m lang, ±6 m breed) van DIG: vooraan een 
 **Binnenruimte (klein):** een cabine (stoel, stuur, dieptemeter, sonar: ronde beeldbuis met vage blips en hun hoogte, zie [de-mol.md](de-mol.md)), een laadruim met laadklep, en een werkbank (upgrades, later). Warm licht en een gezellige thuis in het donker, zoals de drop pod in Deep Rock Galactic.
 
 **Upgrades (later):** boorkop (graniet, kristal), snelheid, brandstoftank, laadruim, hitteschild tegen lava, lier/kraan, lampen, cosmetica (verf, stickers).
+- **Sinds 2026-10-05 (F1) te koop aan de Mol-werf:** boorkop T2 (graniet en kristal) en een groter laadruim (60 → 140 kg). Te zwaar: de hendel weigert, en wat niet past, valt eruit als de grijper vastklikt.
 
 **Techniek:** de host simuleert de Mol (de piloot stuurt invoer), kinematisch (AnimatableBody3D), met grote terreinbewerkingen vooraan. Wie meerijdt, staat op een bewegend platform; clients interpoleren. Het lift-platform uit M1 is hiervoor de basis.
 

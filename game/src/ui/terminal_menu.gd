@@ -347,7 +347,7 @@ func _refresh() -> void:
 	elif c.contract_ready():
 		_note.text = "Board the Mole and pull the LAUNCH lever to drop."
 	else:
-		_note.text = "More risk pays more, but the magma rises faster. Miss the quota and head office fines you."
+		_note.text = "More risk pays more, but brings risky conditions and faster magma. Miss the quota and head office fines you."
 
 
 func _first_button(n: Node) -> Button:

@@ -1243,6 +1243,9 @@ func _paint_appraisal(s: Screen) -> void:
 	if c.haul_open():
 		_paint_haul(s, c, marquee, clip)
 		return
+	if not c.last_haul.is_empty():
+		_paint_last_haul(s, c.last_haul, r, marquee, clip)
+		return
 	if r.is_empty():
 		# Nog niets verkocht: een stilstaande, knipperende oproep. Geen belofte ("binnenkort"): de
 		# taxatie gebeurt echt, na elke dienst, met wat in de Mol ligt (ui-02, binnen-13).
@@ -1325,6 +1328,42 @@ func _paint_haul(s: Screen, c: Company, marquee: Label, clip: Control) -> void:
 		ready_value += a.value_of(it)
 	_text(s, "total", UiTheme.euro(int(c.haul.get("sold_value", 0)) + int(c.haul.get("set_bonus", 0)) + int(c.haul.get("target_bonus", 0))))
 	_text(s, "net", "READY %s" % UiTheme.euro(ready_value) if ready_value > 0 else "")
+
+
+## De vorige buit is verkocht (F1): wat er verkocht werd, lopend, met de bonussen; rechts het totaal.
+func _paint_last_haul(s: Screen, h: Dictionary, r: Dictionary, marquee: Label, clip: Control) -> void:
+	marquee.modulate.a = 1.0
+	_text(s, "when", "SHIFT %d
+SOLD" % int(h.get("shift_total", 0)))
+	var parts := PackedStringArray()
+	for it: Array in h.get("sold", []):
+		parts.append("%s %s (%d%%)" % [str(it[0]).to_upper(), UiTheme.euro(int(it[1])), int(it[2])])
+	if int(h.get("set_bonus", 0)) > 0:
+		parts.append("SET BONUS %s" % UiTheme.euro(int(h.set_bonus)))
+	if int(h.get("leftover_value", 0)) > 0:
+		parts.append("HEAD OFFICE BOUGHT %d %s" % [int(h.get("leftover_count", 0)), UiTheme.euro(int(h.leftover_value))])
+	if int(r.get("ore_units", 0)) > 0:
+		parts.append("ORE ×%d %s" % [int(r.get("ore_units", 0)), UiTheme.euro(int(r.get("ore_value", 0)) + int(r.get("bonus", 0)))])
+	if parts.is_empty():
+		parts.append("NOTHING SOLD. HEAD OFFICE SIGHS.")
+	var text := "    ·    ".join(parts) + "    ·    "
+	if marquee.text != text:
+		_style(marquee, UiTheme.screen(), 44, UiTheme.AMBER)
+		marquee.text = text
+		marquee.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		_marquee_w = UiTheme.screen().get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 44).x
+		marquee.size = Vector2(_marquee_w + 8.0, 50)
+		marquee.position.y = 18
+		_marquee_x = 0.0
+	s.fps = 20.0
+	_marquee_x -= 60.0 / s.fps
+	if _marquee_x < -_marquee_w:
+		_marquee_x = clip.size.x
+	marquee.position.x = roundf(_marquee_x)
+	var n := (h.get("sold", []) as Array).size()
+	_text(s, "detail", "%s SOLD  ·  NEXT CONTRACT AT THE BRIDGE" % UiTheme.count(n, "FIND", "FINDS"))
+	_text(s, "total", UiTheme.euro(int(h.get("sold_value", 0)) + int(h.get("set_bonus", 0)) + int(h.get("target_bonus", 0)) + int(h.get("leftover_value", 0))))
+	_text(s, "net", "")
 
 
 func _draw_appraisal(c: Control) -> void:

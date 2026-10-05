@@ -60,6 +60,9 @@ var upgrades: Array = []
 ##  "sold_value", "set_bonus", "target_bonus", "sets": {set_id: [verkocht, grootte, waarde]},
 ##  "sets_done": [set_id], "target_paid"}
 var haul: Dictionary = {}
+## De vorige buit, na het afsluiten (voor het scherm aan de poort): {"sold", "sold_value", "set_bonus",
+## "target_bonus", "leftover_count", "leftover_value", "shift_total"}.
+var last_haul: Dictionary = {}
 var last_report: Dictionary = {}
 ## Host: robots die smolten deze dienst (kosten).
 var _melted := 0
@@ -201,7 +204,7 @@ func _make_options() -> void:
 func state() -> Dictionary:
 	return {"cash": cash, "reputation": reputation, "quarter": quarter, "shift": shift, "earned": earned,
 			"shifts_total": shifts_total, "options": options, "contract": contract, "company_seed": _company_seed,
-			"upgrades": upgrades, "world_mods": world_mods, "haul": haul}
+			"upgrades": upgrades, "world_mods": world_mods, "haul": haul, "last_haul": last_haul}
 
 
 func _apply(s: Dictionary) -> void:
@@ -217,6 +220,7 @@ func _apply(s: Dictionary) -> void:
 	upgrades = s.get("upgrades", [])
 	world_mods = s.get("world_mods", [])
 	haul = s.get("haul", {})
+	last_haul = s.get("last_haul", {})
 
 
 func _broadcast() -> void:
@@ -361,14 +365,15 @@ func host_shift_end(cargo: Array, ore_units: int, ore_value: int, left_behind: i
 	cash += net
 	earned += net
 	shifts_total += 1
-	# De buit: wat in het laadruim ligt en wat robots aan boord nog vasthouden.
+	# De buit: wat in het laadruim ligt, en alles wat verder aan boord is (op de klep, in de handen
+	# van een robot). Wat op de planeet bleef, is weg.
 	var ids: Array = []
 	var damage := 0
 	for it: FindItem in cargo:
 		if is_instance_valid(it) and not ids.has(it.find_id):
 			ids.append(it.find_id)
 	for it: FindItem in game.finds.items:
-		if it.freed and not it.carriers.is_empty() and not ids.has(it.find_id) and _aboard(it.global_position):
+		if it.freed and not ids.has(it.find_id) and _aboard(it.global_position):
 			ids.append(it.find_id)
 	for id in ids:
 		var it: FindItem = game.finds.item(int(id))
@@ -426,6 +431,9 @@ func host_settle(forced: bool, leftover_value := -1) -> void:
 		game.notice_all("Head office bought %s at %d%%: %s." % [UiTheme.count(left, "unsold find") if left > 0 else "your unsold haul",
 				int(round(Tuning.get_f("economy", "unsold_factor", 0.6) * 100.0)), UiTheme.euro_signed(cleared)], "contract")
 	var sold: Array = haul.get("sold", [])
+	last_haul = {"sold": sold, "sold_value": int(haul.get("sold_value", 0)), "set_bonus": int(haul.get("set_bonus", 0)),
+			"target_bonus": int(haul.get("target_bonus", 0)), "leftover_count": left, "leftover_value": cleared,
+			"shift_total": shifts_total}
 	var report := {}
 	if shift >= Tuning.get_i("company", "shifts", 3):
 		var q := quota()

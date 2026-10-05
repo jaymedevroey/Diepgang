@@ -35,6 +35,7 @@ extends Node3D
 ##   hub_screens_test  de schermen in de hub (tv, firmabord, terminal, taxatie) volgen de firma (headless)
 ##   economy_test      taxatie en verkoop, sets, upgrades, laadruim, schuld, voorwaarden, bewaren (headless)
 ##   economy_preview   screenshots van de winkel, de taxatie en de contractkaarten (--only=shop,gate,cards)
+##   net_economy_test  host + client: kopen, taxeren en verkopen via de host (tools/net_test.py --scenario=net_economy_test)
 ##   surface_bench     bouwtijd van het verre landschap per planeet (--contended: terwijl het terrein laadt)
 ##   feel_bench        metingen en filmpjes van lopen, gereedschap, dragen en vondsten (--part=…)
 ## Extra in play (voor controle door de agent):
@@ -85,11 +86,12 @@ const SCENARIOS := {
 	"feel_bench": preload("res://src/main/scenarios/feel_bench.gd"),
 	"economy_test": preload("res://src/main/scenarios/economy_test.gd"),
 	"economy_preview": preload("res://src/main/scenarios/economy_preview.gd"),
+	"net_economy_test": preload("res://src/main/scenarios/net_economy_test.gd"),
 }
 ## Scenario's die op De Ekster beginnen (de Mol in de dropbaai). De rest begint op de planeet.
-const SCENARIOS_ON_SHIP := ["play", "ship_preview", "drop_sequence", "drop_flow_test", "net_drop_flow_test", "ship_test", "net_ship_test", "company_test", "interior_preview", "surface_bench", "economy_test", "economy_preview"]
+const SCENARIOS_ON_SHIP := ["play", "ship_preview", "drop_sequence", "drop_flow_test", "net_drop_flow_test", "ship_test", "net_ship_test", "company_test", "interior_preview", "surface_bench", "economy_test", "economy_preview", "net_economy_test"]
 ## Scenario's waarin de host ook een eigen speler krijgt.
-const SCENARIOS_WITH_PLAYER := ["play", "ship_preview", "drop_sequence", "drop_flow_test", "net_drop_flow_test", "ship_test", "net_ship_test", "net_test", "find_test", "carry_test", "carry_preview", "mol_test", "sonar_test", "mol_edge_test", "stream_test", "ore_test", "drive_perf", "mol_preview", "hud_preview", "ui_test", "tool_preview", "magma_test", "company_test", "surface_bench", "feel_bench", "economy_test", "economy_preview"]
+const SCENARIOS_WITH_PLAYER := ["play", "ship_preview", "drop_sequence", "drop_flow_test", "net_drop_flow_test", "ship_test", "net_ship_test", "net_test", "find_test", "carry_test", "carry_preview", "mol_test", "sonar_test", "mol_edge_test", "stream_test", "ore_test", "drive_perf", "mol_preview", "hud_preview", "ui_test", "tool_preview", "magma_test", "company_test", "surface_bench", "feel_bench", "economy_test", "economy_preview", "net_economy_test"]
 
 var game: Game
 var player: Player

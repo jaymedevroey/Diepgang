@@ -133,7 +133,7 @@ def build_drill_t2():
         text("DRILL T2", 0.017, (s * 0.0790, by - 0.006, -0.06), (0, 90 * s, 0), "DecalDark", g, extrude=0.0015)
 
 
-SCREEN_C = (0.0, 0.158, 0.012)  # midden van het scherm van de scanner
+SCREEN_C = (0.0, 0.184, 0.0)  # midden van het scherm van de scanner (helemaal boven de behuizing)
 SCREEN_TILT = 50.0  # graden achterover (normaal schuin omhoog naar de gebruiker)
 SCREEN_W, SCREEN_H = 0.112, 0.084
 
@@ -180,6 +180,7 @@ def build_scanner():
     cx, cy, cz = SCREEN_C
     box((SCREEN_W + 0.026, SCREEN_H + 0.026, 0.024), (cx - normal[0] * 0.013, cy - normal[1] * 0.013, cz - normal[2] * 0.013),
         "Anthracite", g, bevel=0.008, rot=(-SCREEN_TILT, 0, 0))
+    box((SCREEN_W + 0.02, 0.03, 0.06), (cx, 0.138, cz - 0.012), "Anthracite", g, bevel=0.006)  # voet onder het scherm
     hood_c = (cx, cy + up[1] * (SCREEN_H / 2 + 0.012) + normal[1] * 0.012, cz + up[2] * (SCREEN_H / 2 + 0.012) + normal[2] * 0.012)
     box((SCREEN_W + 0.03, 0.008, 0.03), hood_c, "Anthracite", g, bevel=0.003, rot=(-SCREEN_TILT + 25, 0, 0))
     # Antenne vooraan: een korte mast met een kleine schotel en een rood lampje.

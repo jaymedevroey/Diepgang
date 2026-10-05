@@ -27,6 +27,8 @@ const MOLE_YARD := "Mol_Werf"
 const COUNTERS := [TOOL_RACK, SUPPLY_DESK, MOLE_YARD]
 ## Naam van de toonbank (kop van het menu en de knop in de hub).
 const COUNTER_NAMES := {TOOL_RACK: "Tool rack", SUPPLY_DESK: "Supply desk", MOLE_YARD: "Mole yard"}
+## Midden in een zin ("the Mole" blijft met een hoofdletter, zie de stijlregels in lessons.md).
+const COUNTER_IN_TEXT := {TOOL_RACK: "tool rack", SUPPLY_DESK: "supply desk", MOLE_YARD: "Mole yard"}
 
 ## Volgorde in de winkel.
 const ORDER: Array[String] = [DRILL_T2, SCANNER, LAMP, MOL_HEAD_T2, CARGO]

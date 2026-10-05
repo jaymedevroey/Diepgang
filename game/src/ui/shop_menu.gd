@@ -245,7 +245,7 @@ func _refresh() -> void:
 		var others := PackedStringArray()
 		for k: String in Upgrades.COUNTERS:
 			if k != counter:
-				others.append(str(Upgrades.COUNTER_NAMES[k]).to_lower())
+				others.append(str(Upgrades.COUNTER_IN_TEXT[k]))
 		_note.text = "Upgrades are for the whole crew and you keep them, even after a missed quota. More at the %s." % " and the ".join(others)
 	elif company.has_upgrade(_pending):
 		_note.text = "Purchased: %s. %s." % [str(Upgrades.info(_pending).name), str(Upgrades.info(_pending).does)]

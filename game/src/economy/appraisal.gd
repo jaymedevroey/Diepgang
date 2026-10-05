@@ -178,16 +178,17 @@ func _reveal_moment(it: FindItem, value: int, bonus: int, condition: float) -> v
 	var at := it.global_position + Vector3(0, it.half_extents.length() + 0.35, 0)
 	it.celebrate()
 	fx.play("ding", it.global_position, -2.0 + 2.0 * (FindKinds.CLASS_STRENGTH[it.value_class] - 1.0), 0.0, FindKinds.CLASS_PITCH[it.value_class])
-	fx.float_text(at + Vector3(0, 0.3, 0), it.display_name().to_upper(), col.lerp(Color.WHITE, 0.3), 0.9, 2.8)
+	# Onder elkaar, met ruimte: soort bovenaan, dan de gaafheid, dan de waarde (groot), dan de bonus.
+	fx.float_text(at + Vector3(0, 0.62, 0), it.display_name().to_upper(), col.lerp(Color.WHITE, 0.3), 0.9, 2.8)
 	var tw := create_tween()
 	tw.tween_interval(0.25)
 	tw.tween_callback(func() -> void:
-		fx.float_text(at + Vector3(0, 0.15, 0), "%d%%" % int(round(condition * 100.0)), Color(0.85, 0.82, 0.76), 0.7, 2.5))
+		fx.float_text(at + Vector3(0, 0.42, 0), "%d%%" % int(round(condition * 100.0)), Color(0.85, 0.82, 0.76), 0.75, 2.5))
 	tw.tween_interval(0.35)
 	tw.tween_callback(func() -> void:
-		fx.float_text(at, UiTheme.euro(value), Color(1.0, 0.8, 0.25), 1.3 + 0.15 * vc, 3.0)
+		fx.float_text(at + Vector3(0, 0.12, 0), UiTheme.euro(value), Color(1.0, 0.8, 0.25), 1.3 + 0.15 * vc, 3.0)
 		if bonus > 0:
-			fx.float_text(at - Vector3(0, 0.18, 0), "TARGET %s" % UiTheme.euro_signed(bonus), UiTheme.GOOD, 0.9, 3.0))
+			fx.float_text(at - Vector3(0, 0.2, 0), "TARGET %s" % UiTheme.euro_signed(bonus), UiTheme.GOOD, 0.9, 3.0))
 
 
 # --- Het verkoopluik -----------------------------------------------------------------------------

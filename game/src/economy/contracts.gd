@@ -139,7 +139,7 @@ static func describe(m: Dictionary) -> Array:
 		SCRAP_BUYER:
 			return ["Scrap collector: junk pays ×%s" % _x(Tuning.get_f("economy", "mod_scrap_buyer", 3.0)), Tone.GOOD]
 		UNSTABLE:
-			return ["Unstable ground: quakes build up on their own", Tone.RISK]
+			return ["Shaky ground: it quakes on its own", Tone.RISK]
 		HOT_CORE:
 			return ["Hot core: magma rises %d%% faster" % int(round((Tuning.get_f("economy", "mod_hot_core", 1.25) - 1.0) * 100.0)), Tone.RISK]
 		LOW_FUEL:
@@ -147,7 +147,7 @@ static func describe(m: Dictionary) -> Array:
 		TARGET:
 			var k := int(m.get("kind", -1))
 			var what := FindKinds.NAMES[k].to_lower() if k >= 0 and k < FindKinds.NAMES.size() else "find"
-			return ["Head office wants a %s: +%s" % [what, UiTheme.euro(target_bonus(k))], Tone.TARGET]
+			return ["Wanted: a %s (+%s)" % [what, UiTheme.euro(target_bonus(k))], Tone.TARGET]
 	return [str(m.get("id", "")), Tone.GOOD]
 
 

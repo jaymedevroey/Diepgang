@@ -1100,7 +1100,8 @@ func _autopilot_down(delta: float) -> Vector3:
 	var auto_speed := Tuning.get_f("mol", "auto_speed", 1.3)
 	if blocked and d < auto_depth - 1.0:
 		auto_depth = d
-		_rpc_message.rpc(("Pit edge" if at_edge else "Hard layer") + ": autopilot stops at −%d m" % int(d), "warn")
+		_rpc_message.rpc(("Pit edge" if at_edge else ("Hard layer (a T2 drill head bores it, Mole yard aboard)" if tier() < Strata.Tool.BOOR_T2
+				else "Hard layer")) + ": autopilot stops at −%d m" % int(d), "warn")
 	if d < auto_depth - 1.0:
 		var want := deg_to_rad(-Tuning.get_f("mol", "auto_pitch_deg", 22.0))
 		var p_in := clampf((want - pitch) * 4.0, -1.0, 1.0)
@@ -1666,7 +1667,7 @@ func _update_visual() -> void:
 		var c: Company = game.company
 		var states := ["PARKED", "DRIVING", "AUTOPILOT", "LAUNCH %d" % int(ceil(countdown)), "GOING UP",
 				"IN THE MAGPIE", "DROP %d" % int(ceil(countdown)), "DROP", "GRAPPLE INBOUND", "TO THE MAGPIE"]
-		var state: String = ("! PIT EDGE" if at_edge else "! TOO HARD") if blocked else ("DRILLING" if drilling and mode == Mode.DRIVING else states[mode])
+		var state: String = ("! PIT EDGE" if at_edge else ("! TOO HARD: HEAD T2" if tier() < Strata.Tool.BOOR_T2 else "! TOO HARD")) if blocked else ("DRILLING" if drilling and mode == Mode.DRIVING else states[mode])
 		var ore: PackedInt32Array = game.ores.hold
 		visual.set_readout("%s
 DEPTH    %4d m
