@@ -15,6 +15,10 @@ signal condition_changed(item: FindItem, hard: bool)
 signal find_scooped(item: FindItem)
 
 const SEND_INTERVAL := 0.05
+## De eerste vondst bij de landingsplek: een bot, wisselend per wereld (geen schedel: die is de
+## grote vangst dieper). De klauw staat er twee keer in: hij blijft de vaakste.
+const FIRST_BONES: Array[FindKinds.Kind] = [FindKinds.Kind.CLAW, FindKinds.Kind.CLAW, FindKinds.Kind.FEMUR,
+		FindKinds.Kind.VERTEBRA, FindKinds.Kind.RIB]
 
 var game: Node # Game
 ## Vloer van het laadruim (Mol-ruimte, y).
@@ -40,14 +44,16 @@ func generate(pit_seed: int) -> void:
 	rng.seed = pit_seed * 7919 + 11
 	var spawn := t.spawn_point()
 	var size := t.world_size()
-	# 1. Rond de landingsplek, ondiep, om meteen te vinden. De eerste is een bot (de haak van het spel).
+	# 1. Rond de landingsplek, ondiep, om meteen te vinden. De eerste is een bot (de haak van het spel),
+	# maar niet altijd dezelfde klauw (ontwerp-16): een bot uit FIRST_BONES, gekozen met de seed.
+	var first: FindKinds.Kind = FIRST_BONES[rng.randi() % FIRST_BONES.size()]
 	var near := Tuning.get_i("finds", "near_spawn", 5)
 	for i in near:
 		_place(rng, func() -> Array:
 			var ang := rng.randf() * TAU
 			var p := spawn + Vector3(cos(ang), 0, sin(ang)) * rng.randf_range(2.5, 7.0)
 			p.y = t.surface_height_at(p.x, p.z) - rng.randf_range(1.3, 2.6)
-			return [p, FindKinds.Kind.CLAW if i == 0 else -1])
+			return [p, first if i == 0 else -1])
 	# 2. Fossielbedden: clusters skeletstukken in zandsteen en graniet.
 	for b in Tuning.get_i("finds", "beds", 8):
 		var center := Vector3(rng.randf_range(12.0, size.x - 12.0), rng.randf_range(Strata.TOPS_M[0] + 8.0, Strata.TOPS_M[2] - 4.0),
@@ -109,15 +115,23 @@ func _place(rng: RandomNumberGenerator, where: Callable) -> void:
 		add_child(item)
 		item.global_position = pos
 		item.rotation = rot
+		item.reset_physics_interpolation()
 		items.append(item)
 		_by_id[item.find_id] = item
 		var crust := Crust.new()
 		crust.name = "Crust%d" % item.find_id
-		crust.setup(item.find_id, item.half_extents, Tuning.get_f("finds", "crust_hp", 4.0), float(item.find_id) * 3.7)
+		crust.setup(item.find_id, item.half_extents, crust_hp_of(item), float(item.find_id) * 3.7,
+				t.layer_at(pos), FindKinds.FAMILIES[kind])
 		add_child(crust)
 		crust.global_transform = item.global_transform
 		crusts[item.find_id] = crust
 		return
+
+
+## Levens van de korst (ontwerp-11): hoe waardevoller de vondst, hoe meer geduld met het houweel
+## (rommel ±4 s, kostbaar ±6,5 s bij 0,55 s per slag).
+static func crust_hp_of(it: FindItem) -> float:
+	return Tuning.get_f("finds", "crust_hp", 7.0) + Tuning.get_f("finds", "crust_hp_per_class", 2.0) * it.value_class
 
 
 func _far_from_others(pos: Vector3) -> bool:
@@ -135,20 +149,21 @@ func item(id: int) -> FindItem:
 # --- Korst raken --------------------------------------------------------------
 
 ## Lokaal gereedschap raakt een korst. Juice doet het gereedschap zelf meteen.
-func hit_crust(find_id: int, tool: Strata.Tool, pos: Vector3) -> void:
+## `hot`: de boor is heet (meer dan de helft): de vondst lijdt meer (ontwerp-11, voorzichtig boren loont).
+func hit_crust(find_id: int, tool: Strata.Tool, pos: Vector3, hot := false) -> void:
 	if Net.is_host():
-		_apply_hit(Net.my_id(), find_id, tool, pos)
+		_apply_hit(Net.my_id(), find_id, tool, pos, hot)
 	else:
-		_rpc_hit.rpc_id(1, find_id, tool, pos)
+		_rpc_hit.rpc_id(1, find_id, tool, pos, hot)
 
 
 @rpc("any_peer", "reliable")
-func _rpc_hit(find_id: int, tool: int, pos: Vector3) -> void:
+func _rpc_hit(find_id: int, tool: int, pos: Vector3, hot: bool) -> void:
 	if multiplayer.is_server():
-		_apply_hit(multiplayer.get_remote_sender_id(), find_id, tool, pos)
+		_apply_hit(multiplayer.get_remote_sender_id(), find_id, tool, pos, hot)
 
 
-func _apply_hit(sender: int, find_id: int, tool: int, pos: Vector3) -> void:
+func _apply_hit(sender: int, find_id: int, tool: int, pos: Vector3, hot := false) -> void:
 	var it := item(find_id)
 	var crust: Crust = crusts.get(find_id)
 	if it == null or it.freed or crust == null:
@@ -169,10 +184,11 @@ func _apply_hit(sender: int, find_id: int, tool: int, pos: Vector3) -> void:
 	var hp := crust.hp - Tuning.get_f("finds", "drill_damage" if drill else "pickaxe_damage", 1.0)
 	var cond := it.condition
 	if drill:
-		cond = maxf(Tuning.get_f("finds", "min_condition", 0.25), cond - Tuning.get_f("finds", "drill_condition_loss", 0.07))
+		var loss := Tuning.get_f("finds", "drill_condition_loss", 0.014) * (Tuning.get_f("finds", "drill_hot_factor", 2.2) if hot else 1.0)
+		cond = maxf(Tuning.get_f("finds", "min_condition", 0.25), cond - loss)
 	_rpc_state.rpc(find_id, hp, cond, tool)
 	if hp <= 0.0:
-		_free(find_id)
+		_free(find_id, sender)
 
 
 @rpc("authority", "call_local", "reliable")
@@ -187,31 +203,56 @@ func _rpc_state(find_id: int, hp: float, cond: float, tool: int) -> void:
 	crust_hit.emit(it, tool)
 
 
-func _free(find_id: int) -> void:
+## `by`: wie de laatste slag gaf (0 = niemand): de vondst springt een beetje naar hem toe.
+func _free(find_id: int, by := 0) -> void:
 	var it := item(find_id)
 	var r := it.half_extents.length() + Tuning.get_f("finds", "free_margin", 0.35)
 	game.terrain_sync.host_apply(game.terrain.make_sphere_op(0, it.global_position, r))
-	_rpc_freed.rpc(find_id)
+	_rpc_freed.rpc(find_id, by)
 
 
+## Het moment (gevoel-03): eerst de vondst. Licht en sterretjes in de glans van zijn waardeklasse,
+## de schelpen van de korst vliegen weg van wie hem vrijmaakte, het stof komt pas daarna en laag.
+## De vondst springt omhoog en naar de speler toe, en zijn naam verschijnt erboven.
 @rpc("authority", "call_local", "reliable")
-func _rpc_freed(find_id: int) -> void:
+func _rpc_freed(find_id: int, by := 0) -> void:
 	var it := item(find_id)
 	if it == null or it.freed:
 		return
-	it.freed = true
+	it.set_freed()
 	it.last_safe = it.global_position
+	var striker: Node3D = game.player_node(by) if by != 0 else null
+	var toward := Vector3.ZERO
+	if striker:
+		toward = striker.global_position + Vector3(0, 1.0, 0) - it.global_position
 	var crust: Crust = crusts.get(find_id)
+	var k: float = FindKinds.CLASS_STRENGTH[it.value_class]
 	if crust:
-		game.fx.crust_break(crust.global_position, it.half_extents.length())
+		game.fx.crust_break(crust.global_position, it.half_extents.length(), crust.tint,
+				FindKinds.CLASS_GLINT[it.value_class], k, toward, it)
 		crust.shatter()
 		crusts.erase(find_id)
 	it.celebrate()
-	game.fx.play("ding", it.global_position, -2.0, 0.05)
+	game.fx.play("ding", it.global_position, -2.0 + 2.0 * (k - 1.0), 0.05, FindKinds.CLASS_PITCH[it.value_class])
+	_reveal_text(it)
 	if multiplayer.is_server():
 		it.freeze = false
-		it.apply_central_impulse(Vector3.UP * Tuning.get_f("finds", "free_impulse", 1.2) * it.mass)
+		var push := Vector3.UP * Tuning.get_f("finds", "free_impulse", 2.0)
+		if toward.length() > 0.1:
+			var flat := Vector3(toward.x, 0.0, toward.z)
+			if flat.length() > 0.05:
+				push += flat.normalized() * Tuning.get_f("finds", "free_toward", 1.0)
+		it.apply_central_impulse(push * it.mass)
 	find_freed.emit(it)
+
+
+## Naam (en voorlopig de waarde) groot boven de vondst. Pakket F1 verhuist de onthulling van de
+## waarde naar de taxatiepoort: dan blijft hier enkel de naam en de waardeklasse.
+func _reveal_text(it: FindItem) -> void:
+	var col: Color = FindKinds.CLASS_GLINT[it.value_class]
+	var at := it.global_position + Vector3(0, it.half_extents.length() + 0.25, 0)
+	game.fx.float_text(at, it.display_name().to_upper(), col.lerp(Color.WHITE, 0.2), 1.0 + 0.15 * it.value_class, 2.6)
+	game.fx.float_text(at - Vector3(0, 0.13, 0), "€%d" % it.value(), Color(0.95, 0.92, 0.82), 0.6, 2.6)
 
 
 # --- Het magma slokt op ----------------------------------------------------
@@ -301,13 +342,14 @@ func _rpc_scooped(find_id: int, cond: float, local: Transform3D) -> void:
 	if it == null or it.freed or mol == null:
 		return
 	it.condition = cond
-	it.freed = true
+	it.set_freed()
 	var crust: Crust = crusts.get(find_id)
 	if crust:
 		game.fx.crust_break(crust.global_position, it.half_extents.length())
 		crust.shatter()
 		crusts.erase(find_id)
 	it.global_transform = mol.body.global_transform * local
+	it.reset_physics_interpolation()
 	it.last_safe = it.global_position
 	it.push_snapshot(local, true)
 	game.fx.play("tok", it.global_position, -2.0)
@@ -386,7 +428,10 @@ func _rpc_carriers(find_id: int, carriers: PackedInt32Array) -> void:
 	var it := item(find_id)
 	if it == null:
 		return
+	if not it.carriers.is_empty():
+		it.last_carriers = it.carriers
 	it.carriers = carriers
+	it.update_interpolation()
 	carriers_changed.emit(it)
 
 
@@ -421,7 +466,9 @@ func _physics_process(delta: float) -> void:
 			continue
 		if it.carriers.size() > 0:
 			_stowed.erase(it.find_id)
-			it.global_position = carry_target(it)
+			# Draagt de host hem zelf, dan zet zijn Carry hem (met naslepen en wiegen).
+			if not it.carriers.has(multiplayer.get_unique_id()):
+				it.global_position = carry_target(it)
 		elif _stow(it, mol_now, mol_moving):
 			pass
 		elif _park(it):
@@ -522,6 +569,7 @@ func _rescue_if_stuck(it: FindItem, delta: float) -> void:
 		it.stuck_time += delta
 		if it.stuck_time > 0.25:
 			it.global_position = _free_spot_above(it.last_safe, it)
+			it.reset_physics_interpolation()
 			it.linear_velocity = Vector3.ZERO
 			it.angular_velocity = Vector3.ZERO
 			it.stuck_time = 0.0
@@ -549,22 +597,31 @@ func _check_impact(it: FindItem) -> void:
 	var prev: Vector3 = _prev_velocity.get(it.find_id, v)
 	_prev_velocity[it.find_id] = v
 	var dv := (v - prev).length()
-	var threshold := Tuning.get_f("carry", "impact_threshold", 5.0)
+	var threshold := Tuning.get_f("carry", "impact_threshold", 3.0)
 	if dv <= threshold:
 		return
-	var loss := (dv - threshold) * Tuning.get_f("carry", "impact_damage", 0.05)
+	var loss := minf((dv - threshold) * Tuning.get_f("carry", "impact_damage", 0.06), Tuning.get_f("carry", "impact_max_loss", 0.3))
 	var cond := maxf(Tuning.get_f("finds", "min_condition", 0.25), it.condition - loss)
-	_rpc_condition.rpc(it.find_id, cond)
+	if cond < it.condition - 0.001:
+		_rpc_condition.rpc(it.find_id, cond)
 
 
+## Schade zie je meteen (gevoel-06, plezier-en-design §10): "−€X" boven de vondst, een krak (de
+## bestaande tok, M6 brengt een eigen geluid) en schilfers. Het signaal condition_changed blijft
+## voor de HUD en het robotgezicht.
 @rpc("authority", "call_local", "reliable")
 func _rpc_condition(find_id: int, cond: float) -> void:
 	var it := item(find_id)
 	if it == null:
 		return
 	var hard := cond < it.condition - 0.001
+	var before := it.value()
 	it.condition = cond
 	if hard:
+		var lost := before - it.value()
+		if lost > 0:
+			game.fx.float_text(it.global_position + Vector3(0, it.half_extents.length() + 0.15, 0), "−€%d" % lost,
+					Color(1.0, 0.32, 0.22), 0.9, 1.6)
 		game.fx.crust_hit(it.global_position, Vector3.UP, false)
 		game.fx.play("tok", it.global_position, 0.0)
 	condition_changed.emit(it, hard)
@@ -593,9 +650,10 @@ func apply_snapshot(state: Array) -> void:
 		it.condition = s[2]
 		var crust: Crust = crusts.get(it.find_id)
 		if s[3]:
-			it.freed = true
+			it.set_freed()
 			it.carriers = s[5]
 			it.global_transform = s[4]
+			it.reset_physics_interpolation()
 			it.push_snapshot(s[4])
 			if crust:
 				crust.shatter()

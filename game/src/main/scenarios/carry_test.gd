@@ -23,10 +23,10 @@ func _run(p: Player) -> void:
 	# Vondst vrijmaken en er een open ruimte rond graven om in te werken.
 	var it := finds.items[0]
 	var here := it.global_position
-	for i in 4:
+	for i in int(finds.crusts[it.find_id].max_hp):
 		p.global_position = here + Vector3(0, 0.3, 1.2)
 		finds.hit_crust(it.find_id, Strata.Tool.HOUWEEL, here)
-		await get_tree().create_timer(0.35).timeout
+		await get_tree().create_timer(0.3).timeout
 	for dx in [-2.0, 0.0, 2.0, 4.0]:
 		t.debug_dig(here + Vector3(dx, 0.8, 1.5), 2.2)
 	await get_tree().create_timer(1.5).timeout
@@ -51,9 +51,14 @@ func _run(p: Player) -> void:
 	up.y = t_api.surface_height_at(up.x, up.z) + 1.2
 	p.global_position = up
 	await _frames(3)
-	p.global_position += Vector3(2.0, 0, 0)
+	# De vondst volgt je handen met een veer (gevoel-06): eerst blijft hij achter, dan komt hij erbij.
+	p.global_position += Vector3(1.0, 0, 0)
 	await _frames(3)
 	var target := p.hold_point(it.half_extents.length())
+	var lag := it.global_position.distance_to(target)
+	_expect(lag > 0.1, "vondst sleept na (%.2f m achter)" % lag)
+	await get_tree().create_timer(1.0).timeout
+	target = p.hold_point(it.half_extents.length())
 	_expect(it.global_position.distance_to(target) < 0.05, "vondst volgt de hand (%.2f m)" % it.global_position.distance_to(target))
 
 	# Gooien.

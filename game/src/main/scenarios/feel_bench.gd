@@ -627,4 +627,6 @@ func _film_ore(p: Player) -> void:
 	_aim_at(p, chute)
 	await _wait(0.6)
 	ores.deposit()
-	await _wait(2.5)
+	await _wait(0.5)
+	_log("gestort: %d erts in de Mol (€%d)" % [OreField.units(ores.hold), OreField.value(ores.hold)])
+	await _wait(2.0)

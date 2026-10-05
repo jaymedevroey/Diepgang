@@ -32,6 +32,26 @@ const WEIGHTS_BED: Array[float] = [22, 30, 26, 8, 14, 0, 0, 0, 0, 0, 0, 0]
 const DEEP_BAND := 14.0
 ## Vondsten met zoveel waarde of meer krijgen een gouden glans bij het vrijkomen.
 const PRECIOUS := 200
+## Waardeklassen (GDD §4: "elke waardeklasse heeft een eigen geluid en glans"): rommel, gewoon,
+## waardevol, kostbaar. Grenzen in finds.cfg. Per klasse: glanskleur, randlicht, fonkels, sterkte
+## van het moment bij het vrijkomen, en de toonhoogte van de "ding" (tot het eigen geluid er is, M6).
+enum ValueClass { JUNK, COMMON, VALUABLE, PRECIOUS }
+const CLASS_GLINT: Array[Color] = [Color(0.9, 0.78, 0.62), Color(1.0, 0.92, 0.75), Color(1.0, 0.8, 0.35), Color(1.0, 0.74, 0.22)]
+const CLASS_RIM: Array[float] = [0.18, 0.3, 0.45, 0.6]
+const CLASS_SPARKLE: Array[float] = [0.0, 0.25, 0.6, 1.0]
+const CLASS_STRENGTH: Array[float] = [0.6, 0.85, 1.15, 1.5]
+const CLASS_PITCH: Array[float] = [0.82, 1.0, 1.12, 1.25]
+const CLASS_NAMES: Array[String] = ["Junk", "Find", "Valuable find", "Precious find"]
+
+
+static func value_class(base_value: int) -> ValueClass:
+	if base_value >= Tuning.get_i("finds", "class_precious", 300):
+		return ValueClass.PRECIOUS
+	if base_value >= Tuning.get_i("finds", "class_valuable", 150):
+		return ValueClass.VALUABLE
+	if base_value >= Tuning.get_i("finds", "class_common", 50):
+		return ValueClass.COMMON
+	return ValueClass.JUNK
 
 const SOURCE := preload("res://assets/models/finds.glb")
 const DETAIL := 7.0

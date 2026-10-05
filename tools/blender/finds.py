@@ -21,7 +21,7 @@ from pathlib import Path
 
 import bmesh
 import bpy
-from mathutils import Vector, noise
+from mathutils import Matrix, Vector, noise
 
 sys.path.append(str(Path(__file__).parent))
 import kit  # noqa: E402
@@ -85,36 +85,114 @@ def build_vertebra():
 
 
 def build_rib():
+    """Rib: brede, platte boog (geen dun noedeltje) met een kop en knobbel aan het wervel-uiteinde,
+    licht getordeerd en een tikje uit het vlak gebogen. Lengte en boog zoals voorheen (±0,64 m)."""
     g = "Rib"
-    n = 11
+    n = 13
     pts = []
     radii = []
     for i in range(n):
-        a = math.radians(-72 + 144 * i / (n - 1))
-        pts.append((math.sin(a) * 0.32, math.cos(a) * 0.32 - 0.26, 0))
         k = i / (n - 1)
-        radii.append((0.016 - 0.006 * k, 0.03 - 0.012 * k))
-    radii[-1] = (0.006, 0.01)
-    loft(pts, radii, "Bone", g, verts=12, up=(0, 0, 1))
-    sphere(0.026, pts[0], "Bone", g, segments=12, rings=6)
+        a = math.radians(-70 + 142 * k)
+        pts.append((math.sin(a) * 0.32, math.cos(a) * 0.32 - 0.26, 0.022 * math.sin(k * math.pi) - 0.008 * k))
+        # rx = dikte in het vlak van de boog, ry = breedte dwars erop (plat en breed, zoals een echte rib)
+        radii.append((0.024 - 0.006 * k, 0.032 + 0.008 * math.sin(k * math.pi * 0.8) - 0.006 * k))
+    radii[-2] = (0.016, 0.026)
+    radii[-1] = (0.01, 0.016)  # afgerond uiteinde, geen spits
+    loft(pts, radii, "Bone", g, verts=12, up=(0, 0, 1), twist=28.0)
+    # Hals en kop aan het wervel-uiteinde: buigt naar binnen en eindigt in een dikke knobbel.
+    p0 = Vector(pts[0])
+    neck = [tuple(p0), tuple(p0 + Vector((0.006, -0.03, 0.004))), tuple(p0 + Vector((0.022, -0.055, 0.01)))]
+    loft(neck, [(0.024, 0.032), (0.021, 0.028), (0.021, 0.026)], "Bone", g, verts=12, up=(0, 0, 1))
+    sphere(0.035, tuple(p0 + Vector((0.03, -0.068, 0.012))), "Bone", g, scale=(1.0, 0.9, 1.05), segments=16, rings=8)  # kop
+    sphere(0.024, tuple(p0 + Vector((-0.018, 0.004, 0.006))), "Bone", g, segments=12, rings=6)  # knobbel (tuberkel)
+
+
+# Bovenschedel (van achter naar de snuit): z, hoogte van de as, halve breedte, halve hoogte.
+SKULL = [
+    (0.275, 0.07, 0.06, 0.055), (0.25, 0.065, 0.112, 0.098), (0.195, 0.06, 0.148, 0.124),
+    (0.12, 0.052, 0.158, 0.13), (0.04, 0.036, 0.144, 0.118), (-0.05, 0.018, 0.12, 0.1),
+    (-0.14, 0.003, 0.1, 0.085), (-0.23, -0.01, 0.082, 0.07), (-0.3, -0.02, 0.066, 0.058),
+    (-0.345, -0.028, 0.05, 0.046), (-0.372, -0.033, 0.026, 0.024),
+]
+# Doorsnede: platte onderkant (de tandrij), bolle wangen, smallere top.
+SKULL_PROFILE = [(0.0, -0.78), (0.5, -0.8), (0.86, -0.62), (1.0, -0.25), (0.98, 0.15), (0.82, 0.52),
+                 (0.5, 0.82), (0.0, 1.0), (-0.5, 0.82), (-0.82, 0.52), (-0.98, 0.15), (-1.0, -0.25),
+                 (-0.86, -0.62), (-0.5, -0.8)]
+JAW_OPEN = -7.0  # graden rond x door het kaakscharnier (negatief = mond open)
+JAW_HINGE = (0.0, -0.072, 0.222)
+
+
+def _skull_at(z):
+    """(as-hoogte, halve breedte, halve hoogte) van de bovenschedel op diepte z."""
+    for a, b in zip(SKULL, SKULL[1:]):
+        if b[0] <= z <= a[0]:
+            k = (a[0] - z) / (a[0] - b[0])
+            return tuple(a[i] + (b[i] - a[i]) * k for i in range(1, 4))
+    return SKULL[-1][1:] if z < SKULL[-1][0] else SKULL[0][1:]
+
+
+def _carve(target, pos, radius, scale, material="BoneDark"):
+    """Holte in de schedel (boolean); de wanden krijgen het materiaal van de snijvorm (donker)."""
+    cutter = sphere(radius, pos, material, "_cut", scale=scale, segments=20, rings=10)
+    unregister(cutter)
+    boolean(target, cutter)
 
 
 def build_skull():
+    """Schedel van een buitenaards dino-achtig beest (de duurste vondst): wigvormig silhouet,
+    diepe oogkassen onder een wenkbrauwrand met hoorntjes, een gat voor het oog (antorbitaal),
+    neusgaten vooraan, een rij tanden in de bovenkaak en een losse onderkaak die op een kier staat."""
     g = "Skull"
-    sphere(0.16, (0, 0.045, 0.11), "Bone", g, scale=(1.0, 0.86, 1.1), segments=20, rings=10)  # schedelpan
-    loft([(0, 0.01, 0.02), (0, -0.005, -0.12), (0, -0.02, -0.25), (0, -0.035, -0.36)],
-         [(0.13, 0.11), (0.11, 0.088), (0.085, 0.066), (0.06, 0.046)], "Bone", g, verts=16, up=(0, 1, 0))
-    loft([(0, -0.115, 0.13), (0, -0.115, 0.0), (0, -0.105, -0.15), (0, -0.1, -0.3)],
-         [(0.1, 0.03), (0.095, 0.028), (0.08, 0.024), (0.055, 0.02)], "Bone", g, verts=12, up=(0, 1, 0))  # onderkaak
+    head = loft([(0, y, z) for z, y, _rx, _ry in SKULL], [(rx, ry) for _z, _y, rx, ry in SKULL], "Bone", g,
+                verts=14, up=(0, 1, 0), profile=SKULL_PROFILE)
+    head.data.materials.append(kit.mat("BoneDark"))
     for s in (-1, 1):
-        sphere(0.052, (s * 0.115, 0.075, 0.03), "BoneDark", g, segments=12, rings=6)  # oogkassen
-        sphere(0.016, (s * 0.035, 0.02, -0.355), "BoneDark", g, segments=8, rings=4)  # neusgaten
-        loft([(s * 0.07, 0.15, 0.04), (s * 0.085, 0.215, 0.0), (s * 0.09, 0.26, -0.04)], [0.024, 0.014, 0.0], "Bone", g, verts=8)  # hoorntjes
-        for k in range(6):  # tanden: bovenaan naar beneden, onderaan naar boven
-            z = -0.04 - k * 0.05
-            w = 0.075 - k * 0.006
-            loft([(s * w, -0.045, z), (s * w, -0.1, z - 0.005)], [0.013, 0.0], "Quartz", g, verts=6)
-            loft([(s * (w - 0.008), -0.1, z - 0.02), (s * (w - 0.008), -0.065, z - 0.022)], [0.01, 0.0], "Quartz", g, verts=6)
+        _carve(head, (s * 0.142, 0.096, 0.108), 0.058, (0.78, 1.0, 1.12))       # oogkas
+        _carve(head, (s * 0.124, 0.022, -0.075), 0.04, (0.62, 0.72, 1.55))       # gat voor het oog
+        _carve(head, (s * 0.142, 0.012, 0.212), 0.034, (0.8, 1.05, 0.95))        # slaapgat achter het oog
+        _carve(head, (s * 0.022, -0.004, -0.356), 0.021, (0.85, 0.9, 1.45))      # neusgat
+    for s in (-1, 1):
+        # Wenkbrauwrand die over de oogkas hangt, met een hoorntje erop.
+        loft([(s * 0.115, 0.142, 0.175), (s * 0.132, 0.156, 0.115), (s * 0.124, 0.145, 0.045), (s * 0.098, 0.12, -0.012)],
+             [(0.014, 0.012), (0.028, 0.026), (0.024, 0.022), (0.012, 0.012)], "Bone", g, verts=12, up=(0, 1, 0))
+        # Hoorn naar achter geveegd (geen oor): vanaf de wenkbrauw schuin omhoog en naar achteren.
+        loft([(s * 0.12, 0.156, 0.122), (s * 0.138, 0.19, 0.168), (s * 0.15, 0.208, 0.222), (s * 0.156, 0.211, 0.268)],
+             [0.027, 0.018, 0.009, 0.0], "Bone", g, verts=10)
+        # Jukbeen: brede rand onder het oog, geeft het silhouet een wang.
+        loft([(s * 0.14, -0.018, 0.222), (s * 0.15, -0.026, 0.13), (s * 0.14, -0.032, 0.035), (s * 0.114, -0.036, -0.06)],
+             [(0.02, 0.026), (0.022, 0.03), (0.019, 0.024), (0.01, 0.012)], "Bone", g, verts=10, up=(0, 1, 0))
+        sphere(0.03, (s * 0.142, -0.066, 0.222), "Bone", g, segments=14, rings=7)  # kaakgewricht
+        # Tanden in de bovenkaak: voorin langer, naar achter kleiner; licht naar achter gebogen.
+        for k in range(8):
+            z = -0.334 + k * 0.047
+            yc, rx, ry = _skull_at(z)
+            root = Vector((s * 0.72 * rx, yc - 0.64 * ry, z))
+            length = 0.056 - k * 0.0035
+            r = 0.0145 - k * 0.0007
+            mid = root + Vector((-s * 0.002, -length * 0.55, 0.002))
+            tip = root + Vector((-s * 0.005, -length, 0.01))
+            loft([tuple(root), tuple(mid), tuple(tip)], [r, r * 0.68, 0.0], "Quartz", g, verts=8)
+    # Middenkam bovenop.
+    loft([(0, 0.17, 0.25), (0, 0.19, 0.17), (0, 0.186, 0.09), (0, 0.15, 0.0)], [(0.011, 0.018), (0.013, 0.022),
+         (0.012, 0.018), (0.006, 0.006)], "Bone", g, verts=10, up=(0, 1, 0))
+    # Onderkaak: twee takken die vooraan samenkomen, met kleinere tanden naar boven; staat op een kier.
+    jaw_parts = []
+    for s in (-1, 1):
+        ramus = [(s * 0.142, -0.078, 0.226), (s * 0.135, -0.097, 0.14), (s * 0.118, -0.107, 0.04),
+                 (s * 0.094, -0.112, -0.07), (s * 0.066, -0.114, -0.18), (s * 0.036, -0.114, -0.27), (s * 0.006, -0.112, -0.33)]
+        rr = [(0.024, 0.044), (0.025, 0.05), (0.024, 0.044), (0.023, 0.036), (0.022, 0.03), (0.021, 0.026), (0.022, 0.024)]
+        jaw_parts.append(loft(ramus, rr, "Bone", g, verts=12, up=(0, 1, 0)))
+        for k in range(5):
+            i = 5 - k
+            base = Vector(ramus[i]) * 0.65 + Vector(ramus[i - 1]) * 0.35
+            root = base + Vector((0, rr[i][1] * 0.75, 0))
+            jaw_parts.append(loft([tuple(root), tuple(root + Vector((0, 0.04 - k * 0.003, -0.004)))],
+                                  [0.0125 - k * 0.0007, 0.0], "Quartz", g, verts=8))
+    hinge = G(*JAW_HINGE)
+    m = Matrix.Translation(hinge) @ Matrix.Rotation(math.radians(JAW_OPEN), 4, "X") @ Matrix.Translation(-hinge)
+    for o in jaw_parts:
+        o.data.transform(m)
 
 
 def build_claw():
@@ -241,6 +319,57 @@ def build_chunks():
         lumpy(g, 0.5, (1.0, 0.75 + 0.1 * k, 0.9), "Rock", g, seed=31 + k * 7, amp=0.35, subdiv=1)
 
 
+# --- Okervlekken op botten ------------------------------------------------------------------
+
+BONES = ("Femur", "Vertebra", "Rib", "Skull", "Claw")
+BONE_WEAR = 10.0  # sterkere slijtage-bake voor botten (andere vondsten 6)
+
+
+def _smooth(a, b, x):
+    t = min(1.0, max(0.0, (x - a) / (b - a)))
+    return t * t * (3.0 - 2.0 * t)
+
+
+def stain(obj, seed, amount=1.0):
+    """Okervlekken: ruisvlekken in kanaal G (vuil) van de slijtagekleur, enkel op Bone-vlakken.
+    De Bone-shader in Godot (MolVisual.MATS) kleurt vuil oker; zonder dit kwam er enkel vuil in
+    de (weinige) holtes en bleven de botten egaal."""
+    me = obj.data
+    attr = me.color_attributes.get("Col")
+    if attr is None:
+        return
+    bone = {i for i, m in enumerate(me.materials) if m is not None and m.name == "Bone"}
+    on_bone = [False] * len(me.vertices)
+    for poly in me.polygons:
+        if poly.material_index in bone:
+            for v in poly.vertices:
+                on_bone[v] = True
+    off = Vector((seed * 3.17, seed * 1.71, seed * 0.93))
+    for v in me.vertices:
+        if not on_bone[v.index]:
+            continue
+        q = v.co * 9.0 + off
+        n = noise.noise(q) * 0.7 + noise.noise(q * 2.7) * 0.3
+        patch = _smooth(-0.04, 0.32, n) * amount
+        c = attr.data[v.index].color
+        attr.data[v.index].color = (c[0], max(c[1], patch), c[2], c[3])
+
+
+def _center_group(group):
+    """Schuift alle onderdelen van een groep zodat het midden van de omhullende doos in de oorsprong ligt."""
+    objs = PARTS.get(group, [])
+    bpy.context.view_layer.update()
+    pts = [o.matrix_world @ v.co for o in objs for v in o.data.vertices]
+    lo = Vector((min(p.x for p in pts), min(p.y for p in pts), min(p.z for p in pts)))
+    hi = Vector((max(p.x for p in pts), max(p.y for p in pts), max(p.z for p in pts)))
+    c = (lo + hi) / 2
+    for o in objs:
+        o.matrix_world = Matrix.Translation(-c) @ o.matrix_world
+    bpy.context.view_layer.update()
+    size = hi - lo
+    print(f"[finds] {group}: maat (Godot) x {size.x:.3f}  y {size.z:.3f}  z {size.y:.3f}")
+
+
 def main():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     builders = {
@@ -251,6 +380,7 @@ def main():
     for fn in builders.values():
         fn()
     build_chunks()
+    _center_group("Skull")
     root = bpy.data.objects.new("Finds", None)
     bpy.context.collection.objects.link(root)
     names = list(builders.keys()) + [f"Chunk_{k}" for k in range(3)]
@@ -260,7 +390,10 @@ def main():
         if o is None:
             print(f"[finds] LEEG: {name}")
             continue
-        if not name.startswith("Chunk"):
+        if name in BONES:
+            bake_wear(o, strength=BONE_WEAR, seed=hash(name) % 1000)
+            stain(o, seed=sum(map(ord, name)) % 97)
+        elif not name.startswith("Chunk"):
             bake_wear(o, strength=6.0, seed=hash(name) % 1000)
         parent_to(o, root)
         n = tri_count(o)
