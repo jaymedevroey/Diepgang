@@ -51,8 +51,8 @@ const HINTS := {
 	"Locker": ["Paint booth · closed for fumes", "Your color is assigned by head office"],
 	"Niche_Tools": ["Tool rack · locked", "Head office keeps the key"],
 	"Niche_Supply": ["Supply desk · counter closed", "Open Tuesdays 10:00–10:05"],
-	"Niche_Free_A": ["Storage bay · shutter down", "Closed for budget reasons"],
-	"Niche_Free_B": ["Storage bay · shutter down", "Closed after an incident. Do not ask."],
+	"Niche_Free_A": ["Human resources · closed", "No humans left to resource"],
+	"Niche_Free_B": ["Break room · management only", "Your break is scheduled for quarter 7"],
 	"Mol_Werf": ["Mole yard · workshop closed", "Maintenance is billed per hour, so we skip it"],
 }
 ## Volgorde van de laadcapsules bij het spawnen: de eerste speler in capsule 02 (midden, zicht door

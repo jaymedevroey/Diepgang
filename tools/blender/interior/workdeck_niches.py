@@ -464,7 +464,9 @@ def niche_free_a(ctx, S, R, PN, D, RD, P, rng):
         box(D, (17.265, 1.93, 33.0 + dz), (0.01, 0.07, 0.012), m="Steel")
     sign(D, D, ff, 2.0, 0.66, 0.7, 0.3, [("CLOSED", 0.09), ("NO HUMANS LEFT", 0.045)], bg="Red", fg="DecalLight",
          gap=0.45, tilt=-3)
-    ctx.col_box(17.18, 17.36, Y0, 2.3, 31.55, 34.45)
+    # Botsvorm van de afzetting tot 1,9 m (de laagste stand van de ketting): je loopt er niet door, en de
+    # straal van E (oog 2,4 m, gehurkt 1,98 m) naar de uitleg in de nis gaat er nog over.
+    ctx.col_box(17.18, 17.36, Y0, 1.9, 31.55, 34.45)
 
 
 # --- Vrij B: BREAK ROOM (de lounge van de directie, achter een fluwelen koord) -----------------------------
@@ -533,7 +535,7 @@ def niche_free_b(ctx, S, R, PN, D, RD, P, rng):
     ff = Face((17.25, Y0, 35.0), (0, 0, 1), (0, 1, 0))  # kijkt naar het dek (−x), a = z − 35
     sign(D, D, ff, 2.0, 0.66, 0.72, 0.28, [("MANAGEMENT ONLY", 0.055), ("YOUR BREAK: QUARTER 7", 0.03)],
          bg="DecalDark", fg="Yellow", border="Brass", gap=0.5)
-    ctx.col_box(17.18, 17.36, Y0, 2.3, 35.55, 38.45)
+    ctx.col_box(17.18, 17.36, Y0, 1.9, 35.55, 38.45)  # zie Human Resources
 
 
 def build_niches(ctx, S, R, PN, D, RD, P, rng):
