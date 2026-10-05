@@ -140,7 +140,15 @@ func _physics_process(delta: float) -> void:
 	_bite_timer -= delta
 	_heat_rate = Tuning.get_f("drill", "heat_rate_idle", 0.6)
 	var heat_max := Tuning.get_f("drill", "heat_max", 5.5)
-	if running and not hit.is_empty() and hit.collider is Crust:
+	if running and not hit.is_empty() and hit.collider is Rubble and (hit.collider as Rubble).blocks:
+		# Puin van een instorting wegboren (pakket F2): de host telt de levens.
+		touching = true
+		_heat_rate = Tuning.get_f("drill", "heat_rate_klei", 0.75)
+		_set_contact(true, false, hit.position, hit.normal, Strata.DEBRIS_COLORS[terrain.layer_at(hit.position)])
+		if _crust_timer <= 0.0:
+			_crust_timer = 0.1
+			(hit.collider as Rubble).chip(true, hit.position)
+	elif running and not hit.is_empty() and hit.collider is Crust:
 		# Door de korst boren: snel, maar de vondst lijdt eronder (host beslist), meer met een hete boor.
 		var crust: Crust = hit.collider
 		touching = true
@@ -259,7 +267,7 @@ func _aim_hit() -> Dictionary:
 
 func _update_aim(hit: Dictionary) -> void:
 	var new_aim := Pickaxe.Aim.NONE
-	if not hit.is_empty() and hit.collider is Crust:
+	if not hit.is_empty() and (hit.collider is Crust or hit.collider is Rubble):
 		new_aim = Pickaxe.Aim.CRUST
 	elif not hit.is_empty() and hit.collider is OreCluster:
 		new_aim = Pickaxe.Aim.ORE

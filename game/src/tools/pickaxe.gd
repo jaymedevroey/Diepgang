@@ -173,6 +173,13 @@ func _impact() -> bool:
 		return false
 	var pos: Vector3 = hit.position
 	var normal: Vector3 = hit.normal
+	if hit.collider is Rubble and (hit.collider as Rubble).blocks:
+		# Puin van een instorting wegbikken (pakket F2): de host telt de levens.
+		(hit.collider as Rubble).chip(false, pos)
+		fx.impact(pos, normal, Strata.DEBRIS_COLORS[terrain.layer_at(pos)], 3)
+		camera_fx.kick(Tuning.get_f("pickaxe", "kick_pitch_deg", 1.6), _rng.randf_range(-1, 1) * 0.6)
+		camera_fx.add_trauma(Tuning.get_f("pickaxe", "shake_trauma", 0.28))
+		return true
 	if hit.collider is Crust:
 		# Uitbikken: veilig voor de vondst, levens telt de host. De slag die de korst breekt (hier al
 		# te voorspellen) krijgt een langere hit-stop en een grotere schok: dat is het moment.
@@ -219,7 +226,7 @@ func _update_aim() -> void:
 	var from := camera.global_position
 	var hit := terrain.tool_raycast(from, from - camera.global_basis.z * reach)
 	var new_aim := Aim.NONE
-	if not hit.is_empty() and hit.collider is Crust:
+	if not hit.is_empty() and (hit.collider is Crust or hit.collider is Rubble):
 		new_aim = Aim.CRUST
 	elif not hit.is_empty() and hit.collider is OreCluster:
 		new_aim = Aim.ORE

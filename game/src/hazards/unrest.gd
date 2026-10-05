@@ -16,6 +16,12 @@ extends Node3D
 ##   (traag rollen, sijpelend gruis, de eerste steentjes), de hoofdschok komt in golven met pieken
 ##   (2-3°), de helmlamp flikkert, een stofwolk vult de ruimte, en rond elke speler vallen steentjes.
 ##   Geen geluid (M6), maar wel de haken ervoor: `rumble_level()`, `rock_landed`, `quake_*`.
+## - Schade (pakket F2): wie geraakt wordt, meldt het de host (Rescue.report_rock), die dezelfde
+##   controle doet (een rots die echt gepland was) en beslist: een kleine rots kost levens, een grote
+##   gooit je omver als ragdoll. Grote rotsen blijven liggen als puin (Rubble) dat je tegenhoudt en
+##   dat je wegbikt; elke rots heeft daarvoor een id van de host.
+## - Zones: hoe dieper, hoe dichter (playtest 2026-10-06: "hoe dieper, hoe meer kans dat het
+##   instort"). Tussen de bevingen door stort een zone soms vanzelf in (Collapse).
 
 enum Phase { CALM, WARNING, QUAKE }
 
@@ -56,6 +62,9 @@ var _drill_seen := {} # peer -> tijd (s) van zijn laatste boorhap
 var _plan: Array = [] # [pos, grootte, vertraging na T0] van de lopende beving
 var _plan_done := {} # index in _plan -> 0 = stof gestart, 1 = rots gevallen
 var _rocks: Array[RigidBody3D] = []
+var _by_id := {} # rots-id -> Rubble
+var _next_rock := 1 # host
+var _chip_seen := {} # host: peer -> tijd van de laatste slag op puin
 var _dust: Array[GPUParticles3D] = []
 var _rock_mesh: Array[Mesh] = []
 var _rock_shape: Array[Shape3D] = []
@@ -99,6 +108,7 @@ func reset() -> void:
 		if is_instance_valid(r):
 			r.queue_free()
 	_rocks.clear()
+	_by_id.clear()
 
 
 func _make_zones(terrain: TerrainAPI) -> void:
@@ -119,17 +129,23 @@ func _make_zones(terrain: TerrainAPI) -> void:
 			var p := Vector3(c.x + cos(a) * d, top - 1.5, c.z + sin(a) * d)
 			if p.y < klei or terrain.surface_height_at(p.x, p.z) - p.y > 8.0:
 				zones.append(Vector4(p.x, p.y, p.z, r))
-	# Verspreid in de rots, het meest in zandsteen.
+	# Verspreid in de rots: hoe dieper, hoe dichter (playtest 2026-10-06). Een plek op diepte d blijft
+	# met kans 0,15 + d / 180 (vanaf ±150 m altijd).
 	var size := terrain.world_size()
-	for i in 70:
-		var y := rng.randf_range(Strata.TOPS_M[1], klei - 3.0) if rng.randf() < 0.6 else rng.randf_range(8.0, Strata.TOPS_M[1])
-		var p := Vector3(rng.randf_range(12.0, size.x - 12.0), y, rng.randf_range(12.0, size.z - 12.0))
-		zones.append(Vector4(p.x, p.y, p.z, r))
-	# Ook in de klei (ontwerp-12: bevingen raken je in elke laag), niet in de bovenste 8 m.
-	for i in Tuning.get_i("unrest", "zones_klei", 24):
+	var want := int(round(Tuning.get_i("collapse", "zones", 90) * HazardParams.of(game, "collapse", 1.0)))
+	var tries := 0
+	var placed := 0
+	while placed < want and tries < want * 8:
+		tries += 1
 		var p := Vector3(rng.randf_range(12.0, size.x - 12.0), 0.0, rng.randf_range(12.0, size.z - 12.0))
-		p.y = rng.randf_range(klei + 3.0, terrain.surface_height_at(p.x, p.z) - 8.0)
+		var top := terrain.surface_height_at(p.x, p.z)
+		p.y = rng.randf_range(8.0, top - 8.0)
+		# Ook in de klei (ontwerp-12: bevingen raken je in elke laag), maar daar het minst.
+		var keep := rng.randf()
+		if keep > clampf(0.15 + (top - p.y) / 180.0, 0.15, 1.0):
+			continue
 		zones.append(Vector4(p.x, p.y, p.z, r))
+		placed += 1
 
 
 ## In een onstabiele zone?
@@ -357,9 +373,19 @@ func _host_plan() -> Array:
 					continue
 				var size := _rng.randf_range(Tuning.get_f("unrest", "rock_min", 0.4), Tuning.get_f("unrest", "rock_max", 1.2))
 				var at: Vector3 = hit.position - Vector3(0.0, size * 0.6 + 0.1, 0.0)
-				plan.append([at, size, _rng.randf_range(0.0, spread)])
+				plan.append(host_rock_entry(at, size, _rng.randf_range(0.0, spread)))
 				break
 	return plan
+
+
+## Host: een geplande rots: [plek, grootte, vertraging, id, draaiing, tol]. Iedereen laat hem met
+## dezelfde draaiing en tol vallen, zodat het puin bij iedereen ongeveer gelijk ligt.
+func host_rock_entry(at: Vector3, size: float, delay: float) -> Array:
+	var id := _next_rock
+	_next_rock += 1
+	var rot := Vector3(_rng.randf() * TAU, _rng.randf() * TAU, 0.0)
+	var spin := Vector3(_rng.randf_range(-2, 2), _rng.randf_range(-2, 2), _rng.randf_range(-2, 2))
+	return [at, size, delay, id, rot, spin]
 
 
 ## Stofstraal en daarna de rots, op het juiste moment na T0 (`qt`: seconden sinds T0).
@@ -375,22 +401,38 @@ func _run_plan(qt: float) -> void:
 		if state < 1 and qt >= at and _plan_done.has(i):
 			_plan_done[i] = 1
 			_plan_done[i + _plan.size()] = 1 # telt mee voor "klaar"
-			_spawn_rock(e[0], e[1])
+			spawn_rock(e)
 
 
-func _spawn_rock(pos: Vector3, size: float) -> void:
+## Een rots uit een plan laten vallen (beving of instorting): [plek, grootte, vertraging, id, draaiing, tol].
+func spawn_rock(e: Array) -> void:
+	var pos: Vector3 = e[0]
+	var size: float = e[1]
+	var rock_id: int = e[3] if e.size() > 3 else -1
+	var rot: Vector3 = e[4] if e.size() > 4 else Vector3(_rng.randf() * TAU, _rng.randf() * TAU, 0.0)
+	var spin: Vector3 = e[5] if e.size() > 5 else Vector3(_rng.randf_range(-2, 2), _rng.randf_range(-2, 2), _rng.randf_range(-2, 2))
 	while _rocks.size() >= Tuning.get_i("unrest", "max_rocks", 30):
 		var old: RigidBody3D = _rocks.pop_front()
 		if is_instance_valid(old):
+			_by_id.erase((old as Rubble).rock_id if old is Rubble else -1)
 			old.queue_free()
-	var rb := RigidBody3D.new()
-	rb.collision_layer = Layers.DEBRIS
-	rb.collision_mask = Layers.TERRAIN | Layers.DEBRIS
+	var rb := Rubble.new()
+	rb.rock_id = rock_id
+	rb.size = size
+	rb.unrest = self
+	rb.blocks = size >= Tuning.get_f("collapse", "rubble_size", 0.7)
+	rb.max_hp = Tuning.get_f("collapse", "rubble_hp", 2.0) + Tuning.get_f("collapse", "rubble_hp_per_m", 4.0) * size
+	rb.hp = rb.max_hp
+	# Puin: het gereedschap raakt het (laag CRUST) en spelers botsen ertegen (RUBBLE).
+	rb.collision_layer = Layers.DEBRIS | (Layers.CRUST | Layers.RUBBLE if rb.blocks else 0)
+	rb.collision_mask = Layers.TERRAIN | Layers.DEBRIS | Layers.LIFT | Layers.RUBBLE
 	rb.mass = 40.0 * size * size * size
 	rb.contact_monitor = true
 	rb.max_contacts_reported = 1
-	var variant := _rng.randi() % _rock_mesh.size()
-	var squash := Vector3(1.0, _rng.randf_range(0.7, 0.95), _rng.randf_range(0.85, 1.1))
+	if rock_id >= 0:
+		_by_id[rock_id] = rb
+	var variant := (rock_id if rock_id >= 0 else _rng.randi()) % _rock_mesh.size()
+	var squash := Vector3(1.0, 0.7 + 0.25 * fposmod(rot.x, 1.0), 0.85 + 0.25 * fposmod(rot.y, 1.0))
 	var cs := CollisionShape3D.new()
 	cs.shape = _rock_shape[variant]
 	cs.scale = Vector3.ONE * size * 0.5 # botsvormen enkel gelijkmatig schalen
@@ -416,10 +458,10 @@ func _spawn_rock(pos: Vector3, size: float) -> void:
 	# Vloeiend tussen de physics-ticks (physics-interpolatie staat in het project aan, per node).
 	rb.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_ON
 	add_child(rb)
-	rb.rotation = Vector3(_rng.randf() * TAU, _rng.randf() * TAU, 0.0)
+	rb.rotation = rot
 	rb.global_position = pos
 	rb.reset_physics_interpolation() # niet van de oorsprong naar hier glijden
-	rb.angular_velocity = Vector3(_rng.randf_range(-2, 2), _rng.randf_range(-2, 2), _rng.randf_range(-2, 2))
+	rb.angular_velocity = spin
 	rb.set_meta("size", size)
 	rb.set_meta("hit", false)
 	rb.body_entered.connect(func(_b: Node) -> void: _on_rock_landed(rb), CONNECT_ONE_SHOT)
@@ -429,8 +471,65 @@ func _spawn_rock(pos: Vector3, size: float) -> void:
 	life.wait_time = Tuning.get_f("unrest", "rock_life_s", 40.0)
 	life.one_shot = true
 	life.autostart = true
-	life.timeout.connect(rb.queue_free)
+	life.timeout.connect(func() -> void:
+		_by_id.erase(rb.rock_id)
+		rb.queue_free())
 	rb.add_child(life)
+
+
+## Puin met deze id (op elk peer), of null.
+func rock(id: int) -> Rubble:
+	var r: Variant = _by_id.get(id)
+	return r if is_instance_valid(r) else null
+
+
+# --- Puin wegbikken -------------------------------------------------------------------------------
+
+## Lokaal: het gereedschap raakt puin. De host telt de levens (zelfde controle: dichtbij, niet te snel).
+func request_chip(rock_id: int, drill: bool, at: Vector3) -> void:
+	if Net.is_host():
+		_host_chip(Net.my_id(), rock_id, drill, at)
+	else:
+		_rpc_chip.rpc_id(1, rock_id, drill, at)
+
+
+@rpc("any_peer", "reliable")
+func _rpc_chip(rock_id: int, drill: bool, at: Vector3) -> void:
+	if multiplayer.is_server():
+		_host_chip(multiplayer.get_remote_sender_id(), rock_id, drill, at)
+
+
+func _host_chip(sender: int, rock_id: int, drill: bool, at: Vector3) -> void:
+	var r := rock(rock_id)
+	var p: Player = game.player_node(sender)
+	if r == null or p == null or p.global_position.distance_to(at) > 4.5:
+		return
+	var now := Time.get_ticks_msec() / 1000.0
+	var gap := (0.08 if drill else 0.25) / Tuning.get_f("dig", "host_slack", 2.0)
+	if now - float(_chip_seen.get(sender, -10.0)) < gap:
+		return
+	_chip_seen[sender] = now
+	var hp := r.hp - (Tuning.get_f("collapse", "drill_damage", 0.5) if drill else 1.0)
+	_rpc_rubble.rpc(rock_id, hp)
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_rubble(rock_id: int, hp: float) -> void:
+	var r := rock(rock_id)
+	if r == null:
+		return
+	r.hp = hp
+	var col: Color = Strata.DEBRIS_COLORS[game.terrain.layer_at(r.global_position)]
+	if hp > 0.0:
+		game.fx.impact(r.global_position + Vector3.UP * r.size * 0.4, Vector3.UP, col, 2)
+		return
+	# Kapot: in brokjes uiteen, en weg.
+	game.fx.crust_break(r.global_position, r.size * 0.6, col)
+	for i in 4:
+		_spawn_pebble(r.global_position + Vector3(randf_range(-0.3, 0.3), 0.2, randf_range(-0.3, 0.3)), r.size * 0.25)
+	_by_id.erase(rock_id)
+	_rocks.erase(r)
+	r.queue_free()
 
 
 func _on_rock_landed(rb: RigidBody3D) -> void:
@@ -483,10 +582,13 @@ func _physics_process(_delta: float) -> void:
 		if rb.global_position.distance_to(body) < size * 0.5 + 0.55:
 			rb.set_meta("hit", true)
 			var big := size >= Tuning.get_f("unrest", "big_rock", 0.8)
+			# Voorspelling: meteen wankelen (of omver). De host beslist over levens en ragdoll (Rescue).
 			p.stun(Tuning.get_f("unrest", "knockdown_s" if big else "stagger_s", 1.2 if big else 0.3), big)
 			local_hit.emit(size)
 			if big:
-				local_knockdown.emit(size) # F2: hier wordt neergaan (downed) aangesloten
+				local_knockdown.emit(size)
+			if game.rescue and p.life == Rescue.Life.OK:
+				game.rescue.report_rock(size, rb.global_position)
 
 
 # --- Stof en markering -------------------------------------------------------------------------
