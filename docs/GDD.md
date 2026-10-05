@@ -247,7 +247,7 @@ Een grote rupsvoertuig-drilboor (±10 m lang, ±6 m breed) van DIG: vooraan een 
 
 ### Uitwerking (pakket F2, 2026-10-05; keuzes waar het GDD zweeg, ter info voor Jayme)
 Cijfers in `rescue.cfg`, `worm.cfg`, `beacon.cfg`, `gas.cfg` en `collapse.cfg`.
-- **Levens en neergaan.** Een robot heeft levens (100%). Vallen in de put (niet uit De Ekster), rotsen (klein 15%, groot 40% en even omver), de worm (45% en omver), gas en de hittezone (20%/s) kosten levens. Op 0% ga je neer: een ragdoll die je ploeg 90 s lang naar de Mol kan dragen (alleen aan 0,4×, met twee aan 0,6× wandelen). In de Mol: na 4 s recht met 50%; in de Mol herstel je ook langzaam.
+- **Levens en neergaan.** Een robot heeft levens (100%). Vallen in de put (niet uit De Ekster), rotsen (klein 15%, groot 40% en even omver), de worm (45% en omver), gas en de hittezone (20%/s) kosten levens. Op 0% ga je neer: een ragdoll die je ploeg 90 s lang naar de Mol kan brengen. Een robot weegt 24 kg, dus dezelfde regels als zware buit (pakket F3): alleen sleep je hem over de grond, met twee til je hem. In de Mol: na 4 s recht met 50%; in de Mol herstel je ook langzaam.
 - **Niemand die kan dragen** (solo, of de rest ligt neer): na 2,5 s krabbel je recht en strompel je zelf naar de Mol (traag, zonder gereedschap), met dezelfde tijd. Zo blijft solo speelbaar.
 - **Kapot** (de tijd is op, of gesmolten): spookdrone tot de dienst voorbij is. Een wrak telt als achtergebleven, gesmolten als gesmolten. **Smelten zet je dus niet meer in de Mol** (ontwerp-7: dat was de snelste weg naar huis). Ligt iedereen neer of is iedereen kapot, dan haalt DIG de Mol op.
 - **Graafworm.** Slaapt de eerste 2,5 min, zwerft daarna rond de ploeg en jaagt op lawaai (boor, Mol, PING, toeter, ontploffing). Hij valt enkel uit waar 2 m boven de vloer nog ruimte is: in een smalle, zelfgegraven gang ben je veilig. Eerst 1,3 s waarschuwing, dan een boog op borsthoogte door de ruimte. Opgeslokte buit dumpt hij in een grot minstens 50 m verder. De toeter lokt hem naar de Mol (de piloot redt zo de gravers).
@@ -256,6 +256,7 @@ Cijfers in `rescue.cfg`, `worm.cfg`, `beacon.cfg`, `gas.cfg` en `collapse.cfg`.
 - **Instortingen.** Hoe dieper, hoe meer onstabiele zones en hoe groter de kans dat een zone tussen de bevingen door vanzelf instort (vanaf 20 m, groeiend met de diepte, de onrust en het einde van de dienst). Grote rotsen blijven liggen als puin dat je tegenhoudt en wegbikt.
 - **De climax.** De spanning groeit met het magma; vertrekt de Mol, dan is ze vol: de worm is sneller, valt vaker uit en hoort verder. De motor van de vertrekkende Mol lokt hem, en op de terugweg ramt hij de Mol: elke vondst in het laadruim verliest 12% gaafheid, de Mol valt even stil en wie staat gaat omver. Een baken in de Mol houdt hem af. Een oververhitte Mol wordt nog opgehaald, maar de lading verschroeit (−40%).
 - **Het magma als klok** staat onder de grond altijd in de HUD, met wanneer het op jouw diepte is.
+- **Per planeet en per opdracht.** De factoren van pakket F3 (`planets.cfg`: `gas_mult`, `worm_mult`, `quake_mult`; Kristalmaan meer gas en een onrustigere worm) en de voorwaarden van pakket F1: "Shaky ground" geeft meer onstabiele zones en twee keer zoveel kans op een instorting, "Hot core" laat het magma sneller stijgen.
 
 ---
 

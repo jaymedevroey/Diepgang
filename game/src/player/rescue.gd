@@ -132,9 +132,13 @@ func carry_target(peer: int) -> Transform3D:
 	var rd := ragdoll_of(peer)
 	if n == 0:
 		return rd.torso.global_transform if rd else Transform3D()
-	# Liggend op de armen: het lijf dwars (hoofd links), het gezicht naar boven.
+	# Liggend op de armen: het lijf dwars (hoofd links), het gezicht naar boven. Alleen sleep je hem
+	# laag over de grond (te zwaar om te tillen, zoals zware buit: FindKinds.liftable_alone).
 	var b := Basis(Vector3.UP, yaw) * Basis(Vector3(0, 0, 1), Vector3(-1, 0, 0), Vector3(0, -1, 0))
-	return Transform3D(b, sum / n)
+	var at := sum / n
+	if n == 1 and not FindKinds.liftable_alone(Tuning.get_f("rescue", "body_mass", 24.0)):
+		at.y -= Tuning.get_f("rescue", "drag_drop", 0.6)
+	return Transform3D(b, at)
 
 
 ## Hoeveel deze robot telt bij het vertrek van de Mol (Mol._dock): 1 = achtergebleven (een wrak op de

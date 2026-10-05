@@ -106,7 +106,7 @@ func _host_flow() -> void:
 	_expect(moved.ok, "client staat in de grot")
 	await _wait(0.6)
 	var worm: Worm = game.worm
-	game.magma.elapsed = Tuning.get_f("worm", "wake_s", 150.0) + 1.0
+	game.magma.elapsed = game.worm.wake_after() + 1.0
 	await _wait(0.3)
 	worm.pos = cave + Vector3(10.0, -6.0, 0.0)
 	worm.mode = Worm.Mode.HUNT

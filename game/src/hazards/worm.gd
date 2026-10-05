@@ -136,6 +136,11 @@ func is_awake() -> bool:
 	return mode != Mode.SLEEP
 
 
+## Na zoveel seconden magmaklok wordt hij wakker (per planeet: een rustigere worm slaapt langer).
+func wake_after() -> float:
+	return Tuning.get_f("worm", "wake_s", 150.0) / maxf(0.1, _mult())
+
+
 ## De sonar van de Mol: waar de worm lijkt te zitten (onzeker, meer met lawaai), en hoe sterk (0 = niet
 ## te zien). Grote stip; een PING maakt hem scherp.
 func sonar_echo(origin: Vector3, noise: float, sharp: bool) -> Dictionary:
@@ -229,7 +234,7 @@ func _host_step(dt: float) -> void:
 	_ram_cool -= dt
 	var mult := _mult()
 	if mode == Mode.SLEEP:
-		if magma.elapsed * mult >= Tuning.get_f("worm", "wake_s", 150.0):
+		if magma.elapsed >= wake_after():
 			mode = Mode.ROAM
 			print("[worm] wakker na %.0f s" % magma.elapsed)
 		return
@@ -654,7 +659,8 @@ func _rpc_swallow(find_id: int) -> void:
 	visual.gulp(it.global_position)
 	if not it.carriers.is_empty():
 		it.last_carriers = it.carriers
-	it.carriers = PackedInt32Array([BELLY])
+	# Twee "dragers" die geen speler zijn: niemand kan hem pakken, en hij telt niet als gesleept (F3).
+	it.carriers = PackedInt32Array([BELLY, BELLY - 1])
 	it.visible = false
 	it.collision_layer = 0
 	if multiplayer.is_server():

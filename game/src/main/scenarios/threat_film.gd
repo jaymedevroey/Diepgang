@@ -171,7 +171,7 @@ func _worm() -> void:
 	mol.press(Mol.Cmd.SEAT)
 	await _wait(0.6)
 	p.chase.activate()
-	game.magma.elapsed = Tuning.get_f("worm", "wake_s", 150.0) + 1.0
+	game.magma.elapsed = game.worm.wake_after() + 1.0
 	await _wait(0.2)
 	Tuning.set_value("worm", "hunt_speed", 6.5)
 	worm.pos = mol.body.global_position + Vector3(52.0, -14.0, 30.0)
@@ -209,7 +209,7 @@ func _lunge() -> void:
 	# De speler aan de rand van de grot, kijkend over de vloer: daar komt hij vandaan.
 	_stand(ground + Vector3(3.0, 0.05, 0.0), ground + Vector3(-5.0, 0.4, 0.0))
 	p.set_physics_process(true)
-	game.magma.elapsed = Tuning.get_f("worm", "wake_s", 150.0) + 1.0
+	game.magma.elapsed = game.worm.wake_after() + 1.0
 	await _wait(0.3)
 	worm.pos = ground + Vector3(-26.0, -6.0, 0.0)
 	worm._net_pos = worm.pos

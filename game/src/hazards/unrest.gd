@@ -187,7 +187,7 @@ func _host_noise(delta: float) -> void:
 			var top := maxf(0.1, Tuning.get_f("mol", "open_speed", 5.0))
 			amount += Tuning.get_f("unrest", "mol_drive", 0.25) * clampf(absf(mol.speed) / top, 0.0, 1.0) * delta
 	if amount > 0.0:
-		value += amount
+		value += amount * HazardParams.of(game, "unrest", 1.0) # per planeet (F3: quake_mult)
 		_quiet = 0.0
 
 

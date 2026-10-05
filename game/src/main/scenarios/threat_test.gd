@@ -69,7 +69,7 @@ func _run(pl: Player) -> void:
 
 	# 2. De worm slaapt de eerste minuten, dan wordt hij wakker.
 	_expect(worm.mode == Worm.Mode.SLEEP, "de worm slaapt bij de start")
-	magma.elapsed = Tuning.get_f("worm", "wake_s", 150.0) + 1.0
+	magma.elapsed = game.worm.wake_after() + 1.0
 	await _wait(0.3)
 	_expect(worm.mode != Worm.Mode.SLEEP, "na wake_s wordt hij wakker (%s)" % Worm.Mode.keys()[worm.mode])
 
