@@ -180,7 +180,6 @@ func _rebuild(tab: String) -> void:
 			_slider(page, "audio/master", "Master volume", 0.0, 1.0, 0.01, "%d%%", 100.0)
 			_slider(page, "audio/sfx", "Effects", 0.0, 1.0, 0.01, "%d%%", 100.0)
 			_slider(page, "audio/music", "Music", 0.0, 1.0, 0.01, "%d%%", 100.0)
-			_slider(page, "audio/voice", "Voices (voice chat)", 0.0, 1.0, 0.01, "%d%%", 100.0, "For voice chat (coming in M4).")
 			_slider(page, "audio/ui", "Menus", 0.0, 1.0, 0.01, "%d%%", 100.0)
 			_toggle(page, "audio/mute_unfocused", "Mute when the game is in the background")
 		"besturing":
@@ -211,8 +210,9 @@ func _rebuild(tab: String) -> void:
 			_option(page, "hud/tools", "Tools", modes)
 			_option(page, "hud/depth", "Depth and direction to the Mole", modes)
 			_option(page, "hud/team", "Crew", modes)
-			_option(page, "hud/sonar", "Sonar in outside view (the Mole)", modes)
-			_option(page, "hud/stats", "Info panel (fps, network) · F3", ["Off", "Off", "On"])
+			_option(page, "hud/sonar", "Sonar (outside view in the Mole)", modes)
+			# Het infopaneel kent enkel uit (0) en aan (2): geen "dynamisch".
+			_option(page, "hud/stats", "Info panel (fps, network) · F3", ["Off", "On"], [Settings.HUD_OFF, Settings.HUD_ALWAYS])
 
 
 func _pad(c: Control) -> MarginContainer:
@@ -256,14 +256,17 @@ func _toggle(page: Control, key: String, label_text: String, help := "") -> void
 	row.add_child(c)
 
 
-func _option(page: Control, key: String, label_text: String, items: Array) -> void:
+## Keuzelijst. `values`: de waarde per keuze (standaard 0, 1, 2 …).
+func _option(page: Control, key: String, label_text: String, items: Array, values: Array = []) -> void:
 	var row := _row(page, label_text)
 	var o := OptionButton.new()
 	o.custom_minimum_size.x = 300
 	for it: String in items:
 		o.add_item(it)
-	o.selected = clampi(int(Settings.get_value(key)), 0, items.size() - 1)
-	o.item_selected.connect(func(i: int) -> void: Settings.set_value(key, i))
+	var vals: Array = values if not values.is_empty() else range(items.size())
+	var cur := vals.find(int(Settings.get_value(key)))
+	o.selected = clampi(cur if cur >= 0 else 0, 0, items.size() - 1)
+	o.item_selected.connect(func(i: int) -> void: Settings.set_value(key, vals[i]))
 	row.add_child(o)
 
 

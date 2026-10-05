@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Vondst: kristal (een geode). -->
+  <g fill="#ffffff">
+    <path d="M32 3 L46 18 L40 61 H24 L18 18 Z"/>
+    <path d="M10 27 L18 23 L22 58 H14 L7 35 Z" fill-opacity="0.8"/>
+    <path d="M54 27 L46 23 L42 58 H50 L57 35 Z" fill-opacity="0.8"/>
+  </g>
+  <path fill="none" stroke="#000000" stroke-opacity="0.3" stroke-width="2.5" d="M32 3 V61 M18 18 H46"/>
+</svg>

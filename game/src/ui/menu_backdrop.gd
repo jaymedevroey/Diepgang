@@ -5,11 +5,13 @@ extends Node3D
 ## en een camera die traag rondzweeft. Decor: tools/blender/menu_set.py.
 
 const SET := preload("res://assets/models/menu_set.glb")
-## Camerastanden: [positie, kijkpunt]. Het menu staat links in beeld, de Mol rechts.
+## Camerastanden: [positie, kijkpunt]. Het menu staat links in beeld, de Mol rechts: ook bij
+## meedoen (de gele Mol stond daar pal achter de gele knoppen), en het werfbord valt buiten beeld
+## in plaats van half erin (ui-12).
 const SHOTS := {
-	"main": [Vector3(-12.5, 0.4, -15.5), Vector3(0.5, -0.8, -3.0)],
+	"main": [Vector3(-12.5, 0.4, -15.5), Vector3(2.4, -0.8, -5.0)],
 	"settings": [Vector3(-7.5, 3.4, -14.0), Vector3(1.0, 0.0, -4.0)],
-	"join": [Vector3(-10.0, -0.9, 9.5), Vector3(0.5, -1.6, 2.5)],
+	"join": [Vector3(-11.0, -0.6, 11.5), Vector3(-1.5, -1.5, -2.6)],
 }
 
 var camera: Camera3D

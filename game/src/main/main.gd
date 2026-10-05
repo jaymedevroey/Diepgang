@@ -214,8 +214,8 @@ func _on_world_loaded(stats: Dictionary) -> void:
 	_atmosphere.ship = game.ship
 	if not _mol_connected:
 		_mol_connected = true
-		game.mol.message.connect(func(t: String) -> void:
-			hud.toast(t, "warn" if _is_mol_warning(t) else "mol"))
+		# De Mol zegt zelf hoe dringend een melding is (mol, warn, alarm): niet op de zin matchen.
+		game.mol.notice.connect(func(t: String, kind: String) -> void: hud.toast(t, kind))
 		# De stempel landt op het moment dat je de besturing terugkrijgt, niet in de klap zelf.
 		game.mol.landed.connect(func() -> void:
 			if player and game.mol.contains_point(player.global_position):
@@ -241,15 +241,6 @@ func _on_world_loaded(stats: Dictionary) -> void:
 		scenario_node.on_terrain_loaded(stats)
 
 
-## Meldingen van de Mol die een waarschuwing zijn (rood): de autopiloot stopt (harde laag, rand van
-## de put) of de boorkop schepte een vondst op. Op de inhoud, niet op het eerste woord: mol.gd zegt
-## "Harde laag: de autopiloot stopt…" (in het Engels "…: the autopilot stops…"), en
-## "Autopiloot: afdalen tot…" is geen waarschuwing.
-func _is_mol_warning(t: String) -> bool:
-	var l := t.to_lower()
-	return (l.contains("autopilo") and l.contains("stop")) or l.begins_with("the drill head")
-
-
 func _on_player_spawned(p: Player) -> void:
 	print("[diepgang] speler %d gespawnd%s" % [p.peer_id, " (lokaal)" if p.is_local else ""])
 	if not p.is_local:
@@ -271,12 +262,13 @@ func _on_player_spawned(p: Player) -> void:
 	if Net.mode == Net.Mode.HOST:
 		hud.toast("You're hosting. Friends join via Esc > Invite friends.", "info", 7.0)
 	_frame_since_spawn = 0
-	if CmdArgs.has("tuning-open"):
+	if CmdArgs.has("tuning-open") and CmdArgs.dev_mode():
 		_tuning_menu.toggle()
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("toggle_tuning"):
+	# Het tuningmenu is gereedschap voor ons, niet voor spelers: enkel in de ontwikkelaarsmodus.
+	if event.is_action_pressed("toggle_tuning") and CmdArgs.dev_mode():
 		_tuning_menu.toggle()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("toggle_stats"):
@@ -318,6 +310,9 @@ func _build_hud() -> void:
 	layer.add_child(hud)
 	_pause = PauseMenu.new()
 	_pause.leave_requested.connect(_leave_to_menu)
+	# Met het pauzemenu open geen HUD erachter: de kaarten van het menu en de banner van de HUD
+	# vielen over elkaar (ui-14).
+	_pause.visibility_changed.connect(func() -> void: hud.modulate.a = 0.0 if _pause.visible else 1.0)
 	layer.add_child(_pause)
 	_terminal = TerminalMenu.new()
 	layer.add_child(_terminal)

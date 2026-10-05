@@ -167,10 +167,10 @@ func display(sonar: Sonar, origin: Transform3D, delta: float) -> void:
 		var rel := target.echo - origin.origin
 		var dist := rel.length()
 		_text("head", "TARGET")
-		_text("dist", "%d M" % int(round(dist)))
+		_text("dist", "%d m" % int(round(dist)))
 		_text("clock", "%d O'CLOCK" % Sonar.clock(Sonar.bearing(origin, target.echo)))
 		var level := Tuning.get_f("mol", "sonar_level", 2.5)
-		_text("height", "LEVEL" if absf(rel.y) <= level else "%d M %s" % [int(round(absf(rel.y))), "ABOVE" if rel.y > 0.0 else "BELOW"])
+		_text("height", "LEVEL" if absf(rel.y) <= level else "%d m %s" % [int(round(absf(rel.y))), "ABOVE" if rel.y > 0.0 else "BELOW"])
 		_text("size", Sonar.SIZE_NAMES[target.size])
 		var close := dist < Tuning.get_f("mol", "sonar_warn", 8.0)
 		_text("warn", "! CLOSE\nSTOP HERE" if close else "")
@@ -183,7 +183,7 @@ func display(sonar: Sonar, origin: Transform3D, delta: float) -> void:
 	elif sonar.pings_left <= 0:
 		_text("ping", "NO PINGS")
 	elif sonar.ping_cool > 0.0:
-		_text("ping", "PING %d S" % int(ceil(sonar.ping_cool)))
+		_text("ping", "PING %d s" % int(ceil(sonar.ping_cool)))
 	else:
 		_text("ping", "PING %d/%d" % [sonar.pings_left, max_pings])
 	var pl: Label = _labels["ping"]
@@ -191,7 +191,7 @@ func display(sonar: Sonar, origin: Transform3D, delta: float) -> void:
 		pl.modulate = Color(1.6, 1.6, 1.6, 1.0) if fmod(sonar.denied_age, 0.3) < 0.15 else Color(1, 1, 1, 0.3)
 	else:
 		pl.modulate = Color(1, 1, 1, 1.0 if sonar.ping_ready() or sonar.pinging() else 0.45)
-	_text("range", "RANGE %d M" % int(sonar.range_m))
+	_text("range", "RANGE %d m" % int(sonar.range_m))
 	var noisy := sonar.noise > 0.3
 	_text("status", "NOISY" if noisy else "QUIET")
 	(_labels["status"] as Label).modulate.a = (1.0 if blink else 0.4) if noisy else 0.8

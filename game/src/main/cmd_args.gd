@@ -27,3 +27,9 @@ static func has(key: String) -> bool:
 
 static func value(key: String, fallback: Variant = null) -> Variant:
 	return all().get(key, fallback)
+
+
+## Ontwikkelaarsmodus: het tuningmenu (F1) en vliegen (V). Enkel in een debug-build (de editor, de
+## tests en previews) of met `--dev`; in de release-build (de demo) staan ze uit (gevoel-07, ui-06).
+static func dev_mode() -> bool:
+	return OS.is_debug_build() or has("dev")

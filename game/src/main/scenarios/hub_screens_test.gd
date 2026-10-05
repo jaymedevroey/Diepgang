@@ -73,7 +73,7 @@ func _run() -> void:
 
 	# 4. Taxatie en rapport na een dienst.
 	c.last_report = {}
-	_expect("PUT FINDS" in screens.screen_text(HubScreens.APPRAISAL), "taxatie zonder rapport: leg vondsten op de band")
+	_expect("AWAITING" in screens.screen_text(HubScreens.APPRAISAL), "taxatie zonder rapport: wacht op de buit")
 	var report := {"shift_total": 7, "quarter": 1, "shift": 1, "contract": o.name, "risk": 1, "factor": 1.15,
 			"sold": [["Skull", 340, 87], ["Rib", 120, 100]], "finds_value": 460, "ore_units": 4, "ore_value": 30, "bonus": 74,
 			"left_behind": 1, "melted": 0, "costs": 120, "damage": 44, "quakes": 1, "net": 444, "earned": 444, "quota": 800,

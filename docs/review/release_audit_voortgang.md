@@ -26,7 +26,7 @@ Legenda: **open**, **bezig**, **klaar** (met verificatie), **deels**, **niet** (
 | ID | Ernst | Pakket | Status | Wat er gedaan is | Verificatie |
 |---|---|---|---|---|---|
 | ontwerp-1 | Blokkerend | F2 | open | | |
-| ontwerp-2 | Blokkerend | F1 (+A: tekst "interest") | open | | |
+| ontwerp-2 | Blokkerend | F1 (+A: tekst "interest") | deels (tekst klaar, economie bij F1) | 'Interest is accruing' vervangen door 'Head office has noticed.' | A1 |
 | ontwerp-3 | Ernstig | F1 | open | | |
 | ontwerp-4 | Ernstig | F1 | open | | |
 | ontwerp-5 | Ernstig | F2 | open | | |
@@ -47,7 +47,7 @@ Legenda: **open**, **bezig**, **klaar** (met verificatie), **deels**, **niet** (
 | gevoel-04 | Ernstig | C | open | | |
 | gevoel-05 | Ernstig | C | open | | |
 | gevoel-06 | Ernstig | B | open | | |
-| gevoel-07 | Ernstig | A | open | | |
+| gevoel-07 | Ernstig | A | klaar | F1 (tuning) en V (vliegen) enkel met CmdArgs.dev_mode() (debug-build of --dev) | ui_test op een release-export: F1 vrij, met --dev gebonden |
 | gevoel-08 | Ernstig | D | open | | |
 | gevoel-09 | Ernstig | B | open | | |
 | gevoel-10 | Ernstig | B | open | | |
@@ -87,28 +87,28 @@ Legenda: **open**, **bezig**, **klaar** (met verificatie), **deels**, **niet** (
 | binnen-10 | Middel | B | open | | |
 | binnen-11 | Middel | B | open | | |
 | binnen-12 | Middel | A | open | | |
-| binnen-13 | Middel | A | open | | |
+| binnen-13 | Middel | A | deels (Godot klaar, model bij A2) | Zie ui-02 | A1: na/interior_taxatie_* |
 | binnen-14 | Middel | C | open | | |
 | binnen-15 | Klein | C | open | | |
 | binnen-16 | Klein | B | open | | |
 | binnen-17 | Klein | A | open | | |
 | binnen-18 | Klein | A | open | | |
 | ui-01 | Blokkerend | A | open | | |
-| ui-02 | Blokkerend | A | open | | |
-| ui-03 | Ernstig | A (+F1: inhoud) | open | | |
-| ui-04 | Ernstig | A | open | | |
-| ui-05 | Ernstig | A | open | | |
-| ui-06 | Ernstig | A | open | | |
-| ui-07 | Middel | A | open | | |
-| ui-08 | Middel | A | open | | |
-| ui-09 | Middel | A | open | | |
-| ui-10 | Middel | A | open | | |
-| ui-11 | Middel | A | open | | |
-| ui-12 | Middel | A | open | | |
-| ui-13 | Middel | A | open | | |
-| ui-14 | Klein | A | open | | |
-| ui-15 | Klein | A | open | | |
-| ui-16 | Klein | A | open | | |
-| ui-17 | Klein | A | open | | |
-| ui-18 | Klein | A | open | | |
-| ui-19 | Klein | A | open | | |
+| ui-02 | Blokkerend | A | deels (Godot klaar, model bij A2) | Alle 'later/coming soon/M4/Playtest/T2-hint/Steam later' weg; werkbank, nissen, automaat, kast en band geven een DIG-regel zonder belofte; versielabel v0.9 | A1: na/interior_taxatie_*, na/menu.png |
+| ui-03 | Ernstig | A (+F1: inhoud) | klaar (inhoud volgt in F1) | Contractbalie als DIG-console met drie werkorders (planeetbolletje, bijnaam, risicostempel, pay/magma, vak CONDITIONS voor F1); één bevestiging (SIGNED, COURSE SET); hologram = draadmodel van de planeet + claim | A1: firma_terminal, hud_menu_gekozen, interior_terminal_* |
+| ui-04 | Ernstig | A | klaar | De bron geeft de soort mee (Mol.notice/Game.notice: mol/warn/alarm/contract); alarm = grote rode melding + rode gloed rond het scherm (HudAlarm); de rand pulseert bij beving en voorschok; de aftelling wordt rood bij noodophaling; dikkere onrustbalk | A1: hud_beving*, hud_noodophaling, hud_magma; magma_test op de soort |
+| ui-05 | Ernstig | A | klaar | Alle HUD-tekst ≥ 18 px, toetsen 18–20 px; sonar in buitenzicht ×1,4 | ui_test controleert 57 HUD-labels; A1: na/720p_* |
+| ui-06 | Ernstig | A | klaar | Zie gevoel-07 | ui_test op een release-export |
+| ui-07 | Middel | A | deels (Godot klaar, bordjes CR/cents bij A2) | Stijlregels in lessons.md; UiTheme.cap/euro_signed/num/count; hoofdletters, 'the Mole', m, minteken, meervoud; dubbele Off weg; 'Missed = fine' herschreven | A1 |
+| ui-08 | Middel | A | klaar | Rapport als papieren formulier rechts (DIG-kop, kosten rood met minteken, stempel APPROVED/QUOTA MET/MISSED); doel blijft zichtbaar; vervaagt; laatste dienst op het firmabord | A1 |
+| ui-09 | Middel | A | klaar | Gele rand links aan elk HUD-element, eigen icoon per soort vondst (4 SVG's), CONDITION in palet-geel, info-icoon, kompasafstand op een plaatje, doel groter in crème | A1 |
+| ui-10 | Middel | A | klaar | Laagchip donker met laagkleur als rand; bovenste laag per planeet CLAY/LIMESTONE/BASALT | A1: gezien op Kristalmaan |
+| ui-11 | Middel | A | klaar | Aftelling met een getal van 124 px dat klopt bij elke tel; laatste drie rood met flits; ABOARD enkel in co-op | A1 |
+| ui-12 | Middel | A | klaar | Eén gele hoofdknop, uitleg vast onder de knop met focus, camera's aangepast (Mol rechts bij JOIN) | A1: na/menu* |
+| ui-13 | Middel | A | deels (Mol-schermen bij C) | Firmabord minder en grotere regels; kompas weg in de stoel. Schermtalen in de Mol, LAUNCH-label, QUIET/NOISY en CLAY op elke planeet doorgegeven aan C | A1 |
+| ui-14 | Klein | A | klaar | Solo is INVITE een gewone knop; dubbele 'paused' weg; HUD verborgen met pauzemenu | A1 |
+| ui-15 | Klein | A | klaar | Zichtbare scrollbalk, uitleg 18 px, hoofd-/pauzemenu weg zolang instellingen open | A1 |
+| ui-16 | Klein | A | klaar | Draaiende boorkop + DIG SAFETY BRIEFING | A1: na/ui_laadscherm.png |
+| ui-17 | Klein | A | klaar | Gebalanceerde koppen, ticker vernieuwd na een dienst, LIVE enkel op de kast, overal DIG NEWS, prijsetiket past | A1 |
+| ui-18 | Klein | A | klaar | Donkere stempel met ruwe gele rand | A1: hud_stempel, drop_kristal_034 |
+| ui-19 | Klein | A | klaar | Prompt 128 px onder het vizier | A1 |

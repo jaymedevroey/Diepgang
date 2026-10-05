@@ -273,7 +273,7 @@ func host_mol_scoop(it: FindItem, mol: Mol, quiet := false) -> void:
 	_rpc_scooped.rpc(it.find_id, cond, local)
 	if not quiet: # (de Mol meldt het zelf, samen met de andere van dezelfde boorbol)
 		mol.announce("The drill head scooped up a find (%s): it's in the cargo hold, but damaged (%d%%)" % [
-				it.display_name(), int(round(cond * 100.0))])
+				it.display_name(), int(round(cond * 100.0))], "warn")
 
 
 ## Plek op de vloer van het laadruim, zo ver mogelijk van wat er al ligt (Mol-ruimte).
