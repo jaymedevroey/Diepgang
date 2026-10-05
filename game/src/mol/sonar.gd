@@ -45,6 +45,9 @@ var ping_cool := 0.0
 var pings_left := 4
 ## Seconden sinds een PING geweigerd werd (te vroeg of op), voor het scherm; INF = niet recent.
 var denied_age := INF
+## De Graafworm (Worm.sonar_echo): {on, pos, strength, dist}. Een grote stip die nadert, ook buiten
+## het bereik van de veeg (hij is luid); verder dan een PING reikt, staat hij op de rand.
+var threat := {}
 var _period := 2.4
 # Op de klok, niet per stap: de sonar rekent enkel als iemand in de Mol kijkt, maar een PING die
 # intussen vertrok, moet toch even ver zijn als bij de anderen.

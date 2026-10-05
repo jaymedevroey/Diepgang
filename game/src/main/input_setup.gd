@@ -17,6 +17,7 @@ const KEYS := {
 	"horn": KEY_H,
 	"mol_view": KEY_C,
 	"sonar_ping": KEY_F,
+	"beacon": KEY_G,
 	"skip_cinematic": KEY_SPACE,
 }
 ## Ontwikkelaarstoetsen: de actie bestaat altijd (de code mag ernaar vragen), maar krijgt enkel in

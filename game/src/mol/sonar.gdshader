@@ -20,6 +20,8 @@ uniform int count = 0;
 uniform vec4 blips[24]; // xy: -1..1 (x rechts, y vooruit), z: helderheid, w: grootte 0..2 (+3 = scherp, van een PING)
 uniform float heights[24]; // meter t.o.v. de Mol (+ = boven)
 uniform int target = -1;
+// De Graafworm: xy in de scoop (-1..1), z = sterkte (0 = niet te zien), w = hoogte t.o.v. de Mol (m).
+uniform vec4 threat = vec4(0.0);
 uniform float level = 2.5; // binnen ±level meter: "gelijk", geen pijltje
 uniform vec3 phosphor : source_color = vec3(0.42, 1.0, 0.52);
 
@@ -125,6 +127,26 @@ void fragment() {
 			float ang = atan(q.y, q.x);
 			float arc = step(0.55, abs(sin(2.0 * ang)));
 			g += 0.9 * line_aa(abs(length(q) - rr), 2.2) * arc * max(b, 0.35);
+		}
+	}
+	// De worm: een grote vlek met een rafelige rand die klopt, en ringen die uitlopen (iets groots).
+	if (threat.z > 0.0) {
+		vec2 tc = scope_c + vec2(threat.x, -threat.y) * scope_r;
+		vec2 q = p - tc;
+		float dq = length(q);
+		float ang = atan(q.y, q.x);
+		float beat = 0.5 + 0.5 * sin(TIME * 5.5);
+		float rad = 26.0 + 10.0 * beat + 5.0 * sin(ang * 5.0 + TIME * 3.0) + 3.0 * sin(ang * 9.0 - TIME * 4.0);
+		g += threat.z * (1.6 * (1.0 - smoothstep(rad - 6.0, rad + 2.0, dq)) * (0.55 + 0.45 * beat));
+		g += threat.z * 0.6 * exp(-max(dq - rad, 0.0) / 18.0);
+		for (int k = 0; k < 2; k++) {
+			float rr = mod(TIME * 38.0 + float(k) * 40.0, 80.0) + rad;
+			g += threat.z * 0.7 * (1.0 - (rr - rad) / 80.0) * line_aa(abs(dq - rr), 2.5);
+		}
+		if (threat.w > level) {
+			g += threat.z * 1.2 * tri(q + vec2(0.0, rad + 16.0), 11.0, 1.0);
+		} else if (threat.w < -level) {
+			g += threat.z * 1.2 * tri(q - vec2(0.0, rad + 16.0), 11.0, -1.0);
 		}
 	}
 	g *= max(in_scope, step(scope_r + 6.0, r)); // blips buiten de scoop vallen weg

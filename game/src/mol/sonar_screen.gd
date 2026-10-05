@@ -131,6 +131,16 @@ func display(sonar: Sonar, origin: Transform3D, delta: float) -> void:
 	_scope.set_shader_parameter("blips", blips)
 	_scope.set_shader_parameter("heights", heights)
 	_scope.set_shader_parameter("target", target_index)
+	# De worm: een grote, kloppende vlek met ringen (playtest 2026-10-06).
+	var worm_on: bool = sonar.threat.get("on", false)
+	if worm_on:
+		var wrel: Vector3 = (sonar.threat.pos as Vector3) - origin.origin
+		var wflat := Vector2(wrel.dot(right), wrel.dot(fwd)) / sonar.ping_range
+		if wflat.length() > 0.93:
+			wflat = wflat.normalized() * 0.93
+		_scope.set_shader_parameter("threat", Vector4(wflat.x, wflat.y, float(sonar.threat.strength), wrel.y))
+	else:
+		_scope.set_shader_parameter("threat", Vector4(0.0, 0.0, 0.0, 0.0))
 
 	# Echolampje.
 	if sonar.echo_count != _last_echoes:
@@ -178,6 +188,10 @@ func display(sonar: Sonar, origin: Transform3D, delta: float) -> void:
 		var close := dist < Tuning.get_f("mol", "sonar_warn", 8.0)
 		_text("warn", "! CLOSE\nSTOP HERE" if close else "")
 		(_labels["warn"] as Label).modulate.a = 1.0 if blink else 0.35
+	if worm_on:
+		# Iets groots komt eraan: dat gaat voor op het doel.
+		_text("warn", "! BIG CONTACT\n%d m" % int(round(float(sonar.threat.dist))))
+		(_labels["warn"] as Label).modulate.a = 1.0 if fmod(Time.get_ticks_msec() / 1000.0, 0.5) < 0.3 else 0.3
 	# PING: hoeveel er deze dienst nog over zijn, en of hij opgeladen is. Te vroeg gedrukt: het getal
 	# licht op en knippert (gevoel-13: een toets zonder antwoord voelt kapot).
 	var max_pings := Tuning.get_i("mol", "sonar_pings", 4)
