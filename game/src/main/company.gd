@@ -18,7 +18,7 @@ signal changed
 signal report_ready(report: Dictionary)
 
 enum Risk { LOW, MID, HIGH }
-const RISK_NAMES := ["LAAG", "MIDDEL", "HOOG"]
+const RISK_NAMES := ["LOW", "MEDIUM", "HIGH"]
 const RISK_KEYS := ["low", "mid", "high"]
 const SAVE_VERSION := 1
 
@@ -101,7 +101,7 @@ func _make_options() -> void:
 		planets[j] = tmp
 	for r in [Risk.LOW, Risk.MID, Risk.HIGH]:
 		var s := rng.randi_range(1, 999999)
-		options.append({"seed": s, "risk": r, "planet": int(planets[r]), "name": "CONCESSIE %d" % (s % 97 + 1)})
+		options.append({"seed": s, "risk": r, "planet": int(planets[r]), "name": "CLAIM %d" % (s % 97 + 1)})
 
 
 func state() -> Dictionary:
@@ -163,7 +163,7 @@ func _host_choose(index: int) -> void:
 	contract = options[index]
 	_broadcast()
 	game.host_new_world(int(contract.seed), int(contract.get("planet", 0)))
-	game.notice_all("Opdracht gekozen: %s (risico %s)." % [contract.name, RISK_NAMES[int(contract.risk)]], "info")
+	game.notice_all("Contract chosen: %s (risk %s)." % [contract.name, RISK_NAMES[int(contract.risk)]], "info")
 	_save()
 
 

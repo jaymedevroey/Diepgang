@@ -38,7 +38,7 @@ func _ready() -> void:
 	col.add_theme_constant_override("separation", 0)
 	row.add_child(col)
 	var title := Label.new()
-	title.text = "PAUZE"
+	title.text = "PAUSED"
 	title.theme_type_variation = &"Title"
 	col.add_child(title)
 	col.add_child(HazardStrip.new(8.0))
@@ -52,11 +52,11 @@ func _ready() -> void:
 	_buttons = VBoxContainer.new()
 	_buttons.add_theme_constant_override("separation", 12)
 	col.add_child(_buttons)
-	_add("HERVATTEN", close)
-	_add("VRIENDEN UITNODIGEN", _toggle_invite)
-	_add("INSTELLINGEN", _open_settings, true)
-	_add("TERUG NAAR HOOFDMENU", func() -> void: leave_requested.emit(), true)
-	_add("AFSLUITEN", func() -> void: get_tree().quit(), true)
+	_add("RESUME", close)
+	_add("INVITE FRIENDS", _toggle_invite)
+	_add("SETTINGS", _open_settings, true)
+	_add("BACK TO MAIN MENU", func() -> void: leave_requested.emit(), true)
+	_add("QUIT", func() -> void: get_tree().quit(), true)
 
 	# Rechts: uitnodigen en de ploeg.
 	var side := VBoxContainer.new()
@@ -74,7 +74,7 @@ func _ready() -> void:
 	ic.add_theme_constant_override("separation", 8)
 	_invite.add_child(ic)
 	var ih := Label.new()
-	ih.text = "VRIENDEN UITNODIGEN"
+	ih.text = "INVITE FRIENDS"
 	ih.theme_type_variation = &"SubHeading"
 	ic.add_child(ih)
 	_invite_label = Label.new()
@@ -87,7 +87,7 @@ func _ready() -> void:
 	pc.add_theme_constant_override("separation", 6)
 	players_card.add_child(pc)
 	var ph := Label.new()
-	ph.text = "PLOEG"
+	ph.text = "CREW"
 	ph.theme_type_variation = &"SubHeading"
 	pc.add_child(ph)
 	_players = VBoxContainer.new()
@@ -108,7 +108,7 @@ func open() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	var solo := Net.mode == Net.Mode.SOLO
 	get_tree().paused = solo
-	_note.text = "Het spel staat stil." if solo else "Het spel loopt door: je ploeg wacht niet."
+	_note.text = "The game is paused." if solo else "The game keeps running: your crew won't wait."
 	_invite.visible = false
 	_refresh_players()
 	Sfx.ui("open")
@@ -151,13 +151,13 @@ func _add(text: String, action: Callable, ghost := false) -> void:
 func _toggle_invite() -> void:
 	_invite.visible = not _invite.visible
 	if Net.mode == Net.Mode.SOLO:
-		_invite_label.text = "Je speelt solo. Wil je met vrienden spelen? Ga terug naar het hoofdmenu en kies HOSTEN."
+		_invite_label.text = "You're playing solo. Want to play with friends? Go back to the main menu and choose HOST."
 	elif Net.mode == Net.Mode.CLIENT:
-		_invite_label.text = "Je bent te gast. Vrienden doen mee via het IP-adres van de host."
+		_invite_label.text = "You're a guest here. Friends join via the host's IP address."
 	elif Settings.get_b("interface/hide_ip"):
-		_invite_label.text = "Je IP-adres is verborgen (Instellingen > Interface). Vrienden kiezen MEEDOEN en vullen jouw IP in. Steam-uitnodigingen komen in een volgende versie."
+		_invite_label.text = "Your IP address is hidden (Settings > Interface). Friends choose JOIN and enter your IP. Steam invites come in a later version."
 	else:
-		_invite_label.text = "Vrienden kiezen MEEDOEN en vullen dit in:\n%s   (poort %d)\nSteam-uitnodigingen komen in een volgende versie." % [
+		_invite_label.text = "Friends choose JOIN and enter this:\n%s   (port %d)\nSteam invites come in a later version." % [
 			", ".join(StartMenu.local_ips()), int(CmdArgs.value("port", Net.DEFAULT_PORT))]
 
 
@@ -182,6 +182,6 @@ func _refresh_players() -> void:
 		dot.color = pl.color
 		row.add_child(dot)
 		var l := Label.new()
-		l.text = "Speler %d%s%s" % [i, "  (jij)" if pl.is_local else "", "  · host" if pl.peer_id == 1 and Net.mode != Net.Mode.SOLO else ""]
+		l.text = "Player %d%s%s" % [i, "  (you)" if pl.is_local else "", "  · host" if pl.peer_id == 1 and Net.mode != Net.Mode.SOLO else ""]
 		row.add_child(l)
 		_players.add_child(row)

@@ -14,8 +14,8 @@ enum Family { SKELETON, RELIC, METAL, JUNK, CRYSTAL }
 
 ## Objectnamen in finds.glb.
 const KEYS: Array[String] = ["Femur", "Vertebra", "Rib", "Skull", "Claw", "Lamp", "Coins", "Bottle", "Gnome", "Tv", "Geode", "Gold"]
-const NAMES: Array[String] = ["Dijbeen", "Wervel", "Rib", "Schedel", "Klauw", "Mijnwerkerslamp", "Muntenbuidel",
-		"Oude fles", "Tuinkabouter", "Oude tv", "Geode", "Goudklomp"]
+const NAMES: Array[String] = ["Femur", "Vertebra", "Rib", "Skull", "Claw", "Miner's lamp", "Coin pouch",
+		"Old bottle", "Garden gnome", "Old TV", "Geode", "Gold nugget"]
 const FAMILIES: Array[Family] = [Family.SKELETON, Family.SKELETON, Family.SKELETON, Family.SKELETON, Family.SKELETON,
 		Family.RELIC, Family.METAL, Family.JUNK, Family.JUNK, Family.JUNK, Family.CRYSTAL, Family.METAL]
 const BASE_VALUES: Array[int] = [180, 60, 45, 350, 90, 120, 85, 40, 15, 25, 260, 320]

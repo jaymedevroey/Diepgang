@@ -113,7 +113,7 @@ func set_place(where: String) -> void:
 	box.content_margin_top = 2
 	box.content_margin_bottom = 3
 	_layer_chip.add_theme_stylebox_override("panel", box)
-	_layer_label.text = "DE EKSTER · " + place
+	_layer_label.text = "THE MAGPIE · " + place
 	_layer_label.add_theme_color_override("font_color", UiTheme.YELLOW)
 
 
@@ -142,7 +142,7 @@ func _draw() -> void:
 		var a := smoothstep(0.0, 0.35, edge)
 		var d := posmod(deg, 360)
 		if d % 90 == 0 and not in_ship:
-			var letter: String = {0: "N", 90: "O", 180: "Z", 270: "W"}[d]
+			var letter: String = {0: "N", 90: "E", 180: "S", 270: "W"}[d]
 			var sz := _font.get_string_size(letter, HORIZONTAL_ALIGNMENT_LEFT, -1, 17)
 			draw_string(_font, Vector2(x - sz.x / 2.0, h / 2.0 + 6.0), letter, HORIZONTAL_ALIGNMENT_LEFT, -1, 17,
 					Color(UiTheme.YELLOW if d == 0 else UiTheme.CREAM, a))

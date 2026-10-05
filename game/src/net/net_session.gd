@@ -31,8 +31,8 @@ func _ready() -> void:
 		print("[net] verbonden met host als peer %d" % multiplayer.get_unique_id())
 		active = true
 		started.emit())
-	multiplayer.connection_failed.connect(func() -> void: _fail("verbinding met de host mislukt"))
-	multiplayer.server_disconnected.connect(func() -> void: _end("de host heeft de sessie beëindigd"))
+	multiplayer.connection_failed.connect(func() -> void: _fail("connection to the host failed"))
+	multiplayer.server_disconnected.connect(func() -> void: _end("the host ended the session"))
 
 
 ## ENet verbreekt standaard na 5 à 30 s zonder antwoord. Bij het opbouwen van een wereld (of op
@@ -58,7 +58,7 @@ func start_host(port := DEFAULT_PORT) -> Error:
 	var peer := ENetMultiplayerPeer.new()
 	var err := peer.create_server(port, MAX_PLAYERS - 1)
 	if err != OK:
-		_fail("kan niet hosten op poort %d (%s)" % [port, error_string(err)])
+		_fail("can't host on port %d (%s)" % [port, error_string(err)])
 		return err
 	multiplayer.multiplayer_peer = peer
 	mode = Mode.HOST
@@ -72,7 +72,7 @@ func join(address: String, port := DEFAULT_PORT) -> Error:
 	var peer := ENetMultiplayerPeer.new()
 	var err := peer.create_client(address, port)
 	if err != OK:
-		_fail("kan niet verbinden met %s:%d (%s)" % [address, port, error_string(err)])
+		_fail("can't connect to %s:%d (%s)" % [address, port, error_string(err)])
 		return err
 	multiplayer.multiplayer_peer = peer
 	mode = Mode.CLIENT
