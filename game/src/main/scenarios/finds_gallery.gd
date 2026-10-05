@@ -38,7 +38,7 @@ func _run() -> void:
 	fill.position = Vector3(-2.5, 1.5, 2.5)
 	stage.add_child(fill)
 
-	var n := FindKinds.KEYS.size()
+	var n := FindKinds.Kind.TITAN_SKULL # de grote stukken en kristallen (F3) apart, zie _big
 	var cols := 4
 	for i in n:
 		var mi := MeshInstance3D.new()
@@ -70,6 +70,7 @@ func _run() -> void:
 	cam.look_at(stage.global_position + Vector3(0, -0.35, 0.0))
 	cam.make_current()
 	await _shot("vondsten")
+	await _big(stage, floor, cam)
 	# Puin: brokjes in een hoopje, in de kleur van elke laag.
 	for c in stage.get_children():
 		if c is MeshInstance3D and c != floor or c is Label3D:
@@ -129,6 +130,53 @@ func _run() -> void:
 	cam.look_at(stage.global_position + Vector3(0, 0.3, -0.4))
 	await _shot("korsten")
 	get_tree().quit(0)
+
+
+## De nieuwe stukken (F3): grote skeletstukken (Fossielwereld) naast de gewone schedel voor de maat, en
+## de lichtgevende kristallen (Kristalmaan), met hun lampje zoals in het spel (vondsten_groot.png).
+func _big(stage: Node3D, floor: MeshInstance3D, cam: Camera3D) -> void:
+	for c in stage.get_children():
+		if c is MeshInstance3D and c != floor or c is Label3D:
+			c.queue_free()
+	(floor.mesh as PlaneMesh).size = Vector2(16, 10)
+	var row1 := [FindKinds.Kind.SKULL, FindKinds.Kind.TITAN_SKULL, FindKinds.Kind.PELVIS, FindKinds.Kind.TITAN_FEMUR]
+	var row2 := [FindKinds.Kind.SPINE, FindKinds.Kind.TUSK, FindKinds.Kind.GEODE, FindKinds.Kind.GLOWSHARD, FindKinds.Kind.BLOOM]
+	var rows := [[row1, 1.9, -1.4], [row2, 1.25, 0.6]]
+	for r: Array in rows:
+		var kinds: Array = r[0]
+		for i in kinds.size():
+			var k: int = kinds[i]
+			var it := FindItem.new()
+			it.setup(2000 + k, k)
+			it.freeze = true
+			stage.add_child(it)
+			var aabb := FindKinds.mesh(k).get_aabb()
+			it.position = Vector3((i - (kinds.size() - 1) * 0.5) * float(r[1]), -0.36 - aabb.position.y, float(r[2]))
+			it.rotation_degrees = Vector3(0, 155 if k != FindKinds.Kind.GEODE else -60, 0)
+			it.set_freed()
+			var label := Label3D.new()
+			var tag := ""
+			if not FindKinds.liftable_alone(FindKinds.MASSES[k]):
+				tag = " · two to carry"
+			elif FindKinds.FRAGILITY[k] > 0.0:
+				tag = " · fragile"
+			label.text = "%s\n€%d · %d kg%s" % [FindKinds.NAMES[k], FindKinds.BASE_VALUES[k], int(FindKinds.MASSES[k]), tag]
+			label.font = UiTheme.body(800)
+			label.font_size = 48
+			label.pixel_size = 0.0016
+			label.modulate = UiTheme.CREAM
+			label.outline_size = 10
+			label.position = Vector3(it.position.x, -0.12, it.position.z + aabb.size.z * 0.5 + 0.45)
+			label.rotation_degrees = Vector3(-60, 0, 0)
+			stage.add_child(label)
+	cam.fov = 42.0
+	cam.position = Vector3(0, 3.6, 4.6)
+	cam.look_at(stage.global_position + Vector3(0, -0.2, -0.3))
+	await _shot("vondsten_groot")
+	for c in stage.get_children():
+		if c is FindItem or c is Label3D:
+			c.queue_free()
+	(floor.mesh as PlaneMesh).size = Vector2(10, 8)
 
 
 func _shot(name: String) -> void:
