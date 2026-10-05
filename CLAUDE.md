@@ -20,4 +20,4 @@ Co-op opgravingsgame in Godot. Het ontwerp staat in [docs/GDD.md](docs/GDD.md), 
 - Nieuwe externe assets of bibliotheken: meteen in `CREDITS.md` met licentie.
 - Performancecijfers van deze pc (RTX 4090) zijn geen bewijs voor mid-range.
 - Taal van de docs: Nederlands. Code en identifiers: Engels.
-- Tekst in het spel (UI, HUD, hints, bordjes, schermen, tv): **nieuwe tekst in het Engels** (Jayme, 2026-10-04). Bestaande Nederlandse tekst blijft staan; die vertalen we later in één keer.
+- Tekst in het spel (UI, HUD, hints, bordjes en opschriften in modellen, schermen, tv, namen van planeten en vondsten): **altijd Engels** (Jayme, 2026-10-05: alles vertaald). Volg de woordenlijst in `tasks/lessons.md` (2026-10-05). Docs, commentaar en logregels blijven Nederlands.

@@ -2,6 +2,30 @@
 
 Wat we onderweg leerden en wat het GDD bijstuurt. Nieuwste bovenaan.
 
+## 2026-10-05 — Alles in het Engels: woordenlijst
+
+Jayme: alle tekst in het spel in het Engels, ook de namen. Docs, commentaar en logregels blijven Nederlands; Nederlandse identifiers (`PlanetType.Id.ROESTBOL`) en dev-opties (`--planet=roestbol`) mogen blijven. Getallen met een decimale punt (12.5 m). Hou de DIG-humor: idiomatisch vertalen, niet woord voor woord.
+
+| Nederlands | Engels |
+|---|---|
+| De Ekster (het schip) / De Mol | The Magpie / The Mole |
+| Roestbol / Fossielwereld / Kristalmaan | Rustbowl / Fossil World / Crystal Moon |
+| DIG, Diepgang | DIG, Diepgang (namen blijven) |
+| opdracht / concessie / dienst / kwartaal / quota | contract / claim / shift / quarter / quota |
+| kas (teamkas) / boete / bonus / netto | funds (team funds) / fine / bonus / net |
+| incidentrapport / risico laag, middel, hoog | incident report / risk LOW, MEDIUM, HIGH |
+| vondst / gaafheid / erts / korst / puin | find / condition / ore / crust / rubble |
+| houweel / boor / sonar, PING | pickaxe / drill / sonar, PING |
+| vertrekhendel, VERTREK / aftellen / luiken / baai | launch lever, LAUNCH / countdown / hatches / bay |
+| laadruim / trechter / ertszak | cargo hold / hopper / ore bag |
+| grijper / ophalen / noodophaling / achterblijven | grapple / pickup / emergency extraction / left behind |
+| beving / onrust / voorschok / onstabiele zone | quake / unrest / foreshock / unstable zone |
+| vervangrobot / smelten | replacement robot / melt |
+| taxatie / verkoopluik / automaat / kast | appraisal / sell hatch / vending machine / locker |
+| laadrek / werkdek / gang / spuitcabine / brug / opdrachttafel / kade / hangar | loading rack / work deck / corridor / paint booth / bridge / contract table / quay / hangar |
+| klei / zandsteen / graniet / kristal | clay / sandstone / granite / crystal |
+| Spatie · overslaan | Space · skip |
+
 ## 2026-10-05 — Bouwtijd van een wereld, en de planeet in het speelgebied
 
 - **De drop wachtte niet op het verre landschap.** Enkel op het voxelterrein: wie snel na het kiezen de hendel trok, viel in een vierkant zonder omgeving. Nu wacht alles op `Game.world_ready()` (terrein én landschap); ook de tests (die wachtten op `terrain.is_loaded` en faalden daarna 24 keer).
