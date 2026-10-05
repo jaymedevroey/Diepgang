@@ -36,7 +36,7 @@ Legenda: **open**, **bezig**, **klaar** (met verificatie), **deels**, **niet** (
 | ontwerp-9 | Ernstig | F1 | open | | |
 | ontwerp-10 | Ernstig | F1 | open | | |
 | ontwerp-11 | Middel | B | klaar (druk volgt met F2) | Houweel 4,9 s gaaf tegenover boor 1,1 s 87% / tikjes 90%; heet boren 2,2× schade | B: metingen |
-| ontwerp-12 | Middel | D | open | | |
+| ontwerp-12 | Middel | D | deels (dreiging: F2) | Onstabiele zones ook in klei; toast 'The quake pushed the magma up X m'; haak local_knockdown voor neergaan | D |
 | ontwerp-13 | Middel | B | klaar (erts als munt voor upgrades: F1) | Zie gevoel-16 | B |
 | ontwerp-14 | Middel | C | open | | |
 | ontwerp-15 | Middel | C | open | | |
@@ -48,18 +48,18 @@ Legenda: **open**, **bezig**, **klaar** (met verificatie), **deels**, **niet** (
 | gevoel-05 | Ernstig | C | open | | |
 | gevoel-06 | Ernstig | B | klaar | Twee robothanden, veer (zwaarder = slapper, sleept na, kantelt), belicht als de handen; schade vanaf 3 m/s met plafond; '−€X' in de wereld; anderen zien de drager grimassen | B: na/carry_bot.png, na/film_carry.mp4 |
 | gevoel-07 | Ernstig | A | klaar | F1 (tuning) en V (vliegen) enkel met CmdArgs.dev_mode() (debug-build of --dev) | ui_test op een release-export: F1 vrij, met --dev gebonden |
-| gevoel-08 | Ernstig | D | open | | |
+| gevoel-08 | Ernstig | D | klaar | Aanzwellende aankondiging, hoofdschok in 3 golven met traag rollen; camerarotatie hoofdschok 0,85° → 2,7° max, aankondiging 0,3° → 0,9°; in de Mol ×0,6. Open: buitenzicht Mol (C) | D: audit_under --only=schok |
 | gevoel-09 | Ernstig | B | klaar | Zwaai als boog op het vizier, wisselanimatie 0,28 s, ademhaling in rust | B: zwaai_voor_na.png |
 | gevoel-10 | Ernstig | B | klaar | Vonken uitgerekt langs hun snelheid, kegel rond de normaal, onzichtbaar < 0,6 m van de camera | B: vonken_voor_na.png, graniet_voor_na.png |
 | gevoel-11 | Ernstig | B | klaar | Boor in klei 2,6 → 5,0 m in 3 s (±2,4× houweel), zandsteen 1,8 m en heter; houweel ketst op zandsteen (GDD-tabel); boor bijt op vast ritme in speltijd | B: metingen feel_bench |
-| gevoel-12 | Ernstig | D | open | | |
+| gevoel-12 | Ernstig | D | klaar | heat_m werkt: rode kloppende rand, schudden, alarm; smelten 1,5 s (wit-oranje, zwart, vervanger), gensters voor anderen, signaal melting | magma_test aangepast; D: magma.avi |
 | gevoel-13 | Middel | C | open | | |
 | gevoel-14 | Middel | C | open | | |
 | gevoel-15 | Middel | B | klaar | Bit en kop gloeien met de hitte, stoom en hangende boor bij oververhitting; boor schuift naar voren bij contact, bereik 2,3 m | B: boor_voor_na.png |
 | gevoel-16 | Middel | B | klaar | Tik met fonkels en '+1 Copper' per slag; storten: brokjes in de trechter, gerammel, '+€X'; clusters 2–3 eenheden; waarden in ore.cfg (8/12/20/32); zak van 30 | B: films |
 | gevoel-17 | Middel | C | open | | |
 | gevoel-18 | Middel | C | open | | |
-| gevoel-19 | Klein | B | deels | Minder, lichter en korter stof; verse donkere snede per slag (decal, droogt in 25 s); puin 14 s; helmlamp vlakker op 1 m. De kuil leest maar iets beter: een echte verse snede hoort in de terreinshader (D) | B: krater_voor_na.png |
+| gevoel-19 | Klein | B | klaar | Zie binnen-09 | D: blad_na_merge |
 | gevoel-20 | Klein | C | open | | |
 | buiten-1 | Blokkerend | C | open | | |
 | buiten-2 | Ernstig | E | open | | |
@@ -68,22 +68,22 @@ Legenda: **open**, **bezig**, **klaar** (met verificatie), **deels**, **niet** (
 | buiten-5 | Ernstig | C | open | | |
 | buiten-6 | Ernstig | E | open | | |
 | buiten-7 | Middel | E | open | | |
-| buiten-8 | Middel | D | open | | |
+| buiten-8 | Middel | D | klaar | Rotsblokken als veelvlak met vorm per planeet (gehakt, krijtblok, basaltzuil), in groepjes | D: blad_oppervlak |
 | buiten-9 | Middel | E | open | | |
 | buiten-10 | Middel | E | open | | |
 | buiten-11 | Middel | E | open | | |
-| buiten-12 | Middel | D | open | | |
+| buiten-12 | Middel | D | deels | Grondpatroon per planeet (windribbels, krijtplaten en gruis, glinsters op zeshoeken), geen craquelé meer; rotsgroepen om de ±60 m. Open: palen, kisten, botten in het middenplan (E) | D: blad_oppervlak |
 | buiten-13 | Klein | C | open | | |
 | buiten-14 | Klein | E | open | | |
-| binnen-01 | Blokkerend | D | open | | |
-| binnen-02 | Ernstig | D (+F1: boor T2) | open | | |
-| binnen-03 | Ernstig | D | open | | |
+| binnen-01 | Blokkerend | D | klaar (ter goedkeuring: lamp, decor) | Klei gevlekt en fijn gelaagd met merklagen om de ±8 m; gloeiende knollen; CaveDecor (zwammen/kristallen, ≤2 lampjes per grot, druipsteen); grotvormen in de SDF; helmlamp warm wit i.p.v. amber; koele schaduwen onder de grond. Open: rommel van vorige ploegen, flare; Mol-koplampen nog amber (C) | D: blad_lagen_p0, blad_grotten, blad_mol |
+| binnen-02 | Ernstig | D (+F1: boor T2) | deels (bereikbaar met T2: F1) | Zandsteen met scheve gelaagdheid en ijzerband, graniet koel en blokkig, kristallaag met zeskantige kristallen en lichtgevende clusters | D: blad_lagen_* |
+| binnen-03 | Ernstig | D | klaar | Verkleuring rond erts (koper groen-turkoois, ijzer roestzwart), glinsters ±10 cm die nooit onder enkele pixels zakken en oplichten bij kijken, naalden in alle richtingen | D: blad_erts |
 | binnen-04 | Ernstig | B | klaar (ter goedkeuring) | Korst = gefacetteerde knol met kleur per laag en hint per familie (botten steken uit), krimpt per slag | B: na/korsten.png |
-| binnen-05 | Ernstig | D | open | | |
-| binnen-06 | Ernstig | D | open | | |
-| binnen-07 | Middel | D | open | | |
-| binnen-08 | Middel | D | open | | |
-| binnen-09 | Middel | B | deels | Zie gevoel-19 | B: krater_voor_na.png |
+| binnen-05 | Ernstig | D | klaar | Gehakte rotsen met botsvorm en interpolatie, stofsliert en -wolk, stofwaas bij de hoofdschok, steentjes, haperende lamp; haken voor geluid | D: blad_beving, na/beving_sheet, beving.avi |
+| binnen-06 | Ernstig | D | klaar (ter goedkeuring) | Magma als raster met reliëf rond de camera (deining, platen, bellen), open lava naast korst met barsten, rook, flakkerende lamp, trillende lucht. Open: vonkenfonteinen | D: blad_magma, magma.avi |
+| binnen-07 | Middel | D | klaar | Geen barstjes/naadlijnen meer onder de grond, gruis op vloeren; korst enkel de bovenste meter | D |
+| binnen-08 | Middel | D | klaar (ter goedkeuring: paletten) | Underground: palet en patroon per planeet en laag (Fossielwereld krijt/vuursteen/mergel/botbedden, Kristalmaan violette as/obsidiaan/roze insluitsels); stof, puin, zwammen in planeetkleur. Open: puinvorm per planeet | D: blad_planeten |
+| binnen-09 | Middel | B | klaar | B: decal en stof; D: verse snede in de terreinshader (donkerder, vochtig, zonder stof, diepere holtes, breukrand; ook bij anderen; dooft in 35 s) | D: blad_hakken, blad_na_merge |
 | binnen-10 | Middel | B | klaar | Zie gevoel-06 | B: na/carry_bot.png |
 | binnen-11 | Middel | B | klaar (ter goedkeuring) | Nieuwe gelede robothand (Glove/Glove_Open) met korte donkere onderarm; referentiestudie DRG/Lethal Company/R.E.P.O. | B: blender/* |
 | binnen-12 | Middel | A | deels | Eigen hub-shader (slijtage, vuil, strepen, krassen, roet), decals (voetsporen, olie, koffie), licht per zone (warm/tl/koud/natrium), reflectieprobes en nevel. Open: de Mol is nog schoon (C), mid-range niet gemeten | A2: binnen-12/, route/ |
