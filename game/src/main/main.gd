@@ -52,6 +52,7 @@ const SCENARIOS := {
 	"robot_preview": preload("res://src/main/scenarios/robot_preview.gd"),
 	"find_test": preload("res://src/main/scenarios/find_test.gd"),
 	"find_preview": preload("res://src/main/scenarios/find_preview.gd"),
+	"loot_preview": preload("res://src/main/scenarios/loot_preview.gd"),
 	"carry_test": preload("res://src/main/scenarios/carry_test.gd"),
 	"carry_preview": preload("res://src/main/scenarios/carry_preview.gd"),
 	"mol_test": preload("res://src/main/scenarios/mol_test.gd"),
@@ -85,7 +86,7 @@ const SCENARIOS := {
 ## Scenario's die op De Ekster beginnen (de Mol in de dropbaai). De rest begint op de planeet.
 const SCENARIOS_ON_SHIP := ["play", "ship_preview", "drop_sequence", "drop_flow_test", "net_drop_flow_test", "ship_test", "net_ship_test", "company_test", "interior_preview", "surface_bench"]
 ## Scenario's waarin de host ook een eigen speler krijgt.
-const SCENARIOS_WITH_PLAYER := ["play", "ship_preview", "drop_sequence", "drop_flow_test", "net_drop_flow_test", "ship_test", "net_ship_test", "net_test", "find_test", "carry_test", "carry_preview", "mol_test", "sonar_test", "mol_edge_test", "stream_test", "ore_test", "drive_perf", "mol_preview", "hud_preview", "ui_test", "tool_preview", "magma_test", "company_test", "surface_bench", "feel_bench"]
+const SCENARIOS_WITH_PLAYER := ["play", "ship_preview", "drop_sequence", "drop_flow_test", "net_drop_flow_test", "ship_test", "net_ship_test", "net_test", "find_test", "carry_test", "carry_preview", "mol_test", "sonar_test", "mol_edge_test", "stream_test", "ore_test", "drive_perf", "mol_preview", "hud_preview", "ui_test", "tool_preview", "magma_test", "company_test", "surface_bench", "feel_bench", "loot_preview"]
 
 var game: Game
 var player: Player

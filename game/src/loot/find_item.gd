@@ -181,10 +181,12 @@ func bottom_offset(b: Basis) -> float:
 
 ## In je eigen handen: belicht zoals je handen (het vullicht van het gereedschap, niet de helmlamp:
 ## op 0,8 m werd een bot een witte vlek), en minder randlicht.
+## Te zware stukken (slepen, met twee dragen) blijven in de wereld belicht: ze hangen 1,5 m of verder
+## voor je, daar brandt de helmlamp niets uit, en als gereedschap belicht waren ze een donkere vlek.
 func set_held(on: bool) -> void:
 	if freed:
 		_glint.set_shader_parameter("rim", FindKinds.CLASS_RIM[value_class] * (0.25 if on else 1.0))
-	_mesh.layers = PickaxeModel.VIEWMODEL_LAYER if on else 1
+	_mesh.layers = PickaxeModel.VIEWMODEL_LAYER if on and FindKinds.liftable_alone(mass) else 1
 
 
 ## Gloed bij het vrijkomen (de "ding"-beloning, docs/research/graven.md, gevoel-03): fel, en pas

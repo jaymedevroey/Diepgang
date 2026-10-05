@@ -96,6 +96,7 @@ func setup(owner_mol: Mol) -> void:
 	m.set_shader_parameter("vignette", 0.3)
 	m.set_shader_parameter("brightness", 1.5)
 	m.set_shader_parameter("lines", 160.0)
+	m.set_shader_parameter("flip_v", false) # een QuadMesh staat niet ondersteboven (zie feed.gdshader)
 	screen.material_override = m
 	holder.add_child(screen)
 	# Mikken op het scherm en E: een pijltje naar de felste echo van de laatste regels.
@@ -320,6 +321,8 @@ func _make_marker(at: Vector3, target: Vector3, text: String) -> Node3D:
 	lab.modulate = Color(1.0, 0.78, 0.4)
 	lab.outline_size = 12
 	lab.outline_modulate = Color(0.05, 0.04, 0.03, 0.9)
+	lab.no_depth_test = true # leesbaar ook als de wand er half voor zit, maar enkel van dichtbij
+	lab.visibility_range_end = 30.0
 	lab.position = Vector3(0, 0.3, 0.3)
 	mk.add_child(lab)
 	return mk
