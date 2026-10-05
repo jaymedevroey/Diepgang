@@ -111,7 +111,7 @@ static func _roestbol(style: String) -> Dictionary:
 					"giant_base": _hex("7FA3B8"), "giant_band": _hex("4F7690"), "giant_storm": _hex("D8E3E8"),
 					"giant_night": _hex("3A2420"), "ring_color": _hex("E6D6BC"), "ring_glow": _hex("BFD8E8"),
 					"giant_dir": dir(200.0, 22.0), "giant_radius_deg": 9.5, "ring_open_deg": 20.0, "ring_roll_deg": 15.0,
-					"sky_energy": 1.25, "dust_tau": 0.55, "giant_haze": 0.22, "aureole_mix": 0.8,
+					"sky_energy": 1.25, "dust_tau": 0.55, "giant_haze": 0.12, "aureole_mix": 0.8,
 				},
 				"sun_rotation_deg": Vector3(-24.0, 80.0, 0.0),
 				"sun_color": _hex("FFE9D0"), "sun_energy": 1.3,
