@@ -7,6 +7,10 @@ extends Node3D
 ## de Mol bij het ophalen.
 
 const MODEL := preload("res://assets/models/ekster_exterior.glb")
+## De romp (release-audit buiten-10, ronde 2): platen, nagels, strepen, roet en krassen in de shader,
+## op de grote rompmaterialen; ook antraciet krijgt strepen en roet, maar geen platen (kleine stukken).
+const HULL_SHADER := preload("res://src/ship/ship_hull.gdshader")
+const HULL_PLATING := {"HullGrey": 1.0, "HullDark": 1.0, "HullLight": 1.0, "GreyGreen": 1.0, "RedOxide": 1.0, "Anthracite": 0.0}
 ## Hoogte van de baai boven de landingsplek (m).
 const ALTITUDE := 340.0
 ## Grijperklauwen: van de oorsprong van de grijper tot onder de klauwen (m).
@@ -29,6 +33,8 @@ var _nav: Array[StandardMaterial3D] = []
 var _nav_halos: Array[ShaderMaterial] = []
 var _strobe_halo: ShaderMaterial
 var _time := 0.0
+var _hull_mats: Array[ShaderMaterial] = []
+var _hull_xf := Transform3D()
 
 
 func _ready() -> void:
@@ -43,7 +49,7 @@ func _ready() -> void:
 			var src := mi.mesh.surface_get_material(i)
 			var mat_name := src.resource_name if src else ""
 			if not cache.has(mat_name):
-				cache[mat_name] = MolVisual.palette_material(mat_name, src, false)
+				cache[mat_name] = _hull_material(mat_name) if HULL_PLATING.has(mat_name) else MolVisual.palette_material(mat_name, src, false)
 				if mat_name in ["NavRed", "NavGreen"] and cache[mat_name] is StandardMaterial3D:
 					_nav.append(cache[mat_name])
 			if cache[mat_name]:
@@ -51,6 +57,33 @@ func _ready() -> void:
 	_build_grapple()
 	_build_lights()
 	_build_glows()
+	_sync_hull_space()
+
+
+## Rompmateriaal: de instellingen van het machinemateriaal (MolVisual.MATS) in ship_hull.gdshader.
+func _hull_material(mat_name: String) -> ShaderMaterial:
+	var p: Dictionary = MolVisual.MATS[mat_name]
+	var m := ShaderMaterial.new()
+	m.shader = HULL_SHADER
+	m.set_shader_parameter("albedo", p.albedo)
+	m.set_shader_parameter("metallic", p.metallic)
+	m.set_shader_parameter("roughness", p.roughness)
+	m.set_shader_parameter("edge_wear", p.edge)
+	m.set_shader_parameter("grime", p.grime)
+	m.set_shader_parameter("bare_metal", p.get("bare", Color(0.62, 0.62, 0.6)))
+	m.set_shader_parameter("plating", HULL_PLATING[mat_name])
+	_hull_mats.append(m)
+	return m
+
+
+## De shader rekent in de ruimte van het schip (rijen platen, "onder", het motorblok achteraan).
+func _sync_hull_space() -> void:
+	if global_transform == _hull_xf and is_inside_tree():
+		return
+	_hull_xf = global_transform
+	var inv := Projection(_hull_xf.affine_inverse())
+	for m in _hull_mats:
+		m.set_shader_parameter("ship_inv", inv)
 
 
 ## Plek voor de baai van een wereld: de Mol hangt ALTITUDE boven de landingsplek.
@@ -87,6 +120,7 @@ func grapple_rest_world() -> Vector3:
 
 func _process(delta: float) -> void:
 	_time += delta
+	_sync_hull_space()
 	update_grapple()
 	# Navigatielichten knipperen.
 	var on := fmod(_time, 1.6) < 0.25
