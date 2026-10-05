@@ -151,26 +151,36 @@ def gate(ctx, B):
             box(det, gx + dx - 0.04, gx + dx + 0.04, 0.28, 2.66, zi, zi + sg * 0.012, "Screen")
             box(det, gx + dx - 0.014, gx + dx + 0.014, 0.33, 2.61, zi + sg * 0.012, zi + sg * 0.02, "Cyan")
         ctx.col_box(gx - 0.36, gx + 0.36, 0.0, 2.95, zc - 0.2, zc + 0.2)
-    # Bovenkast met de scanner (onderaan) en het scherm (Appraisal_Screen, voor de -x-kant).
-    prism(props, kit.octagon(0.54, 1.1, 0.07), (12.07, 3.43, 16.82), (1, 0, 0), (0, 1, 0), (0, 0, 1), 2.96, "Anthracite")
+    # Scannerbalk (onderaan de scanners) met het scherm (Appraisal_Screen, voor de -x-kant). Slank en net
+    # zo hoog als het scherm: de oude kast van 1,1 m met het opschrift erop hing vanaf de brug voor de Mol
+    # (release-audit binnen-17). Het opschrift APPRAISAL hangt nu als kroon boven de poort, aan twee
+    # masten, hoger dan de Mol vanaf de brug (oog 2,4 m).
+    prism(props, kit.octagon(0.5, 0.68, 0.06), (12.07, 3.25, 17.02), (1, 0, 0), (0, 1, 0), (0, 0, 1), 2.56, "Anthracite")
     for (y0, y1, z0, z1) in ((3.525, 3.58, 17.13, 19.47), (2.92, 2.975, 17.13, 19.47), (2.975, 3.525, 17.13, 17.2), (2.975, 3.525, 19.4, 19.47)):
-        box(det, 11.772, 11.8, y0, y1, z0, z1, "DarkSteel")
+        box(det, 11.792, 11.82, y0, y1, z0, z1, "DarkSteel")
     # Scherm naar de kade (-x), zoals het commentaar in het blokmodel zei: de normaal stond op -z, waardoor
     # het scherm dwars door de poort sneed. Plek en maat zijn ongewijzigd.
     ctx.shared["screens"].append(("Appraisal_Screen", (11.78, 3.25, 18.3), (-1.0, 0.0, 0.0), 2.2, 0.55))
     ctx.anchor("Appraisal_Gate", (12.0, 0.0, 18.3))
-    text(det, "APPRAISAL", 0.16, (11.8, 3.76, 18.3), (-1, 0, 0), (0, 1, 0), YELLOW_TXT)
-    text(det, "APPRAISAL", 0.2, (12.34, 3.62, 18.3), (1, 0, 0), (0, 1, 0), YELLOW_TXT)
-    text(det, "YOUR LOOT · OUR PRICE", 0.06, (12.34, 3.3, 18.3), (1, 0, 0), (0, 1, 0), LIGHT_TXT, res=1)
+    text(det, "YOUR LOOT · OUR PRICE", 0.07, (12.32, 3.25, 18.3), (1, 0, 0), (0, 1, 0), LIGHT_TXT, res=1)
     for xx in (11.98, 12.16):
         box(det, xx - 0.016, xx + 0.016, 2.868, 2.88, 17.32, 19.28, "Cyan")
     for z in (17.75, 18.3, 18.85):
         box(props, 11.99, 12.15, 2.78, 2.9, z - 0.1, z + 0.1, "DarkSteel")
         box(det, 12.05, 12.09, 2.77, 2.78, z - 0.02, z + 0.02, "LensRed")
-    for z in (17.3, 19.3):  # kabels naar het dak van de poort
-        pipe(det, [(12.3, 3.6, z), (12.42, 3.7, z), (12.42, 4.2, z), (12.2, 4.4, z)], 0.03, "Rubber", segs=6)
-    beacon(det, 12.07, 3.98, 17.6)
-    beacon(det, 12.07, 3.98, 19.0)
+    # Kroon: twee masten op de scannerbalk, een dubbelzijdig bord met ledrand, de voeding langs een mast.
+    yb, yt = 4.45, 4.97  # onder- en bovenkant van het bord
+    for z in (17.22, 19.38):
+        cyl(props, (12.07, 3.59, z), (0, 1, 0), yt - 3.59 + 0.05, 0.04, "DarkSteel", segs=8)
+    prism(props, kit.octagon(0.12, yt - yb, 0.03), (12.07, (yb + yt) / 2, 17.1), (1, 0, 0), (0, 1, 0), (0, 0, 1), 2.4,
+          "Anthracite")
+    for sx in (-1, 1):
+        x = 12.07 + sx * 0.061
+        text(det, "APPRAISAL", 0.24, (x, (yb + yt) / 2 + 0.02, 18.3), (sx, 0, 0), (0, 1, 0), YELLOW_TXT, fit=2.1)
+        box(det, x, x + sx * 0.006, yb + 0.05, yb + 0.062, 17.25, 19.35, "LedAmber")
+    pipe(det, [(12.13, 3.59, 19.3), (12.13, 4.45, 19.3)], 0.016, "Rubber", segs=6)
+    beacon(det, 12.07, 3.59, 17.62)
+    beacon(det, 12.07, 3.59, 18.98)
     # Korte band door de poort (vlak in de vloer: je draagt je buit eroverheen).
     cx0, cx1, cz0, cz1 = 10.35, 13.65, 17.4, 19.2
     for (a, c) in ((cz0 - 0.1, cz0), (cz1, cz1 + 0.1)):
@@ -210,8 +220,12 @@ def gate(ctx, B):
 def sell_booth(ctx, B):
     props, det = B["props"], B["det"]
     x0, x1, z0, z1 = 15.45, 16.45, 16.95, 19.65
-    for (za, zb) in ((z0, z0 + 0.2), (z1 - 0.2, z1)):
-        box(props, x0, x1, 0.0, 2.9, za, zb, WALL)
+    box(props, x0, x1, 0.0, 2.9, z0, z0 + 0.2, WALL)
+    # De kant naar de brug (+z) heeft een raam (binnen-17: vanaf de brug was dit een blinde kast op
+    # ooghoogte). Wand rond de opening x 15,62..16,28, y 1,3..2,3.
+    wx0, wx1, wy0, wy1 = 15.62, 16.28, 1.3, 2.3
+    for (a, c, y0, y1) in ((x0, x1, 0.0, wy0), (x0, x1, wy1, 2.9), (x0, wx0, wy0, wy1), (wx1, x1, wy0, wy1)):
+        box(props, a, c, y0, y1, z1 - 0.2, z1, WALL)
     box(props, x1 - 0.12, x1, 1.2, 2.9, z0 + 0.2, z1 - 0.2, WALL)
     box(props, x0 - 0.14, x1 + 0.05, 2.9, 3.08, z0 - 0.08, z1 + 0.08, "Anthracite")
     box(props, x0, x0 + 0.15, 0.0, 1.0, z0 + 0.2, z1 - 0.2, WALL)
@@ -269,11 +283,31 @@ def sell_booth(ctx, B):
         box(det, 15.75, 16.15, 3.4, 3.415, 18.8 + k * 0.1 - 0.012, 18.8 + k * 0.1 + 0.012, "Steel")
     vent_on(det, (15.62, 3.23, 18.95), (-1, 0, 0), 0.6, 0.22, 3)
     box(det, x0 - 0.15, x1 + 0.06, 3.075, 3.09, z0 - 0.09, z0 - 0.07, "LedWhite")
-    # Zijkant naar de brug (+z): luikje, rooster, de openingsuren.
+    # Zijkant naar de brug (+z): een raam met een kijkje in het kantoortje (warm licht, de weegschaal,
+    # een kassa, en een affiche met de winstmarge die wél stijgt), kabels, rooster, de openingsuren.
     Nz = (0, 0, 1)
-    hatch_on(det, (15.95, 1.15, z1), Nz, 0.76, 0.8)
-    vent_on(det, (15.95, 0.38, z1), Nz, 0.7, 0.36, 5)
-    py = 1.98
+    for (du, dv, sw, sh) in ((0, (wy1 - wy0) / 2 + 0.03, wx1 - wx0 + 0.12, 0.06), (0, -(wy1 - wy0) / 2 - 0.03, wx1 - wx0 + 0.12, 0.06),
+                             (-(wx1 - wx0) / 2 - 0.03, 0, 0.06, wy1 - wy0), ((wx1 - wx0) / 2 + 0.03, 0, 0.06, wy1 - wy0)):
+        fbox(det, ((wx0 + wx1) / 2, (wy0 + wy1) / 2, z1), Nz, sw, sh, 0.035, "Anthracite", du=du, dv=dv)
+    B["glass"].box(G((wx0 + wx1) / 2, (wy0 + wy1) / 2, z1 - 0.1), (wx1 - wx0, wy1 - wy0, 0.012), material="Glass")
+    taped_crack(det, (16.12, 2.05, z1 - 0.094), Nz, 0.3, 25, pieces=2)
+    # Binnen: kassa op de toonbank, een kruk, het affiche op de achterwand.
+    box(det, 15.62, 15.98, 1.2, 1.42, 18.7, 19.2, "DarkSteel")
+    fbox(det, (15.8, 1.36, 19.2), Nz, 0.26, 0.1, 0.006, "ScreenAmber")
+    cyl(det, (16.05, 0.0, 18.95), (0, 1, 0), 0.62, 0.025, "Steel", segs=8)
+    cyl(det, (16.05, 0.62, 18.95), (0, 1, 0), 0.06, 0.17, "Red", segs=12)
+    fbox(props, (15.92, 1.75, z0 + 0.2), Nz, 0.56, 0.46, 0.012, "Cream")
+    text(det, "OUR MARGIN", 0.05, (15.92, 1.92, z0 + 0.215), Nz, (0, 1, 0), DARK_TXT, fit=0.48, res=1)
+    for k, h in enumerate((0.06, 0.1, 0.15, 0.22, 0.28)):
+        fbox(det, (15.74 + k * 0.09, 1.56 + h / 2, z0 + 0.212), Nz, 0.06, h, 0.004, "Yellow")
+    ctx.glow("ffb46a", (15.95, 2.45, 18.6), e=0.7)
+    # Kabels van het dak langs de hoek naar een verdeelkast.
+    for (dx, r, m) in ((0.0, 0.028, "Rubber"), (0.07, 0.02, "Red")):
+        pipe(det, [(x1 - 0.06 - dx, 3.08, z1 + 0.05), (x1 - 0.06 - dx, 1.05, z1 + 0.05)], r, m, segs=6, clamps=0.5)
+    fbox(props, (x1 - 0.1, 0.85, z1), Nz, 0.26, 0.34, 0.12, "GreyGreen")
+    fbox(det, (x1 - 0.1, 0.85, z1 + 0.12), Nz, 0.12, 0.05, 0.004, "Yellow")
+    vent_on(det, (15.85, 0.38, z1), Nz, 0.6, 0.36, 5)
+    py = 2.6
     fbox(det, (15.98, py, z1), Nz, 0.56, 0.36, 0.006, "Cream", up=(0.04, 1, 0))
     for (dv, txt, hgt, m) in ((0.1, "OPENING HOURS", 0.04, DARK_TXT), (0.01, "MON-SUN: WHEN IT SUITS US", 0.022, DARK_TXT),
                               (-0.05, "BREAK: ALWAYS", 0.022, "Red"), (-0.115, "COMPLAINTS: SEE VENDING MACHINE", 0.016, DARK_TXT)):
