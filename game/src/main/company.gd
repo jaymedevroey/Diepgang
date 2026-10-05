@@ -1,26 +1,37 @@
 class_name Company
 extends Node
 ## De firma (GDD §3 Quota, §5 Economie): teamkas, reputatie, het kwartaal met zijn quota, de
-## opdracht van deze dienst, en het incidentrapport na elke dienst. De host beslist en bewaart
-## (user://saves/<naam>.json); iedereen krijgt de toestand.
+## opdracht van deze dienst, de upgrades van de ploeg, de taxatie van de buit en het incidentrapport.
+## De host beslist en bewaart (user://saves/<naam>.json); iedereen krijgt de toestand.
 ## - Opdracht: aan de terminal in de hub kies je één van drie concessies, elk met een risico
-##   (meer opbrengst, sneller magma). Kiezen = een nieuwe wereld uit die seed. Zonder opdracht
-##   geen drop.
-## - Na de dienst: alles in het laadruim wordt verkocht (tijdelijk, tot de taxatiepoort er is),
-##   × de opbrengst van de opdracht, min de vervangrobots. Na `shifts` diensten: doel gehaald
-##   (reputatie +1, het volgende doel hoger) of gemist (boete = schuld, reputatie −1). Upgrades en
-##   het museum blijven altijd.
-## Getallen in company.cfg.
+##   (meer opbrengst, sneller magma) en 2-3 voorwaarden (Contracts). Kiezen = een nieuwe wereld uit
+##   die seed. Zonder opdracht geen drop.
+## - Na de dienst (de Mol in de baai): het erts wordt meteen verkocht (× de opbrengst van de
+##   opdracht), min de vervangrobots en de rente op schuld. De vondsten blijven in het laadruim: je
+##   draagt ze door de taxatiepoort (onthulling één voor één) en verkoopt ze aan het verkoopluik
+##   (Appraisal). Wat onverkocht blijft, koopt het hoofdkantoor op aan unsold_factor als je de
+##   volgende opdracht tekent. Pas dan is de dienst afgesloten ("settle").
+## - Kwartaal: na `shifts` diensten, bij het afsluiten van de laatste: doel gehaald (reputatie +1,
+##   het volgende doel hoger) of gemist (boete = schuld, reputatie −1).
+## - Gevolgen (F1; waar het GDD zwijgt): met schuld is de rekening bevroren (geen upgrades) en rekent
+##   de firma rente per dienst; met reputatie onder 0 (proeftijd) geen opdracht met hoog risico (GDD:
+##   "reputatie bepaalt welke planeten je mag doen"). Upgrades blijven altijd (GDD §3.10).
+## Getallen in company.cfg en economy.cfg.
 
 ## De toestand veranderde (op elke peer): terminal en HUD bijwerken.
 signal changed
-## Een dienst is voorbij: het incidentrapport (op elke peer).
+## Een dienst is voorbij (incidentrapport), of een kwartaal is afgesloten (op elke peer).
 signal report_ready(report: Dictionary)
+## De lokale speler drukte E aan een toonbank in de hub (Upgrades.COUNTERS).
+signal shop_requested(counter: String)
+## Bij wie kocht: het mocht niet (de winkel toont waarom).
+signal buy_denied(id: String, reason: String)
 
 enum Risk { LOW, MID, HIGH }
 const RISK_NAMES := ["LOW", "MEDIUM", "HIGH"]
 const RISK_KEYS := ["low", "mid", "high"]
-const SAVE_VERSION := 1
+## 2: upgrades, voorwaarden en de open taxatie (F1). Een save van versie 1 laadt gewoon.
+const SAVE_VERSION := 2
 
 var game: Node # Game
 ## Bewaren: enkel als er een naam is (het echte spel, of een test die het vraagt).
@@ -29,20 +40,57 @@ var save_name := ""
 var cash := 0
 var reputation := 0
 var quarter := 1
-## Dienst binnen het kwartaal (1..shifts).
+## Dienst binnen het kwartaal (1..shifts). Na het ophalen blijft hij staan tot de dienst
+## afgesloten is (de buit verkocht of de volgende opdracht getekend).
 var shift := 1
 ## Verdiend dit kwartaal (netto, na kosten).
 var earned := 0
 ## Diensten in totaal (ook de seed van de opdrachten hangt hiervan af).
 var shifts_total := 0
-## Opdrachten om uit te kiezen: [{seed, risk, name}, ...]
+## Opdrachten om uit te kiezen: [{seed, risk, planet, name, modifiers}, ...]
 var options: Array = []
 ## Gekozen opdracht (leeg = nog niet gekozen).
 var contract: Dictionary = {}
+## Voorwaarden van de wereld die nu gebouwd is (extra bedden en aders: elke peer genereert ermee).
+var world_mods: Array = []
+## Gekochte upgrades (Upgrades.ORDER).
+var upgrades: Array = []
+## De buit van de laatste dienst, tot hij afgesloten is (Appraisal). Leeg = niets open.
+## {"contract", "ids": [find_id], "appraised": {id: [waarde, bonus]}, "sold": [[naam, waarde, %]],
+##  "sold_value", "set_bonus", "target_bonus", "sets": {set_id: [verkocht, grootte, waarde]},
+##  "sets_done": [set_id], "target_paid"}
+var haul: Dictionary = {}
 var last_report: Dictionary = {}
 ## Host: robots die smolten deze dienst (kosten).
 var _melted := 0
 var _company_seed := 0
+## Taxatie en verkoop (host beslist, iedereen ziet de onthulling).
+var appraisal: Appraisal
+
+
+func _ready() -> void:
+	appraisal = Appraisal.new()
+	appraisal.name = "Appraisal"
+	appraisal.company = self
+	add_child(appraisal)
+	if game:
+		game.player_spawned.connect(_on_player_spawned)
+	# Upgrades die je ziet: de helmlamp van iedereen volgt de ploeg.
+	changed.connect(func() -> void:
+		if game and game.players:
+			for p: Player in game.players.get_children():
+				Upgrades.apply_lamp(p, self))
+
+
+## Elke speler: de helmlamp van de ploeg; de lokale speler krijgt de handscanner (gadget, Q).
+func _on_player_spawned(p: Player) -> void:
+	Upgrades.apply_lamp(p, self)
+	if p.is_local and p.camera:
+		var scanner := HandScanner.new()
+		scanner.name = "HandScanner"
+		scanner.player = p
+		scanner.game = game
+		p.camera.add_child(scanner)
 
 
 # --- Toestand ------------------------------------------------------------------------------------
@@ -50,6 +98,7 @@ var _company_seed := 0
 ## Host: een nieuwe firma, of de bewaarde laden.
 func host_setup(name: String) -> void:
 	save_name = name
+	haul = {}
 	if save_name == "" or not _load():
 		cash = Tuning.get_i("company", "start_cash", 0)
 		reputation = 0
@@ -57,22 +106,49 @@ func host_setup(name: String) -> void:
 		shift = 1
 		earned = 0
 		shifts_total = 0
+		upgrades = []
 		_company_seed = randi()
 	contract = {}
+	world_mods = []
 	_make_options()
 	_broadcast()
 
 
+## Robots in de ploeg (1..4): de quota en de prijzen schalen mee.
+func team_size() -> int:
+	return clampi(game.players.get_child_count(), 1, 4) if game and game.players else 1
+
+
 ## Het geldoel van dit kwartaal voor deze ploeg.
 func quota() -> int:
-	var n := clampi(game.players.get_child_count(), 1, 4)
+	var n := team_size()
 	var share := Tuning.get_f("company", "quota_p%d" % n, [0.4, 0.65, 0.85, 1.0][n - 1])
-	var base := Tuning.get_f("company", "quota_base", 2000.0) * pow(Tuning.get_f("company", "quota_growth", 1.25), quarter - 1)
+	var base := Tuning.get_f("company", "quota_base", 5000.0) * pow(Tuning.get_f("company", "quota_growth", 1.4), quarter - 1)
 	return int(round(base * share / 10.0)) * 10
 
 
 func contract_ready() -> bool:
 	return not contract.is_empty()
+
+
+## Ligt er nog buit van de vorige dienst te wachten op taxatie en verkoop?
+func haul_open() -> bool:
+	return not haul.is_empty()
+
+
+## Met schuld is de rekening bevroren: geen upgrades.
+func in_debt() -> bool:
+	return cash < 0
+
+
+## Proeftijd (reputatie onder 0): geen opdrachten met hoog risico.
+func on_probation() -> bool:
+	return reputation < 0
+
+
+## Opdracht `index` mag niet gekozen worden (proeftijd en hoog risico)?
+func option_locked(index: int) -> bool:
+	return index >= 0 and index < options.size() and int(options[index].risk) == Risk.HIGH and on_probation()
 
 
 static func pay_factor(risk: int) -> float:
@@ -83,9 +159,22 @@ static func magma_factor(risk: int) -> float:
 	return Tuning.get_f("company", "magma_" + RISK_KEYS[risk], [0.85, 1.0, 1.2][risk])
 
 
-## Tempo van het magma voor de gekozen opdracht.
+## Tempo van het magma voor de gekozen opdracht (risico × hete kern).
 func contract_magma() -> float:
-	return magma_factor(int(contract.risk)) if contract_ready() else 1.0
+	if not contract_ready():
+		return 1.0
+	return magma_factor(int(contract.risk)) * Contracts.magma_factor(contract.get("modifiers", []))
+
+
+## Voorwaarden van de gekozen opdracht (of van de buit die nog open staat).
+func mods() -> Array:
+	if contract_ready():
+		return contract.get("modifiers", [])
+	return (haul.get("contract", {}) as Dictionary).get("modifiers", [])
+
+
+func has_upgrade(id: String) -> bool:
+	return upgrades.has(id)
 
 
 func _make_options() -> void:
@@ -102,11 +191,17 @@ func _make_options() -> void:
 	for r in [Risk.LOW, Risk.MID, Risk.HIGH]:
 		var s := rng.randi_range(1, 999999)
 		options.append({"seed": s, "risk": r, "planet": int(planets[r]), "name": "CLAIM %d" % (s % 97 + 1)})
+	# De voorwaarden met een eigen rng (zelfde seeds en planeten als vroeger voor dezelfde firma).
+	var mrng := RandomNumberGenerator.new()
+	mrng.seed = _company_seed * 4421 + shifts_total * 977 + 3
+	for o: Dictionary in options:
+		o["modifiers"] = Contracts.roll(mrng, int(o.planet), int(o.risk))
 
 
 func state() -> Dictionary:
 	return {"cash": cash, "reputation": reputation, "quarter": quarter, "shift": shift, "earned": earned,
-			"shifts_total": shifts_total, "options": options, "contract": contract, "company_seed": _company_seed}
+			"shifts_total": shifts_total, "options": options, "contract": contract, "company_seed": _company_seed,
+			"upgrades": upgrades, "world_mods": world_mods, "haul": haul}
 
 
 func _apply(s: Dictionary) -> void:
@@ -119,6 +214,9 @@ func _apply(s: Dictionary) -> void:
 	options = s.get("options", [])
 	contract = s.get("contract", {})
 	_company_seed = int(s.get("company_seed", 0))
+	upgrades = s.get("upgrades", [])
+	world_mods = s.get("world_mods", [])
+	haul = s.get("haul", {})
 
 
 func _broadcast() -> void:
@@ -131,11 +229,26 @@ func _rpc_state(s: Dictionary) -> void:
 	changed.emit()
 
 
-## Late joiner.
+## Late joiner (vóór de wereld: de voorwaarden bepalen mee hoe ze gegenereerd wordt).
 func send_state(peer: int) -> void:
 	_rpc_state.rpc_id(peer, state())
 	if not last_report.is_empty():
 		_rpc_report.rpc_id(peer, last_report, false)
+
+
+func _process(delta: float) -> void:
+	if game == null or not multiplayer.has_multiplayer_peer() or not multiplayer.is_server():
+		return
+	# Onstabiele grond: de onrust stijgt ook als het stil is (en zakt dus niet meer terug).
+	var rate := Contracts.unrest_rate(mods()) if contract_ready() else 0.0
+	if rate > 0.0 and game.magma and game.magma.running and game.unrest:
+		game.unrest.host_add(rate * delta)
+
+
+## Host: de Mol landde (krappe brandstof voor deze opdracht).
+func host_landed() -> void:
+	if contract_ready() and game.mol:
+		game.mol.fuel = minf(game.mol.fuel, Contracts.fuel(mods()))
 
 
 # --- Opdracht kiezen -----------------------------------------------------------------------------
@@ -160,12 +273,70 @@ func _host_choose(index: int) -> void:
 		return
 	if contract == options[index]:
 		return
+	# Tekenen sluit de vorige dienst af: wat niet verkocht is, koopt het hoofdkantoor op.
+	if haul_open():
+		host_settle(true)
+	if option_locked(index):
+		game.notice_all("Probation: head office won't sign a HIGH-risk claim with you. Meet a quota first.", "warn")
+		_broadcast()
+		return
 	contract = options[index]
+	world_mods = contract.get("modifiers", [])
 	_broadcast()
 	game.host_new_world(int(contract.seed), int(contract.get("planet", 0)))
 	# Soort "contract": wie hem net aan de terminal koos, zag dat al (de HUD toont hem dan niet, ui-03).
 	game.notice_all("Contract chosen: %s (risk %s)." % [contract.name, RISK_NAMES[int(contract.risk)]], "contract")
 	_save()
+
+
+# --- Upgrades kopen ------------------------------------------------------------------------------
+
+## Aan een toonbank (elke speler): upgrade `id` kopen. De host beslist (geld, schuld, afstand).
+func buy(id: String, counter: String) -> void:
+	if multiplayer.is_server():
+		_host_buy(multiplayer.get_unique_id(), id, counter)
+	else:
+		_rpc_buy.rpc_id(1, id, counter)
+
+
+@rpc("any_peer", "reliable")
+func _rpc_buy(id: String, counter: String) -> void:
+	if multiplayer.is_server():
+		_host_buy(multiplayer.get_remote_sender_id(), id, counter)
+
+
+func _host_buy(sender: int, id: String, counter: String) -> void:
+	var why := Upgrades.blocker(self, id)
+	if why == "" and str(Upgrades.info(id).get("counter", "")) != counter:
+		why = "Not sold at this counter"
+	if why == "" and not _near_anchor(sender, counter):
+		why = "Too far from the counter"
+	if why != "":
+		if sender == multiplayer.get_unique_id():
+			_rpc_buy_denied(id, why)
+		else:
+			_rpc_buy_denied.rpc_id(sender, id, why)
+		return
+	var price := Upgrades.price(id, team_size())
+	cash -= price
+	upgrades.append(id)
+	_broadcast()
+	game.notice_all("Bought: %s (%s). %s." % [str(Upgrades.info(id).name), UiTheme.euro_signed(-price), str(Upgrades.info(id).does)], "contract")
+	_save()
+
+
+@rpc("authority", "reliable")
+func _rpc_buy_denied(id: String, reason: String) -> void:
+	buy_denied.emit(id, reason)
+
+
+## Host: staat de speler bij dit lege punt van de hub (toonbank, verkoopluik)?
+func _near_anchor(sender: int, anchor: String) -> bool:
+	var ship: Ekster = game.ship
+	var p: Player = game.player_node(sender)
+	if ship == null or p == null or not ship.anchors.has(anchor):
+		return ship == null and p != null # zonder schip (tests op de planeet): geen afstand
+	return p.global_position.distance_to(ship.anchor_position(anchor)) <= Tuning.get_f("economy", "counter_reach_m", 5.0)
 
 
 # --- Einde van een dienst ------------------------------------------------------------------------
@@ -175,34 +346,92 @@ func host_melted() -> void:
 	_melted += 1
 
 
-## Host: de Mol staat terug in de baai. Verkopen, kosten, het kwartaal, en het rapport.
+## Host: de Mol staat terug in de baai. Het erts wordt verkocht, de kosten en de rente gaan eraf, en
+## de vondsten (`cargo`, plus wat een robot aan boord nog draagt) wachten op de taxatie.
 func host_shift_end(cargo: Array, ore_units: int, ore_value: int, left_behind: int) -> void:
 	var risk := int(contract.get("risk", Risk.LOW))
+	var mods_now: Array = contract.get("modifiers", [])
 	var factor := pay_factor(risk)
-	var sold: Array = []
-	var finds_value := 0
-	var damage := 0
-	for it: FindItem in cargo:
-		finds_value += it.value()
-		damage += it.base_value - it.value()
-		sold.append([FindKinds.NAMES[it.kind], it.value(), int(round(it.condition * 100.0))])
-	var gross := finds_value + ore_value
-	var bonus := int(round(gross * (factor - 1.0)))
+	var ore_paid := int(round(ore_value * factor * Contracts.ore_factor(mods_now)))
+	var bonus := ore_paid - ore_value
 	var robots := left_behind + _melted
-	var costs := robots * Tuning.get_i("company", "replacement_cost", 120)
-	var net := gross + bonus - costs
+	var costs := robots * Tuning.get_i("company", "replacement_cost", 250)
+	var interest := int(ceil(-cash * Tuning.get_f("company", "debt_interest", 0.1))) if cash < 0 else 0
+	var net := ore_paid - costs - interest
 	cash += net
 	earned += net
 	shifts_total += 1
+	# De buit: wat in het laadruim ligt en wat robots aan boord nog vasthouden.
+	var ids: Array = []
+	var damage := 0
+	for it: FindItem in cargo:
+		if is_instance_valid(it) and not ids.has(it.find_id):
+			ids.append(it.find_id)
+	for it: FindItem in game.finds.items:
+		if it.freed and not it.carriers.is_empty() and not ids.has(it.find_id) and _aboard(it.global_position):
+			ids.append(it.find_id)
+	for id in ids:
+		var it: FindItem = game.finds.item(int(id))
+		damage += it.base_value - it.value()
 	var report := {
-		"shift_total": shifts_total, "quarter": quarter, "shift": shift, "contract": contract.get("name", ""),
-		"risk": risk, "factor": factor, "sold": sold, "finds_value": finds_value, "ore_units": ore_units,
+		"type": "shift", "shift_total": shifts_total, "quarter": quarter, "shift": shift, "contract": contract.get("name", ""),
+		"risk": risk, "factor": factor, "sold": [], "finds_value": 0, "ore_units": ore_units,
 		"ore_value": ore_value, "bonus": bonus, "left_behind": left_behind, "melted": _melted, "costs": costs,
-		"damage": damage, "quakes": game.unrest.stage, "net": net, "earned": earned, "quota": quota(),
+		"interest": interest, "damage": damage, "quakes": game.unrest.stage, "net": net, "earned": earned,
+		"quota": quota(), "haul_count": ids.size(), "last_of_quarter": shift >= Tuning.get_i("company", "shifts", 3),
 	}
-	# Einde van het kwartaal?
+	_melted = 0
+	haul = {"contract": contract.duplicate(true), "ids": ids, "appraised": {}, "sold": [], "sold_value": 0,
+			"set_bonus": 0, "target_bonus": 0, "sets": {}, "sets_done": [], "target_paid": false}
+	contract = {}
+	_make_options()
+	report["cash"] = cash
+	report["reputation"] = reputation
+	last_report = report
+	_broadcast()
+	_rpc_report.rpc(report, true)
+	# Niets mee terug: de dienst is meteen afgesloten (ook het kwartaal).
+	if ids.is_empty():
+		host_settle(false)
+	_save()
+
+
+## Staat een punt aan boord (in de hub of in de Mol)?
+func _aboard(world: Vector3) -> bool:
+	var ship: Ekster = game.ship
+	return (ship != null and ship.contains(world)) or (game.mol != null and game.mol.contains_point(world))
+
+
+## Host: de dienst afsluiten. `forced`: er wordt getekend terwijl er nog buit ligt; die koopt het
+## hoofdkantoor op aan unsold_factor. Daarna de volgende dienst, of het einde van het kwartaal.
+func host_settle(forced: bool, leftover_value := -1) -> void:
+	if not haul_open():
+		return
+	var left := 0
+	var left_value := 0
+	if leftover_value >= 0:
+		left_value = leftover_value
+	else:
+		for id in haul.get("ids", []):
+			var it: FindItem = game.finds.item(int(id))
+			if it == null:
+				continue
+			left += 1
+			left_value += appraisal.value_of(it)
+			game.finds.host_remove(it.find_id)
+	var cleared := int(round(left_value * Tuning.get_f("economy", "unsold_factor", 0.6)))
+	cash += cleared
+	earned += cleared
+	if cleared > 0 or left > 0:
+		game.notice_all("Head office bought %s at %d%%: %s." % [UiTheme.count(left, "unsold find") if left > 0 else "your unsold haul",
+				int(round(Tuning.get_f("economy", "unsold_factor", 0.6) * 100.0)), UiTheme.euro_signed(cleared)], "contract")
+	var sold: Array = haul.get("sold", [])
+	var report := {}
 	if shift >= Tuning.get_i("company", "shifts", 3):
 		var q := quota()
+		report = {"type": "quarter", "quarter": quarter, "quota": q, "earned": earned, "sold": sold,
+				"finds_value": int(haul.get("sold_value", 0)), "set_bonus": int(haul.get("set_bonus", 0)),
+				"target_bonus": int(haul.get("target_bonus", 0)), "leftover_count": left, "leftover_value": cleared}
 		if earned >= q:
 			reputation += 1
 			report["quarter_result"] = "gehaald"
@@ -215,19 +444,20 @@ func host_shift_end(cargo: Array, ore_units: int, ore_value: int, left_behind: i
 		quarter += 1
 		shift = 1
 		earned = 0
+		report["cash"] = cash
+		report["reputation"] = reputation
+		report["probation"] = on_probation()
+		report["frozen"] = in_debt()
 	else:
 		shift += 1
-	report["cash"] = cash
-	report["reputation"] = reputation
-	_melted = 0
-	contract = {}
-	_make_options()
-	# Het verkochte is weg uit het laadruim.
-	for it: FindItem in cargo:
-		game.finds.host_remove(it.find_id)
-	last_report = report
+		if not forced:
+			game.notice_all("Haul sold: %s for %s. On to shift %d." % [UiTheme.count(sold.size(), "find"),
+					UiTheme.euro(int(haul.get("sold_value", 0)) + int(haul.get("set_bonus", 0)) + int(haul.get("target_bonus", 0))), shift], "contract")
+	haul = {}
 	_broadcast()
-	_rpc_report.rpc(report, true)
+	if not report.is_empty():
+		last_report = report
+		_rpc_report.rpc(report, true)
 	_save()
 
 
@@ -251,6 +481,15 @@ func _save() -> void:
 	var data := state()
 	data["version"] = SAVE_VERSION
 	data["contract"] = {} # na laden opnieuw kiezen (de wereld wordt dan opnieuw gemaakt)
+	data["world_mods"] = [] # na laden staat de beginwereld er, zonder voorwaarden
+	# De vondsten van een open buit bestaan na laden niet meer: enkel hun waarde bewaren.
+	if haul_open():
+		var left_value := 0
+		for id in haul.get("ids", []):
+			var it: FindItem = game.finds.item(int(id))
+			if it:
+				left_value += appraisal.value_of(it)
+		data["haul"] = {"left_value": left_value, "sold_value": int(haul.get("sold_value", 0)), "sold": haul.get("sold", [])}
 	var f := FileAccess.open(save_path(), FileAccess.WRITE)
 	if f == null:
 		push_error("company: kan %s niet bewaren" % save_path())
@@ -266,5 +505,15 @@ func _load() -> bool:
 		push_error("company: %s is geen geldige save" % save_path())
 		return false
 	_apply(parsed)
-	print("[company] geladen: kas €%d, kwartaal %d, dienst %d" % [cash, quarter, shift])
+	# JSON maakt van elk getal een float: de lijsten opnieuw met ints.
+	upgrades = upgrades.filter(func(u: Variant) -> bool: return Upgrades.exists(str(u))).map(func(u: Variant) -> String: return str(u))
+	for o: Dictionary in options:
+		for k in ["seed", "risk", "planet"]:
+			o[k] = int(o.get(k, 0))
+	# Een buit die openstond toen er bewaard werd: het hoofdkantoor heeft hem intussen opgekocht.
+	if haul_open():
+		var left_value := int(haul.get("left_value", 0))
+		haul = {"ids": [], "sold": haul.get("sold", []), "sold_value": int(haul.get("sold_value", 0)), "set_bonus": 0, "target_bonus": 0}
+		host_settle(true, left_value)
+	print("[company] geladen: kas €%d, kwartaal %d, dienst %d, %d upgrades" % [cash, quarter, shift, upgrades.size()])
 	return true

@@ -130,4 +130,7 @@ func _validate(sender: int, op: Dictionary) -> String:
 		return "te ver (%.1f m)" % center.distance_to(player.global_position)
 	if not tool_allows(op):
 		return "gereedschap te zwak"
+	# Niet beter gereedschap dan wat de ploeg kocht (F1: boor T2 is een upgrade).
+	if game.company and int(op.tool) > int(Upgrades.drill_tier(game.company)):
+		return "gereedschap niet gekocht"
 	return ""

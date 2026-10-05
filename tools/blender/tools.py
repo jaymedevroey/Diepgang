@@ -16,6 +16,13 @@ Objecten:
   Glove_Open  open rechterhand om te dragen: oorsprong = midden van de handpalm, palm naar −x, vingers
               vooruit (−z) en ±35° gekruld, duim bovenaan; onderarm naar +z (en licht −y, +x).
               Linkerhand in Godot: gespiegeld met scale.x = −1
+  Drill_T2    boor T2 (F1): enkel wat erbij komt, over de boor heen: een gloeiende cyane band achter de
+              klauwplaat en het label DRILL T2 over het oude label (Godot toont het met de upgrade)
+  Scanner     handscanner T1 (F1), naar de bewegingsmelder uit Alien en de terreinscanner van DRG:
+              pistoolgreep in de oorsprong (dezelfde hand als de boor), gele behuizing erboven, een
+              schuin scherm naar de gebruiker (+z, 50° achterover), antenne met schotel vooraan (−z),
+              rode knop, tape en een label
+  Scanner_Screen  het scherm van de scanner: vlak met UV 0..1 (Godot zet er een viewport op)
 """
 
 import math
@@ -111,6 +118,84 @@ def build_drill():
     for s in (-1, 1):
         box((0.003, 0.04, 0.1), (s * 0.075, by - 0.005, -0.06), "Cream", g, bevel=0.0)
         text("DRILL T1", 0.017, (s * 0.0772, by - 0.006, -0.06), (0, 90 * s, 0), "DecalDark", g, extrude=0.0015)
+
+
+def build_drill_t2():
+    """Boor T2: enkel de extra onderdelen, over de boor heen (Drill blijft dezelfde)."""
+    g = "Drill_T2"
+    by = BIT_PIVOT[1]
+    # Gloeiende cyane band net achter de geel-zwarte band (carbide, "koud = van de diepte").
+    torus(0.0765, 0.0055, (0, by, -0.152), "Cyan", g, axis="z", major_seg=26, minor_seg=6)
+    torus(0.0765, 0.0055, (0, by, -0.118), "Cyan", g, axis="z", major_seg=26, minor_seg=6)
+    # Nieuw label over het oude, iets erbuiten.
+    for s in (-1, 1):
+        box((0.003, 0.042, 0.102), (s * 0.0768, by - 0.005, -0.06), "Cream", g, bevel=0.0)
+        text("DRILL T2", 0.017, (s * 0.0790, by - 0.006, -0.06), (0, 90 * s, 0), "DecalDark", g, extrude=0.0015)
+
+
+SCREEN_C = (0.0, 0.158, 0.012)  # midden van het scherm van de scanner
+SCREEN_TILT = 50.0  # graden achterover (normaal schuin omhoog naar de gebruiker)
+SCREEN_W, SCREEN_H = 0.112, 0.084
+
+
+def _screen_axes():
+    t = math.radians(SCREEN_TILT)
+    up = (0.0, math.cos(t), -math.sin(t))
+    normal = (0.0, math.sin(t), math.cos(t))
+    return up, normal
+
+
+def screen_quad(name, center, w, h, material, group):
+    """Vlak met UV 0..1 (linksonder 0,0 in Blender = linksonder van het beeld in Godot)."""
+    up, normal = _screen_axes()
+    cx, cy, cz = center
+    corners = []
+    for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1)):
+        corners.append((cx + sx * w / 2, cy + sy * h / 2 * up[1] + 0.0, cz + sy * h / 2 * up[2]))
+    me = bpy.data.meshes.new(name)
+    me.from_pydata([G(*c) for c in corners], [], [(0, 1, 2, 3)])
+    me.update()
+    uv = me.uv_layers.new(name="UVMap")
+    for loop, co in zip(me.loops, ((0, 0), (1, 0), (1, 1), (0, 1))):
+        uv.data[loop.index].uv = co
+    o = bpy.data.objects.new(name, me)
+    bpy.context.collection.objects.link(o)
+    o.data.materials.append(kit.mat(material))
+    PARTS.setdefault(group, []).append(o)
+    return o
+
+
+def build_scanner():
+    g = "Scanner"
+    up, normal = _screen_axes()
+    # Pistoolgreep (rubber), zoals de boor: dezelfde handschoen past erom.
+    box((0.052, 0.15, 0.066), (0, 0.0, 0.006), "Rubber", g, bevel=0.016, segments=3, rot=(-12, 0, 0))
+    for k in range(3):
+        box((0.054, 0.012, 0.018), (0, -0.04 + k * 0.035, -0.022 + k * 0.007), "Rubber", g, bevel=0.005, rot=(-12, 0, 0))
+    box((0.02, 0.04, 0.022), (0, 0.06, -0.044), "Red", g, bevel=0.006, rot=(-25, 0, 0))  # trekker = puls
+    # Behuizing: een dikke gele doos boven de greep, iets naar voren.
+    box((0.15, 0.07, 0.17), (0, 0.105, -0.035), "Yellow", g, bevel=0.016, segments=3)
+    box((0.152, 0.016, 0.172), (0, 0.078, -0.035), "Anthracite", g, bevel=0.004)  # onderrand
+    # Scherm: antraciet kader schuin naar de gebruiker, met een klep erboven tegen het licht.
+    cx, cy, cz = SCREEN_C
+    box((SCREEN_W + 0.026, SCREEN_H + 0.026, 0.024), (cx - normal[0] * 0.013, cy - normal[1] * 0.013, cz - normal[2] * 0.013),
+        "Anthracite", g, bevel=0.008, rot=(-SCREEN_TILT, 0, 0))
+    hood_c = (cx, cy + up[1] * (SCREEN_H / 2 + 0.012) + normal[1] * 0.012, cz + up[2] * (SCREEN_H / 2 + 0.012) + normal[2] * 0.012)
+    box((SCREEN_W + 0.03, 0.008, 0.03), hood_c, "Anthracite", g, bevel=0.003, rot=(-SCREEN_TILT + 25, 0, 0))
+    # Antenne vooraan: een korte mast met een kleine schotel en een rood lampje.
+    cyl(0.009, 0.06, (0.045, 0.165, -0.11), "Steel", g, verts=10, bevel=0.002)
+    sphere(0.026, (0.045, 0.2, -0.112), "Steel", g, scale=(1, 0.35, 1), segments=16, rings=6)
+    sphere(0.006, (0.045, 0.21, -0.112), "LensRed", g, segments=8, rings=4)
+    # Geel-zwarte band vooraan, een knop op de flank, tape en een label.
+    box((0.154, 0.06, 0.012), (0, 0.105, -0.122), "Hazard", g, bevel=0.002)
+    cyl(0.011, 0.012, (-0.078, 0.11, -0.05), "Red", g, axis="x", verts=12, bevel=0.002)
+    box((0.153, 0.02, 0.03), (0, 0.12, 0.02), "Anthracite", g, bevel=0.002)  # tape over de behuizing
+    for s in (-1, 1):
+        box((0.003, 0.03, 0.07), (s * 0.0765, 0.1, -0.06), "Cream", g, bevel=0.0)
+        text("SCAN T1", 0.013, (s * 0.0785, 0.1, -0.06), (0, 90 * s, 0), "DecalDark", g, extrude=0.0012)
+    sphere(0.006, (0.06, 0.142, 0.045), "Cyan", g, segments=8, rings=4)  # aan-ledje
+    screen_quad("Scanner_Screen", (cx + normal[0] * 0.002, cy + normal[1] * 0.002, cz + normal[2] * 0.002),
+                SCREEN_W, SCREEN_H, "Screen", "Scanner_Screen")
 
 
 def build_bit():
@@ -319,6 +404,8 @@ def main():
     build_bit()
     build_glove()
     build_glove_open()
+    build_drill_t2()
+    build_scanner()
     root = bpy.data.objects.new("Tools", None)
     bpy.context.collection.objects.link(root)
     objects = {
@@ -327,7 +414,11 @@ def main():
         "Drill_Bit": join_group("Drill_Bit", "Drill_Bit", origin=BIT_PIVOT),
         "Glove": join_group("Glove", "Glove"),
         "Glove_Open": join_group("Glove_Open", "Glove_Open"),
+        "Drill_T2": join_group("Drill_T2", "Drill_T2"),
+        "Scanner": join_group("Scanner", "Scanner"),
     }
+    screen = PARTS["Scanner_Screen"][0]
+    parent_to(screen, root)
     for name, o in objects.items():
         bake_wear(o, strength=6.0, seed=hash(name) % 1000)
         parent_to(o, root)

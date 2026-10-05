@@ -2,7 +2,8 @@ extends Node
 ## Test van de schermen in de hub (HubScreens) op het hubmodel: de vier schermen gevonden en met
 ## een viewporttextuur, het firmabord, de terminal en de taxatie volgen de firma (kas, opdracht,
 ## rapport), de tv toont de echte quota, het EXTRA-nieuws na een dienst, wisselt van segment en
-## vult elke plaatshouder in hub_tv.gd in, en een scherm rendert enkel als de camera het ziet.
+## vult elke plaatshouder in hub_tv.gd in, en een scherm rendert enkel als de camera het ziet. F1: de
+## taxatie met een open buit (oproep, onthulling) en de bevroren rekening op het bord.
 ## Headless, zonder speler.
 ## tools\godot.cmd --headless --path game -- --scenario=hub_screens_test --no-steam
 
@@ -89,6 +90,26 @@ func _run() -> void:
 	await _wait(2.0)
 	_expect(screens.tv_segment() == "report" and "Shift 7 complete" in screens.screen_text(HubScreens.TV),
 			"tv: EXTRA-uitzending na de dienst (%s)" % screens.tv_segment())
+
+	# 4b. Taxatie terwijl de buit open staat (F1): eerst "draag ze door de poort", dan de onthulling
+	# (naam, gaafheid, de waarde die optelt). Schuld: het bord zegt FROZEN.
+	var it: FindItem = game.finds.items[0]
+	c.haul = {"contract": {}, "ids": [it.find_id], "appraised": {}, "sold": [], "sold_value": 0, "set_bonus": 0,
+			"target_bonus": 0, "sets": {}, "sets_done": [], "target_paid": false}
+	c.changed.emit()
+	_expect("CARRY FINDS THROUGH" in screens.screen_text(HubScreens.APPRAISAL), "taxatie met open buit: draag de vondsten door de poort")
+	(c.haul.appraised as Dictionary)[str(it.find_id)] = [287, 0]
+	c.appraisal._rpc_revealed(it.find_id, 287, 0, 0.87)
+	await _wait(1.5)
+	var shown := screens.screen_text(HubScreens.APPRAISAL)
+	_expect(it.display_name().to_upper() in shown and "87%" in shown and "€287" in shown and "READY €287" in shown,
+			"onthulling op het scherm: %s 87%% €287, klaar om te verkopen" % it.display_name().to_upper())
+	c.haul = {}
+	c.cash = -300
+	c.changed.emit()
+	_expect("FROZEN" in screens.screen_text(HubScreens.BOARD), "firmabord: schuld = bevroren rekening")
+	c.cash = 444
+	c.changed.emit()
 
 	# 5. Tv: de echte quota, en elke regel uit hub_tv.gd zonder lege plaatshouders.
 	screens.tv_show("quota")
