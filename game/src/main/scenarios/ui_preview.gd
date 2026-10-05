@@ -1,5 +1,6 @@
 extends Node
-## Toont de onderdelen van het UI-thema en de iconen, en neemt een screenshot (logs/ui_thema.png).
+## Toont de onderdelen van het UI-thema en de iconen, en neemt een screenshot (logs/ui_thema.png);
+## daarna het instellingenmenu per tabblad en het laadscherm (logs/ui_laadscherm.png).
 ## tools\godot.cmd --path game --resolution 1600x900 -- --scenario=ui_preview --no-steam
 
 var main: Node
@@ -83,7 +84,7 @@ func _ready() -> void:
 	var icons := HBoxContainer.new()
 	icons.add_theme_constant_override("separation", 18)
 	col2.add_child(icons)
-	for n in ["pickaxe", "drill", "hand", "bone", "mol", "warning", "depth"]:
+	for n in ["pickaxe", "drill", "hand", "bone", "relic", "coin", "junk", "crystal", "mol", "warning", "info", "depth"]:
 		var tr := TextureRect.new()
 		tr.texture = load("res://assets/ui/icons/%s.svg" % n)
 		tr.custom_minimum_size = Vector2(64, 64)
@@ -106,6 +107,14 @@ func _ready() -> void:
 		for i in 6:
 			await get_tree().process_frame
 		_save("ui_instellingen_" + tab)
+	settings.queue_free()
+	# Het laadscherm (ui-16): de boorkop, de status en een briefing van de firma.
+	var loading := LoadingScreen.new()
+	layer.add_child(loading)
+	loading.show_status("PREPARING THE MAGPIE")
+	for i in 20:
+		await get_tree().process_frame
+	_save("ui_laadscherm")
 	get_tree().quit(0)
 
 

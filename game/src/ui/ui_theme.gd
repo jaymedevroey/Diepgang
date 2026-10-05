@@ -25,7 +25,7 @@ const BODY := preload("res://assets/fonts/Nunito-Variable.ttf")
 const SCREEN := preload("res://assets/fonts/VT323-Regular.ttf")
 
 
-## Een bedrag zoals op een factuur: €1.250 of −€47.
+## Een bedrag zoals op een factuur: €1,250 of −€47 (met het echte minteken).
 static func euro(v: int) -> String:
 	var s := str(absi(v))
 	var out := ""
@@ -33,6 +33,27 @@ static func euro(v: int) -> String:
 		out = "," + s.right(3) + out
 		s = s.left(s.length() - 3)
 	return ("−€" if v < 0 else "€") + s + out
+
+
+## Een bedrag met teken, voor een rij die iets bijtelt of aftrekt: +€266 of −€240.
+static func euro_signed(v: int) -> String:
+	return ("+" if v > 0 else "") + euro(v)
+
+
+## Een geheel getal met het echte minteken (−19, niet -19).
+static func num(v: int) -> String:
+	return ("−" if v < 0 else "") + str(absi(v))
+
+
+## "1 shift", "3 shifts": enkelvoud of meervoud (met een eigen meervoud als het niet op -s eindigt).
+static func count(n: int, word: String, plural := "") -> String:
+	return "%d %s" % [n, word if n == 1 else (plural if plural != "" else word + "s")]
+
+
+## Eerste letter een hoofdletter: elke prompt, doelregel en melding begint zo, ook als de bron
+## (een knop, een melding) met een kleine letter begint (ui-07).
+static func cap(s: String) -> String:
+	return s if s.is_empty() else s.substr(0, 1).to_upper() + s.substr(1)
 
 static var _theme: Theme
 static var _fonts: Dictionary = {}
@@ -77,7 +98,7 @@ static func _build() -> Theme:
 	_variation(t, "Title", "Label", HEADING, 64, YELLOW)
 	_variation(t, "Heading", "Label", HEADING, 30, YELLOW)
 	_variation(t, "SubHeading", "Label", HEADING, 18, CREAM)
-	_variation(t, "Caption", "Label", body(700), 15, CREAM_DIM)
+	_variation(t, "Caption", "Label", body(700), 18, Color("#BDB5A7"))
 	_variation(t, "Screen", "Label", SCREEN, 26, AMBER)
 
 	# Panelen.
@@ -85,8 +106,12 @@ static func _build() -> Theme:
 	t.set_stylebox("panel", "Panel", panel_box())
 	t.set_type_variation("Card", "PanelContainer")
 	t.set_stylebox("panel", "Card", _box(ANTHRACITE_HI, 8, 0, Color.TRANSPARENT, 12))
+	# HUD: donker plaatje met een gele rand links, het kenmerk van de firma op elk HUD-element (ui-09).
 	t.set_type_variation("HudChip", "PanelContainer")
-	t.set_stylebox("panel", "HudChip", _box(Color(ANTHRACITE_LO, 0.72), 7, 0, Color.TRANSPARENT, 8, 5))
+	var chip := _box(Color(ANTHRACITE_LO, 0.8), 5, 0, YELLOW, 10, 6)
+	chip.border_width_left = 4
+	chip.content_margin_left = 12
+	t.set_stylebox("panel", "HudChip", chip)
 
 	# Knoppen: geel, dikke donkere onderrand ("lip"), ingedrukt zakt hij in.
 	t.set_stylebox("normal", "Button", _button_box(YELLOW, YELLOW_LO, 5))
@@ -179,15 +204,16 @@ static func _build() -> Theme:
 	t.set_font("font", "PopupMenu", body(700))
 	t.set_font_size("font_size", "PopupMenu", 17)
 
-	# Schuifbalken, tooltips, scheidingslijnen, tabbladen (tuning-menu).
-	var sb := _box(Color(1, 1, 1, 0.05), 4, 0, Color.TRANSPARENT, 0, 0)
+	# Schuifbalken (goed zichtbaar: een lijst die niet past, moet je zien, ui-15), tooltips,
+	# scheidingslijnen, tabbladen (tuning-menu).
+	var sb := _box(Color(1, 1, 1, 0.12), 5, 0, Color.TRANSPARENT, 5, 0)
 	t.set_stylebox("scroll", "VScrollBar", sb)
-	t.set_stylebox("grabber", "VScrollBar", _box(Color(STEEL, 0.7), 4, 0, Color.TRANSPARENT, 4, 4))
+	t.set_stylebox("grabber", "VScrollBar", _box(Color(STEEL, 0.95), 5, 0, Color.TRANSPARENT, 5, 5))
 	t.set_stylebox("grabber_highlight", "VScrollBar", _box(YELLOW, 4, 0, Color.TRANSPARENT, 4, 4))
 	t.set_stylebox("grabber_pressed", "VScrollBar", _box(YELLOW_HI, 4, 0, Color.TRANSPARENT, 4, 4))
 	t.set_stylebox("panel", "TooltipPanel", _box(ANTHRACITE_LO, 6, 2, YELLOW, 10, 8))
 	t.set_color("font_color", "TooltipLabel", CREAM)
-	t.set_font_size("font_size", "TooltipLabel", 15)
+	t.set_font_size("font_size", "TooltipLabel", 18)
 	var sep := StyleBoxLine.new()
 	sep.color = Color(STEEL, 0.3)
 	sep.thickness = 2

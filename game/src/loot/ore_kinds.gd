@@ -7,8 +7,15 @@ extends RefCounted
 enum Kind { KOPER, IJZER, ZILVER, LICHTKRISTAL }
 
 const NAMES: Array[String] = ["Copper", "Iron", "Silver", "Glow crystal"]
-## Waarde per eenheid (€) bij verkoop aan boord.
-const VALUES: Array[int] = [3, 5, 9, 15]
+## Waarde per eenheid (€) bij verkoop aan boord: standaard, de echte waarden staan in ore.cfg
+## (value_koper …, ontwerp-13: minder slagen per cluster, meer per slag). Gebruik value().
+const VALUES: Array[int] = [8, 12, 20, 32]
+const KEYS: Array[String] = ["koper", "ijzer", "zilver", "lichtkristal"]
+
+
+## Waarde per eenheid (€), uit de tuning.
+static func value(kind: int) -> int:
+	return Tuning.get_i("ore", "value_" + KEYS[kind], VALUES[kind])
 const COLORS: Array[Color] = [
 	Color(0.95, 0.5, 0.22), # koper: oranjebruin
 	Color(0.78, 0.2, 0.16), # ijzer: roestrood (hematiet)

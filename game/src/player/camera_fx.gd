@@ -5,6 +5,8 @@ extends Node
 ## CameraFx zet enkel de lokale rotatie van de camera.
 
 var camera: Camera3D
+## Extra kanteling rond de kijkas (radialen), bv. zijwaarts lopen. Gezet door de speler.
+var roll := 0.0
 
 var _trauma := 0.0
 ## Traag rollen (bevingen, Unrest): graden, ebt zelf weg. Los van het trauma, dat snel trilt.
@@ -64,9 +66,9 @@ func _process(delta: float) -> void:
 	var max_rad := deg_to_rad(Tuning.get_f("camera", "shake_max_deg", 2.2)) * shake
 	var f := _time * Tuning.get_f("camera", "shake_frequency", 22.0)
 	_rumble_deg = maxf(0.0, _rumble_deg - 2.5 * delta)
-	var roll := deg_to_rad(_rumble_deg)
+	var rumble := deg_to_rad(_rumble_deg)
 	var g := _time * 2.6
 	camera.rotation = Vector3(
-		_kick.x + max_rad * _noise.get_noise_2d(f, 0.0) + roll * 0.6 * _noise.get_noise_2d(g, 50.0),
-		_kick.y + max_rad * _noise.get_noise_2d(0.0, f) + roll * 0.5 * _noise.get_noise_2d(50.0, g),
-		max_rad * 0.5 * _noise.get_noise_2d(f, f) + roll * _noise.get_noise_2d(g, g + 90.0))
+		_kick.x + max_rad * _noise.get_noise_2d(f, 0.0) + rumble * 0.6 * _noise.get_noise_2d(g, 50.0),
+		_kick.y + max_rad * _noise.get_noise_2d(0.0, f) + rumble * 0.5 * _noise.get_noise_2d(50.0, g),
+		roll + max_rad * 0.5 * _noise.get_noise_2d(f, f) + rumble * _noise.get_noise_2d(g, g + 90.0))

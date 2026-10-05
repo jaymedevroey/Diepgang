@@ -2,8 +2,9 @@
 
 Niche_Tools  (x 0..3,   z 31..35): werkbank met bankschroef, schaduwbord met omtrekken.
 Niche_Supply (x 0..3,   z 35..39): uitgiftebalie met rolluik en luik, rekken met dozen.
-Niche_Free_A (x 17..20, z 31..35): IN AANBOUW, steiger voor een gestripte wand.
-Niche_Free_B (x 17..20, z 35..39): BINNENKORT, ladder, kabelhaspel, nieuwe platen, bouwlamp.
+Niche_Free_A (x 17..20, z 31..35): HUMAN RESOURCES, een verlaten kantoortje achter een ketting.
+Niche_Free_B (x 17..20, z 35..39): BREAK ROOM, de lounge van de directie achter een fluwelen koord.
+(Tot 2026-10-05 "in aanbouw" en "binnenkort": ontwikkelaarstaal in de wereld, release-audit ui-02.)
 Onderdeel van zone_workdeck.py. Plancoördinaten (layout.py). Vloer +1,2, plafond 3,8."""
 
 import math
@@ -228,7 +229,7 @@ def niche_tools(ctx, S, R, PN, D, RD, P, rng):
     blk(D, 1.82, 2.58, 2.18, 2.76, 31.27, 31.276, "Screen")
     f = Face((0.0, Y0, 31.276), (1, 0, 0), (0, 1, 0))
     text(D, "UPGRADES", 0.05, f.at(2.2, 1.47), (0, 0, 1), "ScreenAmber", lift=0.002)
-    for i, row in enumerate(("PICKAXE MK2 ..... 450", "DRILL MK1 ....... 900", "SCANNER+ ........ 1200")):
+    for i, row in enumerate(("PICKAXE MK2 .... €450", "DRILL MK1 ...... €900", "SCANNER+ ..... €1,200")):
         text(D, row, 0.026, f.at(2.2, 1.34 - i * 0.06), (0, 0, 1), "ScreenAmber", lift=0.002, max_w=0.68)
     text(D, "PRICES SUBJECT TO CHANGE", 0.018, f.at(2.2, 1.06), (0, 0, 1), "ScreenAmber", lift=0.002, max_w=0.6)
     for i, m in enumerate(("LedAmber", "LedAmber", "LensRed", "LedGreen")):
@@ -312,8 +313,8 @@ def niche_supply(ctx, S, R, PN, D, RD, P, rng):
     blk(D, 2.12, 2.88, 2.39, 3.21, 35.2, 35.204, "Screen")
     pf = Face((0.0, Y0, 35.204), (1, 0, 0), (0, 1, 0))
     text(D, "PRICES", 0.05, pf.at(2.5, 1.9), (0, 0, 1), "ScreenAmber", lift=0.002)
-    for i, row in enumerate(("ROPE .......... 40", "HEADLAMP ...... 75", "LADDER ....... 120", "SCANNER ...... 300",
-                             "WALKIE-TALKIE . 150")):
+    for i, row in enumerate(("ROPE ......... €40", "HEADLAMP ..... €75", "LADDER ...... €120", "SCANNER ..... €300",
+                             "WALKIE-TALKIE €150")):
         text(D, row, 0.024, pf.at(2.5, 1.76 - i * 0.075), (0, 0, 1), "ScreenAmber", lift=0.002, max_w=0.66)
     text(D, "SUBJECT TO CHANGE", 0.018, pf.at(2.5, 1.27), (0, 0, 1), "LensRed", lift=0.002)
     sign(D, D, cf, 2.55, 0.62, 0.62, 0.14, [("NO RETURNS", 0.018), ("NO EXCHANGES EITHER", 0.018)],
@@ -355,148 +356,186 @@ def niche_supply(ctx, S, R, PN, D, RD, P, rng):
     ctx.col_box(0.88, 1.38, Y0, 1.62, 35.35, 35.9)
 
 
-# --- Vrij A: IN AANBOUW (steiger voor een gestripte wand) ----------------------------------------------
+# --- Vrij A: HUMAN RESOURCES (een verlaten kantoortje achter een ketting) ------------------------------
+# Release-audit ui-02/binnen-13: geen "in aanbouw" of "binnenkort" meer, maar een afgewerkte DIG-kamer
+# zonder belofte. De nis blijft een haakpunt (Niche_Free_A in het midden van de vloer): wat F1 hier later
+# zet, vervangt deze aankleding. De uitlegbox van het spel (Ekster._free_ahead) komt vóór het bureau.
+
+def _stanchion(D, x, z, base, post, top, h=0.92):
+    """Paaltje voor een afzetting: voet, paal, kop."""
+    cyl(D, (x, Y0, z), (0, 1, 0), 0.045, 0.16, 12, base)
+    cyl(D, (x, Y0 + 0.045, z), (0, 1, 0), h - 0.06, 0.032, 10, post)
+    cyl(D, (x, Y0 + h - 0.02, z), (0, 1, 0), 0.06, 0.05, 10, top)
+
+
+def _plant(D, P, x, z, dead):
+    """Kamerplant in een pot: dood (bruin, hangend) of levend (groen, rechtop)."""
+    cyl(P, (x, Y0, z), (0, 1, 0), 0.32, 0.14, 12, "RedOxide" if dead else "Anthracite", r2=0.18)
+    cyl(D, (x, Y0 + 0.29, z), (0, 1, 0), 0.02, 0.165, 12, "Soot")
+    cyl(D, (x, Y0 + 0.3, z), (0, 1, 0), 0.32 if dead else 0.45, 0.014, 6, "Wood" if dead else "Green")
+    leaves = 5 if dead else 7
+    for k in range(leaves):
+        t = 2 * math.pi * k / leaves + 0.3
+        if dead:  # slap, naar beneden
+            y, tilt, m = Y0 + 0.5 + 0.04 * (k % 2), -0.65, "Cardboard"
+        else:
+            y, tilt, m = Y0 + 0.55 + 0.08 * (k % 3), 0.55, "Green"
+        dx, dz = math.cos(t), math.sin(t)
+        c = (x + dx * 0.13, y + tilt * 0.06, z + dz * 0.13)
+        box(D, c, (0.26, 0.012, 0.09), u=(dx, tilt * 0.6, dz), v=(-dz, 0, dx), m=m)
+
 
 def niche_free_a(ctx, S, R, PN, D, RD, P, rng):
     n = Niche("Niche_Free_A", *NICHES["Niche_Free_A"])
-    bf = n.back_face()  # a = z − 31,15
-    strip = (0.8, 2.6, 0.4, 1.85)
-    shell(ctx, S, R, PN, D, RD, P, n, rng, "UNDER CONSTRUCTION", "LensOrange",
-          back_skip=lambda a, c: strip[0] - 0.1 < a < strip[1] + 0.1 and strip[2] - 0.1 < c < strip[3] + 0.1)
-    # Gestripte wand: kale plaat, spanten, isolatie (één hangt los), kabels die eruit hangen.
-    a0, a1, c0, c1 = strip
-    bf.box(D, (a0 + a1) / 2, (c0 + c1) / 2, 0.0, (a1 - a0, c1 - c0, 0.004), "Soot")
-    for a in (0.9, 1.5, 2.1, 2.5):
-        bf.plate(PN, a - 0.04, a + 0.04, c0, c1, 0.0, 0.12, 0.015, "DarkSteel")
-    for (a, c, ang) in ((1.2, 1.4, 0), (1.8, 0.85, 0), (1.8, 1.45, 0), (2.3, 1.1, 14)):
-        bf.tilted(PN, a, c, 0.004, (0.5, 0.52, 0.07), ang, "Padded")
-    for (aa, ab, sag, m) in ((1.0, 1.4, 0.35, "Red"), (1.6, 2.0, 0.55, "Rubber"), (2.15, 2.4, 0.25, "Yellow")):
-        cable(D, bf.at(aa, c1 - 0.05, 0.08), bf.at(ab, c1 - 0.1, 0.08), sag, 0.016, 6, m)
-    tape(D, bf, 3.0, 0.7, 3.5, 1.2, 0.07, 0.06)
-    tape(D, bf, 3.0, 1.2, 3.5, 0.7, 0.074, 0.06)
-    # Steiger: staanders, liggers, kortelingen, schoor, planken, voetplaten.
-    xf, xb = 18.95, 19.6
-    zs = (31.5, 33.0, 34.5)
-    for x in (xf, xb):
-        for z in zs:
-            cyl(D, (x, Y0, z), (0, 1, 0), 2.45, 0.025, 6, "Steel")
-            blk(D, x - 0.07, x + 0.07, Y0 + 0.016, Y0 + 0.03, z - 0.07, z + 0.07, "DarkSteel")
-        for y in (1.35, 2.35, 3.35):
-            cyl(D, (x, y, zs[0] - 0.08), (0, 0, 1), 3.16, 0.022, 6, "Steel")
-    for z in zs:
-        cyl(D, (xf - 0.06, 2.35, z), (1, 0, 0), 0.72, 0.022, 6, "Steel")
-    d = (0.0, 2.0, 1.5)
-    ln = math.hypot(d[1], d[2])
-    cyl(D, (xf, 1.35, 33.0), (0, d[1] / ln, d[2] / ln), ln, 0.02, 6, "Steel")
-    for i in range(3):
-        x0 = 18.92 + i * 0.235
-        blk(P, x0, x0 + 0.215, 2.38, 2.42, 31.42, 33.08, "Wood")
-    cyl(D, (19.3, 2.42, 31.85), (0, 1, 0), 0.22, 0.12, 12, "Panel", r2=0.14)
-    blk(P, 19.12, 19.5, 2.42, 2.62, 32.35, 32.85, "Red")
-    for y in (1.62, 1.72, 1.82):
-        cyl(D, (xf, y, 33.0), (0, 1, 0), 0.05, 0.03, 6, "Hazard")
-    # Borden op de steiger (naar het dek).
-    sf = Face((xf - 0.04, Y0, 31.15), (0, 0, 1), (0, 1, 0))
-    sign(P, D, sf, 2.6, 1.55, 1.3, 0.62, [("UNDER", 0.08), ("CONSTRUCTION", 0.08),
-                                         ("ENTER AT YOUR OWN EXPENSE", 0.035)],
-         bg="Yellow", fg="DecalDark", border="Hazard", gap=0.6)
-    sign(P, D, sf, 1.1, 1.9, 1.25, 0.42, [("COMING SOON:", 0.06), ("SOMETHING YOU", 0.05), ("PAY FOR YOURSELF", 0.05)],
-         bg="DecalLight", fg="DecalDark", tilt=3, gap=0.4)
-    for z in (31.75, 32.75):
-        cyl(D, (xf - 0.03, 3.27, z), (0, 1, 0), 0.1, 0.006, 4, "Steel")
-    # Kisten bij de opening, bok met geel-zwart.
-    blk(P, 17.35, 18.15, Y0, 1.8, 34.0, 34.75, "Wood")
-    for (x, z) in ((17.35, 34.0), (18.15, 34.0), (17.35, 34.75), (18.15, 34.75)):
-        blk(D, x - 0.03, x + 0.03, Y0, 1.8, z - 0.03, z + 0.03, "DarkSteel")
-    lines(D, [("DO NOT OPEN", 0.05), ("BEFORE Q7", 0.05)], (17.346, 1.5, 34.375), (-1, 0, 0), "DecalDark", gap=0.4)
-    box(P, (17.75, 2.02, 34.35), (0.6, 0.44, 0.55), u=(math.cos(0.18), 0, math.sin(0.18)), v=(0, 1, 0), m="GreyGreen")
-    text(D, "FRAGILE (PROBABLY)", 0.035, (17.75, 2.25, 34.35), (0, 1, 0), "DecalDark", up=(0, 0, -1), max_w=0.5)
-    ctx.col_box(17.32, 18.2, Y0, 2.25, 33.95, 34.8)
-    blk(D, 18.3, 18.42, 1.95, 2.05, 31.4, 32.7, "Hazard")
-    for z in (31.5, 32.6):
-        for dx in (-0.2, 0.2):
-            dd = (-dx, 0.8, 0.0)
-            ln = math.hypot(dx, 0.8)
-            cyl(D, (18.36 + dx, Y0, z), (dd[0] / ln, dd[1] / ln, 0), ln, 0.02, 6, "Steel")
-    ctx.col_box(18.1, 18.6, Y0, 2.05, 31.4, 32.7)
-    # Bouwlamp in een kooi aan het plafond.
-    cyl(D, (18.2, 3.24, 33.2), (0, 1, 0), 0.56, 0.008, 4, "Rubber")
-    cyl(D, (18.2, 3.2, 33.2), (0, 1, 0), 0.05, 0.06, 8, "DarkSteel")
-    cyl(D, (18.2, 3.06, 33.2), (0, 1, 0), 0.14, 0.035, 8, "Bulb")
-    for k in range(4):
-        t = k * math.pi / 2
-        cyl(D, (18.2 + 0.06 * math.cos(t), 3.04, 33.2 + 0.06 * math.sin(t)), (0, 1, 0), 0.17, 0.005, 4, "DarkSteel")
-    torus(D, (18.2, 3.04, 33.2), (0, 1, 0), 0.06, 0.006, 8, 4, "DarkSteel")
-    ctx.glow("ffe2b0", (18.2, 2.95, 33.2))
-    # Vloer: afdekzeil, verfspatten, geel-zwarte drempel.
-    box(D, (19.25, Y0 + 0.02, 33.0), (1.1, 0.006, 3.3), u=(math.cos(0.03), 0, math.sin(0.03)), v=(0, 1, 0), m="Cream")
-    for (x, z, r, m) in ((19.0, 32.2, 0.08, "Yellow"), (19.5, 33.6, 0.05, "Red"), (19.2, 34.1, 0.06, "Yellow")):
-        cyl(D, (x, Y0 + 0.023, z), (0, 1, 0), 0.003, r, 8, m)
+    bf = n.back_face()  # a = z − 31,15, c = y − 1,2, kijkt naar het dek (−x)
+    shell(ctx, S, R, PN, D, RD, P, n, rng, "HUMAN RESOURCES", "LensRed")
+    # Vloerbedekking (versleten kantoortapijt) en een geel-zwarte drempel.
+    blk(D, 18.15, 19.8, Y0 + 0.012, Y0 + 0.02, 31.6, 34.4, "GreyGreen")
     blk(D, 17.0, 17.22, Y0 + 0.018, Y0 + 0.022, 31.4, 34.6, "Hazard")
+    # Bureau (naar het dek): blad, wangen en een voorpaneel.
+    blk(P, 18.72, 19.36, 1.9, 1.95, 32.15, 33.85, "Wood")
+    for (za, zb) in ((32.2, 32.27), (33.73, 33.8)):
+        blk(P, 18.76, 19.32, Y0, 1.9, za, zb, "GreyGreen")
+    blk(P, 18.76, 18.8, 1.3, 1.88, 32.27, 33.73, "GreyGreen")
+    box(D, (18.758, 1.62, 33.0), (0.006, 0.05, 1.3), m="DarkSteel")  # naad
+    ctx.col_box(18.72, 19.36, Y0, 1.95, 32.15, 33.85)
+    # Naambordje op de rand, schuin naar het dek.
+    box(D, (18.84, 1.985, 32.75), (0.07, 0.5, 0.03), u=(0.5, 0.866, 0), v=(0, 0, 1), m="Brass")
+    text(D, "HEAD OF HR", 0.026, (18.818, 1.99, 32.75), (-0.866, 0.5, 0), "DecalDark", up=(0.5, 0.866, 0),
+         max_w=0.42)
+    # Kaartje "ben zo terug" (dat stond er al toen het schip werd gekocht).
+    box(D, (18.95, 2.08, 33.25), (0.4, 0.26, 0.012), u=(0, 0, 1), v=(0.17, 0.985, 0), m="Cream")
+    lines(D, [("BACK IN", 0.05), ("5 MINUTES", 0.05), ("(SINCE 2161)", 0.028)], (18.942, 2.09, 33.25),
+          (-0.985, 0.17, 0), "DecalDark", up=(0.17, 0.985, 0), gap=0.45, max_w=0.34)
+    # Stapel klachten, een bel zonder klepel, een mok.
+    for i, (dz, hh) in enumerate(((0.0, 0.11), (0.33, 0.2), (0.62, 0.07))):
+        blk(D, 19.0, 19.3, 1.95, 1.95 + hh, 32.35 + dz, 32.58 + dz, "Cream")
+        blk(D, 19.0, 19.3, 1.95 + hh * 0.5, 1.95 + hh * 0.5 + 0.012, 32.35 + dz, 32.58 + dz, "Cardboard")
+    text(D, "COMPLAINTS", 0.022, (18.998, 2.05, 32.795), (-1, 0, 0), "Red", max_w=0.2)
+    cyl(D, (18.86, 1.95, 32.36), (0, 1, 0), 0.015, 0.045, 12, "DarkSteel")
+    cyl(D, (18.86, 1.965, 32.36), (0, 1, 0), 0.04, 0.04, 12, "Steel", r2=0.012)
+    cyl(D, (19.18, 1.95, 33.62), (0, 1, 0), 0.1, 0.04, 10, "Cream")
+    # Bankierslamp (het enige licht dat nog brandt).
+    cyl(D, (19.2, 1.95, 33.25), (0, 1, 0), 0.025, 0.07, 12, "Brass")
+    cyl(D, (19.2, 1.975, 33.25), (0, 1, 0), 0.22, 0.012, 6, "Brass")
+    cyl(D, (19.14, 2.2, 33.08), (0, 0, 1), 0.34, 0.07, 12, "Green")
+    cyl(D, (19.14, 2.14, 33.1), (0, 0, 1), 0.3, 0.025, 8, "Bulb")
+    # Het licht zelf iets vóór de lamp: anders staat alles op het bureau in tegenlicht (onleesbaar).
+    ctx.glow("ffc98a", (18.7, 2.35, 33.1), e=1.1)
+    # Bureaustoel, leeg, half weggedraaid.
+    rot = (math.cos(0.35), 0, math.sin(0.35))
+    box(P, (19.5, 1.68, 33.0), (0.44, 0.08, 0.46), u=rot, v=(0, 1, 0), m="Leather")
+    box(P, (19.69, 2.02, 33.07), (0.08, 0.56, 0.44), u=rot, v=(0, 1, 0), m="Leather")
+    cyl(D, (19.5, Y0 + 0.06, 33.0), (0, 1, 0), 0.38, 0.03, 8, "Steel")
+    for k in range(5):
+        t = 2 * math.pi * k / 5
+        box(D, (19.5 + 0.15 * math.cos(t), Y0 + 0.05, 33.0 + 0.15 * math.sin(t)), (0.3, 0.03, 0.05),
+            u=(math.cos(t), 0, math.sin(t)), v=(0, 1, 0), m="DarkSteel")
+    # Archiefkast met vier laden (naar het dek), één staat open met papieren.
+    blk(P, 19.22, 19.8, Y0, 2.62, 31.25, 31.8, "GreyGreen")
+    ctx.col_box(19.22, 19.8, Y0, 2.62, 31.25, 31.8)
+    labels = ("COMPLAINTS", "COMPLAINTS", "MORE COMPLAINTS", "UNREAD")
+    for i, label in enumerate(labels):
+        y = 2.32 - i * 0.34
+        dx = -0.22 if i == 2 else 0.0  # de derde la staat open
+        blk(P, 19.17 + dx, 19.22 + dx, y - 0.14, y + 0.14, 31.28, 31.77, "HullLight")
+        if dx:
+            blk(P, 19.0, 19.22, y - 0.14, y + 0.1, 31.3, 31.32, "HullLight")
+            blk(P, 19.0, 19.22, y - 0.14, y + 0.1, 31.73, 31.75, "HullLight")
+            for k in range(4):
+                blk(D, 19.02 + k * 0.045, 19.035 + k * 0.045, y + 0.08, y + 0.2 + 0.02 * (k % 2), 31.34, 31.72,
+                    "Cream")
+        blk(D, 19.16 + dx, 19.17 + dx, y - 0.01, y + 0.02, 31.43, 31.62, "Steel")
+        blk(D, 19.165 + dx, 19.17 + dx, y + 0.05, y + 0.1, 31.4, 31.65, "Cream")
+        text(D, label, 0.016, (19.163 + dx, y + 0.075, 31.525), (-1, 0, 0), "DecalDark", max_w=0.22)
+    # Affiche op de achterwand, boven het bureau.
+    sign(D, D, bf, 1.85, 1.55, 1.15, 0.62, [("YOU ARE A", 0.06), ("VALUED ASSET", 0.1), ("(DEPRECIATING)", 0.045)],
+         bg="DecalLight", fg="DecalDark", border="Red", gap=0.5, h0=0.07)
+    tape(D, bf, 1.3, 1.82, 1.42, 1.9, 0.105, 0.05)
+    tape(D, bf, 2.28, 1.82, 2.4, 1.9, 0.105, 0.05)
+    # Dode kamerplant in de hoek.
+    _plant(D, P, 19.45, 34.45, dead=True)
+    # Afzetting: twee gele paaltjes met een geel-zwarte ketting en het bordje.
+    for z in (31.7, 34.3):
+        _stanchion(D, 17.28, z, "Yellow", "Yellow", "DarkSteel")
+    cable(D, (17.28, 2.08, 31.7), (17.28, 2.08, 34.3), 0.2, 0.02, 10, "Hazard")
+    ff = Face((17.25, Y0, 31.0), (0, 0, 1), (0, 1, 0))  # kijkt naar het dek (−x), a = z − 31
+    for dz in (-0.22, 0.22):  # haakjes aan de ketting
+        box(D, (17.265, 1.93, 33.0 + dz), (0.01, 0.07, 0.012), m="Steel")
+    sign(D, D, ff, 2.0, 0.66, 0.7, 0.3, [("CLOSED", 0.09), ("NO HUMANS LEFT", 0.045)], bg="Red", fg="DecalLight",
+         gap=0.45, tilt=-3)
+    # Botsvorm van de afzetting tot 1,9 m (de laagste stand van de ketting): je loopt er niet door, en de
+    # straal van E (oog 2,4 m, gehurkt 1,98 m) naar de uitleg in de nis gaat er nog over.
+    ctx.col_box(17.18, 17.36, Y0, 1.9, 31.55, 34.45)
 
 
-# --- Vrij B: BINNENKORT (ladder, haspel, nieuwe platen, bouwlamp) ---------------------------------------
+# --- Vrij B: BREAK ROOM (de lounge van de directie, achter een fluwelen koord) -----------------------------
 
 def niche_free_b(ctx, S, R, PN, D, RD, P, rng):
     n = Niche("Niche_Free_B", *NICHES["Niche_Free_B"])
     bf = n.back_face()  # a = z − 35,15
-    hole = (1.3, 2.7, 0.45, 1.2)  # ontbrekende plaat
-    shell(ctx, S, R, PN, D, RD, P, n, rng, "COMING SOON", "LensOrange",
-          back_skip=lambda a, c: (hole[0] < a < hole[1] and hole[2] < c < hole[3]) or (2.6 < a < 3.7 and 0.9 < c < 1.8))
-    # Waar een plaat ontbreekt: kaal, met gespoten tekst; een scheve plaat hangt aan één hoek.
-    bf.box(D, (hole[0] + hole[1]) / 2, (hole[2] + hole[3]) / 2, 0.0, (hole[1] - hole[0], hole[3] - hole[2], 0.004), "Soot")
-    text(D, "SOMETHING GOES HERE", 0.065, bf.at(2.0, 0.95, 0.004), tuple(bf.n), "Red", tilt=4, max_w=1.2)
-    bf.box(D, 2.0, 0.75, 0.006, (0.5, 0.03, 0.002), "Red")
-    bf.tilted(D, 2.25, 0.72, 0.006, (0.12, 0.03, 0.002), -35, "Red")
-    bf.tilted(PN, 3.1, 1.32, 0.0, (0.9, 0.75, 0.04), 8, "GreyGreen")
-    tape(D, bf, 2.6, 1.6, 2.9, 1.75, 0.045, 0.06)
-    sign(D, D, bf, 2.0, 1.55, 1.2, 0.5, [("UPGRADE IN DEVELOPMENT", 0.045), ("DELIVERY: SOON*", 0.04),
-                                         ("*SOON IS NOT A DATE", 0.025)], bg="Yellow", fg="DecalDark", gap=0.6,
-         h0=0.07)
-    # Trapladder (A-vorm) tegen de achterwand, opzij.
-    zl = (35.5, 35.95)
-    for z in zl:
-        cyl(D, (18.95, Y0, z), (0.25 / 1.57, 1.55 / 1.57, 0), 1.57, 0.022, 6, "Steel")
-        cyl(D, (19.6, Y0, z), (-0.3 / 1.58, 1.55 / 1.58, 0), 1.58, 0.022, 6, "Steel")
-    for i in range(5):
-        y = Y0 + 0.3 + i * 0.28
-        x = 18.95 + (y - Y0) * 0.25 / 1.55
-        cyl(D, (x, y, zl[0]), (0, 0, 1), 0.45, 0.016, 6, "Steel")
-        box(D, (x + 0.02, y + 0.012, 35.725), (0.07, 0.012, 0.43), m="DarkSteel")
-    blk(P, 19.12, 19.42, 2.72, 2.82, 35.45, 36.0, "Yellow")
-    blk(D, 19.16, 19.38, 2.82, 2.94, 35.6, 35.85, "DarkSteel")
-    ctx.col_box(18.9, 19.65, Y0, 2.85, 35.45, 36.0)
-    # Kabelhaspel (staand), en nieuwe wandplaten tegen de zijwand (in vier kleuren).
-    cyl(P, (17.8, Y0, 35.78), (0, 1, 0), 0.05, 0.38, 14, "Wood")
-    cyl(P, (17.8, Y0 + 0.05, 35.78), (0, 1, 0), 0.47, 0.32, 14, "Rubber")
-    cyl(P, (17.8, Y0 + 0.52, 35.78), (0, 1, 0), 0.05, 0.38, 14, "Wood")
-    cable(D, (18.1, Y0 + 0.3, 35.95), (18.6, Y0 + 0.02, 36.6), 0.05, 0.02, 5, "Rubber")
-    ctx.col_box(17.4, 18.2, Y0, 1.8, 35.38, 36.18)
-    for i, m in enumerate(("GreyGreen", "RedOxide", "HullLight", "Yellow")):
-        zb = 38.42 + i * 0.06
-        box(P, (19.1, 2.0, zb + 0.12), (0.95, 1.6, 0.035), u=(1, 0, 0), v=(0, 1, 0.15), m=m)
-    ctx.col_box(18.6, 19.6, Y0, 2.8, 38.45, 38.85)
-    # Bouwlamp op een driepoot, gericht op het bord.
-    hub = (18.62, 2.0, 37.95)
-    for k in range(3):
-        t = k * 2 * math.pi / 3 + 0.4
-        foot = (hub[0] + 0.32 * math.cos(t), Y0, hub[2] + 0.32 * math.sin(t))
-        d = (hub[0] - foot[0], hub[1] - foot[1], hub[2] - foot[2])
-        ln = math.sqrt(sum(v * v for v in d))
-        cyl(D, foot, tuple(v / ln for v in d), ln, 0.016, 6, "DarkSteel")
-    cyl(D, hub, (0, 1, 0), 0.62, 0.02, 6, "DarkSteel")
-    u = (0.8, 0, -0.6)
-    box(P, (18.67, 2.66, 37.91), (0.12, 0.26, 0.36), u=u, v=(0, 1, 0), m="Yellow")
-    box(D, (18.67 + u[0] * 0.065, 2.66, 37.91 + u[2] * 0.065), (0.012, 0.2, 0.3), u=u, v=(0, 1, 0), m="LedWhite")
-    cable(D, (18.62, 2.0, 37.95), (19.4, Y0 + 0.02, 38.3), 0.4, 0.014, 8, "Rubber")
-    ctx.glow("fff0d0", (19.05, 2.6, 37.55))
-    ctx.col_box(18.27, 18.97, Y0, 2.8, 37.6, 38.3)
-    # Verfpotten en een rollerbak.
-    for (x, z, m) in ((19.35, 36.75, "Red"), (19.55, 37.0, "Blue")):
-        cyl(D, (x, Y0, z), (0, 1, 0), 0.18, 0.09, 10, m)
-        cyl(D, (x, Y0 + 0.18, z), (0, 1, 0), 0.012, 0.092, 10, "DarkSteel")
-    box(D, (19.3, Y0 + 0.05, 37.35), (0.3, 0.06, 0.4), u=(1, 0, 0), v=(0, 1, -0.15), m="DarkSteel")
+    shell(ctx, S, R, PN, D, RD, P, n, rng, "BREAK ROOM", "LensRed")
+    # Rood tapijt met een gouden rand (het enige tapijt aan boord).
+    blk(D, 17.9, 19.8, Y0 + 0.012, Y0 + 0.022, 35.55, 38.45, "Red")
+    for (za, zb) in ((35.62, 35.66), (38.34, 38.38)):
+        blk(D, 17.97, 19.73, Y0 + 0.022, Y0 + 0.026, za, zb, "Yellow")
+    for x in (17.97, 19.69):
+        blk(D, x, x + 0.04, Y0 + 0.022, Y0 + 0.026, 35.62, 38.38, "Yellow")
     blk(D, 17.0, 17.22, Y0 + 0.018, Y0 + 0.022, 35.4, 38.6, "Hazard")
+    # Clubfauteuil (naar het dek): voet, zitting, dikke leuningen, hoge rug.
+    cx, cz = 19.3, 37.35
+    blk(P, cx - 0.32, cx + 0.38, Y0 + 0.08, 1.62, cz - 0.4, cz + 0.4, "Leather")
+    blk(P, cx - 0.34, cx + 0.3, 1.62, 1.72, cz - 0.3, cz + 0.3, "Leather")  # kussen
+    blk(P, cx + 0.22, cx + 0.42, 1.62, 2.38, cz - 0.42, cz + 0.42, "Leather")  # rug
+    cyl(P, (cx + 0.32, 2.38, cz - 0.42), (0, 0, 1), 0.84, 0.1, 10, "Leather")
+    for s in (-1, 1):  # leuningen met een ronde voorkant
+        blk(P, cx - 0.36, cx + 0.3, 1.62, 1.86, cz + s * 0.42 - 0.08, cz + s * 0.42 + 0.08, "Leather")
+        cyl(P, (cx - 0.36, 1.86, cz + s * 0.42), (1, 0, 0), 0.66, 0.08, 10, "Leather")
+    for (dx, dz) in ((-0.28, -0.34), (-0.28, 0.34), (0.34, -0.34), (0.34, 0.34)):
+        cyl(D, (cx + dx, Y0, cz + dz), (0, 1, 0), 0.08, 0.035, 8, "Brass")
+    ctx.col_box(cx - 0.4, cx + 0.44, Y0, 2.4, cz - 0.52, cz + 0.52)
+    # Bijzettafel met koffie (porselein) en een kaartje.
+    tx, tz = 19.3, 36.45
+    cyl(D, (tx, Y0, tz), (0, 1, 0), 0.03, 0.17, 14, "Brass")
+    cyl(D, (tx, Y0 + 0.03, tz), (0, 1, 0), 0.6, 0.025, 8, "Brass")
+    cyl(P, (tx, 1.83, tz), (0, 1, 0), 0.04, 0.24, 18, "Wood")
+    cyl(D, (tx - 0.04, 1.87, tz + 0.06), (0, 1, 0), 0.008, 0.07, 14, "Cream")
+    cyl(D, (tx - 0.04, 1.878, tz + 0.06), (0, 1, 0), 0.07, 0.035, 12, "Cream")
+    box(D, (tx - 0.1, 1.92, tz - 0.08), (0.16, 0.1, 0.01), u=(0, 0, 1), v=(0.3, 0.954, 0), m="Cream")
+    lines(D, [("RESERVED", 0.026), ("MANAGEMENT", 0.016)], (tx - 0.1057, 1.9218, tz - 0.08), (-0.954, 0.3, 0),
+          "DecalDark", up=(0.3, 0.954, 0), gap=0.4, max_w=0.15)
+    ctx.col_box(tx - 0.25, tx + 0.25, Y0, 1.87, tz - 0.25, tz + 0.25)
+    # Staande lamp met een stoffen kap: warm licht, het gezelligste plekje van het schip.
+    lx, lz = 19.45, 38.35
+    cyl(D, (lx, Y0, lz), (0, 1, 0), 0.03, 0.16, 14, "Brass")
+    cyl(D, (lx, Y0 + 0.03, lz), (0, 1, 0), 1.42, 0.018, 8, "Brass")
+    cyl(D, (lx, 2.42, lz), (0, 1, 0), 0.32, 0.24, 14, "Cream", r2=0.16)
+    cyl(D, (lx, 2.46, lz), (0, 1, 0), 0.12, 0.05, 10, "Bulb")
+    ctx.glow("ffc07a", (lx - 0.1, 2.4, lz - 0.1), e=1.6)
+    # Koelkastje met een hangslot: de lunch van de directie.
+    blk(P, 19.25, 19.8, Y0, 2.0, 35.3, 35.9, "Cream")
+    blk(D, 19.235, 19.25, 1.25, 1.95, 35.33, 35.87, "Cream")
+    blk(D, 19.22, 19.235, 1.58, 1.62, 35.33, 35.87, "DarkSteel")
+    blk(D, 19.2, 19.235, 1.7, 1.86, 35.8, 35.84, "Steel")
+    blk(D, 19.18, 19.215, 1.66, 1.74, 35.76, 35.86, "Brass")  # hangslot
+    torus(D, (19.2, 1.77, 35.81), (1, 0, 0), 0.03, 0.007, 10, 4, "Steel")
+    box(D, (19.234, 1.86, 35.55), (0.004, 0.12, 0.34), m="DecalLight")
+    lines(D, [("MANAGEMENT LUNCH", 0.02), ("DO NOT TOUCH", 0.016)], (19.231, 1.86, 35.55), (-1, 0, 0), "Red",
+          gap=0.5, max_w=0.3)
+    ctx.col_box(19.18, 19.8, Y0, 2.0, 35.3, 35.9)
+    # Ingelijst affiche op de achterwand (koperen lijst).
+    sign(D, D, bf, 2.2, 1.6, 1.1, 0.6, [("RELAX.", 0.1), ("YOU'VE EARNED IT.", 0.055), ("(NOT YOU)", 0.04)],
+         bg="Cream", fg="DecalDark", border="Brass", gap=0.5, h0=0.07)
+    # Levende kamerplant (de enige die water krijgt).
+    _plant(D, P, 18.3, 38.5, dead=False)
+    # Fluwelen koord tussen koperen paaltjes, met het bordje.
+    for z in (35.7, 38.3):
+        _stanchion(D, 17.28, z, "Brass", "Brass", "Brass")
+    cable(D, (17.28, 2.06, 35.7), (17.28, 2.06, 38.3), 0.18, 0.026, 10, "Red")
+    ff = Face((17.25, Y0, 35.0), (0, 0, 1), (0, 1, 0))  # kijkt naar het dek (−x), a = z − 35
+    sign(D, D, ff, 2.0, 0.66, 0.72, 0.28, [("MANAGEMENT ONLY", 0.055), ("YOUR BREAK: QUARTER 7", 0.03)],
+         bg="DecalDark", fg="Yellow", border="Brass", gap=0.5)
+    ctx.col_box(17.18, 17.36, Y0, 1.9, 35.55, 38.45)  # zie Human Resources
 
 
 def build_niches(ctx, S, R, PN, D, RD, P, rng):

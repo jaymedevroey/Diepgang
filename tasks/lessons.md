@@ -2,6 +2,25 @@
 
 Wat we onderweg leerden en wat het GDD bijstuurt. Nieuwste bovenaan.
 
+## 2026-10-05 — Release-audit, pakket A1: UI, HUD en tekst
+
+**Stijlregels voor tekst in het spel** (ui-07). Bij nieuwe tekst deze regels volgen:
+- **Prompts, doelregels en meldingen** beginnen met een hoofdletter en zijn gebiedend ("Choose a contract", "Get to the Mole"). De HUD zet zelf de eerste letter in hoofdletter (`UiTheme.cap`), ook als een knop "E: drive the Mole" zegt.
+- **"the Mole", "the Magpie"** midden in een zin (kleine "the"); "The Mole" enkel vooraan of als kop.
+- **Eenheden:** "m" en "m/s" met een spatie, ook op de schermen in de wereld ("−40 m", "MAGMA 20 m"). Bungee kent geen kleine letters: daar leest "m" vanzelf als M.
+- **Minteken:** het echte "−" voor negatieve getallen en bedragen (`UiTheme.euro`, `UiTheme.num`), nooit een koppelteken. Een bedrag dat iets bijtelt of aftrekt krijgt altijd een teken (`UiTheme.euro_signed`: +€266, −€240).
+- **Munt:** € overal (geen "CR" of "cents"; de bordjes in het hubmodel moeten nog volgen).
+- **Meervoud** via `UiTheme.count(n, "shift")`, nooit "shift(s)".
+- **Spelling:** Amerikaans (color, refueled, liter); "Diepgang Ltd" blijft een naam.
+- **Geen ontwikkelaarstaal** die een speler ziet: geen "later", "coming soon", "M4", "Playtest", geen belofte van iets dat er niet is. Een ding zonder functie krijgt een DIG-grap over zichzelf ("Closed for budget reasons").
+
+**Wat ik leerde:**
+- **De bron zegt hoe dringend een melding is, de HUD raadt het niet.** `Mol.notice(text, kind)` en `Game.notice(text, kind)` met de soorten info, contract, mol, find, warn en alarm. Een alarm geeft een grote rode melding en een gloed rond het scherm (`HudAlarm`); de beving leest de toestand (`Unrest.phase`), niet de zin. Zo overleeft het ook een vertaling.
+- **Een overlay in een container wordt uitgerekt.** Een stempel als kind van een PanelContainer vulde het hele paneel. Stempels en andere losse lagen horen in een gewone Control (een houder), en een Control krimpt niet vanzelf als er een regel verdwijnt: `reset_size()`.
+- **`draw_polygon` met het eerste punt nog eens achteraan** (een waaier van 0 tot TAU) faalt bij het trianguleren, en dat elke frame: 990 fouten in één preview. Ook een ellips van bijna nul breed.
+- **Wat enkel in de release-build anders moet, hangt aan `CmdArgs.dev_mode()`** (`OS.is_debug_build()` of `--dev`). De tests en previews draaien op de editor-build (debug), dus F1 en V blijven daar werken; `ui_test` controleert dat de release-toetsen ze niet hebben.
+- **Een regel "tekst ≥ 18 px" houd je enkel met een test.** `ui_test` loopt nu elke Label in de HUD af (ook meldingen van elke soort, het rapport en de aftelling).
+
 ## 2026-10-05 — Alles in het Engels: woordenlijst
 
 Jayme: alle tekst in het spel in het Engels, ook de namen. Docs, commentaar en logregels blijven Nederlands; Nederlandse identifiers (`PlanetType.Id.ROESTBOL`) en dev-opties (`--planet=roestbol`) mogen blijven. Getallen met een decimale punt (12.5 m). Hou de DIG-humor: idiomatisch vertalen, niet woord voor woord.

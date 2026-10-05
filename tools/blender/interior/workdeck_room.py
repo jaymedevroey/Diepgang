@@ -185,15 +185,17 @@ def ceiling(ctx, R, RD, rng):
         # Bouten op de knoopplaten.
         for x in (4.88, 5.12, 14.88, 15.12):
             cyl(RD, (x, 4.0, z - 0.19), (0, 0, -1), 0.02, 0.03, 6, "Steel")
-    # Rug in het midden (langs z) en de spot boven het logo.
-    profile_beam(R, (10.0, 4.7, 30.15), (10.0, 4.7, 39.85), chamfer_profile(0.56, 0.22, 0.07), "Anthracite")
+    # Rug in het midden (langs z) en de spot boven het logo. De rug loopt van spant tot spant, niet tot
+    # tegen de voorwand: daar hing zijn kop voor het bord BRIDGE · CONTRACTS (de C en de O lazen als
+    # "CUNTRACTS", release-audit ui-01).
+    profile_beam(R, (10.0, 4.7, RINGS[0]), (10.0, 4.7, 39.85), chamfer_profile(0.56, 0.22, 0.07), "Anthracite")
     cyl(R, (10.0, 4.6, 35.0), (0, -1, 0), 0.15, 0.36, 16, "DarkSteel")
     cyl(RD, (10.0, 4.45, 35.0), (0, -1, 0), 0.01, 0.3, 16, "LedWhite")
     torus(RD, (10.0, 4.45, 35.0), (0, 1, 0), 0.33, 0.028, 16, 4, "Anthracite")
     for a in range(4):  # beugels
         t = a * math.pi / 2 + math.pi / 4
         box(RD, (10.0 + 0.3 * math.cos(t), 4.62, 35.0 + 0.3 * math.sin(t)), (0.06, 0.18, 0.06), m="Steel")
-    ctx.spot("dfe8ff", (10.0, 4.38, 35.0))
+    ctx.spot("e9f2df", (10.0, 4.38, 35.0))
     # Lichtbakken langs z (wit), aan stangen; de diffusor onderaan.
     for x in (7.6, 12.4):
         profile_beam(RD, (x, 4.36, 30.5), (x, 4.36, 39.5), chamfer_profile(0.26, 0.13, 0.04), "Anthracite")
@@ -286,9 +288,11 @@ def floor(ctx, D, PN, rng):
             for s in (-1, 1):
                 box(D, (10.0 + s * 0.17, y + 0.021, zz + 0.1), (0.42, 0.004, 0.09), u=(s * 0.8, 0, 0.6), v=(0, 1, 0),
                     m="Yellow")
-    # Geel-zwart aan de rand van de trap naar het laadrek.
+    # Geel-zwart aan de rand van de trap naar het laadrek. De tekst leest vanaf het laadrek (de spawn: het
+    # eerste wat je leest, stond ondersteboven, binnen-18) en ligt tussen de pijlen en de rand in plaats
+    # van eronder (de pijlpunten liepen door de letters).
     box(D, (10.0, y + 0.021, 39.68), (7.4, 0.004, 0.3), m="Hazard")
-    text(D, "MIND THE STEPS", 0.12, (10.0, y + 0.024, 39.2), (0, 1, 0), "Yellow", up=(0, 0, 1))
+    text(D, "MIND THE STEPS", 0.12, (10.0, y + 0.024, 39.36), (0, 1, 0), "Yellow", up=(0, 0, -1))
     # DIG-logo in het midden (10, 35): zeshoekige plaat, gele rand, DIG, de volle naam.
     cx, cz = 10.0, 35.0
     hexo = [(cx + 2.15 * math.cos(math.radians(60 * k + 30)), cz + 2.15 * math.sin(math.radians(60 * k + 30)))
@@ -350,10 +354,11 @@ def portals(ctx, P, D):
         box(D, (x0 + 0.25, 1.62, 30.506), (0.46, 0.8, 0.012), m="Hazard")
     for x in (6.65, 13.35):
         ctx.col_box(min(x, x + (0.5 if x < 10 else -0.5)), max(x, x + (0.5 if x < 10 else -0.5)), Y0, YN, 30.15, 30.56)
-    # Bord boven de poort.
-    box(P, (10.0, 4.55, 30.25), (3.6, 0.36, 0.2), m="Anthracite")
-    text(D, "BRIDGE  ·  CONTRACTS", 0.15, (10.0, 4.55, 30.35), (0, 0, 1), "Yellow")
-    box(D, (10.0, 4.41, 30.356), (3.3, 0.012, 0.012), m="LedAmber")
+    # Bord boven de poort: vóór op de bovenrand van het kader en lager dan de spanten, zodat niets van
+    # het plafond voor de letters hangt, ook niet van ver (spawn, ooghoogte 1,8 m) of van dichtbij.
+    box(P, (10.0, 4.45, 30.56), (3.6, 0.34, 0.12), m="Anthracite")
+    text(D, "BRIDGE  ·  CONTRACTS", 0.15, (10.0, 4.45, 30.62), (0, 0, 1), "Yellow")
+    box(D, (10.0, 4.31, 30.626), (3.3, 0.012, 0.012), m="LedAmber")
     # Laadrek: lager, met afgeschuinde hoeken (0,4 m). De voorkant kijkt naar −z.
     inner = [(6.15, Y0), (6.15, 2.6), (6.55, 3.0), (13.45, 3.0), (13.85, 2.6), (13.85, Y0)]
     outer = [(5.72, Y0), (5.72, 2.78), (6.37, 3.43), (13.63, 3.43), (14.28, 2.78), (14.28, Y0)]

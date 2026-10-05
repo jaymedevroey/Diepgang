@@ -39,18 +39,21 @@ const DOOR_THICKNESS := 0.3
 const DOOR_SOLID_MAX_DEG := 60.0
 ## Lege punten die enkel voor de previews in het model zitten.
 const PREVIEW_ONLY := ["Sign_", "Cam_", "Look_"]
-## Wat je ziet als je mikt op iets dat er nog niet is: [titel, gedempte regel eronder]. Geen
-## "E:" in de titel (er gebeurt niets) en geen ": " (de HUD knipt daar).
+## Wat je ziet als je mikt op een meubel zonder knop: [titel, gedempte regel eronder]. Geen
+## "E:" in de titel (er gebeurt niets) en geen ": " (de HUD knipt daar). Een DIG-grap over het
+## ding zelf, nooit een belofte ("komt later", "binnenkort"): de demo moet af aanvoelen (ui-02,
+## binnen-13). Wie hier later echt iets aan hangt (verkopen, upgrades: pakket F1), vervangt de
+## regel door een "E:"-knop.
 const HINTS := {
-	"Appraisal_Gate": ["Appraisal gate · out of order", "DIG appraises and sells your haul itself after the shift"],
-	"Sell_Hatch": ["Sell hatch · closed", "selling happens automatically after the shift (at our price)"],
-	"Vending": ["DIG vending machine · empty", "restock pending · no refunds"],
-	"Locker": ["Paint booth · paint at your own expense", "picking colors comes later"],
-	"Niche_Tools": ["Tools · upgrades", "coming in a later version"],
-	"Niche_Supply": ["Supply desk · counter closed", "open Tue 10:00–10:05 (coming later)"],
-	"Niche_Free_A": ["Under construction", "something will go here later"],
-	"Niche_Free_B": ["Coming soon", "something will go here later"],
-	"Mol_Werf": ["Mole yard · upgrades for The Mole", "coming in a later version"],
+	"Appraisal_Gate": ["Appraisal gate", "Your haul is appraised here after every shift"],
+	"Sell_Hatch": ["Sell hatch", "DIG sells your haul after the shift, at DIG's price"],
+	"Vending": ["DIG vending machine · sold out", "No refunds, no restock date"],
+	"Locker": ["Paint booth · closed for fumes", "Your color is assigned by head office"],
+	"Niche_Tools": ["Tool rack · locked", "Head office keeps the key"],
+	"Niche_Supply": ["Supply desk · counter closed", "Open Tuesdays 10:00–10:05"],
+	"Niche_Free_A": ["Human resources · closed", "No humans left to resource"],
+	"Niche_Free_B": ["Break room · management only", "Your break is scheduled for quarter 7"],
+	"Mol_Werf": ["Mole yard · workshop closed", "Maintenance is billed per hour, so we skip it"],
 }
 ## Volgorde van de laadcapsules bij het spawnen: de eerste speler in capsule 02 (midden, zicht door
 ## de boog naar BRUG · OPDRACHTEN), dan 03 ("DEFECT"), 01, 04.
@@ -233,22 +236,27 @@ func _drop_preview_nodes() -> void:
 	(anchors["Collision"] as MeshInstance3D).visible = false
 
 
-## Kleuren van het spel (machine-shader, ledstroken, glas, schermen) op elke mesh van de hub.
-## Ook voor interior_preview, zodat de zones daar ogen zoals in het spel.
+## Kleuren van het spel (hub-materiaal met slijtage, ledstroken per zone, glas, schermen; HubLook) op
+## elke mesh van de hub. Ook voor interior_preview, zodat de zones daar ogen zoals in het spel.
 static func apply_materials(root: Node3D) -> void:
 	var cache := {}
 	for mi: MeshInstance3D in root.find_children("*", "MeshInstance3D", true, false):
 		var glass := false
+		var part := HubLook.is_part(mi.name)
 		for i in mi.mesh.get_surface_count():
 			var src := mi.mesh.surface_get_material(i)
 			var mat_name := src.resource_name if src else ""
 			glass = glass or mat_name == "Glass"
-			if not cache.has(mat_name):
-				cache[mat_name] = MolVisual.palette_material(mat_name, src, true)
-			if cache[mat_name]:
-				mi.set_surface_override_material(i, cache[mat_name])
+			var am := mi.mesh as ArrayMesh
+			var baked: bool = am != null and (am.surface_get_format(i) & Mesh.ARRAY_FORMAT_COLOR) != 0
+			var key := "%s|%s|%s" % [mat_name, part, baked]
+			if not cache.has(key):
+				cache[key] = HubLook.material(mat_name, src, part, baked)
+			if cache[key]:
+				mi.set_surface_override_material(i, cache[key])
 		# Glas werpt geen schaduw (anders geen licht door het raam).
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF if glass else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		mi.layers |= HubLook.LAYER # enkel de hub krijgt de decals (vuil, voetsporen)
 
 
 func _build_collision() -> void:
@@ -335,6 +343,9 @@ static func add_lights(root: Node3D) -> void:
 		var from := glass.position + Vector3(0.0, 3.5, -9.0)
 		var to := glass.position + Vector3(0.0, -4.6, 19.0)
 		win.transform = Transform3D(Basis.looking_at(to - from, Vector3.UP), from)
+	HubLook.add_haze(root)
+	HubLook.add_probes(root)
+	HubLook.add_decals(root)
 
 
 ## Kleine lampen: geen schaduw, niet in de mist (dat kost per lamp, en de hub hoort niet te walmen).
@@ -374,7 +385,7 @@ func _build_screens() -> void:
 	hub_screens.setup(game, screens)
 
 
-## E-knop op de terminal; op de rest een korte uitleg (dat komt later). Een leeg punt kijkt met
+## E-knop op de terminal; op de rest een korte uitleg (HINTS). Een leeg punt kijkt met
 ## −z naar het ding (zoals de spawnplekken naar voren kijken), de knop staat daar voor je.
 ## De interactiestraal kijkt of er een wand van het schip tussen zit (Player.aimed_interactable):
 ## een box mag dus niet in een meubel steken, anders zie je hem niet. Daarom staat de uitlegbox

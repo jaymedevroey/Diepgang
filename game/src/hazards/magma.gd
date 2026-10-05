@@ -356,7 +356,7 @@ func _update_heat(delta: float) -> void:
 			p.camera_fx.hold_trauma(0.18 + 0.3 * danger)
 			if not _danger_warned:
 				_danger_warned = true
-				game.notice.emit("Too hot! Get away from the magma before your robot melts.", "warn")
+				game.notice.emit("Too hot! Get away from the magma before your robot melts.", "alarm")
 		elif danger <= 0.0 and feet > heat_m + 2.0:
 			_danger_warned = false
 	var melt := 0.0
@@ -590,7 +590,7 @@ func _rpc_melted(peer_id: int) -> void:
 	if p and p.is_local:
 		_melt_t = -1.0
 		_after_t = 0.0
-		game.notice.emit("Your robot melted in the magma. DIG sent a replacement (costs to follow).", "warn")
+		game.notice.emit("Your robot melted in the magma. DIG sent a replacement (costs to follow).", "alarm")
 	elif p:
 		game.notice.emit("A robot melted in the magma.", "warn")
 
@@ -623,7 +623,7 @@ func _rule_mol(dt: float) -> void:
 	if _alarm_level > 0 and gap > alarms[_alarm_level - 1] + 10.0:
 		_alarm_level -= 1 # de Mol reed weg: opnieuw waarschuwen als het weer dichtkomt
 	if _alarm_level < alarms.size() and gap <= alarms[_alarm_level] and gap > 0.0:
-		mol.announce("! MAGMA %d M BELOW THE MOLE" % int(alarms[_alarm_level]))
+		mol.announce("Magma %d m below the Mole!" % int(alarms[_alarm_level]), "alarm")
 		_alarm_level += 1
 	if gap < 0.0:
 		_mol_heat += dt / maxf(1.0, Tuning.get_f("magma", "mol_heat_s", 25.0))

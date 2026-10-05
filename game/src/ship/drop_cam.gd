@@ -226,7 +226,9 @@ func _back() -> Vector3:
 func _update(delta: float) -> void:
 	# Waar de Mol gezet is (Mol.placed), niet waar zijn lichaam nu staat: na een sprong staat dat
 	# lichaam nog een frame op de oude plek (sync_to_physics), en dan zat het eerste beeld in de hub.
-	var m := mol.placed.origin
+	# Waar de Mol getekend wordt (fysica-interpolatie tussen twee ticks): anders trilt hij in beeld
+	# boven 60 fps (hij valt tot 55 m/s). Na een sprong is de interpolatie gereset (Mol._place).
+	var m := mol.body.get_global_transform_interpolated().origin
 	# Net na een sprong (overslaan: ±150 m) staat het model van de Mol nog een tick op de oude plek:
 	# dan volgt de camera wat er getekend wordt, anders is er een beeld zonder de Mol.
 	if not mol_synced():

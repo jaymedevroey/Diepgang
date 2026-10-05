@@ -89,7 +89,9 @@ func _run_client(p: Player) -> void:
 	p.set_physics_process(false)
 	p.global_position = it.global_position + Vector3(0, 0.3, 1.2)
 	await get_tree().create_timer(0.6).timeout
-	for i in 4:
+	for i in 20: # tot hij vrij is (de korst heeft 7-13 levens, zie FindField.crust_hp_of)
+		if it.freed:
+			break
 		finds.hit_crust(it.find_id, Strata.Tool.HOUWEEL, it.global_position)
 		await get_tree().create_timer(0.35).timeout
 	# Oppakken, 2 m verder neerzetten.

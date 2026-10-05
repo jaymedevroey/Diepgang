@@ -16,11 +16,13 @@ static func make(action_name: String, size := 18) -> KeyCap:
 
 
 func _build(font_size: int) -> void:
+	# Nooit kleiner dan de HUD-ondergrens (18 px op 1080p, ui-05).
+	font_size = maxi(font_size, 18)
 	var box := StyleBoxFlat.new()
 	box.bg_color = UiTheme.CREAM
 	box.set_corner_radius_all(5)
 	box.border_width_bottom = 3
-	box.border_color = UiTheme.CREAM_DIM
+	box.border_color = Color("#8E877B")
 	box.content_margin_left = 7
 	box.content_margin_right = 7
 	box.content_margin_top = 1

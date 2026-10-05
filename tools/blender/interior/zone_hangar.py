@@ -98,7 +98,9 @@ def build(ctx: Ctx):
     for (x, z, col) in ((13.0, 3.0, "9ec8ff"), (10.0, 18.5, "ffe2b0")):
         cyl(B["rdet"], (x, 8.62, z), (0, 1, 0), 0.31, 0.2, "DarkSteel", segs=14)
         cyl(B["rdet"], (x, 8.6, z), (0, 1, 0), 0.02, 0.15, "LedWhite", segs=14)
-    ctx.spot("9ec8ff", (13.0, 8.5, 3.0))
-    ctx.spot("ffe2b0", (10.0, 8.5, 18.5), e=5.0, a=30)
-    ctx.spot("ffd9a0", (6.6, 8.05, 17.4), e=6.0, a=28, v=0.3)  # lichtbak boven de kade (was een omni die de vloer niet haalde)
-    ctx.spot("dfe8ff", (13.8, 8.05, 13.0), e=4.5, a=30)  # stuurboordvloer naast de baai
+    # Warm boven de kade, natriumoranje werklicht naast de baai, koel bij het raam; met gloed in de nevel
+    # van de hangar (HubLook.add_haze), zodat je de bundels ziet (release-audit binnen-12).
+    ctx.spot("9ec8ff", (13.0, 8.5, 3.0), v=0.5)
+    ctx.spot("ffc27a", (10.0, 8.5, 18.5), e=5.0, a=30, v=0.5)
+    ctx.spot("ffc890", (6.6, 8.05, 17.4), e=6.0, a=28, v=0.5)  # lichtbak boven de kade (was een omni die de vloer niet haalde)
+    ctx.spot("ffa860", (13.8, 8.05, 13.0), e=5.5, a=30, v=0.8)  # stuurboordvloer naast de baai: werklicht

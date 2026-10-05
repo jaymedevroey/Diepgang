@@ -149,7 +149,7 @@ func _screen_shots(screens: HubScreens, cam: Camera3D, out: String, only: Packed
 	c.reputation = 1
 	c.shift = 2
 	c.last_report = {"shift_total": 1, "quarter": 1, "shift": 1, "contract": c.contract.name, "risk": 2, "factor": 1.35,
-			"sold": [["Schedel", 340, 87], ["Rib", 120, 100], ["Tuinkabouter", 12, 64]], "finds_value": 472, "ore_units": 6,
+			"sold": [["Skull", 340, 87], ["Rib", 120, 100], ["Garden gnome", 12, 64]], "finds_value": 472, "ore_units": 6,
 			"ore_value": 40, "bonus": 179, "left_behind": 1, "melted": 1, "costs": 240, "damage": 61, "quakes": 2, "net": 451,
 			"earned": 451, "quota": 800}
 	c.changed.emit()

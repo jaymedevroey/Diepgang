@@ -1,5 +1,5 @@
-"""Gebruikssporen in de hangar (zone_hangar.py): olie onder de klemmen en de band, en schoppen van
-robotvoeten onderaan de toonbank en de automaat. Weinig en enkel waar het verhaal zit (de looproute
+"""Gebruikssporen in de hangar (zone_hangar.py): schoppen van robotvoeten onderaan de toonbank en de
+automaat (de olie, het vuil en de voetsporen: zone_wear.py, als decals). Weinig en enkel waar het verhaal zit (de looproute
 en de posten), niet als willekeurige vlekken. Plancoördinaten (layout.py). Alles 3-4 mm boven het
 vlak eronder (gelijke vlakken flikkeren)."""
 
@@ -45,12 +45,8 @@ def scuffs(b, face_x, normal_x, z0, z1, rng, n=3, y0=0.06, y1=0.3):
 def wear(ctx, B, clamp_z):
     det = B["det"]
     rng = random.Random(77)
-    # Olie onder de klemmen (hydrauliek lekt; DIG vervangt geen pakkingen).
-    for zc in clamp_z:
-        blot(det, 1.72, 0.0195, zc + rng.uniform(-0.2, 0.2), rng.uniform(0.16, 0.26), "StainOil", rng, squash=0.7)
-        blot(det, 12.28, 0.0195, zc + rng.uniform(-0.2, 0.2), rng.uniform(0.16, 0.26), "StainOil", rng, squash=0.7)
-    # Olie aan het einde van de band door de taxatiepoort.
-    blot(det, 10.05, 0.0195, 19.5, 0.3, "StainOil", rng, squash=1.4)
+    # De olie onder de klemmen en aan het einde van de band zijn nu zachte decals (zone_wear.py): als vlak
+    # polygoon met een harde rand las een zwarte vlek als een gat in de vloer.
     # Schoppen onderaan de toonbank van het verkoopluik (kijkt naar −x) en de automaat (kijkt naar +x).
     scuffs(det, 14.98, -1, 17.4, 19.2, rng, n=3)
     scuffs(det, 1.12, 1, 17.75, 18.4, rng, n=3, y0=0.08, y1=0.2)

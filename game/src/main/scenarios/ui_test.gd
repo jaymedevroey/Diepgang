@@ -17,6 +17,14 @@ func _ready() -> void:
 
 func _run() -> void:
 	await _frames(5)
+	# 0. Ontwikkelaarstoetsen (gevoel-07, ui-06): zonder ontwikkelaarsmodus (de release-build) geen
+	# F1 (tuning) en geen V (vliegen); in deze build enkel als de ontwikkelaarsmodus aan staat.
+	var plain := InputSetup.keys_for(false)
+	_expect(not plain.has("toggle_tuning") and not plain.has("toggle_fly") and InputSetup.keys_for(true).has("toggle_tuning"),
+			"release-build: geen toets voor het tuningmenu of vliegen")
+	var f1_bound := not InputMap.action_get_events("toggle_tuning").is_empty()
+	_expect(f1_bound == CmdArgs.dev_mode(), "F1 opent het tuningmenu enkel in de ontwikkelaarsmodus (nu %s, F1 %s)" % [
+			"aan" if CmdArgs.dev_mode() else "uit", "gebonden" if f1_bound else "vrij"])
 	# 1. Instellingen: openen, Esc sluit.
 	var settings := SettingsMenu.new()
 	main.get_node("HUD").add_child(settings)
@@ -79,6 +87,19 @@ func _run() -> void:
 	var p: Player = await main.game.player_spawned
 	await _frames(30)
 	_expect(main.hud.visible, "HUD zichtbaar in het spel")
+	# ui-05: geen HUD-tekst kleiner dan 18 px op 1080p (hud-menu.md §4.9). Ook wat pas later in beeld
+	# komt (rapport, aftelling, meldingen van elke soort) staat al in de boom.
+	for kind: String in Hud.TOAST_KINDS:
+		main.hud.toast("Test %s" % kind, kind)
+	var small := PackedStringArray()
+	var labels := 0
+	for l: Label in main.hud.find_children("*", "Label", true, false):
+		labels += 1
+		var fs := l.get_theme_font_size("font_size")
+		if fs < Hud.MIN_FONT:
+			small.append("%s '%s' %d px" % [l.get_path().get_name(l.get_path().get_name_count() - 1), l.text.left(24), fs])
+	_expect(labels > 40 and small.is_empty(), "alle %d labels in de HUD zijn minstens %d px%s" % [labels, Hud.MIN_FONT,
+			"" if small.is_empty() else " (te klein: %s)" % ", ".join(small)])
 	_key(KEY_ESCAPE)
 	await _frames(3)
 	_expect(main._pause.visible and get_tree().paused, "Esc opent het pauzemenu (solo: het spel staat stil)")
