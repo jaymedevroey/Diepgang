@@ -33,6 +33,8 @@ MATERIALS = {
     # Statusrand van de laadcapsules: even fel als LedCyanSoft (LedAmber bloeit te hard op 1 m).
     "LedAmberSoft": ((1.0, 0.66, 0.32), 0.0, 0.3, ((1.0, 0.6, 0.26), 0.55)),
     "LedRedSoft": ((1.0, 0.25, 0.15), 0.0, 0.3, ((1.0, 0.18, 0.1), 0.7)),
+    # Messing (lampvoeten, paaltjes, lijsten in de lounge van de directie); in Godot: MolVisual.MATS.
+    "Brass": ((0.74, 0.54, 0.26), 0.85, 0.4, None),
 }
 kit.PALETTE.update(MATERIALS)
 
