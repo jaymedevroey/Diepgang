@@ -243,13 +243,15 @@ def build_crown(ctx, g):
         t = math.pi / 2 * k
         p0, p1 = polar(0.3, t), polar(1.44, t)
         tbox(R, (p0[0], 4.07, p0[1]), (p1[0], 4.07, p1[1]), 0.1, 0.08, "DarkSteel")
-    R.cyl(G(cx, 3.92, cz), (0, 1, 0), 0.2, 0.3, 16, "Anthracite")
+    # De naaf hangt tegen de luifel (onderkant 4,02, boven de bovenrand van het hologram op 4,0): lager
+    # sneed hij van dichtbij de kop "DIG · CONTRACTS" af (release-audit ui-01).
+    R.cyl(G(cx, 4.02, cz), (0, 1, 0), 0.17, 0.3, 16, "Anthracite")
     for k in range(8):  # koelvinnen
         t = 2 * math.pi * k / 8 + math.pi / 8
         px, pz = polar(0.32, t)
-        box(RD, (px, 4.02, pz), (0.02, 0.14, 0.08), "DarkSteel", u=(math.cos(t), 0, math.sin(t)))
-    RD.cyl(G(cx, 3.905, cz), (0, 1, 0), 0.015, 0.22, 16, "RunLight")
-    RD.cyl(G(cx, 3.9, cz), (0, 1, 0), 0.012, 0.245, 16, "DarkSteel", r2=0.235)
+        box(RD, (px, 4.11, pz), (0.02, 0.12, 0.08), "DarkSteel", u=(math.cos(t), 0, math.sin(t)))
+    RD.cyl(G(cx, 4.005, cz), (0, 1, 0), 0.015, 0.22, 16, "RunLight")
+    RD.cyl(G(cx, 4.0, cz), (0, 1, 0), 0.012, 0.245, 16, "DarkSteel", r2=0.235)
     # Steunen achteraan aan de luifel (de trekstangen vooraan stonden vanaf de terminal achter het
     # hologram en zijn weg: de kroon hangt nu aan drie steunen en een balk onder de luifel).
     for t in (math.radians(140), math.radians(180), math.radians(220)):
@@ -257,4 +259,4 @@ def build_crown(ctx, g):
         box(RD, (p[0], 4.16, p[1]), (0.12, 0.08, 0.12), "DarkSteel")
     tbox(RD, (polar(1.56, math.radians(140))[0], 4.16, polar(1.56, math.radians(140))[1]),
          (polar(1.56, math.radians(220))[0], 4.16, polar(1.56, math.radians(220))[1]), 0.1, 0.06, "DarkSteel")
-    ctx.spot("cfeaff", (cx, 3.86, cz), e=3.5, a=26, v=0.3)  # koude bundel op de tafel, zichtbaar in de waas
+    ctx.spot("cfeaff", (cx, 3.96, cz), e=3.5, a=26, v=0.3)  # koude bundel op de tafel, zichtbaar in de waas

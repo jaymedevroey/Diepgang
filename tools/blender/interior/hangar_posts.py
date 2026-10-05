@@ -578,9 +578,14 @@ def signage(ctx, B, rng):
     for z in (6.2, 11.2):
         chevron(det, 14.2, z, 0, 1, 0.5, LIGHT_TXT)
     box(det, 5.6, 8.4, 0.015, 0.019, 16.67, 17.12, "Hazard")
-    floor_strip(det, 7.75, 18.55, 7.75, 18.3, 0.1, LIGHT_TXT)
-    chevron(det, 7.75, 18.15, 0, -1, 0.35, LIGHT_TXT)
-    text(det, "TO THE MOLE", 0.12, (7.75, 0.016, 17.78), (0, 1, 0), (0, 0, -1), LIGHT_TXT, res=1)
+    # Aan de voet van de trap, in twee richtingen (zoals wegmarkering): wie van de trap komt, leest
+    # TO THE MOLE; wie uit de Mol komt (met buit), leest TO THE BRIDGE in plaats van een tekst die
+    # ondersteboven staat (release-audit binnen-18). Elk met een eigen pijl.
+    floor_strip(det, 7.75, 18.62, 7.75, 18.42, 0.1, LIGHT_TXT)
+    chevron(det, 7.75, 18.27, 0, -1, 0.3, LIGHT_TXT)
+    text(det, "TO THE MOLE", 0.11, (7.75, 0.016, 17.97), (0, 1, 0), (0, 0, -1), LIGHT_TXT, res=1)
+    text(det, "TO THE BRIDGE", 0.11, (7.75, 0.016, 17.6), (0, 1, 0), (0, 0, 1), LIGHT_TXT, res=1)
+    chevron(det, 7.75, 17.33, 0, 1, 0.22, LIGHT_TXT)
 
     # Spandoeken (bakboord boven de kade, galerij midden).
     banner(B, 0, 17.0, ("DIEPGANG", "INTERPLANETARY", "GROUNDWORKS"))
