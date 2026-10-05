@@ -74,6 +74,12 @@ func tint(_x: float, _z: float) -> Color:
 	return Color(1.0, 1.0, 1.0, 0.0)
 
 
+## Mag hier een groepje van het middenplan staan (MidgroundProps: kisten, meetpalen, rotsen, botten)?
+## Niet op een landmark of een plek die er al vol mee staat. De helling controleert MidgroundProps zelf.
+func clutter_ok(_p: Vector2) -> bool:
+	return true
+
+
 ## Losse rotsblokken per cel van 24 m (gemiddeld), en hoe groot ze hier zijn (maal 0,7..3,6 m).
 func rock_density(_p: Vector2) -> float:
 	return 0.4

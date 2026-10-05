@@ -20,11 +20,11 @@ static func ground(id: Id) -> Dictionary:
 	match id:
 		Id.FOSSIELWERELD:
 			# Kalksteen (crème in de zon, koel in de schaduw), mergel en een roestige ijzerband.
-			return {"patch_dark": Color(0.86, 0.78, 0.68, 0.55), "patch_light": Color(1.08, 1.06, 1.03, 0.5), "patch_scale": 80.0,
+			return {"patch_dark": Color(0.86, 0.8, 0.72, 0.3), "patch_light": Color(1.08, 1.06, 1.03, 0.5), "patch_scale": 80.0,
 					"base": _hex("C9B48C"), "light": _hex("E2CFA8"), "dark": _hex("7C8C8E"),
 					"strata": [_hex("E2CFA8"), _hex("C9A46E"), _hex("8C9AA0")], "rock": _hex("A08E70"),
 					# Geulbodems: okerstof en grijsblauwe klei, donker (het enige donker was het skelet).
-					"relief_m": 1.1, "relief_dark": Color(0.6, 0.55, 0.52), "relief_light": Color(1.06, 1.05, 1.03)}
+					"relief_m": 1.1, "relief_dark": Color(0.74, 0.74, 0.78), "relief_light": Color(1.1, 1.08, 1.04)}
 		Id.KRISTALMAAN:
 			# Donker violet basalt met lange schaduwen.
 			return {"patch_dark": Color(0.7, 0.68, 0.8, 0.65), "patch_light": Color(1.35, 1.3, 1.45, 0.45), "patch_scale": 70.0,
@@ -38,7 +38,7 @@ static func ground(id: Id) -> Dictionary:
 					"base": Color(0.431, 0.290, 0.208), "light": Color(0.604, 0.420, 0.298), "dark": Color(0.243, 0.165, 0.122),
 					"strata": [_hex("E0B48C"), _hex("B86A44"), _hex("7A3A2A")], "rock": _hex("6A3A2B"),
 					# Donker basaltzand in de laagtes (#3E2626), licht perzikstof op de ruggen (#D9A27E).
-					"relief_m": 1.3, "relief_dark": Color(0.52, 0.48, 0.56), "relief_light": Color(1.38, 1.22, 1.04)}
+					"relief_m": 1.3, "relief_dark": Color(0.5, 0.43, 0.56), "relief_light": Color(1.42, 1.27, 1.08)}
 
 
 ## Richting (eenheidsvector) uit een kompasrichting en hoogte in graden. Azimut 0 = +z, 90 = +x.
@@ -102,9 +102,11 @@ static func _roestbol(style: String) -> Dictionary:
 					"giant_dir": dir(210.0, 25.0), "giant_radius_deg": 9.0, "ring_open_deg": 22.0, "ring_roll_deg": 12.0,
 					"sky_energy": 1.1, "dust_tau": 0.45, "giant_haze": 0.35, "aureole_mix": 0.25,
 				},
-				"sun_rotation_deg": Vector3(-35.0, 60.0, 0.0),
-				"sun_color": _hex("FFF4E0"), "sun_energy": 1.18,
-				"ambient": _hex("8FB5B5"), "ambient_energy": 0.21,
+				# Release-audit buiten-3 (ronde 2): lager en van opzij t.o.v. de dropcamera (die naar de klif
+				# kijkt), zodat elke rug een zon- en een schaduwkant toont; van achter maakte het alles vlak.
+				"sun_rotation_deg": Vector3(-24.0, 88.0, 0.0),
+				"sun_color": _hex("FFF4E0"), "sun_energy": 1.4,
+				"ambient": _hex("8FB5B5"), "ambient_energy": 0.24,
 				"fog": _hex("E0A27E"), "fog_density": 0.0015,
 			}
 		"c":
@@ -140,6 +142,7 @@ static func _roestbol(style: String) -> Dictionary:
 				},
 				"sun_rotation_deg": Vector3(-24.0, 80.0, 0.0),
 				"sun_color": _hex("FFE9D0"), "sun_energy": 1.3,
-				"ambient": _hex("B08878"), "ambient_energy": 0.38,
-				"fog": _hex("E8C49A"), "fog_density": 0.001,
+				# Koel mauve vullicht (buiten-4): warm licht, koele schaduw, zoals ground_shadow van hemel A.
+				"ambient": _hex("8E7A98"), "ambient_energy": 0.38,
+				"fog": _hex("E8C49A"), "fog_density": 0.0008,
 			}

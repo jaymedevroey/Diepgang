@@ -63,6 +63,8 @@ const MATS := {
 	"Grating": {"albedo": Color(0.3, 0.31, 0.32), "metallic": 0.55, "roughness": 0.5, "edge": 0.6, "grime": 0.6},
 	"FloorWorn": {"albedo": Color(0.46, 0.46, 0.45), "metallic": 0.6, "roughness": 0.38, "edge": 0.3, "grime": 0.3},
 	"StainOil": {"albedo": Color(0.06, 0.055, 0.05), "metallic": 0.1, "roughness": 0.22, "edge": 0.0, "grime": 0.0},
+	# Boorstof op de buitenkant van de Mol (tools/blender/mol.py, release-audit binnen-12 ronde 2).
+	"Dust": {"albedo": Color(0.5, 0.42, 0.33), "metallic": 0.0, "roughness": 1.0, "edge": 0.0, "grime": 0.25},
 }
 const EMISSIVE := {
 	"Lens": [Color(1.0, 0.85, 0.6), 3.0],

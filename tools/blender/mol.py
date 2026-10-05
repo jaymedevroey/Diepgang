@@ -31,6 +31,7 @@ import bpy
 from mathutils import Matrix, Vector
 
 sys.path.append(str(Path(__file__).resolve().parent))
+import kit  # noqa: E402
 from kit import (G, PARTS, bake_wear, box, cyl, empty, export_glb, join_group, mat, octagon, parent_to,  # noqa: E402
                  prism, rivets, sphere, sweep, text, torus, tube, tri_count, boolean, unregister, _godot_euler)
 
@@ -421,6 +422,229 @@ def build_ramp():
     # Scharnieren.
     for x in (-1.6, -0.5, 0.5, 1.6):
         cyl(0.07, 0.36, (x, IN_Y0 + 0.02, HULL_Z1 + 0.02), "Steel", g, axis="x", verts=12, bevel=0.01)
+
+
+# ======================================================================================
+# Slijtage buiten (release-audit binnen-12, ronde 2: "de Mol is nog schoon")
+# ======================================================================================
+# Zoals de hub (pakket A2: vuil onderaan, strepen, krassen, roet) maar voor een machine die door klei
+# en rots boort: opgespat stof en modder van onderen (dicht bij de rupsen, dun naar boven), een korst
+# op het schild achter de boorkop, roet rond de uitlaten, strepen onder de nagelrij en de patrijspoort,
+# krassen en afgesprongen verf waar hij langs de tunnelwand schuurt. Platte, grillige vlekjes net boven
+# de romp (scherpe randen, zoals de rest: gestileerd, geen texturen). Silhouet en binnenkant blijven.
+
+kit.PALETTE.setdefault("Rock", ((0.42, 0.37, 0.33), 0.0, 0.92, None))  # opgedroogde modder (MolVisual.MATS)
+# Fijn boorstof: lichter en warmer dan "Rock" (ook in MolVisual.MATS: een naam die de game niet kent,
+# krijgt het ruwe glb-materiaal, en dat kleurt met de slijtage-vertexkleur blauw).
+kit.PALETTE.setdefault("Dust", ((0.5, 0.42, 0.33), 0.0, 1.0, None))
+WEAR_SEED = 2026
+
+
+def _wear_poly(uv, origin, u, v, n, material, group):
+    """Vlakke n-hoek: punten (a, b) in het vlak origin + u·a + v·b (Godot-vectoren), voorkant naar n."""
+    bm = bmesh.new()
+    vs = [bm.verts.new(G(*(origin + u * a + v * b))) for a, b in uv]
+    f = bm.faces.new(vs)
+    f.normal_update()
+    if f.normal.dot(G(*n)) < 0.0:
+        f.normal_flip()
+    me = bpy.data.meshes.new("Wear")
+    bm.to_mesh(me)
+    bm.free()
+    o = bpy.data.objects.new("Wear", me)
+    bpy.context.collection.objects.link(o)
+    o.data.materials.append(mat(material))
+    PARTS.setdefault(group, []).append(o)
+
+
+def smoothstep_py(e0, e1, x):
+    t = max(0.0, min(1.0, (x - e0) / (e1 - e0)))
+    return t * t * (3 - 2 * t)
+
+
+def _blob(rng, r, k=10):
+    """Grillige vlek (r = straal): punten rond, met uitlopers."""
+    raw = [r * (0.6 + 0.6 * rng.random()) for _ in range(k)]
+    rad = [(raw[i - 1] + 2 * raw[i] + raw[(i + 1) % k]) / 4 for i in range(k)]
+    return [(math.cos(i / k * math.tau) * rad[i], math.sin(i / k * math.tau) * rad[i]) for i in range(k)]
+
+
+def _splat(rng, origin, u, v, n, r, material, group, drops=True):
+    """Een vlek met een paar spatjes errond."""
+    _wear_poly(_blob(rng, r), origin, u, v, n, material, group)
+    if drops:
+        for _ in range(rng.randint(0, 3)):
+            a = rng.random() * math.tau
+            d = r * rng.uniform(1.3, 2.2)
+            o2 = origin + u * (math.cos(a) * d) + v * (math.sin(a) * d)
+            _wear_poly(_blob(rng, r * rng.uniform(0.15, 0.35), 7), o2, u, v, n, material, group)
+
+
+def _streak(rng, origin, u, v, n, w, length, material, group):
+    """Streep die naar beneden (−v) uitloopt en smaller wordt."""
+    _wear_poly([(-w / 2, 0), (w / 2, 0), (w * 0.12, -length), (-w * 0.12, -length)], origin, u, v, n, material, group)
+
+
+def _line(origin, u, v, n, length, w, angle, material, group):
+    """Dunne kras van `length` m onder een hoek (rad) in het vlak."""
+    c, s = math.cos(angle), math.sin(angle)
+    pts = [(-length / 2 * c - w / 2 * -s, -length / 2 * s - w / 2 * c), (length / 2 * c - w / 2 * -s, length / 2 * s - w / 2 * c),
+           (length / 2 * c + w / 2 * -s, length / 2 * s + w / 2 * c), (-length / 2 * c + w / 2 * -s, -length / 2 * s + w / 2 * c)]
+    _wear_poly(pts, origin, u, v, n, material, group)
+
+
+def build_weathering():
+    import random
+    rng = random.Random(WEAR_SEED)
+    V = Vector
+    up = V((0, 1, 0))
+    along = V((0, 0, 1))
+    for s in (-1, 1):
+        n = (s, 0, 0)
+        side = V((s * (HULL_W / 2 + 0.006), 0, 0))
+        band = V((s * (HULL_W / 2 + 0.033), 0, 0))
+        # Een korst stof op de donkere onderband: een grillige rand over de hele lengte.
+        k = 48
+        top = []
+        for i in range(k + 1):
+            z = HULL_Z0 + 0.12 + (HULL_Z1 - HULL_Z0 - 0.24) * i / k
+            end = 1.0 if (z < -2.6 or z > 2.9) else 0.0
+            top.append((z, -1.14 + 0.1 + 0.16 * rng.random() + 0.2 * end * rng.random()))
+        pts = [(HULL_Z1 - 0.12, -1.16), (HULL_Z0 + 0.12, -1.16)] + top
+        _wear_poly([(b, a) for a, b in pts], band, up, along, n, "Dust", "Hull")
+        # Een stofrand op het geel vlak boven de onderband (hoger vooraan en achteraan), en daarboven
+        # opgespatte spikkels: veel en klein onderaan, schaars naar boven. Enkele grotere spatten bij de
+        # uiteinden, waar de rupsen en de boorkop het meeste opgooien.
+        k = 60
+        rim = []
+        for i in range(k + 1):
+            z = HULL_Z0 + 0.12 + (HULL_Z1 - HULL_Z0 - 0.24) * i / k
+            end = max(smoothstep_py(-1.8, -3.4, z), smoothstep_py(2.4, 3.9, z))
+            rim.append((z, -0.5 + 0.04 + 0.1 * rng.random() ** 2 + 0.45 * end * (0.5 + 0.5 * rng.random())))
+        pts = [(HULL_Z1 - 0.12, -0.56), (HULL_Z0 + 0.12, -0.56)] + rim
+        _wear_poly([(b, a) for a, b in pts], side, up, along, n, "Dust", "Hull")
+        for _ in range(260):
+            z = rng.uniform(HULL_Z0 + 0.12, HULL_Z1 - 0.12)
+            end = max(smoothstep_py(-1.8, -3.4, z), smoothstep_py(2.4, 3.9, z))
+            y = -0.45 + 0.4 * end + (-math.log(max(rng.random(), 1e-3))) * (0.1 + 0.12 * end)
+            if y > 1.05 or (abs(z) < 0.8 and abs(y - PORTHOLE_Y) < 0.8) or (-3.25 < z < -2.15 and 0.2 < y < 0.9):
+                continue
+            if 1.3 < z < 3.75 and y > -0.05:  # het opschrift blijft leesbaar
+                continue
+            r = 0.008 + 0.03 * rng.random() ** 2
+            _wear_poly(_blob(rng, r, 7), side + V((0, y, z)), along, up, n, "Dust" if rng.random() < 0.85 else "Rock", "Hull")
+        for _ in range(8):
+            z = rng.choice((rng.uniform(HULL_Z0 + 0.2, -2.6), rng.uniform(2.9, HULL_Z1 - 0.2)))
+            y = rng.uniform(-0.35, 0.05)
+            _splat(rng, side + V((0, y, z)), along, up, n, rng.uniform(0.05, 0.1), "Dust", "Hull", drops=True)
+        # De onderste schuine flank (vlak boven de rups): het vuilst, bijna helemaal onder het stof.
+        p_top = V((s * HULL_W / 2, -(HULL_H / 2 - HULL_CH), 0))
+        p_bot = V((s * (HULL_W / 2 - HULL_CH), -HULL_H / 2, 0))
+        vdn = (p_bot - p_top).normalized()
+        cn = V((s * 0.7071, -0.7071, 0))
+        o_ch = p_top + cn * 0.008
+        width = (p_bot - p_top).length
+        k = 56
+        edge_pts = []
+        for i in range(k + 1):
+            z = HULL_Z0 + 0.1 + (HULL_Z1 - HULL_Z0 - 0.2) * i / k
+            edge_pts.append((z, 0.06 + 0.32 * rng.random() ** 1.5))
+        poly = [(HULL_Z1 - 0.1, width - 0.05), (HULL_Z0 + 0.1, width - 0.05)] + edge_pts
+        _wear_poly(poly, o_ch, along, vdn, tuple(cn), "Dust", "Hull")
+        for _ in range(40):
+            z = rng.uniform(HULL_Z0 + 0.1, HULL_Z1 - 0.1)
+            d = rng.uniform(0.0, 0.12)
+            _wear_poly(_blob(rng, rng.uniform(0.01, 0.035), 7), o_ch + along * z + vdn * d, along, vdn, tuple(cn), "Dust", "Hull")
+        # Strepen onder de bovenste nagelrij en onder de patrijspoort (roest en vuil dat uitzakt).
+        for _ in range(9):
+            z = rng.uniform(HULL_Z0 + 0.3, HULL_Z1 - 0.3)
+            if 1.3 < z < 3.75:
+                continue
+            _streak(rng, side + V((0, 1.09, z)), along, up, n, rng.uniform(0.025, 0.05), rng.uniform(0.25, 0.8), "Soot", "Hull")
+        for dz in (-0.25, 0.18):
+            _streak(rng, side + V((0, PORTHOLE_Y - 0.66, dz)), along, up, n, rng.uniform(0.04, 0.06), rng.uniform(0.35, 0.55),
+                    "RedOxide", "Hull")
+        # Krassen vooraan (waar hij langs de tunnelwand schuurt) en afgesprongen verf langs de randen.
+        for _ in range(14):
+            z = rng.uniform(HULL_Z0 + 0.2, -1.6)
+            y = rng.choice((rng.uniform(0.88, 1.14), rng.uniform(-0.45, 0.12)))
+            if -3.25 < z < -2.15 and 0.2 < y < 0.9:
+                continue
+            _line(side + V((0, y, z)), along, up, n, rng.uniform(0.18, 0.6), 0.012, rng.uniform(-0.3, 0.3), "Steel", "Hull")
+        for _ in range(26):
+            edge = rng.choice(("front", "back", "top"))
+            if edge == "front":
+                z, y = HULL_Z0 + rng.uniform(0.03, 0.12), rng.uniform(-0.5, 1.15)
+            elif edge == "back":
+                z, y = HULL_Z1 - rng.uniform(0.03, 0.12), rng.uniform(-0.5, 1.15)
+            else:
+                z, y = rng.uniform(HULL_Z0 + 0.2, HULL_Z1 - 0.2), 1.17 - rng.uniform(0.0, 0.05)
+            _wear_poly(_blob(rng, rng.uniform(0.015, 0.05), 7), side + V((0, y, z)), along, up, n, "DarkSteel", "Hull")
+        # Rupskap: stof op de gele kap boven de rups (schuin, in het rupsframe).
+        nrm = V(tf(s, (0.0, 1.0, 0.0))) - V(tf(s, (0.0, 0.0, 0.0)))
+        tx = V(tf(s, (1.0, 0.0, 0.0))) - V(tf(s, (0.0, 0.0, 0.0)))
+        for _ in range(26):
+            z = rng.uniform(TRACK_LEN_Z0 + 0.2, TRACK_LEN_Z1 - 0.2)
+            x = rng.uniform(-0.4, 0.4)
+            o = V(tf(s, (x, 0.675, z)))
+            _splat(rng, o, tx, along, tuple(nrm), rng.uniform(0.03, 0.1), "Dust", "Hull", drops=False)
+
+    # Het schild achter de boorkop: een korst boorstof vooraan, over de onderste helft, met een grillige
+    # rand naar achteren en spikkels erachter.
+    R = SHIELD_R + 0.04
+    n_seg = 40
+    a0, a1 = math.radians(-200), math.radians(20)
+    for i in range(n_seg):
+        aa, ab = a0 + (a1 - a0) * i / n_seg, a0 + (a1 - a0) * (i + 1) / n_seg
+        lowa = 0.5 - 0.5 * math.sin((aa + ab) / 2)  # 1 onderaan, 0 bovenaan
+        za = SHIELD_Z0 + 0.06
+        zb = za + 0.15 + 0.55 * lowa * (0.6 + 0.4 * rng.random())
+        quad = [V((math.cos(aa) * R, math.sin(aa) * R, za)), V((math.cos(ab) * R, math.sin(ab) * R, za)),
+                V((math.cos(ab) * R, math.sin(ab) * R, zb)), V((math.cos(aa) * R, math.sin(aa) * R, zb))]
+        mid = (quad[0] + quad[2]) * 0.5
+        nn = V((mid.x, mid.y, 0)).normalized()
+        _wear_poly([(0, 0), (1, 0), (1, 1), (0, 1)], quad[0], quad[1] - quad[0], quad[3] - quad[0], tuple(nn), "Dust", "Hull")
+    for _ in range(140):
+        a = rng.uniform(a0, a1)
+        lowa = 0.5 - 0.5 * math.sin(a)
+        z = SHIELD_Z0 + 0.2 + 0.6 * lowa + (-math.log(max(rng.random(), 1e-3))) * 0.25
+        if z > SHIELD_Z1 - 0.08:
+            continue
+        o = V((math.cos(a) * R, math.sin(a) * R, z))
+        t = V((-math.sin(a), math.cos(a), 0))
+        _wear_poly(_blob(rng, 0.01 + 0.035 * rng.random() ** 2, 7), o, t, along, (math.cos(a), math.sin(a), 0),
+                   "Dust" if rng.random() < 0.85 else "Rock", "Hull")
+
+    # Achterkant: stof dat de rupsen opgooien, op de waarschuwingsbalken naast de opening en op de
+    # strook onder de klep (niet in de opening zelf: daar is geen romp).
+    for _ in range(40):
+        if rng.random() < 0.6:
+            x = rng.choice((-1, 1)) * rng.uniform(2.14, 2.34)
+            y = -1.3 + (-math.log(max(rng.random(), 1e-3))) * 0.35
+            if y > 0.6:
+                continue
+        else:
+            x = rng.uniform(-1.4, 1.4)
+            y = rng.uniform(-2.0, -1.6)
+        _splat(rng, V((x, y, HULL_Z1 + 0.035)), V((1, 0, 0)), up, (0, 0, 1), rng.uniform(0.015, 0.06), "Dust", "Hull", drops=False)
+    for _ in range(30):
+        x = rng.uniform(-1.9, 1.9)
+        y = IN_Y0 + 0.08 + rng.random() ** 2 * 0.7
+        _splat(rng, V((x, y, HULL_Z1 + 0.108)), V((1, 0, 0)), up, (0, 0, 1), rng.uniform(0.02, 0.08), "Dust", "Ramp", drops=True)
+
+    # Dak: roet rond de uitlaten (naar achteren uitgewaaid), stof in de hoeken van de dakplaat.
+    top = HULL_H / 2
+    for sx in (-1, 1):
+        o = V((sx * 0.55, top + 0.766, 1.95))
+        _wear_poly([(a * 1.3, b * 0.8 + 0.12) for a, b in _blob(rng, 0.2, 12)], o, V((1, 0, 0)), along, (0, 1, 0), "Soot", "Hull")
+    for _ in range(18):
+        x = rng.choice((-1, 1)) * rng.uniform(0.6, 1.25)
+        z = rng.uniform(-3.4, 0.9)
+        _splat(rng, V((x, top + 0.056, z)), V((1, 0, 0)), along, (0, 1, 0), rng.uniform(0.05, 0.16), "Dust", "Hull", drops=False)
+    # Stencils (nieuwe tekst in het Engels).
+    for s in (-1, 1):
+        text("KEEP CLEAR", 0.085, (s * (HULL_W / 2 + 0.02), 0.08, -3.25), (0, 90 * s, 0), "DecalDark", "Hull")
+    text("NO STEP", 0.11, (0.0, top + 0.068, -2.2), (-90, 0, 0), "DecalDark", "Hull")
 
 
 # ======================================================================================
@@ -935,6 +1159,7 @@ def main():
     build_drill_head()
     build_hub()
     build_ramp()
+    build_weathering()
     build_interior()
     build_monitor()
     lever_base = build_lever()

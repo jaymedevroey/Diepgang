@@ -229,7 +229,7 @@ def niche_tools(ctx, S, R, PN, D, RD, P, rng):
     blk(D, 1.82, 2.58, 2.18, 2.76, 31.27, 31.276, "Screen")
     f = Face((0.0, Y0, 31.276), (1, 0, 0), (0, 1, 0))
     text(D, "UPGRADES", 0.05, f.at(2.2, 1.47), (0, 0, 1), "ScreenAmber", lift=0.002)
-    for i, row in enumerate(("PICKAXE MK2 .... €450", "DRILL MK1 ...... €900", "SCANNER+ ..... €1,200")):
+    for i, row in enumerate(("PICKAXE · DRILL · SCANNER", "ASK AT THE COUNTER")):  # geen prijzen: die staan in de winkel (F1)
         text(D, row, 0.026, f.at(2.2, 1.34 - i * 0.06), (0, 0, 1), "ScreenAmber", lift=0.002, max_w=0.68)
     text(D, "PRICES SUBJECT TO CHANGE", 0.018, f.at(2.2, 1.06), (0, 0, 1), "ScreenAmber", lift=0.002, max_w=0.6)
     for i, m in enumerate(("LedAmber", "LedAmber", "LensRed", "LedGreen")):

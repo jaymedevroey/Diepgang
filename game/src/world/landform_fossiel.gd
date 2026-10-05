@@ -44,9 +44,21 @@ var _butte_grid := {} # Vector2i (cel van BUTTE_CELL) -> Array[int]
 const BUTTE_CELL := 160.0
 # Badlands: hoe hoog de ruggen worden (m), en vanaf waar ze uitdoven.
 const BAD_AMP := 21.0
-## Op de kalkbodem en in het speelgebied: lage ruggen en geulen (m), het badland loopt tot onder je
+## Op de kalkbodem en in het speelgebied: ruggen en geulen (m), het badland loopt tot onder je
 ## voeten (planeten.md §4.2; de audit: "een crème zandbak"). Niet op de landingsplek en de opgravingen.
-const FLOOR_BAD := 3.2
+## Release-audit buiten-3 (ronde 2): 3,2 m over golven van ±170 m gaf hellingen van 2°, dus geen
+## schaduwkant. Nu 6 m op een fijnere geribde ruis (±60 m): hellingen tot ±25-30° (nog te belopen),
+## met een zon- en een schaduwkant zoals in het concept. De grote badlands erbuiten krijgen dezelfde
+## fijne ruggen als een tweede laag (geulen in de flanken).
+const FLOOR_BAD := 5.5
+## Fijne ruggen: raster rond de landingsplek (m per pixel, hoe ver), en hoeveel ervan in de grote
+## badlands blijft (de rest is de grove ruis).
+const FINE_STEP := 4.0
+const FINE_REACH := 520.0
+const FINE_IN_BAD := 0.5
+## Ingesneden plateau achter de klifrand (m).
+const PLATEAU_BAD := 12.0
+const PLATEAU_REACH := Vector2(750.0, 1100.0)
 const BAD_FADE := Vector2(900.0, 1700.0)
 # Het reuzenskelet: midden van de ribbenkast, richting van de kop, en de maten langs de rug.
 var giant_c := Vector2.ZERO
@@ -69,6 +81,7 @@ var _bad := FastNoiseLite.new() # badlands: de nullijnen zijn de geulen
 var _warp := FastNoiseLite.new()
 var _shape := FastNoiseLite.new() # omtrek van de kalkbodem
 var _macro := FastNoiseLite.new() # waar de badlands hoog zijn en waar rustige vlaktes liggen
+var _fine := FastNoiseLite.new() # fijne ruggen (±60 m) op de bodem en in de flanken
 var _seed := 0
 # Velden per punt (zie _fields): het resultaat, en een vaste tabel als geheugen (x, z | 5 velden).
 var _f_u := 0.0
@@ -76,6 +89,7 @@ var _f_wd := 0.0
 var _f_amp := 0.0
 var _f_v := 0.0
 var _f_bh := 0.0
+var _f_wild := 0.0 # 0 = op de kalkbodem (lage ruggen), 1 = volle badlands (gezet door _bad_amp)
 const CACHE_N := 65536
 var _ck := PackedFloat32Array()
 var _cv := PackedFloat32Array()
@@ -103,6 +117,9 @@ var _macro_o := 0
 var _bad_n := 0
 var _warp_n := 0
 var _macro_n := 0
+var _fine_o := 0
+var _fine_n := 0
+var _fine_origin := Vector2.ZERO
 
 
 func setup(planet_seed: int, landing_xz: Vector2, size: Vector2) -> void:
@@ -110,8 +127,13 @@ func setup(planet_seed: int, landing_xz: Vector2, size: Vector2) -> void:
 	_seed = planet_seed
 	var rng := RandomNumberGenerator.new()
 	rng.seed = planet_seed * 2654435761 + 23
-	for n: FastNoiseLite in [_edge, _bad, _warp, _shape, _macro]:
+	for n: FastNoiseLite in [_edge, _bad, _warp, _shape, _macro, _fine]:
 		n.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	_fine.seed = planet_seed + 406
+	_fine.frequency = 0.017
+	_fine.fractal_type = FastNoiseLite.FRACTAL_RIDGED
+	_fine.fractal_octaves = 2
+	_fine.fractal_gain = 0.4
 	_edge.seed = planet_seed + 401
 	_edge.frequency = 0.0035
 	_edge.fractal_octaves = 2
@@ -322,8 +344,21 @@ func _fields(x: float, z: float) -> void:
 	else:
 		_f_wd = _wash_d(q)
 		_f_amp = _bad_amp(q, _f_u, _f_wd)
-		_f_v = _bad_v(q) if _f_amp > 0.05 else 0.0
-		_f_bh = _buttes(q)
+		if _f_amp > 0.05:
+			# Op de bodem de fijne ruggen, in de grote badlands vooral de grove ruis met de fijne als
+			# geulen in de flanken.
+			# Eén keer de vervorming (beide ruisen gebruiken ze), en enkel wat nodig is: op de bodem
+			# alleen de fijne, ver weg alleen de grove (dit is het duurste stuk van het verre landschap).
+			var wx := _ras(_wx_o, _warp_n, WARP_STEP, q.x, q.y) * 34.0
+			var wz := _ras(_wz_o, _warp_n, WARP_STEP, q.x, q.y) * 34.0
+			var d2 := q.distance_squared_to(landing)
+			var fk := 1.0 - smoothstep((FINE_REACH - 60.0) * (FINE_REACH - 60.0), FINE_REACH * FINE_REACH, d2)
+			var coarse := _bad_v(q, wx, wz) if (_f_wild > 0.0 or fk < 1.0) else 0.0
+			var fine := lerpf(coarse, _fine_v(q, wx * 0.32, wz * 0.32), fk) if fk > 0.0 else coarse
+			_f_v = lerpf(fine, lerpf(coarse, fine, FINE_IN_BAD), _f_wild)
+		else:
+			_f_v = 0.0
+		_f_bh = _buttes(q, false)
 	_ck[slot * 2] = q.x
 	_ck[slot * 2 + 1] = q.y
 	var c := slot * 5
@@ -371,7 +406,10 @@ func _cliff_height(u: float, p: Vector2) -> float:
 	return cliff_h + 2.5 * (sin(p.x * 0.011 + 1.3) * sin(p.y * 0.0137 + 0.4) + sin(p.x * 0.0041 - p.y * 0.0053)) - 6.0 * smoothstep(wall_w, wall_w + 400.0, u)
 
 
-func _buttes(p: Vector2) -> float:
+## Hoogte van de buttes en restmesa's. `body` = false: enkel hun voet (een lage sokkel met puin
+## eromheen); het lichaam zelf is een eigen mesh (_butte_mesh), want in het verre landschap (cellen van
+## 8 tot 60 m) werd een butte een zachte bult (release-audit buiten-7).
+func _buttes(p: Vector2, body := true) -> float:
 	var ids: Variant = _butte_grid.get(Vector2i(int(floor(p.x / BUTTE_CELL)), int(floor(p.y / BUTTE_CELL))))
 	if ids == null:
 		return 0.0
@@ -386,7 +424,9 @@ func _buttes(p: Vector2) -> float:
 		var rr := b.z * (1.0 + 0.12 * sin(3.0 * ang + b.x) + 0.08 * sin(5.0 * ang + b.y) + 0.05 * sin(9.0 * ang + b.w))
 		var t := dd / rr
 		var hb: float
-		if t < 0.8:
+		if t < 1.0 and not body:
+			hb = b.w * 0.16
+		elif t < 0.8:
 			hb = b.w
 		elif t < 1.0:
 			# Twee treden in de wand.
@@ -434,10 +474,24 @@ func _floor_d(p: Vector2) -> float:
 ## niets op het plateau, uitdovend naar de kim.
 func _bad_amp(p: Vector2, u: float, wd: float) -> float:
 	if u > 0.0:
-		return 0.0
+		# Het plateau: verder van de rand ook ingesneden (een kaal, vlak plateau was van op 300 m de
+		# grootste lichte vlakte in het dropbeeld). De wand en zijn bovenrand blijven strak.
+		# Enkel binnen ±1,1 km (verder is het van op de drop te klein voor wat het kost).
+		_f_wild = 1.0
+		var pa := PLATEAU_BAD * smoothstep(wall_w + 12.0, wall_w + 150.0, u)
+		var dl := p.distance_squared_to(landing)
+		if pa <= 0.0 or dl > PLATEAU_REACH.y * PLATEAU_REACH.y:
+			return 0.0
+		pa *= 1.0 - smoothstep(PLATEAU_REACH.x, PLATEAU_REACH.y, sqrt(dl))
+		return pa * lerpf(0.25, 1.15, smoothstep(-0.3, 0.25, _ras(_macro_o, _macro_n, MACRO_STEP, p.x, p.y)))
 	var fd := _floor_d(p)
-	# Op de kalkbodem lage ruggen (FLOOR_BAD), daarbuiten oplopend tot de volle badlands.
-	var a := lerpf(FLOOR_BAD, BAD_AMP, smoothstep(0.0, 75.0, fd)) * smoothstep(-6.0, 26.0, wd)
+	# Op de kalkbodem lage ruggen (FLOOR_BAD), daarbuiten oplopend tot de volle badlands. Ook vlak
+	# buiten het speelgebied al (buiten-3, ronde 2): daar loopt niemand, en van boven (de drop) is dat
+	# meer dan de helft van het beeld. Zo hangen de schaduwkanten en de lichte kammen aan echte ruggen.
+	var dx := maxf(maxf(-p.x, p.x - play_size.x), 0.0)
+	var dz := maxf(maxf(-p.y, p.y - play_size.y), 0.0)
+	_f_wild = maxf(smoothstep(0.0, 75.0, fd), smoothstep(12.0, 85.0, sqrt(dx * dx + dz * dz)))
+	var a := lerpf(FLOOR_BAD, BAD_AMP, _f_wild) * smoothstep(-6.0, 26.0, wd)
 	# Vlak op de landingsplek, rond het skelet, de tweede ribbenkast en het kamp (opgravingen).
 	a *= smoothstep(55.0, 100.0, p.distance_to(landing)) * smoothstep(40.0, 62.0, _giant_d(p))
 	a *= smoothstep(26.0, 44.0, p.distance_to(ribs2_c)) * smoothstep(24.0, 44.0, p.distance_to(camp_c))
@@ -453,11 +507,24 @@ func _bad_amp(p: Vector2, u: float, wd: float) -> float:
 
 ## 0 op de bodem van de geulen, 1 op de scherpe kammen (ridged ruis: scherpe ruggen, brede
 ## geulen waar de mist in blijft hangen).
-func _bad_v(p: Vector2) -> float:
-	var wx := _ras(_wx_o, _warp_n, WARP_STEP, p.x, p.y) * 34.0
-	var wz := _ras(_wz_o, _warp_n, WARP_STEP, p.x, p.y) * 34.0
+func _bad_v(p: Vector2, wx: float, wz: float) -> float:
 	var r := clampf(_ras(_bad_o, _bad_n, BAD_STEP, p.x + wx, p.y + wz) * 0.6 + 0.45, 0.0, 1.0)
 	return r * r * sqrt(r) # scherpe kammen, brede geulen
+
+
+## Fijne ruggen (±60 m, geribd): zoals _bad_v, 0 in de geul en 1 op de kam. Enkel rond de
+## landingsplek (FINE_REACH; _fields gaat er naar de rand toe over in de grove ruis).
+func _fine_v(p: Vector2, wx: float, wz: float) -> float:
+	var fx := (p.x + wx - _fine_origin.x) / FINE_STEP
+	var fz := (p.y + wz - _fine_origin.y) / FINE_STEP
+	var ix := clampi(int(fx), 0, _fine_n - 2)
+	var iz := clampi(int(fz), 0, _fine_n - 2)
+	var tx := clampf(fx - ix, 0.0, 1.0)
+	var tz := clampf(fz - iz, 0.0, 1.0)
+	var i := _fine_o + iz * _fine_n + ix
+	var n := lerpf(lerpf(_ras_all[i], _ras_all[i + 1], tx), lerpf(_ras_all[i + _fine_n], _ras_all[i + _fine_n + 1], tx), tz) * (2.0 / 255.0) - 1.0
+	var r := clampf(n * 0.62 + 0.42, 0.0, 1.0)
+	return r * sqrt(r) # minder vlakke geulbodem dan de grote badlands: meer helling, dus een zon- en schaduwkant
 
 
 ## De 2D-ruis in bulk (één oproep per raster, in C++), rond de landingsplek. Op de werkthread, bij
@@ -480,6 +547,12 @@ func _build_rasters() -> void:
 	_macro_o = _ras_all.size()
 	_macro_n = a[1]
 	_ras_all.append_array(a[0])
+	# Fijne ruggen: een eigen, kleiner raster rond de landingsplek (fijner, dus niet over 1,8 km).
+	_fine_origin = landing - Vector2(FINE_REACH + 40.0, FINE_REACH + 40.0)
+	a = _raster(_fine, FINE_STEP, Vector2.ZERO, FINE_REACH + 40.0)
+	_fine_o = _ras_all.size()
+	_fine_n = a[1]
+	_ras_all.append_array(a[0])
 	_ck = PackedFloat32Array()
 	_ck.resize(CACHE_N * 2)
 	_ck.fill(INF)
@@ -490,11 +563,12 @@ func _build_rasters() -> void:
 
 ## Raster van een ruis met een pixel per `step` m, vanaf _r_origin (+ shift): [PackedByteArray, n].
 ## Waarde −1..1 als 0..255 (get_image zonder normaliseren).
-func _raster(noise: FastNoiseLite, step: float, shift: Vector2) -> Array:
-	var n := int(ceil(RAS_REACH * 2.0 / step)) + 2
+func _raster(noise: FastNoiseLite, step: float, shift: Vector2, reach := RAS_REACH) -> Array:
+	var n := int(ceil(reach * 2.0 / step)) + 2
+	var origin := landing - Vector2(reach, reach)
 	var dup := noise.duplicate() as FastNoiseLite
 	dup.frequency = noise.frequency * step
-	dup.offset = Vector3((_r_origin.x + shift.x) / step, (_r_origin.y + shift.y) / step, 0.0)
+	dup.offset = Vector3((origin.x + shift.x) / step, (origin.y + shift.y) / step, 0.0)
 	var img := dup.get_image(n, n, false, false, false)
 	if img.get_format() != Image.FORMAT_L8:
 		img.convert(Image.FORMAT_L8)
@@ -533,11 +607,20 @@ func tint(x: float, z: float) -> Color:
 		# Lagen op hoogte (zoals in de Painted Hills): van boven lees je elke rug als gestreepte
 		# heuvel. Zacht (sinus), want de vertexkleur ligt maar om de 7,8 m.
 		var hb := amp * _f_v
-		var band := 0.5 + 0.5 * sin(hb * TAU / 8.5 + float(_seed % 5))
-		var clay := smoothstep(0.82, 0.95, fposmod(hb / 23.0 + 0.3, 1.0)) # af en toe een grijsblauwe kleilaag
-		var lit := Color(lerpf(1.15, 0.95, band), lerpf(1.12, 0.84, band), lerpf(1.05, 0.66, band))
-		lit = Color(lerpf(lit.r, 0.86, clay), lerpf(lit.g, 0.9, clay), lerpf(lit.b, 0.94, clay))
-		var low := Color(0.8, 0.68, 0.55) # okerstof op de bodem van de geulen
+		# Drie waardegroepen die aan de vorm hangen (planeten.md §3.5, release-audit buiten-3 ronde 2):
+		# witte kalk op de kammen, banden van oker, roest en grijsblauwe klei op de flanken (op hoogte,
+		# zoals de Painted Hills), en warm okerstof in de geulen. Op de lage ruggen van de bodem
+		# dunnere lagen (één band tussen geul en kam).
+		var period := lerpf(5.0, 8.5, smoothstep(7.0, 16.0, amp))
+		var band := 0.5 + 0.5 * sin(hb * TAU / period + float(_seed % 5))
+		var clay := smoothstep(0.78, 0.92, fposmod(hb / 23.0 + 0.3, 1.0)) # af en toe een grijsblauwe kleilaag
+		var rust := smoothstep(0.8, 0.93, fposmod(hb / 17.0 + 0.71, 1.0)) * smoothstep(4.0, 9.0, amp) # en een roestband
+		var lit := Color(lerpf(1.14, 0.94, band), lerpf(1.11, 0.78, band), lerpf(1.04, 0.56, band))
+		lit = Color(lerpf(lit.r, 0.76, clay), lerpf(lit.g, 0.82, clay), lerpf(lit.b, 0.88, clay))
+		lit = Color(lerpf(lit.r, 0.9, rust), lerpf(lit.g, 0.56, rust), lerpf(lit.b, 0.4, rust))
+		var crest := Color(1.2, 1.16, 1.08) # de kammen: wit, het lichtste vlak onder de hemel
+		lit = Color(lerpf(lit.r, crest.r, smoothstep(0.62, 0.9, v)), lerpf(lit.g, crest.g, smoothstep(0.62, 0.9, v)), lerpf(lit.b, crest.b, smoothstep(0.62, 0.9, v)))
+		var low := Color(0.8, 0.66, 0.5) # okerstof op de bodem van de geulen
 		var cc := Color(lerpf(low.r, lit.r, smoothstep(0.0, 0.25, v)), lerpf(low.g, lit.g, smoothstep(0.0, 0.25, v)), lerpf(low.b, lit.b, smoothstep(0.0, 0.25, v)))
 		c = Color(lerpf(1.0, cc.r, w), lerpf(1.0, cc.g, w), lerpf(1.0, cc.b, w), 0.8 * w)
 	# De bedding: grijsblauwe klei (koeler, donkerder): van boven een lijn door het beeld.
@@ -549,8 +632,13 @@ func tint(x: float, z: float) -> Color:
 		c = Color(lerpf(c.r, 0.92, talus), lerpf(c.g, 0.86, talus), lerpf(c.b, 0.8, talus), maxf(c.a, talus * 0.35))
 		var wall := smoothstep(-4.0, 6.0, u) * (1.0 - smoothstep(wall_w - 4.0, wall_w + 8.0, u))
 		c = Color(lerpf(c.r, 1.06, wall), lerpf(c.g, 1.04, wall), lerpf(c.b, 1.0, wall), maxf(c.a, wall))
+		# Het plateau: een donkere kaprots (verweerd, zoals de kap van de hoodoos) met lichte
+		# stofdriften. Van boven (de drop vliegt erover) een donker vlak boven de lichte, gestreepte
+		# wand: een waardegroep die aan een landvorm hangt (buiten-3, ronde 2).
 		var top := smoothstep(wall_w - 4.0, wall_w + 30.0, u)
-		c = Color(lerpf(c.r, 1.1, top), lerpf(c.g, 1.07, top), lerpf(c.b, 1.02, top), c.a * (1.0 - top))
+		var drift := smoothstep(0.1, 0.45, _ras(_wx_o, _warp_n, WARP_STEP, x, z))
+		var cap := Color(lerpf(0.72, 1.0, drift), lerpf(0.64, 0.96, drift), lerpf(0.57, 0.9, drift))
+		c = Color(lerpf(c.r, cap.r, top), lerpf(c.g, cap.g, top), lerpf(c.b, cap.b, top), c.a * (1.0 - top))
 	# Buttes en restmesa's: wanden met lagen.
 	if _f_bh > 1.0:
 		c.a = 1.0
@@ -568,8 +656,10 @@ func tint(x: float, z: float) -> Color:
 ## roestige ijzerband op ±60% van de klif.
 func shader_params(surface_y: float) -> Dictionary:
 	# Lagen enkel op de steile delen (vanaf ±35°): op zachte, ronde hellingen lazen ze als een taart.
-	return {"strata_scale": 9.0, "strata_cuts": Vector2(0.58, 0.9), "strata_strength": 0.75,
-			"strata_steep": Vector2(0.62, 0.84), "strata_key": Vector3(surface_y + cliff_h * 0.6, 5.5, 0.9)}
+	# Ronde 2 (buiten-3): meer oker en grijsblauw tussen de kalk, en een dikkere roestband, zoals in
+	# het concept (de wand was één lichte vlakte met dunne lijnen).
+	return {"strata_scale": 9.0, "strata_cuts": Vector2(0.44, 0.8), "strata_strength": 0.9,
+			"strata_steep": Vector2(0.62, 0.84), "strata_key": Vector3(surface_y + cliff_h * 0.6, 8.0, 0.95)}
 
 
 ## Het reuzenskelet als donkere ribbenkast op de kaart van het planeetdek (van de hub uit gezien).
@@ -592,6 +682,13 @@ func _giant_d(p: Vector2) -> float:
 	var ab := b - a
 	var t := clampf((p - a).dot(ab) / ab.length_squared(), 0.0, 1.0)
 	return p.distance_to(a + ab * t)
+
+
+# --- Middenplan ------------------------------------------------------------------------------
+
+## Niet op het skelet, de kamp, de tweede ribbenkast, de bedding of tegen de klif.
+func clutter_ok(p: Vector2) -> bool:
+	return _giant_d(p) > 45.0 and p.distance_to(camp_c) > 30.0 and p.distance_to(ribs2_c) > 38.0 			and _wash_d(p) > 6.0 and _cliff_u(p) < -TALUS_W - 15.0
 
 
 # --- Rotsblokken -----------------------------------------------------------------------------
@@ -628,7 +725,7 @@ func compute_props(s: PlanetSurface) -> Dictionary:
 	var camp := _build_camp(s)
 	var mist := _build_mist(s)
 	var out := {"fossil_bones": bones.arrays(), "fossil_frags": frags, "fossil_camp": camp, "fossil_mist": mist,
-			"fossil_hoodoos": hoodoos.arrays()}
+			"fossil_hoodoos": hoodoos.arrays(), "fossil_buttes": _butte_meshes(s)}
 	var frag_tris := 0
 	for k: Dictionary in frags.kinds:
 		frag_tris += (k.arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size() / 3 * (k.xf as Array).size()
@@ -639,6 +736,90 @@ func compute_props(s: PlanetSurface) -> Dictionary:
 		bones.triangle_count(), frag_tris, frags.get("count", 0), hoodoos.triangle_count(), camp_tris,
 		(mist.idx as PackedInt32Array).size() / 3, (Time.get_ticks_usec() - t0) / 1000.0])
 	return out
+
+
+## Buttes en restmesa's als eigen mesh (buiten-7): een sokkel, een wand in twee treden met een richel,
+## een scherpe bovenrand en een vlakke kaprots. Op het raster van het verre landschap was dit een
+## zachte bult met strepen. Per butte: [Vector3 midden, arrays]. Kleur en lagen zoals het verre
+## landschap (hoekpuntkleur: rgb gehalveerd, a = lagen in de wand).
+const BUTTE_SEG := 64
+const BUTTE_RINGS: Array[Vector2] = [Vector2(1.0, 0.17), Vector2(0.985, 0.5), Vector2(0.955, 0.54), Vector2(0.925, 0.96),
+		Vector2(0.905, 1.0)] # (straal, hoogte) als deel van de butte, van onder naar boven
+
+func _butte_meshes(s: PlanetSurface) -> Array:
+	var out := []
+	for bi in buttes.size():
+		var b := buttes[bi]
+		var c := Vector2(b.x, b.y)
+		if c.distance_to(landing) > 1600.0:
+			continue
+		var g0 := s.far_height(c.x, c.y) - b.w * 0.16 # de grond onder de sokkel
+		var verts := PackedVector3Array()
+		var cols := PackedColorArray()
+		var idx := PackedInt32Array()
+		var wall_col := Color(0.53, 0.52, 0.5, 1.0)
+		var cap_col := Color(0.37, 0.33, 0.29, 0.0)
+		var rad := PackedFloat32Array()
+		var foot := PackedFloat32Array()
+		for i in BUTTE_SEG:
+			var a := TAU * i / BUTTE_SEG
+			var rr := b.z * (1.0 + 0.12 * sin(3.0 * a + b.x) + 0.08 * sin(5.0 * a + b.y) + 0.05 * sin(9.0 * a + b.w))
+			rr *= 1.0 + 0.035 * sin(17.0 * a + b.x * 0.3) + 0.02 * sin(29.0 * a + b.y * 0.7) # geulen in de wand
+			rad.append(rr)
+			var q := c + Vector2(cos(a), sin(a)) * rr * 1.04
+			foot.append(s.far_height(q.x, q.y) - 2.0)
+		# Wand: per band eigen hoekpunten (harde richels), rond de omtrek gedeeld (zacht rond).
+		for band in BUTTE_RINGS.size():
+			var lo: Vector2 = BUTTE_RINGS[band - 1] if band > 0 else Vector2(1.04, 0.0)
+			var hi: Vector2 = BUTTE_RINGS[band]
+			var first := verts.size()
+			for i in BUTTE_SEG:
+				var a := TAU * i / BUTTE_SEG
+				var d := Vector2(cos(a), sin(a))
+				var y_lo := foot[i] if band == 0 else g0 + b.w * lo.y
+				var p_lo := c + d * rad[i] * lo.x
+				var p_hi := c + d * rad[i] * hi.x
+				verts.append(Vector3(p_lo.x, y_lo, p_lo.y))
+				verts.append(Vector3(p_hi.x, g0 + b.w * hi.y, p_hi.y))
+				cols.append(wall_col)
+				cols.append(wall_col)
+			for i in BUTTE_SEG:
+				var j := (i + 1) % BUTTE_SEG
+				var a0 := first + i * 2
+				var a1 := first + j * 2
+				var outward := Vector3(cos(TAU * (i + 0.5) / BUTTE_SEG), 0.0, sin(TAU * (i + 0.5) / BUTTE_SEG))
+				_tri_out(idx, verts, a0, a1, a1 + 1, outward)
+				_tri_out(idx, verts, a0, a1 + 1, a0 + 1, outward)
+		# De kaprots: een vlakke waaier vanuit het midden (bol gaf een ster van lijnen), eigen hoekpunten (scherpe bovenrand).
+		var top: Vector2 = BUTTE_RINGS[BUTTE_RINGS.size() - 1]
+		var center := verts.size()
+		verts.append(Vector3(c.x, g0 + b.w * top.y, c.y))
+		cols.append(cap_col)
+		for i in BUTTE_SEG:
+			var a := TAU * i / BUTTE_SEG
+			var p := c + Vector2(cos(a), sin(a)) * rad[i] * top.x
+			verts.append(Vector3(p.x, g0 + b.w * top.y, p.y))
+			cols.append(cap_col)
+		for i in BUTTE_SEG:
+			_tri_out(idx, verts, center, center + 1 + i, center + 1 + (i + 1) % BUTTE_SEG, Vector3.UP)
+		var arrays := []
+		arrays.resize(Mesh.ARRAY_MAX)
+		arrays[Mesh.ARRAY_VERTEX] = verts
+		arrays[Mesh.ARRAY_COLOR] = cols
+		arrays[Mesh.ARRAY_INDEX] = idx
+		var st := SurfaceTool.new()
+		st.create_from_arrays(arrays)
+		st.generate_normals()
+		out.append([Vector3(c.x, g0, c.y), st.commit_to_arrays()])
+	return out
+
+
+## Driehoek met de voorkant naar `out` (Godot: met de klok mee gezien van voren).
+static func _tri_out(idx: PackedInt32Array, verts: PackedVector3Array, a: int, b: int, c: int, out: Vector3) -> void:
+	if (verts[b] - verts[a]).cross(verts[c] - verts[a]).dot(out) < 0.0:
+		idx.append_array([a, b, c])
+	else:
+		idx.append_array([a, c, b])
 
 
 ## Hoogte van de rug boven de grond langs het skelet (u = m langs de rug, + = naar de kop).
@@ -1055,7 +1236,7 @@ func _build_mist(s: PlanetSurface) -> Dictionary:
 				continue
 			_fields(p.x, p.y)
 			var bed := (1.0 - smoothstep(0.0, 16.0, _f_wd)) * (1.0 - smoothstep(0.0, 30.0, _f_u))
-			if _f_amp > 1.0 or bed > 0.5:
+			if (_f_amp > 1.0 and _f_u < 0.0) or bed > 0.5: # niet op het plateau
 				# Aan de voet van de klif blijft meer mist hangen (warme stofzee onder de wand).
 				var foot := smoothstep(-240.0, -130.0, _f_u) * (1.0 - smoothstep(-TALUS_W - 10.0, -TALUS_W + 20.0, _f_u))
 				lvl[j * n + i] = maxf(_f_amp * 0.42 - 0.3 + 5.0 * foot, -WASH_DEPTH + 3.8 if bed > 0.5 else -3.0) * k
@@ -1124,6 +1305,17 @@ func _build_mist(s: PlanetSurface) -> Dictionary:
 func commit_props(root: Node3D, out: Dictionary) -> void:
 	var bone_mat := ShaderMaterial.new()
 	bone_mat.shader = BONE_SHADER
+	var far := root.get_parent().get_node_or_null("FarTerrain") as GeometryInstance3D
+	if out.has("fossil_buttes") and far:
+		for bm: Array in out.fossil_buttes:
+			var m := ArrayMesh.new()
+			m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, bm[1])
+			var mi := MeshInstance3D.new()
+			mi.name = "Butte"
+			mi.mesh = m
+			mi.material_override = far.material_override # de rotsshader van het verre landschap
+			mi.visibility_range_end = 1600.0 # niet vanuit de hub (1,7 km hoog): daar tekent het planeetdek
+			root.add_child(mi)
 	if out.has("fossil_bones"):
 		var mi := MeshInstance3D.new()
 		mi.name = "GiantSkeleton"
