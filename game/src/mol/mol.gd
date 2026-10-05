@@ -1587,7 +1587,7 @@ FUEL     %4d%%
 CARGO    %d · €%d
 ORE      %d · €%d" % [state, int(depth()), _magma_line(), int(game.unrest.value / maxf(1.0, Tuning.get_f("unrest", "stage", 100.0)) * 100.0),
 				int(fuel * 100.0), cargo.size(), value, OreField.units(ore), OreField.value(ore)])
-		visual.feed_text = "%d m  ·  %s  ·  %.1f m/s" % [int(depth()), Strata.NAMES[front].to_upper(), absf(speed)]
+		visual.feed_text = "%d m  ·  %s  ·  %.1f m/s" % [int(depth()), HudCompass.layer_name(front, int(game.planet_type)), absf(speed)]
 		if mode == Mode.DROP_COUNTDOWN:
 			visual.feed_text = "HATCHES  ·  DROP IN %d s" % int(ceil(countdown))
 		elif mode == Mode.DROPPING:
@@ -1646,7 +1646,7 @@ func _build_collision() -> void:
 	_box(Vector3(0.45, 0.6, 1.1), Vector3(1.85, -1.2, 0.0))
 	_box(Vector3(0.75, 1.3, 0.75), Vector3(-1.57, -0.85, 1.97))
 	_box(Vector3(0.6, 0.95, 0.6), Vector3(0, -1.03, -1.85))
-	_box(Vector3(0.62, 1.0, 0.76), Vector3(-1.79, -0.98, 3.62)) # ertstrechter (tools/blender/mol.py HOPPER)
+	_box(Vector3(0.5, 1.0, 0.64), Vector3(-1.85, -0.98, 2.7)) # ertstrechter (tools/blender/mol.py HOPPER)
 	# Laadklep: een vorm van het Mol-lichaam zelf die elke tick de scharnierhoek volgt
 	# (een apart lichaam onder de visuele klep belandde op een verkeerde plek).
 	var rb := BoxShape3D.new()

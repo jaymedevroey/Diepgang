@@ -284,7 +284,7 @@ func _sit() -> void:
 	velocity = Vector3.ZERO
 	active_tool.set_active(false)
 	_seat_to_mol()
-	ViewGlide.start(self, camera, cam_was, 0.3)
+	ViewGlide.start(self, camera, cam_was, 0.32, 0.3) # met een boogje over de rugleuning
 
 
 func _unseat() -> void:
@@ -300,7 +300,7 @@ func _unseat() -> void:
 	global_transform = Transform3D(Basis(Vector3.UP, mol.yaw + _look_yaw), mol.to_world_mol(Vector3(0.0, -1.45, -0.65)))
 	head.rotation.x = clampf(head.rotation.x, -1.2, 1.2)
 	if not was_chase:
-		ViewGlide.start(self, camera, cam_was, 0.3)
+		ViewGlide.start(self, camera, cam_was, 0.32, 0.3)
 	if (carry == null or carry.item == null) and not _holstered:
 		active_tool.set_active(true)
 

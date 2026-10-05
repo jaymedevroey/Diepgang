@@ -153,6 +153,7 @@ var _dust: GPUParticles3D
 var _grit: GPUParticles3D
 var _sparks: GPUParticles3D
 var _trail: GPUParticles3D
+var _spoil: GPUParticles3D # boorpuin dat achteraan onder de rupsen uitvalt
 var _flames: Array[MeshInstance3D] = []
 var _flame_mats: Array[ShaderMaterial] = []
 var _smoke: Array[GPUParticles3D] = []
@@ -185,7 +186,12 @@ var _snd: Dictionary = {}
 var _feed_viewport: SubViewport
 var _feed_camera: Camera3D
 var _rng := RandomNumberGenerator.new()
-var _label_left: Label3D
+## De schermen in de cabine spreken één taal (ui-13): dezelfde beeldbuis (feed.gdshader), hetzelfde
+## schermlettertype, een kop linksboven in dezelfde vorm. Amber is de Mol zelf (status, camera),
+## groen is de sonar (een apart instrument, zoals elke sonar).
+const SCREEN_AMBER := Color(1.0, 0.72, 0.3)
+var _status_viewport: SubViewport
+var _status_body: Label
 ## Sonarscherm rechts in de cabine (Mol zet de toestand via sonar_screen.display).
 var sonar_screen: SonarScreen
 
@@ -219,7 +225,7 @@ func _ready() -> void:
 	_build_thrusters()
 	_build_audio()
 	_build_feed()
-	_label_left = _screen_label("Label_Depth")
+	_build_status()
 	sonar_screen = SonarScreen.new()
 	sonar_screen.name = "SonarScreen"
 	add_child(sonar_screen)
@@ -232,26 +238,62 @@ func set_gauges(values: Array) -> void:
 		_needles[k][3] = deg_to_rad(135.0 - 270.0 * clampf(values[k], 0.0, 1.0))
 
 
-## Tekst op het statusscherm links van het camerascherm (amber, zoals een oud dotmatrixscherm).
+## Tekst op het statusscherm links van het camerascherm (amber, op dezelfde beeldbuis als de rest).
 func set_readout(text: String) -> void:
-	_label_left.text = text
+	if _status_body.text != text:
+		_status_body.text = text
 
 
-func _screen_label(anchor: String) -> Label3D:
-	var l := Label3D.new()
-	l.font = UiTheme.screen()
-	l.font_size = 44
-	l.line_spacing = -6.0
-	l.pixel_size = 0.0016
-	l.modulate = Color(1.0, 0.72, 0.3)
-	l.outline_size = 0
-	l.shaded = false
-	l.double_sided = false
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	l.width = 360.0
-	l.autowrap_mode = TextServer.AUTOWRAP_OFF
-	anchors[anchor].add_child(l)
-	l.position = Vector3(-0.28, 0.0, 0.03)
+## Statusscherm: een SubViewport met een kop en de toestand, op een vlak voor het scherm in het model
+## (Label_Depth), met hetzelfde beeldbuiseffect als het camerascherm en de sonar.
+func _build_status() -> void:
+	_status_viewport = SubViewport.new()
+	_status_viewport.size = Vector2i(520, 320)
+	_status_viewport.disable_3d = true
+	_status_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	add_child(_status_viewport)
+	var bg := ColorRect.new()
+	bg.color = Color(0.03, 0.02, 0.012)
+	bg.size = Vector2(520, 320)
+	_status_viewport.add_child(bg)
+	var head := _screen_text("STATUS  ·  THE MOLE", Vector2(22, 8), 22, Color(SCREEN_AMBER, 0.7))
+	_status_viewport.add_child(head)
+	var rule := ColorRect.new()
+	rule.color = Color(SCREEN_AMBER, 0.35)
+	rule.position = Vector2(22, 38)
+	rule.size = Vector2(476, 2)
+	_status_viewport.add_child(rule)
+	# Zo groot als het past: vanuit de stoel is een scherm klein (lessons: tekst ≥ 40 px op het scherm).
+	_status_body = _screen_text("", Vector2(22, 44), 36, SCREEN_AMBER)
+	_status_body.add_theme_constant_override("line_spacing", -8)
+	_status_viewport.add_child(_status_body)
+	var quad := MeshInstance3D.new()
+	var q := QuadMesh.new()
+	q.size = Vector2(0.62, 0.38)
+	quad.mesh = q
+	var m := ShaderMaterial.new()
+	m.shader = FEED_SHADER
+	m.set_shader_parameter("feed", _status_viewport.get_texture())
+	m.set_shader_parameter("tint", Color(1, 1, 1))
+	m.set_shader_parameter("desaturate", 0.0)
+	m.set_shader_parameter("vignette", 0.3)
+	m.set_shader_parameter("brightness", 1.6)
+	m.set_shader_parameter("lines", 160.0)
+	m.set_shader_parameter("flip_v", false)
+	quad.material_override = m
+	quad.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	anchors["Label_Depth"].add_child(quad)
+	quad.position = Vector3(0.0, 0.0, 0.004)
+
+
+## Tekst op een scherm in de cabine (schermlettertype, één kleur).
+static func _screen_text(text: String, pos: Vector2, size: int, color: Color) -> Label:
+	var l := Label.new()
+	l.text = text
+	l.position = pos
+	l.add_theme_font_override("font", UiTheme.screen())
+	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_color_override("font_color", color)
 	return l
 
 
@@ -575,6 +617,34 @@ func _build_particles() -> void:
 	sm.albedo_color = Color(4.0, 2.4, 1.0)
 	spark.material = sm
 	_sparks = _burst_emitter(head_front, 90, 0.45, spark, 5.0, 11.0, 80.0, Vector3(0, -3.0, 0))
+	# Boorpuin: brokken die achteraan tussen de rupsen uitvallen terwijl hij boort (gevoel-04: je
+	# ziet van buiten dat hij werkt, niet enkel een paar spikkels vooraan).
+	_spoil = GPUParticles3D.new()
+	var sm2 := ParticleProcessMaterial.new()
+	sm2.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	sm2.emission_box_extents = Vector3(1.6, 0.2, 0.3)
+	sm2.direction = Vector3(0, -0.3, 1)
+	sm2.spread = 25.0
+	sm2.initial_velocity_min = 0.6
+	sm2.initial_velocity_max = 1.8
+	sm2.gravity = Vector3(0, -9.8, 0)
+	sm2.angular_velocity_min = -300.0
+	sm2.angular_velocity_max = 300.0
+	sm2.scale_min = 0.8
+	sm2.scale_max = 2.2
+	_spoil.process_material = sm2
+	var spoil_mesh := DigFx._scaled(FindKinds.chunk(4), 0.12)
+	var spm := StandardMaterial3D.new()
+	spm.vertex_color_use_as_albedo = true
+	spm.roughness = 0.95
+	spoil_mesh.surface_set_material(0, spm)
+	_spoil.draw_pass_1 = spoil_mesh
+	_spoil.amount = 40
+	_spoil.lifetime = 1.4
+	_spoil.local_coords = false
+	_spoil.emitting = false
+	model.add_child(_spoil)
+	_spoil.position = Vector3(0, -2.1, 3.9)
 	(_sparks.process_material as ParticleProcessMaterial).particle_flag_align_y = true
 	(_sparks.process_material as ParticleProcessMaterial).color_ramp = _gradient_tex(Color(1, 0.9, 0.6, 1), Color(1, 0.35, 0.05, 0))
 
@@ -702,7 +772,7 @@ func _build_thrusters() -> void:
 	dm.initial_velocity_max = 17.0
 	dm.damping_min = 3.0
 	dm.damping_max = 5.0
-	dm.gravity = Vector3(0, 0.3, 0)
+	dm.gravity = Vector3(0, 1.4, 0) # de wolk kolkt op, hij blijft niet plat in de grond (proximity fade)
 	dm.scale_min = 1.5
 	dm.scale_max = 2.8
 	# Klein bij de romp, groot verder weg (een grote wolk vlak naast de romp stak door de wand).
@@ -717,7 +787,7 @@ func _build_thrusters() -> void:
 	_landing_dust.local_coords = false
 	_landing_dust.emitting = false
 	model.add_child(_landing_dust)
-	_landing_dust.position = Vector3(0, -2.6, 0)
+	_landing_dust.position = Vector3(0, -1.9, 0)
 	# Brokjes die opspatten bij de klap.
 	_debris = GPUParticles3D.new()
 	var bm := ParticleProcessMaterial.new()
@@ -983,38 +1053,37 @@ func _build_feed() -> void:
 	m.shader = FEED_SHADER
 	m.set_shader_parameter("feed", _feed_viewport.get_texture())
 	screen.material_override = m
-	# Overlay zoals een bewakingscamera: naam, REC, vizier, diepte.
+	# Beeld licht warm (niet groengrijs), zodat het naast het amberen statusscherm hoort.
+	m.set_shader_parameter("tint", Color(1.0, 0.95, 0.86))
+	# Overlay zoals een bewakingscamera: naam, REC, vizier, diepte. Amber in het schermlettertype,
+	# de kop zoals op het statusscherm (ui-13).
 	var hud := Control.new()
 	hud.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_feed_viewport.add_child(hud)
-	var font_col := Color(0.85, 1.0, 0.85, 0.9)
-	_feed_top = Label.new()
-	_feed_top.text = "CAM 1  ·  DRILL HEAD"
-	_feed_top.position = Vector2(18, 12)
-	_feed_top.add_theme_font_size_override("font_size", 20)
-	_feed_top.add_theme_color_override("font_color", font_col)
+	var font_col := Color(SCREEN_AMBER, 1.0)
+	# Donkere banden achter de kop en de voetregel: leesbaar, ook tegen een lichte hemel.
+	for band in [Rect2(0, 0, 640, 46), Rect2(0, 300, 640, 52)]:
+		var b := ColorRect.new()
+		b.color = Color(0.0, 0.0, 0.0, 0.55)
+		b.position = band.position
+		b.size = band.size
+		hud.add_child(b)
+	_feed_top = _screen_text("CAM 1  ·  DRILL HEAD", Vector2(18, 10), 24, Color(SCREEN_AMBER, 0.9))
 	hud.add_child(_feed_top)
 	_feed_rec = ColorRect.new()
 	_feed_rec.color = Color(1.0, 0.15, 0.1)
 	_feed_rec.size = Vector2(12, 12)
 	_feed_rec.position = Vector2(580, 20)
 	hud.add_child(_feed_rec)
-	var rec := Label.new()
-	rec.text = "REC"
-	rec.position = Vector2(538, 12)
-	rec.add_theme_font_size_override("font_size", 20)
-	rec.add_theme_color_override("font_color", font_col)
+	var rec := _screen_text("REC", Vector2(528, 10), 24, Color(SCREEN_AMBER, 0.9))
 	hud.add_child(rec)
 	for r in [Rect2(310, 175, 20, 2), Rect2(319, 166, 2, 20), Rect2(250, 175, 30, 2), Rect2(360, 175, 30, 2)]:
 		var cr := ColorRect.new()
-		cr.color = Color(0.85, 1.0, 0.85, 0.55)
+		cr.color = Color(SCREEN_AMBER, 0.5)
 		cr.position = r.position
 		cr.size = r.size
 		hud.add_child(cr)
-	_feed_label = Label.new()
-	_feed_label.position = Vector2(18, 312)
-	_feed_label.add_theme_font_size_override("font_size", 20)
-	_feed_label.add_theme_color_override("font_color", font_col)
+	_feed_label = _screen_text("", Vector2(18, 310), 26, font_col)
 	hud.add_child(_feed_label)
 
 
@@ -1101,11 +1170,13 @@ func _process(delta: float) -> void:
 	if _trail.emitting:
 		(_trail.draw_pass_1.surface_get_material(0) as StandardMaterial3D).albedo_color = Color(dust_color.lightened(0.15), 1.0)
 	_grit.emitting = drilling
+	_spoil.emitting = drilling
 	_sparks.emitting = blocked
 	if drilling:
 		var dm := _dust.draw_pass_1.surface_get_material(0) as StandardMaterial3D
 		dm.albedo_color = Color(dust_color.lightened(0.1), 0.55)
 		(_grit.process_material as ParticleProcessMaterial).color = dust_color.darkened(0.2)
+		(_spoil.process_material as ParticleProcessMaterial).color = dust_color.darkened(0.3)
 	_update_drop_fx(delta)
 
 	# Geluid.
@@ -1124,6 +1195,7 @@ func _process(delta: float) -> void:
 
 	# Camerascherm. Bij de drop kijkt het door de buik naar beneden (de luiken, dan de diepte).
 	_feed_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS if feed_active else SubViewport.UPDATE_DISABLED
+	_status_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS if feed_active else SubViewport.UPDATE_DISABLED
 	if sonar_screen.active != feed_active:
 		sonar_screen.active = feed_active
 	if feed_active:
@@ -1240,7 +1312,7 @@ func _update_drop_fx(delta: float) -> void:
 	model.position = Vector3(shake_off.x, _sag + shake_off.y, 0.0)
 	# PING: een groene puls door de cabine.
 	_ping_glow = maxf(0.0, _ping_glow - delta * 1.8)
-	_ping_light.light_energy = 4.0 * _ping_glow * _ping_glow
+	_ping_light.light_energy = 3.0 * _ping_glow * _ping_glow
 	_ping_light.visible = _ping_glow > 0.01
 
 

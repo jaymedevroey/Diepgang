@@ -10,13 +10,15 @@ uniform float brightness = 1.25;
 uniform float lines = 176.0;
 uniform float desaturate = 0.35;
 uniform float vignette = 0.7;
+// Het camerascherm in het model heeft een omgekeerde v; een QuadMesh (statusscherm) niet.
+uniform bool flip_v = true;
 
 float rnd(vec2 p) {
 	return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
 }
 
 void fragment() {
-	vec2 uv = vec2(UV.x, 1.0 - UV.y); // viewporttextuur staat ondersteboven op dit vlak
+	vec2 uv = flip_v ? vec2(UV.x, 1.0 - UV.y) : UV; // viewporttextuur staat ondersteboven op het model
 	// Lichte tonvervorming van een bolle beeldbuis.
 	vec2 c = uv - 0.5;
 	uv = 0.5 + c * (1.0 + 0.06 * dot(c, c));

@@ -540,7 +540,9 @@ def build_cockpit(g):
     desk_label("HORN", BTN_HORN_U, -0.14)
     # Vertrekhendel: geel-zwart voetplaatje; de hendel zelf is het object Lever.
     box((0.2, 0.012, 0.26), desk(LEVER_U, 0.02, 0.037), "Hazard", g, bevel=0.0, rot=DESK_ROT)
-    desk_label("LAUNCH", LEVER_U, -0.17, material="Red")
+    # LAUNCH: geel op een zwart plaatje, het best leesbare label op de console (ui-13).
+    box((0.27, 0.006, 0.075), desk(LEVER_U, -0.17, 0.034), "DecalDark", g, bevel=0.0, rot=DESK_ROT)
+    desk_label("LAUNCH", LEVER_U, -0.17, material="Yellow")
     # Mok koffie op de hoek (het is vroeg, het is altijd vroeg).
     cyl(0.045, 0.1, desk(-1.82, -0.18, 0.09), "Red", g, verts=16, bevel=0.005, rot=DESK_ROT)
     cyl(0.038, 0.005, desk(-1.82, -0.18, 0.141), "Wood", g, verts=16, bevel=0.0, rot=DESK_ROT)
@@ -609,9 +611,9 @@ def build_cargo(g):
         box((0.14, 0.012, 2.5), (s * (hw - 0.12), IN_Y0 + 0.016, 2.9), "Hazard", g, bevel=0.0)
         tube([(s * 1.1, IN_Y0 + 0.05, 1.85), (s * 1.1, IN_Y0 + 0.05, 4.0)], 0.03, "Steel", g, verts=8)
         for y in (-0.7, 0.55):
-            # Links stopt de onderste rail voor de ertstrechter.
-            z_end = 3.2 if (s < 0 and y < 0.0) else 4.05
-            tube([(s * (hw - 0.06), y, 1.75), (s * (hw - 0.06), y, z_end)], 0.03, "Steel", g, verts=8)
+            # Links loopt de onderste rail niet door de ertstrechter.
+            z0 = 3.15 if (s < 0 and y < 0.0) else 1.75
+            tube([(s * (hw - 0.06), y, z0), (s * (hw - 0.06), y, 4.05)], 0.03, "Steel", g, verts=8)
     # Kratten (decor) links voor in het laadruim.
     for (x, y, z, sz) in ((-1.55, IN_Y0 + 0.35, 1.95, 0.7), (-1.6, IN_Y0 + 0.95, 1.98, 0.5)):
         box((sz, sz, sz), (x, y, z), "Wood", g, bevel=0.03)
@@ -625,32 +627,43 @@ def build_cargo(g):
     cyl(0.05, 0.05, (hw - 0.09, -0.25, 3.7), "Yellow", g, axis="x", verts=12, bevel=0.0)
 
 
-# Ertstrechter (binnen-15): een brede vierkante trechtermond die uit de linkerwand van het laadruim
-# steekt, op heuphoogte, met een rooster, een gele-zwarte rand, een geel bord met ORE en een pijl
-# naar beneden, en een stortpijp naar de vloer. Erts dat ernaast viel, ligt op de vloer.
-HOPPER = (-1.78, -0.44, 3.62)  # midden van de mond (bovenkant), tussen het laatste spant en de klep
+# Ertstrechter (binnen-15): een brede trechtermond die uit de linkerwand van het laadruim steekt,
+# op heuphoogte, met een rooster, een gele-zwarte rand, een geel bord met ORE en een pijl naar
+# beneden, en een stortpijp naar de vloer. Erts dat ernaast viel, ligt op de vloer. Tussen de kratten
+# en het laatste spant: de ingang langs de klep blijft vrij (looproute eerst), en ze steekt maar
+# HOPPER_MX uit de wand.
+HOPPER = (-1.83, -0.44, 2.7)  # midden van de mond (bovenkant)
+HOPPER_MX, HOPPER_MZ = 0.48, 0.62  # mond: uit de wand, langs de wand
 
 
 def build_hopper(g):
     hw = IN_W / 2
     hx, hy, hz = HOPPER
+    mx, mz = HOPPER_MX, HOPPER_MZ
     depth = 0.46
-    # Vierkante trechter (kegel met 4 zijden, 45° gedraaid), smal onderaan.
-    cyl(0.18, depth, (hx, hy - depth / 2, hz), "Yellow", g, verts=4, bevel=0.012, r2=0.5, rot=(0, 45, 0))
+    # Trechter (kegel met 4 zijden, 45° gedraaid, smal onderaan), platgedrukt tot de mond mx × mz.
+    o = cyl(0.18, depth, (0, 0, 0), "Yellow", g, verts=4, bevel=0.012, r2=0.5, rot=(0, 45, 0))
+    o.scale = (mx / 0.7, mz / 0.7, 1.0)  # Blender x = Godot x, Blender y = −Godot z
+    o.location = G(hx, hy - depth / 2, hz)
+    bpy.ops.object.select_all(action="DESELECT")
+    o.select_set(True)
+    bpy.context.view_layer.objects.active = o
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
     # De opening: donker, net onder de rand, met een rooster van stalen staven erover.
-    box((0.62, 0.02, 0.62), (hx, hy - 0.03, hz), "Soot", g, bevel=0.0)
-    for k in range(-3, 4):
-        box((0.64, 0.025, 0.022), (hx, hy + 0.012, hz + k * 0.085), "DarkSteel", g, bevel=0.004)
-    box((0.022, 0.03, 0.64), (hx, hy + 0.016, hz), "DarkSteel", g, bevel=0.004)
+    box((mx - 0.08, 0.02, mz - 0.08), (hx, hy - 0.03, hz), "Soot", g, bevel=0.0)
+    n = int((mz - 0.1) / 0.085)
+    for k in range(-(n // 2), n // 2 + 1):
+        box((mx - 0.06, 0.025, 0.022), (hx, hy + 0.012, hz + k * 0.085), "DarkSteel", g, bevel=0.004)
+    box((0.022, 0.03, mz - 0.06), (hx, hy + 0.016, hz), "DarkSteel", g, bevel=0.004)
     # Rand met waarschuwingsstrepen.
     for sgn in (-1, 1):
-        box((0.74, 0.035, 0.05), (hx, hy + 0.01, hz + sgn * 0.345), "Hazard", g, bevel=0.006)
-        box((0.05, 0.035, 0.74), (hx + sgn * 0.345, hy + 0.01, hz), "Hazard", g, bevel=0.006)
+        box((mx + 0.04, 0.035, 0.05), (hx, hy + 0.01, hz + sgn * (mz / 2 - 0.005)), "Hazard", g, bevel=0.006)
+        box((0.05, 0.035, mz + 0.04), (hx + sgn * (mx / 2 - 0.005), hy + 0.01, hz), "Hazard", g, bevel=0.006)
     # Ophanging aan de wand en de stortpijp naar de vloer (in het onderstel).
-    box((0.05, 0.7, 0.8), (-(hw - 0.03), hy - 0.25, hz), "Anthracite", g, bevel=0.012)
+    box((0.05, 0.7, mz - 0.02), (-(hw - 0.03), hy - 0.25, hz), "Anthracite", g, bevel=0.012)
     for sgn in (-1, 1):
-        box((0.36, 0.05, 0.05), (-(hw - 0.2), hy - 0.42, hz + sgn * 0.3), "Anthracite", g, bevel=0.008, rot=(0, 0, -35))
-    tube([(hx, hy - depth + 0.02, hz), (hx, IN_Y0 + 0.08, hz), (-(hw - 0.05), IN_Y0 + 0.08, hz)], 0.075, "DarkSteel", g, verts=10)
+        box((0.3, 0.05, 0.05), (-(hw - 0.17), hy - 0.4, hz + sgn * (mz / 2 - 0.06)), "Anthracite", g, bevel=0.008, rot=(0, 0, -35))
+    tube([(hx, hy - depth + 0.02, hz), (hx, IN_Y0 + 0.08, hz), (-(hw - 0.05), IN_Y0 + 0.08, hz)], 0.07, "DarkSteel", g, verts=10)
     # Bord: geel, ORE, een pijl naar beneden.
     by = hy + 0.52
     box((0.03, 0.4, 0.5), (-(hw - 0.02), by, hz), "Yellow", g, bevel=0.01)
@@ -660,8 +673,8 @@ def build_hopper(g):
     for sgn in (-1, 1):
         box((0.012, 0.075, 0.026), (-(hw - 0.04), by - 0.1, hz + sgn * 0.024), "DecalDark", g, bevel=0.0, rot=(sgn * 45, 0, 0))
     # Gemorst erts op de vloer onder de mond: kleine roestbruine brokjes.
-    for i, (dx, dz, sz) in enumerate(((0.32, -0.25, 0.05), (0.45, 0.1, 0.035), (0.28, 0.3, 0.04), (0.55, -0.05, 0.03),
-                                      (0.38, 0.42, 0.028), (0.62, 0.28, 0.025))):
+    for i, (dx, dz, sz) in enumerate(((0.3, -0.2, 0.05), (0.42, 0.1, 0.035), (0.26, 0.24, 0.04), (0.5, -0.05, 0.03),
+                                      (0.36, 0.3, 0.028), (0.58, 0.2, 0.025))):
         box((sz, sz * 0.8, sz * 1.1), (hx + dx, IN_Y0 + FLOOR_LIFT + sz * 0.4, hz + dz), "RedOxide" if i % 2 else "Copper", g,
             bevel=0.008, rot=(i * 23, i * 41, i * 17))
 

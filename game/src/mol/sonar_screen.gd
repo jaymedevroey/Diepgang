@@ -67,7 +67,9 @@ func setup(screen: MeshInstance3D, lamp: MeshInstance3D, ping_button: MeshInstan
 	_label("warn", "", Vector2(TEXT_X, 300), 40, 1.0)
 	_label("ping", "", Vector2(TEXT_X, 400), 36, 0.9)
 	_label("range", "", Vector2(TEXT_X, 448), 30, 0.55)
-	_label("status", "", Vector2(TEXT_X, 482), 36, 0.8)
+	# Lawaai van de Mol zelf: wat het met de echo's doet staat erbij (ui-13: QUIET/NOISY werd nergens
+	# uitgelegd).
+	_label("status", "", Vector2(TEXT_X, 482), 28, 0.8)
 	# Beeldbuis: zelfde effect als het camerascherm, zonder ontzadigen (het beeld is al groen).
 	var m := ShaderMaterial.new()
 	m.shader = FEED_SHADER
@@ -193,7 +195,7 @@ func display(sonar: Sonar, origin: Transform3D, delta: float) -> void:
 		pl.modulate = Color(1, 1, 1, 1.0 if sonar.ping_ready() or sonar.pinging() else 0.45)
 	_text("range", "RANGE %d m" % int(sonar.range_m))
 	var noisy := sonar.noise > 0.3
-	_text("status", "NOISY" if noisy else "QUIET")
+	_text("status", "NOISY: BLURRY" if noisy else "QUIET: SHARP")
 	(_labels["status"] as Label).modulate.a = (1.0 if blink else 0.4) if noisy else 0.8
 
 
