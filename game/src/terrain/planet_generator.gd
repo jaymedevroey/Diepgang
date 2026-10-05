@@ -167,6 +167,39 @@ func sdf_at(p: Vector3) -> float:
 	return _sdf(p, surface_at(p.x, p.z), _rocks, _caverns, _tunnels, _cave_rocks, _cones)
 
 
+## De vormen binnen `reach` voxels van `center` (voor veel vragen in één gebied, zoals CaveDecor).
+func local_shapes(center: Vector3, reach: float) -> Array:
+	var rocks: Array[PackedVector4Array] = []
+	for b in _rocks:
+		if Vector3(b[0].x, b[0].y, b[0].z).distance_to(center) < b[0].w + reach:
+			rocks.append(b)
+	var caverns: Array[Vector4] = []
+	for c in _caverns:
+		if Vector3(c.x, c.y, c.z).distance_to(center) < c.w + reach:
+			caverns.append(c)
+	var tunnels: Array = []
+	for t: Array in _tunnels:
+		var a: Vector3 = t[0]
+		var ab: Vector3 = (t[1] as Vector3) - a
+		var k := clampf((center - a).dot(ab) / maxf(ab.length_squared(), 0.001), 0.0, 1.0)
+		if center.distance_to(a + ab * k) < float(t[2]) + reach:
+			tunnels.append(t)
+	var cave_rocks: Array[PackedVector4Array] = []
+	for b in _cave_rocks:
+		if Vector3(b[0].x, b[0].y, b[0].z).distance_to(center) < b[0].w + reach:
+			cave_rocks.append(b)
+	var cones: Array[PackedFloat32Array] = []
+	for cn in _cones:
+		if Vector3(cn[7], cn[8], cn[9]).distance_to(center) < cn[10] + reach:
+			cones.append(cn)
+	return [rocks, caverns, tunnels, cave_rocks, cones]
+
+
+## Zoals sdf_at, maar enkel met de vormen uit local_shapes (voxels).
+func sdf_local(p: Vector3, shapes: Array) -> float:
+	return _sdf(p, surface_at(p.x, p.z), shapes[0], shapes[1], shapes[2], shapes[3], shapes[4])
+
+
 ## Kraterprofiel (×diepte): een kom tot de rand (d = 1), met een opstaande rand erbuiten.
 static func _crater_profile(d: float) -> float:
 	var bowl := -(1.0 - d * d) if d < 1.0 else 0.0
@@ -237,7 +270,8 @@ func _rock_shape(rng: RandomNumberGenerator, r: float, on_ground: bool) -> Array
 	var scale := Vector3.ONE
 	var tilt := Vector3(rng.randf_range(-0.3, 0.3), rng.randf() * TAU, rng.randf_range(-0.3, 0.3))
 	var sink := 0.0
-	match planet:
+	# In grotten liggen op de Kristalmaan gewone brokken (een liggende zuil leek op een grafsteen).
+	match planet if on_ground or planet != 2 else 0:
 		1:
 			# Krijtblok: een doos met afgeschuinde ribben en hoeken, plat en breed, wat verzakt.
 			for ax: Vector3 in [Vector3.RIGHT, Vector3.LEFT, Vector3.UP, Vector3.DOWN, Vector3.FORWARD, Vector3.BACK]:

@@ -376,9 +376,9 @@ void fragment() {
 			float hu = hash1(vec3(uid, seed_s, 5.1));
 			// Gevlekte klei (zoals echte ondergrond): grijsgroene en donkere vlekken van 0,3-1 m.
 			float steep_k = 1.0 - smoothstep(0.55, 0.85, abs(up));
-			float mot = vnoise(wpos * 1.1 + vec3(seed_s, 2.0, 0.0)) * 0.65 + vnoise(wpos * 3.1 + vec3(5.0)) * 0.35;
-			col = mix(col, lin(ug_band[2]) * 0.95, smoothstep(0.6, 0.68, mot) * 0.55 * under_k);
-			col = mix(col, dark, (1.0 - smoothstep(0.3, 0.36, mot)) * 0.35 * under_k);
+			float mot = vnoise(wpos * 1.5 + vec3(seed_s, 2.0, 0.0)) * 0.65 + vnoise(wpos * 3.8 + vec3(5.0)) * 0.35;
+			col = mix(col, lin(ug_band[2]) * 0.95, smoothstep(0.6, 0.68, mot) * 0.3 * under_k);
+			col = mix(col, dark, (1.0 - smoothstep(0.3, 0.36, mot)) * 0.25 * under_k);
 			// Fijne horizontale laagjes (varven) op de wanden: elke wand leest als een doorsnede.
 			float vv = uy * 9.0 + 1.5 * vnoise(wpos * 0.7);
 			float varve = sin(vv) * 0.5 + sin(vv * 2.3 + 1.0) * 0.25;
@@ -525,9 +525,9 @@ void fragment() {
 		col *= 1.0 - jline * 0.55;
 		float kd = 1.0 - smoothstep(3.0, 10.0, dist); // spikkels (1-2 cm): tot ±10 m
 		if (kd > 0.0) {
-			col = mix(col, lin(ug_dark[1]) * 0.3, smoothstep(0.8, 0.83, vnoise(wpos * 21.0 + vec3(3.1))) * 0.6 * kd);
-			col = mix(col, lin(ug_accent[1]), smoothstep(0.82, 0.85, vnoise(wpos * 24.0 + vec3(17.0))) * 0.5 * kd);
-			col = mix(col, lin(PINK), smoothstep(0.83, 0.86, vnoise(wpos * 17.0 + vec3(41.0))) * 0.4 * kd * (planet_id == 0 ? 1.0 : 0.0));
+			col = mix(col, lin(ug_dark[1]) * 0.3, smoothstep(0.83, 0.86, vnoise(wpos * 21.0 + vec3(3.1))) * 0.55 * kd);
+			col = mix(col, lin(ug_accent[1]), smoothstep(0.85, 0.88, vnoise(wpos * 24.0 + vec3(17.0))) * 0.45 * kd);
+			col = mix(col, lin(PINK), smoothstep(0.86, 0.89, vnoise(wpos * 17.0 + vec3(41.0))) * 0.4 * kd * (planet_id == 0 ? 1.0 : 0.0));
 			float mica = step(0.975, hash1(floor(wpos * 30.0) + vec3(seed_s)));
 			rough = mix(rough, 0.15, mica * kd);
 		}
@@ -547,12 +547,12 @@ void fragment() {
 		vec2 vv = voronoi(wpos / 2.8 + vec3(5.3, seed_s, 1.7), vc);
 		float ve = vv.y * 2.8; // afstand (m) tot de breuklijn
 		float vfw = max(fwidth(ve), 1e-4);
-		float mask = smoothstep(0.62, 0.74, vnoise(wpos * 0.17 + vec3(11.0))); // slechts een deel van de breuken
+		float mask = smoothstep(0.7, 0.8, vnoise(wpos * 0.17 + vec3(11.0))); // slechts een deel van de breuken
 		float vw = mix(0.012, 0.03, vnoise(wpos * 0.6 + vec3(2.0)));
 		float vein = (1.0 - smoothstep(vw, vw + vfw * 1.5, ve)) * mask;
 		float glow = (1.0 - smoothstep(0.0, 1.2, ve)) * mask; // zachte schijn op de rots rond een naad
 		float pulse = 0.82 + 0.18 * sin(TIME * 1.1 + hash1(vc) * 6.28);
-		emit = vcol * (vein * vein_energy * 0.6 + glow * glow * 0.04) * pulse;
+		emit = vcol * (vein * vein_energy * 0.35 + glow * glow * 0.03) * pulse;
 		col = mix(col, vcol * 0.3, vein);
 		col = mix(col, light, 0.22); // kristalgesteente iets lichter, anders verdwijnt het in het donker
 		rough = mix(rough, 0.08, vein);
@@ -669,8 +669,9 @@ void fragment() {
 		}
 	}
 	if (ore_k > 0.0) {
-		float sn = vnoise(wpos * 2.6 + vec3(seed_s));
-		float sk = smoothstep(0.05, 0.75, ore_k) * smoothstep(0.25, 0.6, sn + ore_k * 0.4);
+		// Verkleuring in aders (uitgerekte ruis), dicht bij de cluster het sterkst: geen bol.
+		float sn = vnoise(wpos * vec3(1.6, 5.0, 1.6) + vec3(seed_s)) * 0.7 + vnoise(wpos * 3.3) * 0.3;
+		float sk = smoothstep(0.35, 0.85, ore_k) * smoothstep(0.42, 0.62, sn + ore_k * 0.25);
 		col = mix(col, ore_s.rgb, sk * ore_s.a);
 		float gs = max(0.16, px * 5.0); // cel (m) van de glinsters
 		vec3 cp = wpos / gs + vec3(seed_s * 3.1);

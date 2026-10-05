@@ -106,6 +106,11 @@ func _ready() -> void:
 	add_child(_terrain)
 	_block_size = _terrain.get_data_block_size()
 	_terrain.block_loaded.connect(_on_block_loaded)
+	# Zwammen, kristallen en druipsteentjes in de grotten (enkel beeld, uit de seed).
+	var decor := CaveDecor.new()
+	decor.name = "CaveDecor"
+	add_child(decor)
+	decor.setup(self)
 
 	_tool = _terrain.get_voxel_tool() as VoxelToolTerrain
 	_tool.channel = VoxelBuffer.CHANNEL_SDF

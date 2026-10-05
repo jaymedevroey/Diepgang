@@ -148,6 +148,20 @@ func _surface_shots(t: TerrainAPI, sc: Vector3, top: float) -> void:
 	_queue.append(["oppervlak_gat", hole + Vector3(-3.2, 1.8, -1.0), hole + Vector3(0.6, -1.4, 0.2), false])
 
 
+## Na een grot: ook een beeld van het dichtste gloeiende groepje (zwammen, kristallen) in die grot.
+func _queue_decor_shot() -> void:
+	var decor := main.terrain.get_node_or_null("CaveDecor") as CaveDecor
+	if decor == null:
+		return
+	var anchors := decor.glow_anchors(_cam.global_position)
+	if anchors.is_empty() or (anchors[0][0] as Vector3).distance_to(_cam.global_position) > 30.0:
+		return
+	var a: Vector3 = anchors[0][0]
+	var n: Vector3 = anchors[0][1]
+	var eye := a + n * 2.2 + Vector3.UP * 0.6
+	_queue.push_front([_shot.trim_suffix("_grot") + "_decor", eye, a])
+
+
 func _color_arg(key: String, fallback: Color) -> Color:
 	var parts := str(CmdArgs.value(key, "")).split(",", false)
 	if parts.size() != 3:
@@ -186,4 +200,6 @@ func _process(_delta: float) -> void:
 		get_viewport().get_texture().get_image().save_png(path)
 		print("[preview] ", path)
 		_frames = -1
+		if _shot.ends_with("_grot"):
+			_queue_decor_shot()
 		_next()
