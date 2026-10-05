@@ -34,6 +34,13 @@ const ROUGH_AMP := 1.8
 ## Per planeet (TerrainAPI zet ze voor setup): Fossielwereld is een vlakke kalkbodem met weinig kraters.
 var crater_count := 22
 var boulder_count := 70
+## Vormen van de landvorm in het speelgebied (TerrainAPI: Landform.near_height op een raster, in
+## voxels, vóór setup gezet). Leeg = geen.
+var near := PackedFloat32Array()
+var near_origin := Vector2.ZERO # voxels
+var near_step := 1.0 # voxels
+var near_nx := 0
+var near_nz := 0
 var _craters: Array[Vector4] = [] # x, z, straal, diepte (voxels)
 var _boulders: Array[Vector4] = [] # x, y, z, straal
 var _caverns: Array[Vector4] = [] # x, y, z, horizontale straal
@@ -123,7 +130,18 @@ func surface_at(x: float, z: float) -> float:
 	# Landingsplek: vlak in het midden, met een zachte overgang.
 	var flat := clampf((d - landing_radius) / 40.0, 0.0, 1.0)
 	flat = flat * flat * (3.0 - 2.0 * flat)
-	var h := surface_y + flat * (10.0 * _hills.get_noise_2d(x, z) + 1.4 * _detail.get_noise_2d(x, z))
+	var nh := 0.0
+	if near_nx > 0:
+		# Bilineair, hier uitgeschreven (een functieaanroep kost op de voxeldraden meer dan dit).
+		var fx := (x - near_origin.x) / near_step
+		var fz := (z - near_origin.y) / near_step
+		if fx >= 0.0 and fz >= 0.0 and fx < near_nx - 1 and fz < near_nz - 1:
+			var i := int(fx)
+			var k := int(fz) * near_nx + i
+			var tx := fx - i
+			var tz := fz - floorf(fz)
+			nh = lerpf(lerpf(near[k], near[k + 1], tx), lerpf(near[k + near_nx], near[k + near_nx + 1], tx), tz)
+	var h := surface_y + flat * (10.0 * _hills.get_noise_2d(x, z) + 1.4 * _detail.get_noise_2d(x, z) + nh)
 	for c in _craters:
 		var dc := Vector2(x - c.x, z - c.y).length() / c.z
 		if dc < 1.6:

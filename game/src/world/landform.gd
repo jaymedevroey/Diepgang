@@ -13,6 +13,9 @@ extends RefCounted
 ##   tint         kleur van het landschap (rgb maal de rotskleur) en a = lagen in steile wanden
 ##   rock_density hoeveel losse rotsblokken per cel van 24 m (≈ 0..4), rock_scale hoe groot
 ##   compute_props / commit_props   eigen dingen (booreiland, botten, kristallen ...)
+##   near_height  vormen die het speelgebied binnenlopen (duinen, een bedding): in het voxelterrein
+## De tint geldt ook binnen het speelgebied (PlanetSurface bakt ze in een textuur voor het
+## voxelterrein): niet naar neutraal laten vervagen aan de rand, dan loopt de kleur gewoon door.
 
 ## Waar de landvorm begint mee te tellen (m buiten het speelgebied): op de rand zelf moet het verre
 ## landschap exact op het voxelterrein aansluiten.
@@ -41,6 +44,25 @@ func setup(_planet_seed: int, landing_xz: Vector2, size: Vector2) -> void:
 
 ## Hoogte (m) boven of onder de basis van het verre landschap; `o` = afstand buiten het speelgebied.
 func height(_x: float, _z: float, _o: float) -> float:
+	return 0.0
+
+
+## Vormen die het speelgebied binnenlopen (m, zoals height). TerrainAPI bakt ze op een raster over
+## het speelgebied plus FADE_IN.y en de generator legt ze in het voxelterrein; voorbij FADE_IN.y neemt
+## height() het over, dus height() moet dezelfde vormen bevatten. Enkel lezen (geen gedeelde
+## toestand): het raster wordt op de hoofdthread gebakken, vóór de werkthread van PlanetSurface.
+func near_height(_x: float, _z: float) -> float:
+	return 0.0
+
+
+## Heeft deze planeet vormen in het speelgebied (anders bakt TerrainAPI niets)?
+func has_near() -> bool:
+	return false
+
+
+## Hoe sterk hier de naden van een zeshoekige korst getekend worden (0..1), in het voxelterrein
+## (de shader legt hetzelfde rooster als KristalMesh.hex_plate buiten het speelgebied).
+func crust_seams(_x: float, _z: float) -> float:
 	return 0.0
 
 

@@ -1088,7 +1088,7 @@ func _paint_terminal(s: Screen) -> void:
 		_text(s, "cap2", "MAGMA")
 		_text(s, "val2", "×" + _num(Company.magma_factor(risk)))
 		# Na het kiezen laadt de nieuwe wereld: De Ekster vliegt erheen (de hendel wacht daarop).
-		var loading: bool = game.terrain == null or not game.terrain.is_loaded
+		var loading: bool = not game.world_ready()
 		var dots := ".".repeat(1 + int(_time * 2.5) % 3)
 		if not docked:
 			_text(s, "prompt", "> DE MOL IS ONDERWEG" + cursor)

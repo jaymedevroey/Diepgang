@@ -36,7 +36,7 @@ func _run(_p: Player) -> void:
 	_expect(not c.contract_ready(), "nog geen opdracht")
 	c.choose(2)
 	await get_tree().process_frame
-	while not game.terrain.is_loaded:
+	while not game.world_ready():
 		await get_tree().physics_frame
 	_expect(c.contract_ready() and int(c.contract.risk) == Company.Risk.HIGH and game.pit_seed == int(c.contract.seed), "opdracht met hoog risico gekozen (nieuwe wereld)")
 	_expect(is_equal_approx(c.contract_magma(), Company.magma_factor(Company.Risk.HIGH)), "het magma stijgt sneller (×%.2f)" % c.contract_magma())

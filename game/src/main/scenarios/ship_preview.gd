@@ -164,7 +164,7 @@ func _hud_shots(p: Player, game: Game, ship: Ekster, mol: Mol) -> void:
 	await _shot("hud_laden_terminal", 0.2)
 	await _stand(p, hub, Vector3(0.75, 1.2, 12.6), Vector3(0.0, 1.0, 0.0))
 	await _shot("hud_laden_trap", 0.4)
-	while not game.terrain.is_loaded:
+	while not game.world_ready():
 		await get_tree().process_frame
 	await _shot("hud_geladen_trap", 0.6)
 	await _stand(p, hub, Vector3(0.0, 0.0, 9.2), Vector3(0.0, 1.0, 0.0))

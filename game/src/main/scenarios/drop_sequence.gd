@@ -113,7 +113,7 @@ func _run(p: Player) -> void:
 	game.company.choose(pick)
 	for k in 6:
 		await _shot("na_kiezen_%d" % k, 0.5)
-	while not game.terrain.is_loaded:
+	while not game.world_ready():
 		await get_tree().process_frame
 	await _shot("wereld_geladen", 0.5)
 
@@ -175,7 +175,7 @@ func _run(p: Player) -> void:
 		_stand_at_terminal(p, ship)
 		await _wait(0.5)
 		game.company.choose(0 if game.company.contract != game.company.options[0] else 2)
-		while not game.terrain.is_loaded:
+		while not game.world_ready():
 			await get_tree().process_frame
 		await _wait(0.5)
 		await _drop_once(p, mol, ship, "drop2", false, false)

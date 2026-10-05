@@ -33,6 +33,7 @@ extends Node3D
 ##   ui_test           menu's met echte invoer: Esc, toetsen omzetten, bewaren, pauze (headless)
 ##   tuning_test       tuning-waarden aanpassen en bewaren (headless)
 ##   hub_screens_test  de schermen in de hub (tv, firmabord, terminal, taxatie) volgen de firma (headless)
+##   surface_bench     bouwtijd van het verre landschap per planeet (--contended: terwijl het terrein laadt)
 ## Extra in play (voor controle door de agent):
 ##   --shot=naam --frames=90,140   screenshots N frames na het spawnen, dan afsluiten
 ##   --autodig                     gereedschap werkt vanzelf (houweel zwaait, boor boort)
@@ -77,11 +78,12 @@ const SCENARIOS := {
 	"company_test": preload("res://src/main/scenarios/company_test.gd"),
 	"interior_preview": preload("res://src/main/scenarios/interior_preview.gd"),
 	"hub_screens_test": preload("res://src/main/scenarios/hub_screens_test.gd"),
+	"surface_bench": preload("res://src/main/scenarios/surface_bench.gd"),
 }
 ## Scenario's die op De Ekster beginnen (de Mol in de dropbaai). De rest begint op de planeet.
-const SCENARIOS_ON_SHIP := ["play", "ship_preview", "drop_sequence", "drop_flow_test", "net_drop_flow_test", "ship_test", "net_ship_test", "company_test", "interior_preview"]
+const SCENARIOS_ON_SHIP := ["play", "ship_preview", "drop_sequence", "drop_flow_test", "net_drop_flow_test", "ship_test", "net_ship_test", "company_test", "interior_preview", "surface_bench"]
 ## Scenario's waarin de host ook een eigen speler krijgt.
-const SCENARIOS_WITH_PLAYER := ["play", "ship_preview", "drop_sequence", "drop_flow_test", "net_drop_flow_test", "ship_test", "net_ship_test", "net_test", "find_test", "carry_test", "carry_preview", "mol_test", "sonar_test", "mol_edge_test", "stream_test", "ore_test", "drive_perf", "mol_preview", "hud_preview", "ui_test", "tool_preview", "magma_test", "company_test"]
+const SCENARIOS_WITH_PLAYER := ["play", "ship_preview", "drop_sequence", "drop_flow_test", "net_drop_flow_test", "ship_test", "net_ship_test", "net_test", "find_test", "carry_test", "carry_preview", "mol_test", "sonar_test", "mol_edge_test", "stream_test", "ore_test", "drive_perf", "mol_preview", "hud_preview", "ui_test", "tool_preview", "magma_test", "company_test", "surface_bench"]
 
 var game: Game
 var player: Player

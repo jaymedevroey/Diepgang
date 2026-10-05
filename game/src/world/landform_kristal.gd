@@ -270,9 +270,6 @@ func ray_mask(p: Vector2) -> float:
 func tint(x: float, z: float) -> Color:
 	var p := Vector2(x, z)
 	var o := outside_d(p)
-	var k := Landform.fade_in(o)
-	if k <= 0.0:
-		return Color(1.0, 1.0, 1.0, 0.0)
 	var c := Color(1.0, 1.0, 1.0, 0.0)
 	# Donker gruis in grote vlekken (rust en waardegroepen), iets lichter waar het hoger ligt.
 	var dark := smoothstep(0.05, 0.45, _gravel_noise.get_noise_2dv(p))
@@ -296,7 +293,8 @@ func tint(x: float, z: float) -> Color:
 	# platen reiken licht (daar is de vlek enkel nog een kleur).
 	var crust := crust_mask(p)
 	if crust > 0.0:
-		var far_k := smoothstep(PLATE_REACH - 70.0, PLATE_REACH + 10.0, p.distance_to(landing))
+		# In het speelgebied (en de strook ernaast zonder platen) ook licht: daar tekent de shader de naden.
+		var far_k := maxf(smoothstep(PLATE_REACH - 70.0, PLATE_REACH + 10.0, p.distance_to(landing)), 1.0 - smoothstep(4.0, 9.0, o))
 		var cc := Color(0.62, 0.6, 0.66).lerp(Color(1.45, 1.42, 1.6), far_k)
 		c = Color(lerpf(c.r, cc.r, crust), lerpf(c.g, cc.g, crust), lerpf(c.b, cc.b, crust), c.a)
 	# De jonge krater en zijn stralen: vers, licht gruis (tint tot 2,0: zie Landform.tint) op een
@@ -307,7 +305,12 @@ func tint(x: float, z: float) -> Color:
 		c = Color(c.r * lerpf(1.0, 0.55, halo), c.g * lerpf(1.0, 0.55, halo), c.b * lerpf(1.0, 0.6, halo), c.a)
 	var ray := ray_mask(p)
 	c = Color(lerpf(c.r, 1.9, ray), lerpf(c.g, 1.95, ray), lerpf(c.b, 2.0, ray), c.a * (1.0 - ray))
-	return Color(lerpf(1.0, c.r, k), lerpf(1.0, c.g, k), lerpf(1.0, c.b, k), c.a * k)
+	return c
+
+
+## Binnen het speelgebied: naden van de korst waar ze ligt (dezelfde vlekken als de platen erbuiten).
+func crust_seams(x: float, z: float) -> float:
+	return crust_mask(Vector2(x, z))
 
 
 # --- Rotsblokken -------------------------------------------------------------------------------

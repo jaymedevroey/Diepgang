@@ -262,13 +262,28 @@ func _on_terrain_loaded(stats: Dictionary) -> void:
 	_pending_spawns.clear()
 	if not Net.is_host():
 		_rpc_peer_ready.rpc_id(1)
-		_rpc_world_ready.rpc_id(1, pit_seed)
+		_report_world_ready()
+
+
+## Is deze wereld hier klaar om erin te droppen: het terrein geladen en het verre landschap
+## gebouwd? (Anders val je in een vierkant zonder omgeving.)
+func world_ready() -> bool:
+	return terrain != null and terrain.is_loaded and (surface == null or surface.is_built)
+
+
+## Client: de host laten weten dat deze wereld hier klaar is (pas als ook het verre landschap staat).
+func _report_world_ready() -> void:
+	if surface != null and not surface.is_built:
+		if not surface.built.is_connected(_report_world_ready):
+			surface.built.connect(_report_world_ready, CONNECT_ONE_SHOT)
+		return
+	_rpc_world_ready.rpc_id(1, pit_seed)
 
 
 ## Host: heeft iedereen die meespeelt de huidige wereld geladen? (Pas dan mag de Mol droppen,
 ## anders valt een client in een wereld die er bij hem nog niet is.)
 func world_ready_everywhere() -> bool:
-	if not is_loaded:
+	if not is_loaded or not world_ready():
 		return false
 	for id in multiplayer.get_peers():
 		if ready_peers.has(id) and int(_world_seed_of.get(id, -1)) != pit_seed:

@@ -371,6 +371,24 @@ func _make_pipe(rng: RandomNumberGenerator) -> void:
 func _make_dunes(rng: RandomNumberGenerator) -> void:
 	dunes.clear()
 	var tries := 0
+	# Eerst een paar die het speelgebied in kruipen (graafbaar zand in het voxelterrein, near_height),
+	# lager dan erbuiten (het oppervlak ligt 15 m onder de bovenkant van het volume). Niet op de
+	# landingsplek en niet tegen de Mol aan.
+	var want_in := rng.randi_range(3, 5)
+	while dunes.size() < want_in and tries < 400:
+		tries += 1
+		var p := landing + Vector2(rng.randf_range(-0.62, 0.62) * play_size.x, rng.randf_range(-0.62, 0.62) * play_size.y)
+		var r := rng.randf_range(20.0, 32.0)
+		if p.distance_to(landing) < 60.0 + r:
+			continue
+		var bad := false
+		for d in dunes:
+			if p.distance_to(Vector2(d.x, d.y)) < (d.z + r) * 1.1:
+				bad = true
+				break
+		if not bad:
+			dunes.append(Vector4(p.x, p.y, r, r * rng.randf_range(0.14, 0.19)))
+	tries = 0
 	while dunes.size() < 62 and tries < 2000:
 		tries += 1
 		var p: Vector2
@@ -443,7 +461,7 @@ func _make_tracks(rng: RandomNumberGenerator) -> void:
 		var pts := PackedVector2Array()
 		var s := 0.0
 		while s < length:
-			var ok := not _in_area(p, 28.0) and p.distance_to(pit_c) > pit_r * 1.5 and crater_d(p) < _toe_at(p) - 10.0 and p.distance_to(landing) < NEAR_M - 40.0
+			var ok := p.distance_to(landing) > 45.0 and p.distance_to(pit_c) > pit_r * 1.5 and crater_d(p) < _toe_at(p) - 10.0 and p.distance_to(landing) < NEAR_M - 40.0
 			if ok:
 				pts.append(p)
 			elif pts.size() > 1:
@@ -554,6 +572,16 @@ func height(x: float, z: float, o: float) -> float:
 
 ## Rustig op de kraterbodem (duinen en sporen blijven leesbaar), bijna niets in de wand (de lagen
 ## liggen op hun hoogte), en pas ver achter de rand weer de gewone heuvels (een strakke rand).
+## De duinen die het speelgebied in kruipen (de krater en de put liggen er ver genoeg vanaf).
+func near_height(x: float, z: float) -> float:
+	_ensure()
+	return _dunes(Vector2(x, z))
+
+
+func has_near() -> bool:
+	return true
+
+
 func hills_factor(x: float, z: float) -> float:
 	_ensure()
 	var rel := Vector2(x, z) - crater_c
@@ -776,13 +804,10 @@ func tint(x: float, z: float) -> Color:
 	var far := p.distance_squared_to(landing) > NEAR_M * NEAR_M
 	if far and d < toe - 20.0:
 		return Color(1.14, 1.05, 0.95, 0.0)
-	# Perzikkleurig stof op de bodem, met grote vlekken (lichter en donkerder stof). Vlak bij het
-	# speelgebied neutraal: het voxelterrein daarbinnen krijgt (nog) geen tint, anders zie je de rand.
+	# Perzikkleurig stof op de bodem, met grote vlekken (lichter en donkerder stof). Ook in het
+	# speelgebied (PlanetSurface bakt de tint voor het voxelterrein): geen rand.
 	var blot := 0.0 if far else _clump.get_noise_2d(x * 0.3, z * 0.3)
-	var adx := maxf(absf(x - landing.x) - play_size.x * 0.5, 0.0)
-	var adz := maxf(absf(z - landing.y) - play_size.y * 0.5, 0.0)
-	var near := smoothstep(30.0, 260.0, sqrt(adx * adx + adz * adz))
-	var c := Color(1.0, 1.0, 1.0).lerp(Color(1.14 + 0.1 * blot, 1.05 + 0.08 * blot, 0.95 + 0.04 * blot), near)
+	var c := Color(1.14 + 0.1 * blot, 1.05 + 0.08 * blot, 0.95 + 0.04 * blot)
 	var a := 0.0
 	if d > toe - 20.0:
 		# Puin: grijzer en ruwer; een waaier is vers en lichter.

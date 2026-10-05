@@ -33,6 +33,11 @@ const SDF_BIT := 1 << VoxelBuffer.CHANNEL_SDF
 @export var pit_seed := 1
 ## Planeettype (PlanetType.Id): hoeveel kraters en rotsblokken de generator legt.
 var planet := 0
+## De grote landvorm rond het speelgebied (ook PlanetSurface gebruikt deze). Zijn vormen die het
+## speelgebied binnenlopen, liggen ook in het voxelterrein (Landform.near_height).
+var landform: Landform
+## Raster (m) waarop near_height gebakken wordt: vormen van 10 m en meer, bilineair.
+const NEAR_STEP := 3.0
 @export var dims := Vector3i(500, 600, 500)
 ## Het spel kan beginnen zodra het gebied rond dit punt gemesht is (wereld, meter).
 var focus_world := Vector3.ZERO
@@ -75,9 +80,13 @@ func _ready() -> void:
 	_brush_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
 	_brush_noise.fractal_octaves = 2
 
+	var size_m := Vector2(dims.x, dims.z) * VOXEL_SIZE
+	landform = Landform.create(clampi(planet, 0, 2) as PlanetType.Id)
+	landform.setup(pit_seed, size_m * 0.5, size_m)
 	_generator = PlanetGenerator.new()
 	_generator.crater_count = [22, 6, 16][clampi(planet, 0, 2)]
 	_generator.boulder_count = [70, 40, 60][clampi(planet, 0, 2)]
+	_bake_near(_generator, size_m)
 	_generator.setup(pit_seed, dims)
 
 	_terrain = VoxelTerrain.new()
@@ -525,6 +534,33 @@ func caves() -> Array[Vector4]:
 
 func layer_at(world: Vector3) -> Strata.Layer:
 	return Strata.layer_at(world, pit_seed)
+
+
+## De vormen van de landvorm die het speelgebied binnenlopen, op een raster voor de generator (in
+## voxels). Tot FADE_IN.y buiten de rand: daar neemt Landform.height het over (PlanetSurface).
+func _bake_near(g: PlanetGenerator, size_m: Vector2) -> void:
+	if not landform.has_near():
+		return
+	var t0 := Time.get_ticks_usec()
+	var margin := Landform.FADE_IN.y + NEAR_STEP
+	var nx := int(ceil((size_m.x + margin * 2.0) / NEAR_STEP)) + 1
+	var nz := int(ceil((size_m.y + margin * 2.0) / NEAR_STEP)) + 1
+	var vals := PackedFloat32Array()
+	vals.resize(nx * nz)
+	for j in nz:
+		var z := -margin + j * NEAR_STEP
+		var dz := maxf(maxf(-z, z - size_m.y), 0.0)
+		for i in nx:
+			var x := -margin + i * NEAR_STEP
+			var dx := maxf(maxf(-x, x - size_m.x), 0.0)
+			var k := 1.0 - Landform.fade_in(sqrt(dx * dx + dz * dz))
+			vals[j * nx + i] = landform.near_height(x, z) * k / VOXEL_SIZE if k > 0.0 else 0.0
+	g.near = vals
+	g.near_origin = Vector2(-margin, -margin) / VOXEL_SIZE
+	g.near_step = NEAR_STEP / VOXEL_SIZE
+	g.near_nx = nx
+	g.near_nz = nz
+	print("[terrain] vormen van de landvorm in het speelgebied: %d×%d punten in %d ms" % [nx, nz, (Time.get_ticks_usec() - t0) / 1000])
 
 
 func surface_height_at(world_x: float, world_z: float) -> float:

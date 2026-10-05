@@ -939,7 +939,7 @@ func _hub_state(player: Player, game: Game, mol: Mol) -> Dictionary:
 				s.has_target = true
 				s.target = ship.terminal_target()
 				s.icon = HudCompass.TERMINAL_ICON
-			elif game.terrain == null or not game.terrain.is_loaded:
+			elif not game.world_ready():
 				var dots := ".".repeat(1 + int(Time.get_ticks_msec() / 400) % 3)
 				s.title = "De Ekster vliegt naar %s%s" % [str(c.contract.get("name", "de concessie")), dots]
 				s.sub = "even geduld · dan trek je aan de hendel" if _in_mol else "loop alvast naar de Mol"
@@ -985,7 +985,7 @@ func _update_objective(player: Player, game: Game, mol: Mol, cam: Camera3D) -> v
 	# Het incidentrapport (na een dienst) staat op dezelfde plek en gaat even voor.
 	objective.blocked = not _in_hub or _world_hidden or (_result.visible and not _result_closing)
 	# Aangekomen boven de concessie (de nieuwe wereld is geladen): één melding, met geluid.
-	var loading: bool = game.terrain == null or not game.terrain.is_loaded
+	var loading: bool = not game.world_ready()
 	if _was_loading and not loading and _in_hub and game.company and game.company.contract_ready() \
 			and mol and mol.mode == Mol.Mode.DOCKED:
 		toast("Aangekomen boven %s." % str(game.company.contract.get("name", "")), "mol", 5.0)

@@ -101,7 +101,7 @@ func _run(p: Player) -> void:
 	var want_seed := int(game.company.options[1].seed)
 	game.company.choose(1)
 	await get_tree().process_frame
-	while not game.terrain.is_loaded:
+	while not game.world_ready():
 		await get_tree().physics_frame
 	await _wait(0.5)
 	_expect(game.company.contract_ready() and game.pit_seed == want_seed, "opdracht gekozen: nieuwe wereld uit zijn seed (%d)" % game.pit_seed)
@@ -172,7 +172,7 @@ func _run(p: Player) -> void:
 	Tuning.set_value("ship", "drop_countdown_s", 8.0)
 	game.company.choose(0 if game.company.contract != game.company.options[0] else 2)
 	await get_tree().process_frame
-	while not game.terrain.is_loaded:
+	while not game.world_ready():
 		await get_tree().physics_frame
 	await _wait(0.5)
 	p.global_position = mol.to_world_mol(Vector3(0.0, -1.45, 0.5))

@@ -279,6 +279,16 @@ func height(x: float, z: float, o: float) -> float:
 	return k * h
 
 
+## De droge bedding loopt schuin door het speelgebied (zelfde profiel als in height).
+func near_height(x: float, z: float) -> float:
+	var p := Vector2(x, z)
+	return -WASH_DEPTH * (1.0 - smoothstep(0.0, 16.0, _wash_d(p))) * (1.0 - smoothstep(0.0, 30.0, _cliff_u(p)))
+
+
+func has_near() -> bool:
+	return true
+
+
 ## Wat height en tint allebei nodig hebben, één keer per punt, in _f_*: u (klif), afstand tot de
 ## bedding, hoogte van de badlands hier, de badlandruis, en de hoogte van een butte of restmesa.
 ## Zonder iets aan te maken: een nieuw object of array kost op de werkthread tijdens het laden van een
@@ -499,11 +509,9 @@ func _ras(base: int, n: int, step: float, x: float, z: float) -> float:
 
 # --- Kleur -----------------------------------------------------------------------------------
 
-## rgb maal de rotskleur (1 = neutraal, tot 2), a = lagen in steile wanden. Rond het speelgebied
-## neutraal: daar sluit het verre landschap aan op het voxelterrein (zonder tint).
+## rgb maal de rotskleur (1 = neutraal, tot 2), a = lagen in steile wanden. Ook in het speelgebied
+## (PlanetSurface bakt ze voor het voxelterrein): de bedding loopt erdoor.
 func tint(x: float, z: float) -> Color:
-	if absf(x - landing.x) < play_size.x * 0.5 and absf(z - landing.y) < play_size.y * 0.5:
-		return Color(1.0, 1.0, 1.0, 0.0) # in het speelgebied (die hoekpunten worden niet getekend)
 	var p := Vector2(x, z)
 	_fields(x, z)
 	var u := _f_u

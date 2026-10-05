@@ -89,7 +89,7 @@ func _run_main() -> void:
 	_key(KEY_ESCAPE)
 	await _frames(3)
 	_expect(not main._terminal.visible, "Esc sluit de opdrachten")
-	await _until(func() -> bool: return game.terrain.is_loaded, 60.0)
+	await _until(func() -> bool: return game.world_ready(), 60.0)
 	_expect(game.pit_seed == int(opts[2].seed), "de nieuwe wereld komt uit de laatst gekozen opdracht (%d)" % game.pit_seed)
 
 	# 2. Van de kade de klep op, de Mol in (echte invoer), de hendel (vizier + E).
@@ -134,7 +134,7 @@ func _run_main() -> void:
 	var opts2: Array = game.company.options.duplicate(true)
 	game.company.choose(1)
 	await _frames(2)
-	await _until(func() -> bool: return game.terrain.is_loaded, 60.0)
+	await _until(func() -> bool: return game.world_ready(), 60.0)
 	_expect(game.pit_seed == int(opts2[1].seed), "tweede opdracht: nieuwe wereld (%d)" % game.pit_seed)
 	await _walk_into_mol_from_quay()
 	# QA-16: de opdrachten staan open als de Mol vertrekt (zoals bij een speler aan de terminal terwijl
@@ -174,7 +174,7 @@ func _run_main() -> void:
 func _run_skip() -> void:
 	game.company.choose(1)
 	await _frames(2)
-	await _until(func() -> bool: return game.terrain.is_loaded, 60.0)
+	await _until(func() -> bool: return game.world_ready(), 60.0)
 	await _walk_into_mol_from_quay()
 	var cd := await _pull_lever(Mol.Mode.DROP_COUNTDOWN)
 	await _check_countdown(cd, true)
@@ -197,7 +197,7 @@ func _run_skip() -> void:
 func _run_left_behind() -> void:
 	game.company.choose(1)
 	await _frames(2)
-	await _until(func() -> bool: return game.terrain.is_loaded, 60.0)
+	await _until(func() -> bool: return game.world_ready(), 60.0)
 	await _walk_into_mol_from_quay()
 	var cd := await _pull_lever(Mol.Mode.DROP_COUNTDOWN)
 	# Uitstappen: naar het laadrek, ver van de baai.
@@ -267,7 +267,7 @@ func _run_left_behind() -> void:
 func _run_on_doors() -> void:
 	game.company.choose(1)
 	await _frames(2)
-	await _until(func() -> bool: return game.terrain.is_loaded, 60.0)
+	await _until(func() -> bool: return game.world_ready(), 60.0)
 	await _walk_into_mol_from_quay()
 	await _pull_lever(Mol.Mode.DROP_COUNTDOWN)
 	var doors := ship.global_transform * Vector3(2.0, 0.2, 5.0)

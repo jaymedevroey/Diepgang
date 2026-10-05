@@ -117,17 +117,17 @@ func _run_client(p: Player) -> void:
 	# in DROPPING of zelfs PARKED belanden: dan miste hij de val.)
 	var falling := [Mol.Mode.DROP_COUNTDOWN, Mol.Mode.DROPPING, Mol.Mode.PARKED]
 	await _until(func() -> bool: return mol.mode in falling, 150.0)
-	r.loaded_at_countdown = game.terrain.is_loaded
+	r.loaded_at_countdown = game.world_ready()
 	# Halfweg het aftellen alsnog in de Mol springen: dan wordt het aftellen korter (iedereen aan boord).
 	await _wait(0.5)
 	if mol.mode == Mol.Mode.DROP_COUNTDOWN:
 		p.global_position = mol.to_world_mol(Vector3(0.6, -1.45, 0.8))
 		p.velocity = Vector3.ZERO
 	await _until(func() -> bool: return mol.mode == Mol.Mode.DROPPING or mol.mode == Mol.Mode.PARKED, 60.0)
-	r.loaded_at_drop = mol.mode == Mol.Mode.DROPPING and game.terrain.is_loaded and game.pit_seed == int(want.seed)
+	r.loaded_at_drop = mol.mode == Mol.Mode.DROPPING and game.world_ready() and game.pit_seed == int(want.seed)
 	r.seed = game.pit_seed
 	print(TAG, " client: de val begint (%s); nieuwe wereld geladen: %s (bij het aftellen: %s)" % [
-		Mol.Mode.keys()[mol.mode], game.terrain.is_loaded, r.loaded_at_countdown])
+		Mol.Mode.keys()[mol.mode], game.world_ready(), r.loaded_at_countdown])
 	# 4. De val, zoals de client hem ziet.
 	r.inside = true
 	r.cine_cam = false
@@ -214,7 +214,7 @@ func _run_host(p: Player) -> void:
 			refused[0] = true)
 	# De hendel zodra de eigen wereld er is (zo snel als een host maar kan), en dan om de seconde
 	# opnieuw, zoals een ongeduldige speler, tot het aftellen begint.
-	await _until(func() -> bool: return game.company.contract_ready() and game.terrain.is_loaded, 120.0)
+	await _until(func() -> bool: return game.company.contract_ready() and game.world_ready(), 120.0)
 	await _frames(2)
 	var pressed_at := _gt
 	var started := false

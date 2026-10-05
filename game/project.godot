@@ -50,3 +50,8 @@ magma_heat_m={
 "type": "float",
 "value": 12.0
 }
+
+[voxel]
+
+threads/count/minimum=4
+threads/count/ratio_over_max=0.0

@@ -35,6 +35,8 @@ const BIG_CRATER_CELL := 520.0
 const SKIRT := 30.0
 ## Landingsplek in de rotsshader: straal van de aangestampte kern en waar ze helemaal terrein is (m).
 const LANDING_PAD := Vector2(11.0, 30.0)
+## De tint van de landvorm over het speelgebied, als textuur voor het voxelterrein (m per texel).
+const NEAR_TINT_STEP := 2.0
 
 var terrain: TerrainAPI
 ## Planeettype van deze wereld, en zijn grote landvormen rond het speelgebied (Landform.create).
@@ -56,6 +58,7 @@ var _out: Dictionary = {} # door de werkthread gevuld: naam -> arrays
 var _t0 := 0 # µs: start van build()
 var _main_us := 0 # µs op de hoofdthread (build + in de scène hangen)
 var _compute_us := 0 # µs op de werkthread
+var _phase_ms: Dictionary = {} # ms per stap op de werkthread (voor de log)
 
 
 func build(t: TerrainAPI, planet_seed: int, planet_id := PlanetType.Id.ROESTBOL) -> void:
@@ -63,7 +66,7 @@ func build(t: TerrainAPI, planet_seed: int, planet_id := PlanetType.Id.ROESTBOL)
 	terrain = t
 	_seed = planet_seed
 	planet = planet_id
-	landform = Landform.create(planet_id)
+	landform = t.landform if t.landform != null else Landform.create(planet_id)
 	_size = t.world_size()
 	var c := t.shaft_center_world()
 	_surface_y = t.surface_height_at(c.x, c.z)
@@ -97,7 +100,8 @@ func build(t: TerrainAPI, planet_seed: int, planet_id := PlanetType.Id.ROESTBOL)
 	for i in 3:
 		var col: Color = strata[i]
 		mat.set_shader_parameter(["strata_light", "strata_mid", "strata_dark"][i], Vector3(col.r, col.g, col.b))
-	landform.setup(planet_seed, Vector2(c.x, c.z), Vector2(_size.x, _size.z))
+	if t.landform == null:
+		landform.setup(planet_seed, Vector2(c.x, c.z), Vector2(_size.x, _size.z))
 	var pd: Color = g.patch_dark
 	var pl: Color = g.patch_light
 	mat.set_shader_parameter("patch_dark", Vector4(pd.r, pd.g, pd.b, pd.a))
@@ -242,8 +246,23 @@ static func _craters_in(cells: Dictionary, size: float, x: float, z: float) -> f
 
 func _compute() -> void:
 	var ts := Time.get_ticks_usec()
-	_out = {"area": _area_arrays(), "far": _far_arrays(), "skirt": _skirt_arrays()}
-	_out.merge(SurfaceDressing.compute(self))
+	var tp := ts
+	_out = {}
+	for step: String in ["area", "far", "skirt", "tint", "dressing"]:
+		match step:
+			"tint":
+				_out.near_tint = _near_tint_data()
+			"area":
+				_out.area = _area_arrays()
+			"far":
+				_out.far = _far_arrays()
+			"skirt":
+				_out.skirt = _skirt_arrays()
+			"dressing":
+				_out.merge(SurfaceDressing.compute(self))
+		var now := Time.get_ticks_usec()
+		_phase_ms[step] = (now - tp) / 1000
+		tp = now
 	_compute_us = Time.get_ticks_usec() - ts
 	# Klaar: op de hoofdthread in de scène hangen (call_deferred is veilig vanaf een werkthread).
 	finish.call_deferred()
@@ -378,6 +397,30 @@ func _far_arrays() -> Array:
 	return _with_normals(verts, idx, colors)
 
 
+## De tint van de landvorm over het speelgebied (rgb gehalveerd zoals de hoekpuntkleuren, a = naden
+## van de korst), voor het voxelterrein: zo loopt de kleur van het landschap door tot onder je
+## voeten. Op de landingsplek neutraal. Ruwe bytes (een Image per pixel aanspreken is op de
+## werkthread traag); de hoofdthread maakt er een textuur van.
+func _near_tint_data() -> PackedByteArray:
+	var n := int(ceil(_size.x / NEAR_TINT_STEP)) + 1
+	var c := landform.landing
+	var data := PackedByteArray()
+	data.resize(n * n * 4)
+	for j in n:
+		for i in n:
+			var x := i * NEAR_TINT_STEP
+			var z := j * NEAR_TINT_STEP
+			var tc := landform.tint(x, z)
+			var seams := landform.crust_seams(x, z)
+			var pad := smoothstep(LANDING_PAD.x, LANDING_PAD.y, Vector2(x - c.x, z - c.y).length())
+			var at := (j * n + i) * 4
+			data[at] = int(clampf(lerpf(1.0, tc.r, pad) * 0.5, 0.0, 1.0) * 255.0 + 0.5)
+			data[at + 1] = int(clampf(lerpf(1.0, tc.g, pad) * 0.5, 0.0, 1.0) * 255.0 + 0.5)
+			data[at + 2] = int(clampf(lerpf(1.0, tc.b, pad) * 0.5, 0.0, 1.0) * 255.0 + 0.5)
+			data[at + 3] = int(clampf(seams * pad, 0.0, 1.0) * 255.0 + 0.5)
+	return data
+
+
 ## Rok langs de rand van het speelgebied: hangt 30 m naar beneden en kijkt naar binnen, zodat je
 ## vanuit het speelgebied nooit door een kier tussen de rechte randen van de ring, het raster en
 ## het voxelterrein de lucht ziet (die kier tekende een witte lijn rond het vierkant).
@@ -432,6 +475,13 @@ func _skirt_arrays() -> Array:
 
 func _commit() -> void:
 	var commit_t0 := Time.get_ticks_usec()
+	# Eerst de tint van het speelgebied op het materiaal van het terrein (de kopieën hieronder erven ze).
+	var tn := int(ceil(_size.x / NEAR_TINT_STEP)) + 1
+	var tint_img := Image.create_from_data(tn, tn, false, Image.FORMAT_RGBA8, _out.near_tint)
+	var tmat := terrain.terrain_material()
+	tmat.set_shader_parameter("near_tint", ImageTexture.create_from_image(tint_img))
+	tmat.set_shader_parameter("near_tint_rect", Vector4(0.0, 0.0, NEAR_TINT_STEP, float(tn)))
+	tmat.set_shader_parameter("near_tint_on", true)
 	var area_mesh := ArrayMesh.new()
 	area_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, _out.area)
 	var area := MeshInstance3D.new()
@@ -461,7 +511,8 @@ func _commit() -> void:
 	_out.clear()
 	is_built = true
 	_main_us += Time.get_ticks_usec() - commit_t0
-	print("[surface] verre landschap: werkthread %.0f ms, hoofdthread %.0f ms, %s" % [_compute_us / 1000.0, _main_us / 1000.0, triangle_counts()])
+	print("[surface] verre landschap (%s): werkthread %.0f ms %s, hoofdthread %.0f ms, %s" % [
+			PlanetType.Id.keys()[planet], _compute_us / 1000.0, _phase_ms, _main_us / 1000.0, triangle_counts()])
 	built.emit()
 
 

@@ -2,6 +2,15 @@
 
 Wat we onderweg leerden en wat het GDD bijstuurt. Nieuwste bovenaan.
 
+## 2026-10-05 — Bouwtijd van een wereld, en de planeet in het speelgebied
+
+- **De drop wachtte niet op het verre landschap.** Enkel op het voxelterrein: wie snel na het kiezen de hendel trok, viel in een vierkant zonder omgeving. Nu wacht alles op `Game.world_ready()` (terrein én landschap); ook de tests (die wachtten op `terrain.is_loaded` en faalden daarna 24 keer).
+- **GDScript op veel draden tegelijk is trager dan op weinig.** Het voxelterrein genereerde met 12 draden (godot_voxel: de helft van de 24 logische kernen) GDScript, en die houden een globale vergrendeling van de engine bezet (objectaanroepen). Al het andere GDScript op een werkthread werd tot 15× trager: het verre landschap 7–12 s in plaats van ±1 s. Met 4 draden (`voxel/threads/count` in project.godot) laadt het terrein zelf ook sneller: bij de start 1,2–1,5 s in plaats van 2,7–4,3 s, een nieuwe planeet staat er in 1,8–2,6 s (was tot 12 s). 2 draden is weer trager.
+  - Gemeten met `--scenario=surface_bench --contended --idle`. Een eigen kopie van de generator hielp niet (het is geen gedeeld object, het is de engine). Eerst het landschap en dan het terrein (na elkaar) was met 12 draden beter, met 4 niet meer.
+  - **Op een mid-range pc opnieuw meten** (M5): daar zijn het standaard ook 4–6 draden, maar met minder kernen.
+- **De kleur van de landvorm vervaagde rond het speelgebied bewust naar neutraal**, omdat het voxelterrein geen tint kreeg. Daardoor zag je de rand toch. Nu bakt PlanetSurface de tint over het speelgebied in een kleine textuur (2 m per texel) voor het voxelterrein, en vervaagt er niets meer: duinen en stofsporen, de bedding, de korst (met naden op hetzelfde zeshoekrooster als de platen erbuiten) en de stralen lopen door.
+- **Vormen in het speelgebied via een raster:** `Landform.near_height` (duinen, een bedding) wordt bij het maken van de wereld op een raster van 3 m gebakken (±20–50 ms op de hoofdthread) en de generator leest het bilineair uit. Rechtstreeks de landvorm aanroepen vanuit de voxeldraden kan niet (gedeelde toestand, en elke objectaanroep kost daar veel).
+
 ## 2026-10-04 — Drie planeten (Roestbol, Fossielwereld, Kristalmaan)
 
 - **"Kaal" kwam van een detailsprong aan de rand, niet van te weinig driehoeken.** Binnen het speelgebied kraters en rotsen, erbuiten een glad raster: het oog ziet waar het detail stopt. Daarom staat het speelgebied nu IN een landvorm (kraterwand, klif, bekken met een kristalader), en lopen vlekken in de grondkleur over de rand heen.

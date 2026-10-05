@@ -41,6 +41,13 @@ uniform vec4 patch_dark = vec4(1.0, 1.0, 1.0, 0.0);
 uniform vec4 patch_light = vec4(1.0, 1.0, 1.0, 0.0);
 uniform float patch_scale = 100.0;
 uniform float surface_world_y = 1e6;
+// De tint van de landvorm over het speelgebied (PlanetSurface._near_tint_data): rgb gehalveerd (1 =
+// neutraal), a = naden van een zeshoekige korst. rect: x/z = oorsprong (m), z = m per texel, w = texels.
+uniform sampler2D near_tint : filter_linear, repeat_disable;
+uniform vec4 near_tint_rect = vec4(0.0, 0.0, 2.0, 1.0);
+uniform bool near_tint_on = false;
+// Rooster van de korstplaten (KristalMesh.hex_plate in landform_kristal.gd): straal en naad (m).
+uniform vec2 crust_hex = vec2(5.0, 0.5);
 uniform float strata_scale = 18.0;
 uniform vec2 strata_cuts = vec2(0.45, 0.8);
 uniform float strata_strength = 0.5;
@@ -384,6 +391,35 @@ void fragment() {
 		float pm = vnoise(pp) * 0.7 + vnoise(pp * 2.7 + vec3(4.1, 0.0, 9.3)) * 0.3;
 		col *= mix(vec3(1.0), patch_dark.rgb, smoothstep(0.58, 0.72, pm) * patch_dark.a * top_k);
 		col *= mix(vec3(1.0), patch_light.rgb, (1.0 - smoothstep(0.3, 0.44, pm)) * patch_light.a * top_k);
+	}
+
+	// Het speelgebied: dezelfde tint als het verre landschap errond (duinen, bedding, korst, stralen),
+	// enkel in de bovenste meters (niet in de tunnels).
+	if (near_tint_on && !far_terrain && layer == 3) {
+		float nt_k = smoothstep(surface_world_y - 9.0, surface_world_y - 3.0, wpos.y) * smoothstep(0.0, 0.35, n.y);
+		if (nt_k > 0.0) {
+			vec2 nt_uv = ((wpos.xz - near_tint_rect.xy) / near_tint_rect.z + 0.5) / near_tint_rect.w;
+			vec4 nt = texture(near_tint, nt_uv);
+			col *= mix(vec3(1.0), nt.rgb * 2.0, nt_k);
+			if (nt.a > 0.01) {
+				// Zeshoeken (platte bovenkant), kolommen om 1,5 R, om de andere een halve rij verschoven.
+				float R = crust_hex.x;
+				float dx = 1.5 * R;
+				float dz = 1.7320508 * R;
+				float i0 = floor(wpos.x / dx);
+				float best = 1e9;
+				for (int k = 0; k < 2; k++) {
+					float ci = i0 + float(k);
+					float off = mod(ci, 2.0) * 0.5;
+					float cj = floor(wpos.z / dz - off + 0.5);
+					vec2 q = abs(wpos.xz - vec2(ci * dx, (cj + off) * dz));
+					best = min(best, max(q.y, q.x * 0.8660254 + q.y * 0.5));
+				}
+				float apo = 0.8660254 * R;
+				float seam = smoothstep(apo - crust_hex.y - 0.25, apo - crust_hex.y * 0.5, best) * (1.0 - smoothstep(0.6, 2.5, px));
+				col *= mix(1.0, 0.55, seam * nt.a * nt_k);
+			}
+		}
 	}
 
 	// Verre landschap: de kleur van de landvorm (stof op de kraterbodem, donkere duinen, de put) en
