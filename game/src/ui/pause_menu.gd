@@ -12,6 +12,7 @@ var _invite_label: Label
 var _players: VBoxContainer
 var _settings: SettingsMenu
 var _note: Label
+var _invite_button: Button
 var _was_captured := false
 
 
@@ -53,7 +54,7 @@ func _ready() -> void:
 	_buttons.add_theme_constant_override("separation", 12)
 	col.add_child(_buttons)
 	_add("RESUME", close)
-	_add("INVITE FRIENDS", _toggle_invite)
+	_invite_button = _add("INVITE FRIENDS", _toggle_invite)
 	_add("SETTINGS", _open_settings, true)
 	_add("BACK TO MAIN MENU", func() -> void: leave_requested.emit(), true)
 	_add("QUIT", func() -> void: get_tree().quit(), true)
@@ -108,7 +109,13 @@ func open() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	var solo := Net.mode == Net.Mode.SOLO
 	get_tree().paused = solo
-	_note.text = "The game is paused." if solo else "The game keeps running: your crew won't wait."
+	# Solo zegt PAUSED genoeg; in co-op loopt het spel door, en dat moet je weten.
+	_note.text = "" if solo else "The game keeps running: your crew won't wait."
+	_note.visible = not solo
+	# Solo is uitnodigen geen hoofdkeuze (het kan pas via HOST in het hoofdmenu): een gewone knop (ui-14).
+	_invite_button.theme_type_variation = &"GhostButton" if solo else &""
+	_invite_button.add_theme_font_size_override("font_size", 18 if solo else 22)
+	_invite_button.custom_minimum_size.y = 48 if solo else 54
 	_invite.visible = false
 	_refresh_players()
 	Sfx.ui("open")
@@ -133,7 +140,7 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-func _add(text: String, action: Callable, ghost := false) -> void:
+func _add(text: String, action: Callable, ghost := false) -> Button:
 	var b := Button.new()
 	b.text = text
 	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -146,6 +153,7 @@ func _add(text: String, action: Callable, ghost := false) -> void:
 		action.call())
 	b.mouse_entered.connect(func() -> void: Sfx.ui("hover"))
 	_buttons.add_child(b)
+	return b
 
 
 func _toggle_invite() -> void:

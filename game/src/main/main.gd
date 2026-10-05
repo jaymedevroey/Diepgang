@@ -214,8 +214,8 @@ func _on_world_loaded(stats: Dictionary) -> void:
 	_atmosphere.ship = game.ship
 	if not _mol_connected:
 		_mol_connected = true
-		game.mol.message.connect(func(t: String) -> void:
-			hud.toast(t, "warn" if _is_mol_warning(t) else "mol"))
+		# De Mol zegt zelf hoe dringend een melding is (mol, warn, alarm): niet op de zin matchen.
+		game.mol.notice.connect(func(t: String, kind: String) -> void: hud.toast(t, kind))
 		# De stempel landt op het moment dat je de besturing terugkrijgt, niet in de klap zelf.
 		game.mol.landed.connect(func() -> void:
 			if player and game.mol.contains_point(player.global_position):
@@ -239,15 +239,6 @@ func _on_world_loaded(stats: Dictionary) -> void:
 		_loading.finish() # scenario's zonder speler (previews): anders blijft het laadscherm staan
 	if scenario_node and scenario_node.has_method("on_terrain_loaded"):
 		scenario_node.on_terrain_loaded(stats)
-
-
-## Meldingen van de Mol die een waarschuwing zijn (rood): de autopiloot stopt (harde laag, rand van
-## de put) of de boorkop schepte een vondst op. Op de inhoud, niet op het eerste woord: mol.gd zegt
-## "Harde laag: de autopiloot stopt…" (in het Engels "…: the autopilot stops…"), en
-## "Autopiloot: afdalen tot…" is geen waarschuwing.
-func _is_mol_warning(t: String) -> bool:
-	var l := t.to_lower()
-	return (l.contains("autopilo") and l.contains("stop")) or l.begins_with("the drill head")
 
 
 func _on_player_spawned(p: Player) -> void:
@@ -319,6 +310,9 @@ func _build_hud() -> void:
 	layer.add_child(hud)
 	_pause = PauseMenu.new()
 	_pause.leave_requested.connect(_leave_to_menu)
+	# Met het pauzemenu open geen HUD erachter: de kaarten van het menu en de banner van de HUD
+	# vielen over elkaar (ui-14).
+	_pause.visibility_changed.connect(func() -> void: hud.modulate.a = 0.0 if _pause.visible else 1.0)
 	layer.add_child(_pause)
 	_terminal = TerminalMenu.new()
 	layer.add_child(_terminal)

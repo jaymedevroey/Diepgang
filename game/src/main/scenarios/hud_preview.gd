@@ -5,7 +5,8 @@ extends Node
 ##   dragen     een vondst dragen (kaartje linksonder)
 ##   ver        ver van de Mol (kompas met de richting en afstand)
 ##   piloot     in de stoel (besturing onderaan)
-##   vertrek    de Mol telt af (banner), met meldingen
+##   vertrek    de Mol telt af (de grote aftelling), met meldingen; daarna een noodophaling (alarm)
+##              en de laatste tellen
 ##   resultaat  eindoverzicht van een dienst
 ##   pauze      pauzemenu met uitnodigen
 ##   magma      in een grot: magma dichtbij, onrust hoog, een zone aan het plafond, en een beving
@@ -71,18 +72,24 @@ func _run(p: Player) -> void:
 		await _wait(0.6)
 		if want.call("piloot"):
 			await _shot("hud_piloot", 0.8)
-		if want.call("vertrek"):
+		if want.call("resultaat") or want.call("vertrek"):
 			mol.leave_seat()
 			await _wait(0.4)
 			p.global_transform = Transform3D(Basis(Vector3.UP, mol.yaw + PI), mol.to_world_mol(Vector3(0.6, -1.4, 1.5)))
+		# Het eindoverzicht vóór het vertrek: een nieuwe aftelling haalt het weg (QA-5).
+		if want.call("resultaat"):
+			main.hud.show_result(3, 245, 1)
+			await _shot("hud_resultaat", 1.4)
+		if want.call("vertrek"):
 			main.hud.toast("Autopilot: descending to −40 m", "mol")
-			main.hud.toast("Hard layer: autopilot stops at 61 m", "warn")
+			main.hud.toast("Hard layer: autopilot stops at −61 m", "warn")
 			mol._path = [mol.body.global_position + mol.body.global_basis.z * 8.0, mol.body.global_position] # alsof hij gereden heeft
 			mol.press(Mol.Cmd.DEPART)
 			await _shot("hud_vertrek", 2.5)
-		if want.call("resultaat"):
-			main.hud.show_result(3, 245, 1)
-			await _shot("hud_resultaat", 0.8)
+			# Een noodophaling: het alarm komt tijdens het aftellen, de aftelling wordt rood (ui-04).
+			main.hud.toast("Emergency extraction: the magma is rising. The Mole leaves in 20 s!", "alarm")
+			await _shot("hud_noodophaling", 0.35)
+			await _shot("hud_aftellen_laatste", maxf(0.1, mol.countdown - 2.6))
 	if want.call("pauze"):
 		main._pause.open()
 		main._pause._toggle_invite()

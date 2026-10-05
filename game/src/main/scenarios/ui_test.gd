@@ -87,6 +87,19 @@ func _run() -> void:
 	var p: Player = await main.game.player_spawned
 	await _frames(30)
 	_expect(main.hud.visible, "HUD zichtbaar in het spel")
+	# ui-05: geen HUD-tekst kleiner dan 18 px op 1080p (hud-menu.md §4.9). Ook wat pas later in beeld
+	# komt (rapport, aftelling, meldingen van elke soort) staat al in de boom.
+	for kind: String in Hud.TOAST_KINDS:
+		main.hud.toast("Test %s" % kind, kind)
+	var small := PackedStringArray()
+	var labels := 0
+	for l: Label in main.hud.find_children("*", "Label", true, false):
+		labels += 1
+		var fs := l.get_theme_font_size("font_size")
+		if fs < Hud.MIN_FONT:
+			small.append("%s '%s' %d px" % [l.get_path().get_name(l.get_path().get_name_count() - 1), l.text.left(24), fs])
+	_expect(labels > 40 and small.is_empty(), "alle %d labels in de HUD zijn minstens %d px%s" % [labels, Hud.MIN_FONT,
+			"" if small.is_empty() else " (te klein: %s)" % ", ".join(small)])
 	_key(KEY_ESCAPE)
 	await _frames(3)
 	_expect(main._pause.visible and get_tree().paused, "Esc opent het pauzemenu (solo: het spel staat stil)")
