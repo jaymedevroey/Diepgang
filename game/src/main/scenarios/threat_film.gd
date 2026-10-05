@@ -71,13 +71,29 @@ func _cave(depth: float, off: Vector3, radius := 7.0) -> Array:
 	t.debug_dig(c, radius)
 	t.debug_dig(c + Vector3(radius * 0.6, -radius * 0.25, 0.0), radius * 0.75)
 	t.debug_dig(c + Vector3(-radius * 0.6, -radius * 0.25, 0.0), radius * 0.75)
-	await _wait(1.0)
-	var hit := t.raycast(c, c + Vector3.DOWN * (radius + 3.0))
+	# Wachten tot de grot ook botsvormen heeft (met Movie Maker loopt de speltijd sneller dan het
+	# bouwen van de collision): anders valt de speler door de vloer.
+	var hit := {}
+	var t0 := _now()
+	while _now() - t0 < 30.0:
+		await _wait(0.2)
+		hit = t.raycast(c, c + Vector3.DOWN * (radius + 3.0))
+		# De grot moet er al zijn in de data én in de botsvorm (de vloer ligt ±radius onder het midden).
+		if t.sdf_at(c) > radius * 0.5 and not hit.is_empty() and (hit.position as Vector3).distance_to(c) > radius * 0.7 \
+				and t.collision_ready(hit.position):
+			break
+	await _wait(0.5)
 	var ground: Vector3 = hit.position if not hit.is_empty() else c + Vector3.DOWN * radius
+	print(TAG, " grot op %s: sdf %.1f, vloer %s (%.1f m onder het midden), collision %s, na %.1f s" % [c, t.sdf_at(c),
+			ground, c.y - ground.y, t.collision_ready(ground), _now() - t0])
 	return [c, ground]
 
 
 func _stand(at: Vector3, look_at: Vector3) -> void:
+	# Op de vloer op deze plek (de vloer van een bolle grot ligt opzij hoger dan in het midden).
+	var hit := t.raycast(at + Vector3.UP * 2.5, at + Vector3.DOWN * 6.0, Layers.TERRAIN | Layers.LIFT)
+	if not hit.is_empty():
+		at.y = (hit.position as Vector3).y + 0.05
 	p.global_position = at
 	p.reset_physics_interpolation()
 	var dir := look_at - (at + Vector3.UP * 1.2)
@@ -190,24 +206,25 @@ func _lunge() -> void:
 	var r: Array = await _cave(45.0, Vector3(-35.0, 0.0, 15.0), 7.5)
 	var c: Vector3 = r[0]
 	var ground: Vector3 = r[1]
-	_stand(ground + Vector3(0.0, 0.05, 3.5), ground + Vector3(0.0, 0.8, -3.0))
+	# De speler aan de rand van de grot, kijkend over de vloer: daar komt hij vandaan.
+	_stand(ground + Vector3(3.0, 0.05, 0.0), ground + Vector3(-5.0, 0.4, 0.0))
 	p.set_physics_process(true)
 	game.magma.elapsed = Tuning.get_f("worm", "wake_s", 150.0) + 1.0
 	await _wait(0.3)
-	worm.pos = ground + Vector3(-24.0, -6.0, -10.0)
+	worm.pos = ground + Vector3(-26.0, -6.0, 0.0)
 	worm._net_pos = worm.pos
 	worm.mode = Worm.Mode.HUNT
-	worm._target = ground + Vector3(0.0, -4.0, 0.0)
+	worm._target = ground + Vector3(2.0, -4.0, 0.0)
 	worm._cool = 999.0
 	worm._noises.clear()
-	worm.hear(ground + Vector3(0.0, 0.5, 2.0), 3.0)
+	worm.hear(ground + Vector3(2.0, 0.5, 0.0), 3.0)
 	var t0 := _now()
 	while _now() - t0 < 7.0:
 		await get_tree().process_frame
 		if _now() - t0 > 4.0 and _now() - t0 < 4.05:
 			_snap("lunge_gerommel")
 	worm._cool = 0.0
-	worm.pos = ground + Vector3(-9.0, -5.0, 0.0)
+	worm.pos = ground + Vector3(-12.0, -5.0, 0.0)
 	worm._try_lunge(p.global_position)
 	await _wait(1.0)
 	_snap("lunge_waarschuwing")
@@ -266,7 +283,12 @@ func _rescue() -> void:
 	_stand(torso + mol.body.global_basis.z * 3.5 + Vector3(0.0, 0.3, 0.0), torso)
 	p.global_position.y = t.surface_height_at(p.global_position.x, p.global_position.z) + 0.1
 	if side:
-		_observer(torso + mol.body.global_basis.x * 7.0 + Vector3(0.0, 2.2, -2.0), torso + Vector3(0.0, 0.5, -4.0))
+		# Van opzij: de eigen robot is lokaal onzichtbaar (eerste persoon), dus voor de film een lijf erbij.
+		_body = RobotRig.new()
+		_body.name = "FilmRig"
+		p.add_child(_body)
+		_body.setup(p.color)
+		_follow_cam()
 	await _wait(1.0)
 	_snap("rescue_neer")
 	await _walk(torso + (p.global_position - torso).normalized() * 1.4, 1.2, side)
@@ -276,12 +298,29 @@ func _rescue() -> void:
 	# Naar de Mol lopen (de klep op), met de ploegmaat in de armen, aan de draagsnelheid.
 	var goal := mol.to_world_mol(Vector3(0.0, -1.45, 1.0))
 	await _walk(goal, Tuning.get_f("player", "move_speed", 4.5) * p.carry.move_multiplier(), side)
+	if side:
+		_follow_cam()
 	await _wait(0.6)
 	_snap("rescue_in_de_mol")
 	await _until(func() -> bool: return rescue.life_of(2) == Rescue.Life.OK, 8.0)
 	await _wait(0.6)
 	_snap("rescue_gerepareerd")
 	await _wait(1.5)
+
+
+var _body: RobotRig
+
+
+## Camera van opzij die de speler volgt (4,5 m opzij, iets hoger), voor de film van het redden.
+func _follow_cam() -> void:
+	var mol: Mol = game.mol
+	var at := p.global_position + Vector3.UP * 0.8
+	if mol.contains_point(p.global_position):
+		# In de Mol: vanuit de cabine naar het laadruim kijken.
+		_observer(mol.to_world_mol(Vector3(1.3, 0.3, -2.4)), at)
+		return
+	var b := Basis(Vector3.UP, p.rotation.y)
+	_observer(at + b.x * 5.0 + b.z * 1.5 + Vector3.UP * 1.6, at - b.z * 0.8)
 
 
 ## Lopen zonder invoer (een film met venster vangt de muis niet altijd): de speler schuift aan
@@ -307,7 +346,12 @@ func _walk(to: Vector3, speed: float, side: bool) -> void:
 			next.y = (hit.position as Vector3).y + 0.02
 		p.global_position = next
 		if side and _cam:
-			_cam.look_at(p.global_position + Vector3.UP * 0.6)
+			_follow_cam()
+		if _body:
+			_body.velocity = d.normalized() * speed
+			_body.set_carrying(p.carry.body_peer >= 0)
+	if _body:
+		_body.velocity = Vector3.ZERO
 	p.set_physics_process(true)
 
 

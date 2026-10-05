@@ -73,6 +73,7 @@ var _carry_bar: ColorRect
 var _carry_bar_bg: ColorRect
 var _carry_pct: Label
 var _carry_note: Label
+var _carry_cond_label: Label # "CONDITION", of "TIME LEFT" bij een neergegane ploegmaat
 var _toasts: VBoxContainer
 var _banner: PanelContainer
 var _banner_title: Label
@@ -333,6 +334,7 @@ func _build_bottom() -> void:
 	cond.add_theme_constant_override("separation", 10)
 	cc.add_child(cond)
 	var cl := Label.new()
+	_carry_cond_label = cl
 	cl.text = "CONDITION"
 	cl.add_theme_font_override("font", UiTheme.heading())
 	cl.add_theme_font_size_override("font_size", MIN_FONT)
@@ -1125,9 +1127,11 @@ func _update_carry(player: Player) -> void:
 		_carry_bar.offset_right = 0
 		_carry_bar.color = UiTheme.DANGER if left < 0.25 else UiTheme.AMBER
 		_carry_pct.text = HudRescue._clock(g.rescue.timer_of(player.carry.body_peer))
+		_carry_cond_label.text = "TIME LEFT"
 		_carry_pct.add_theme_color_override("font_color", _carry_bar.color)
 		return
 	_carry.active = it != null
+	_carry_cond_label.text = "CONDITION"
 	if it != _last_carry:
 		_last_carry = it
 		if it:
