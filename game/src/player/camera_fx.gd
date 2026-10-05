@@ -7,6 +7,8 @@ extends Node
 var camera: Camera3D
 
 var _trauma := 0.0
+## Traag rollen (bevingen, Unrest): graden, ebt zelf weg. Los van het trauma, dat snel trilt.
+var _rumble_deg := 0.0
 var _kick := Vector2.ZERO # x = pitch, y = yaw (radialen)
 var _kick_vel := Vector2.ZERO
 var _time := 0.0
@@ -30,6 +32,11 @@ func add_trauma(amount: float) -> void:
 ## trauma bijtellen dat zou doen (onderzoek magma-en-onrust, E).
 func hold_trauma(amount: float) -> void:
 	_trauma = maxf(_trauma, clampf(amount * Settings.get_f("interface/camera_shake"), 0.0, 1.0))
+
+
+## Minstens zoveel traag rollen (graden, ±2-3 Hz): een beving rolt, ze zoemt niet (gevoel-08).
+func hold_rumble(deg: float) -> void:
+	_rumble_deg = maxf(_rumble_deg, deg * Settings.get_f("interface/camera_shake"))
 
 
 ## Stoot de camera weg (pitch omhoog = positief), veert daarna terug.
@@ -56,7 +63,10 @@ func _process(delta: float) -> void:
 	var shake := _trauma * _trauma * Tuning.get_f("camera", "screen_shake_scale", 1.0)
 	var max_rad := deg_to_rad(Tuning.get_f("camera", "shake_max_deg", 2.2)) * shake
 	var f := _time * Tuning.get_f("camera", "shake_frequency", 22.0)
+	_rumble_deg = maxf(0.0, _rumble_deg - 2.5 * delta)
+	var roll := deg_to_rad(_rumble_deg)
+	var g := _time * 2.6
 	camera.rotation = Vector3(
-		_kick.x + max_rad * _noise.get_noise_2d(f, 0.0),
-		_kick.y + max_rad * _noise.get_noise_2d(0.0, f),
-		max_rad * 0.5 * _noise.get_noise_2d(f, f))
+		_kick.x + max_rad * _noise.get_noise_2d(f, 0.0) + roll * 0.6 * _noise.get_noise_2d(g, 50.0),
+		_kick.y + max_rad * _noise.get_noise_2d(0.0, f) + roll * 0.5 * _noise.get_noise_2d(50.0, g),
+		max_rad * 0.5 * _noise.get_noise_2d(f, f) + roll * _noise.get_noise_2d(g, g + 90.0))
