@@ -155,10 +155,10 @@ func _toggle_invite() -> void:
 	elif Net.mode == Net.Mode.CLIENT:
 		_invite_label.text = "You're a guest here. Friends join via the host's IP address."
 	elif Settings.get_b("interface/hide_ip"):
-		_invite_label.text = "Your IP address is hidden (Settings > Interface). Friends choose JOIN and enter your IP. Steam invites come in a later version."
+		_invite_label.text = "Your IP address is hidden (Settings > Interface). Friends choose JOIN and enter your IP (over the internet: your public IP, port forwarded)."
 	else:
-		_invite_label.text = "Friends choose JOIN and enter this:\n%s   (port %d)\nSteam invites come in a later version." % [
-			", ".join(StartMenu.local_ips()), int(CmdArgs.value("port", Net.DEFAULT_PORT))]
+		_invite_label.text = "Friends on your network choose JOIN and enter: %s\nOver the internet: your public IP, with UDP port %d forwarded to this PC.\nEveryone needs version %s." % [
+			", ".join(StartMenu.local_ips()), int(CmdArgs.value("port", Net.DEFAULT_PORT)), Net.GAME_VERSION]
 
 
 func _open_settings() -> void:

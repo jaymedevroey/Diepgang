@@ -320,6 +320,9 @@ func _rpc_request_join() -> void:
 	if not multiplayer.is_server():
 		return
 	var id := multiplayer.get_remote_sender_id()
+	if not Net.is_verified(id):
+		print("[game] peer %d vroeg binnen te komen zonder versiecontrole: genegeerd" % id)
+		return
 	if not is_loaded:
 		_join_queue.append(id)
 		return
