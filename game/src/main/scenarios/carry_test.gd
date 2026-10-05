@@ -89,15 +89,17 @@ func _run(p: Player) -> void:
 
 
 ## Samen dragen en slepen (ontwerp-8) en breekbare kristallen (ontwerp-5), in een kamer onder de eerste
-## vondst. Een titanschedel (34 kg) en twee glowshards worden er met de regels van FindField geplaatst.
+## vondst. Een titanschedel (28 kg) en twee glowshards worden er met de regels van FindField geplaatst.
 func _heavy_and_fragile(p: Player, here: Vector3) -> void:
 	var finds: FindField = main.game.finds
 	var t: TerrainAPI = main.terrain
 	var drag := Tuning.get_f("carry", "drag_speed", 0.33)
 	# Snelheden (dezelfde regel als in het spel): alleen slepen, met twee sneller dan slepen, maar trager dan leeg.
-	_expect(is_equal_approx(Carry.speed_for(34.0, 1), drag), "titanschedel alleen: slepen (%.2f)" % Carry.speed_for(34.0, 1))
-	_expect(Carry.speed_for(34.0, 2) > 0.5 and Carry.speed_for(34.0, 2) < 0.7, "titanschedel met twee: %.2f (trager dan leeg)" % Carry.speed_for(34.0, 2))
-	_expect(Carry.speed_for(22.0, 2) > Carry.speed_for(22.0, 1) * 2.0, "reuzendijbeen met twee >2× zo snel als slepen (%.2f tegen %.2f)" % [Carry.speed_for(22.0, 2), Carry.speed_for(22.0, 1)])
+	var skull_kg: float = FindKinds.MASSES[FindKinds.Kind.TITAN_SKULL]
+	var femur_kg: float = FindKinds.MASSES[FindKinds.Kind.TITAN_FEMUR]
+	_expect(is_equal_approx(Carry.speed_for(skull_kg, 1), drag), "titanschedel alleen: slepen (%.2f)" % Carry.speed_for(skull_kg, 1))
+	_expect(Carry.speed_for(skull_kg, 2) > 0.5 and Carry.speed_for(skull_kg, 2) < 0.75, "titanschedel (%d kg) met twee: %.2f (trager dan leeg)" % [int(skull_kg), Carry.speed_for(skull_kg, 2)])
+	_expect(Carry.speed_for(femur_kg, 2) > Carry.speed_for(femur_kg, 1) * 2.0 and not FindKinds.liftable_alone(femur_kg), "reuzendijbeen (%d kg) met twee >2× zo snel als slepen (%.2f tegen %.2f)" % [int(femur_kg), Carry.speed_for(femur_kg, 2), Carry.speed_for(femur_kg, 1)])
 	_expect(Carry.speed_for(14.0, 1) > drag and FindKinds.liftable_alone(14.0), "een schedel (14 kg) til je nog alleen (%.2f)" % Carry.speed_for(14.0, 1))
 	# Een kamer van ±12 × 8 m onder de eerste vondst, met een vrij vlakke vloer.
 	var room := here + Vector3(0, -6.0, 0)

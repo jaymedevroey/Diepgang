@@ -246,7 +246,8 @@ func _host_sell(sender: int) -> void:
 				(h["sets_done"] as Array).append(str(s[0]))
 				var b := int(round(int(e[2]) * Tuning.get_f("economy", "set_bonus", 1.0)))
 				set_bonus += b
-				sets_done.append([str(s[0]), b, int(e[1])])
+				var set_name: Variant = it.get("set_name") # F3: "Titan", "Sand strider"
+				sets_done.append([str(s[0]), b, int(e[1]), str(set_name) if set_name != null else ""])
 	h["sets"] = sets
 	h["sold_value"] = int(h.get("sold_value", 0)) + total
 	h["set_bonus"] = int(h.get("set_bonus", 0)) + set_bonus
@@ -291,5 +292,6 @@ func _rpc_sold(ids: PackedInt32Array, total: int, target: int, set_bonus: int, s
 		game.fx.play("ding", at, -4.0, 0.0, 1.3)
 	game.notice.emit("Sold %s: %s" % [UiTheme.count(ids.size(), "find"), UiTheme.euro_signed(total + target)], "contract")
 	for s: Array in sets_done:
-		game.notice.emit("Complete set (%d pieces): set bonus %s!" % [int(s[2]), UiTheme.euro_signed(int(s[1]))], "find")
+		var what := "%s skeleton" % str(s[3]) if s.size() > 3 and str(s[3]) != "" else "set"
+		game.notice.emit("Complete %s (%d pieces): set bonus %s!" % [what, int(s[2]), UiTheme.euro_signed(int(s[1]))], "find")
 	sold.emit(info)

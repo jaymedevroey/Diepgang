@@ -148,6 +148,7 @@ func _place_set(rng: RandomNumberGenerator, center: Vector3, set_key: String, id
 	var half: float = spec.half_len
 	var placed: Array[FindItem] = []
 	var seen := {}
+	var core_missing := false
 	for k in kinds:
 		var slot: Array = PlanetLoot.SLOTS.get(k, [0.0, false])
 		var n: int = seen.get(k, 0)
@@ -161,8 +162,10 @@ func _place_set(rng: RandomNumberGenerator, center: Vector3, set_key: String, id
 			return [p, k], 14)
 		if it:
 			placed.append(it)
-	if placed.size() < 3:
-		return # te weinig plaats (een grot, de rand): losse botten, geen set
+		elif k in spec.core:
+			core_missing = true
+	if placed.size() < 3 or core_missing:
+		return # te weinig plaats (een grot, de rand) of zonder schedel: losse botten, geen set
 	for it in placed:
 		it.set_id = id
 		it.set_size = placed.size()

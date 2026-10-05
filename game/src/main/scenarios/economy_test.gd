@@ -56,8 +56,13 @@ func _run(p: Player) -> void:
 	_expect(ok_mods, "elke kaart: 2-3 voorwaarden, een troef van haar planeet, zoveel risico's als haar risico (%s)" %
 			" | ".join(c.options.map(func(o: Dictionary) -> String: return ", ".join((o.modifiers as Array).map(func(m: Dictionary) -> String: return str(m.id))))))
 
-	# 2. Een opdracht kiezen: de voorwaarden gaan mee naar de wereld.
-	c.choose(1)
+	# 2. Een opdracht kiezen: de voorwaarden gaan mee naar de wereld. Op Roestbol: elke planeet heeft nu
+	# haar eigen buit (F3), en enkel daar zit zeker een schedel, een dijbeen en een kabouter.
+	var rustbowl := 1
+	for i in c.options.size():
+		if int(c.options[i].planet) == PlanetType.Id.ROESTBOL:
+			rustbowl = i
+	c.choose(rustbowl)
 	await get_tree().process_frame
 	while not game.world_ready():
 		await get_tree().physics_frame
@@ -128,7 +133,12 @@ func _run(p: Player) -> void:
 	var gnome_value := a.value_of(finds[2])
 	var cash2 := c.cash
 	var shift_before := c.shift
-	c.choose(0)
+	# Weer Roestbol (F3): daar is elk skelet licht genoeg voor het gewone laadruim (stap 7).
+	var next := 0
+	for i in c.options.size():
+		if int(c.options[i].planet) == PlanetType.Id.ROESTBOL:
+			next = i
+	c.choose(next)
 	await get_tree().process_frame
 	_expect(not c.haul_open() and c.cash == cash2 + int(round(gnome_value * Tuning.get_f("economy", "unsold_factor", 0.6))),
 			"onverkochte kabouter opgekocht aan 60%% (+€%d), de dienst is afgesloten" % int(round(gnome_value * 0.6)))
@@ -136,12 +146,23 @@ func _run(p: Player) -> void:
 	while not game.world_ready():
 		await get_tree().physics_frame
 
-	# 7. Een volledige set (set_id/set_size, pakket F3): verkocht na dezelfde dienst = bonus.
-	var bones := _pick(game, [FindKinds.Kind.VERTEBRA, FindKinds.Kind.RIB, FindKinds.Kind.CLAW])
+	# 7. Een volledig skelet (pakket F3: een echte set uit een bed, met set_id/set_size zoals FindField ze
+	# maakt; vroeger nagebootst met metadata): verkocht na dezelfde dienst = bonus. Het lichtste skelet van
+	# deze wereld, zodat het in het gewone laadruim past.
+	var bones: Array[FindItem] = []
+	var lightest := INF
+	var sets := game.finds.sets()
+	for id: String in sets:
+		var kg := 0.0
+		for it: FindItem in sets[id]:
+			kg += it.mass
+		if kg < lightest:
+			lightest = kg
+			bones.assign(sets[id])
+	_expect(bones.size() >= 3 and bones[0].set_size == bones.size() and lightest <= mol.cargo_capacity(),
+			"een echt skelet uit een bed: %s, %d stukken, %d kg" % [bones[0].set_label() if not bones.is_empty() else "geen", bones.size(), int(lightest)])
 	for i in bones.size():
-		bones[i].set_meta("set_id", "test_skeleton")
-		bones[i].set_meta("set_size", 3)
-		_free_at(bones[i], mol.to_world_mol(spots[i]))
+		_free_at(bones[i], mol.to_world_mol(Vector3(-0.9 + (i % 3) * 0.9, -1.2, 2.2 + (i / 3) * 0.8)))
 	c.contract.modifiers = []
 	await _wait(0.4)
 	c.host_shift_end(mol.cargo_contents(), 0, 0, 0)
@@ -156,8 +177,8 @@ func _run(p: Player) -> void:
 	a.request_sell()
 	await _wait(0.3)
 	var bonus := int(round(set_value * Tuning.get_f("economy", "set_bonus", 1.0)))
-	_expect(not sales.is_empty() and int(sales[0].set_bonus) == bonus and c.cash == cash3 + set_value + bonus,
-			"volledige set van 3: €%d plus set-bonus €%d" % [set_value, bonus])
+	_expect(not sales.is_empty() and int(sales[0].set_bonus) == bonus and bonus > 0 and c.cash == cash3 + set_value + bonus,
+			"volledig skelet van %d stukken: €%d plus set-bonus €%d" % [bones.size(), set_value, bonus])
 	_expect(not c.haul_open(), "alles verkocht: de dienst sluit vanzelf af")
 
 	# 8. Kwartaal gemist: boete (schuld), proeftijd (geen hoog risico), bevroren rekening, rente.
@@ -250,7 +271,16 @@ func _run(p: Player) -> void:
 
 	# 11. Laadruim met gewicht: te zwaar = de grijper laat vallen wat niet past.
 	c.upgrades.erase(Upgrades.CARGO)
-	var heavy := _pick(game, [FindKinds.Kind.SKULL, FindKinds.Kind.SKULL, FindKinds.Kind.SKULL, FindKinds.Kind.SKULL, FindKinds.Kind.TV, FindKinds.Kind.FEMUR])
+	# De zwaarste vondsten die je alleen tilt, tot boven 60 kg (welke soorten dat zijn, hangt nu van de planeet af).
+	var heavy: Array[FindItem] = []
+	var by_mass: Array = game.finds.items.filter(func(x: FindItem) -> bool: return not x.freed and x.mass >= 6.0 and FindKinds.liftable_alone(x.mass))
+	by_mass.sort_custom(func(x: FindItem, y: FindItem) -> bool: return x.mass > y.mass)
+	var kg_total := 0.0
+	for it: FindItem in by_mass:
+		if kg_total > 64.0 or heavy.size() >= 7:
+			break
+		heavy.append(it)
+		kg_total += it.mass
 	for i in heavy.size():
 		_free_at(heavy[i], mol.to_world_mol(Vector3(-1.0 + (i % 3) * 1.0, -1.1, 1.6 + (i / 3) * 1.2)))
 	await _wait(0.3)

@@ -27,9 +27,11 @@ const FAMILIES: Array[Family] = [Family.SKELETON, Family.SKELETON, Family.SKELET
 const BASE_VALUES: Array[int] = [180, 60, 45, 350, 90, 120, 85, 40, 15, 25, 260, 320,
 		600, 360, 280, 150, 220, 240, 420]
 ## Massa (kg). Boven carry.lift_max (18 kg) til je het niet alleen: alleen sleep je het (traag,
-## het schuurt), met twee draag je het (ontwerp-8). Titanschedel, bekken en reuzendijbeen.
+## het schuurt), met twee draag je het (ontwerp-8). Titanschedel, bekken en reuzendijbeen. Een heel
+## Titan-skelet (tot 8 stukken) weegt hooguit ±130 kg: het past in het grote laadruim (140 kg, F1),
+## niet in het gewone (60 kg).
 const MASSES: Array[float] = [8.0, 3.0, 2.0, 14.0, 2.0, 3.0, 2.0, 1.0, 4.0, 12.0, 6.0, 9.0,
-		34.0, 26.0, 22.0, 12.0, 10.0, 3.0, 6.0]
+		28.0, 22.0, 20.0, 10.0, 8.0, 3.0, 6.0]
 ## Breekbaarheid (0 = stevig): kristallen en geodes (GDD §4: "gloeiend en breekbaar"). Een klap
 ## kost dan sneller gaafheid, een harde klap breekt ze (FindField._check_impact), en de boor
 ## beschadigt ze meer. Ook verder dan 1 kan (de kristalroos is het broosst).

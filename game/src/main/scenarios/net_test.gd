@@ -166,7 +166,7 @@ func _run_client(p: Player) -> void:
 
 # --- Samen dragen (F3, ontwerp-8) ----------------------------------------------------------
 
-## Client: een titanschedel (34 kg) alleen slepen, dan draagt de host mee (twee dragers, getild en
+## Client: een titanschedel (28 kg) alleen slepen, dan draagt de host mee (twee dragers, getild en
 ## sneller), je kan niet ver van elkaar, en als de host loslaat, sleep je weer. Elke stap vergelijken host
 ## en client wat ze zien (zelfde regel aan beide kanten).
 func _team_carry(p: Player) -> void:
@@ -265,7 +265,7 @@ func _rpc_team_report(solo_ok: bool, team_ok: bool, team_mult: float, client_pos
 		return
 	var it: FindItem = main.game.finds.item(_heavy_id)
 	var me: Player = main.game.local_player
-	_expect(solo_ok, "samen dragen: alleen sleept de client de titanschedel (34 kg, aan %.2f)" % Tuning.get_f("carry", "drag_speed", 0.33))
+	_expect(solo_ok, "samen dragen: alleen sleept de client de titanschedel (%d kg, aan %.2f)" % [int(FindKinds.MASSES[FindKinds.Kind.TITAN_SKULL]), Tuning.get_f("carry", "drag_speed", 0.33)])
 	_expect(team_ok and it.carriers.size() == 2, "samen dragen: met twee getild, bij client en host (%d dragers)" % it.carriers.size())
 	_expect(is_equal_approx(me.carry.move_multiplier(), team_mult), "samen dragen: host en client even snel (%.2f / %.2f)" % [me.carry.move_multiplier(), team_mult])
 	_expect(it.global_position.distance_to(client_pos) < 0.6, "samen dragen: de schedel hangt bij host en client op dezelfde plek (%.2f m)" % it.global_position.distance_to(client_pos))

@@ -152,6 +152,7 @@ func _planets(p: Player) -> void:
 					st.set_ok = st.set_ok and it.set_size == pieces.size() and it.set_name == first.set_name \
 							and pieces.size() >= 3 and pieces.size() <= 8 and FindKinds.FAMILIES[it.kind] == FindKinds.Family.SKELETON
 					st.together = st.together and it.global_position.distance_to(c) < half + 3.0
+				st.set_ok = st.set_ok and pieces.any(func(x: FindItem) -> bool: return x.kind in [FindKinds.Kind.SKULL, FindKinds.Kind.TITAN_SKULL])
 				st.titans += 1 if first.set_name == "Titan" else 0
 				st.reach_sets += 1 if c.y > Strata.TOPS_M[1] else 0
 			for oc in game.ores.clusters:
@@ -167,7 +168,7 @@ func _planets(p: Player) -> void:
 	var km: Dictionary = stats[2]
 	for i in 3:
 		var st: Dictionary = stats[i]
-		_expect(st.set_ok, "%s: elk skelet heeft 3-8 stukken, allemaal botten, met set_size = aantal stukken" % PlanetType.NAMES[i])
+		_expect(st.set_ok, "%s: elk skelet heeft 3-8 stukken met een schedel, allemaal botten, met set_size = aantal stukken" % PlanetType.NAMES[i])
 		_expect(st.together, "%s: de stukken van een skelet liggen samen in één bed" % PlanetType.NAMES[i])
 		_expect(st.clustered > st.n * 0.5, "%s: buit geconcentreerd (%d%% met 2+ buren binnen 7 m)" % [PlanetType.NAMES[i], 100 * st.clustered / st.n])
 	_expect(rb.heavy == 0 and rb.sets >= 8 and rb.fam[3] > fw.fam[3] * 2 and rb.fam[3] > km.fam[3],
