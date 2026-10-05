@@ -1,4 +1,4 @@
-# Diepgang — playtest M3 (de kernlus, versie 0.6)
+# Diepgang — playtest M3 (de kernlus, versie 0.8)
 
 **Vraag: voelt een volledige dienst als een spel?** Opdracht kiezen, droppen, graven en delven, het magma voelen komen, op tijd terug, en het rapport lezen.
 
@@ -11,7 +11,7 @@ Je begint op **De Ekster**, in het laadrek achteraan het schip. **Sinds 0.5:** d
 
 ## Een dienst
 
-1. **Opdracht kiezen**: E aan de opdrachttafel op de brug (de ronde tafel met het hologram, op de verhoging). Drie concessies, elk met een risico: meer risico = meer geld, maar het magma stijgt sneller. Kiezen laadt een nieuwe wereld (±10 s).
+1. **Opdracht kiezen**: E aan de opdrachttafel op de brug (de ronde tafel met het hologram, op de verhoging). Drie concessies, elk met een risico: meer risico = meer geld, maar het magma stijgt sneller. Elke opdracht ligt op een van drie planeten: **Roestbol** (een reuzenkrater met een verlaten mijnput), **Fossielwereld** (witte badlands met een reuzenskelet) of **Kristalmaan** (een violet bekken met een kristalader). Kiezen laadt die planeet (±2 s, sinds 0.8). **Nieuw in 0.8:** de planeet loopt door tot in het speelgebied (duinen en stofsporen, een droge bedding, een korst met zeshoeken).
 2. **Droppen**: stap in de Mol en trek aan de hendel (VERTREK, rechts op de console; de HUD wijst hem aan). Na het aftellen (5 s als iedereen in de Mol zit, anders 8 s) valt de Mol door de lanceerschacht, zie je hem van buiten naar de planeet vallen en remmen, en na de landing krijg je de besturing terug. **Nieuw in 0.6:** de hele drop is een korte sequentie met beeld en geluid; de eerste drop is de lange versie, daarna een kortere. **Spatie** slaat het buitenbeeld over (in co-op moet iedereen in de Mol op spatie drukken).
 3. **Graven en delven**: houweel (stil, veilig voor vondsten), boor (snel, maar luid en beschadigt vondsten). Vondsten naar het laadruim, erts in de trechter van de Mol.
 4. **Het magma** stijgt van onderen: de eerste 2 minuten niet, daarna steeds sneller. Het statusscherm links in de Mol toont hoe ver het onder de Mol staat; dichtbij verschijnt het ook bovenaan in beeld. Wie erin zakt, smelt (een vervanger staat in de Mol, dat kost geld). Op −60 m vertrekt de Mol vanzelf: noodophaling.
