@@ -13,6 +13,8 @@ var _players: VBoxContainer
 var _settings: SettingsMenu
 var _note: Label
 var _invite_button: Button
+## De kolommen van het menu (weg zolang de instellingen open staan: niet twee lagen door elkaar).
+var _row: Control
 var _was_captured := false
 
 
@@ -34,6 +36,7 @@ func _ready() -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 32)
 	margin.add_child(row)
+	_row = row
 	var col := VBoxContainer.new()
 	col.custom_minimum_size.x = 400
 	col.add_theme_constant_override("separation", 0)
@@ -97,7 +100,9 @@ func _ready() -> void:
 
 	_settings = SettingsMenu.new()
 	_settings.visible = false
-	_settings.closed.connect(func() -> void: _buttons.get_child(0).grab_focus())
+	_settings.closed.connect(func() -> void:
+		_row.visible = true
+		_buttons.get_child(0).grab_focus())
 	add_child(_settings)
 
 
@@ -126,6 +131,7 @@ func close() -> void:
 	if not visible:
 		return
 	_settings.visible = false
+	_row.visible = true
 	visible = false
 	get_tree().paused = false
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -170,6 +176,7 @@ func _toggle_invite() -> void:
 
 
 func _open_settings() -> void:
+	_row.visible = false
 	_settings.open()
 
 
