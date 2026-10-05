@@ -648,7 +648,7 @@ func _rpc_ram(at: Vector3, side: Vector3) -> void:
 		p.camera_fx.hold_rumble(5.0 * k)
 	rammed.emit(at)
 	if p and mol and mol.body and (p.seated or mol.contains_point(p.global_position)):
-		game.notice.emit("Something slammed into the Mole! The cargo took a beating.", "alarm")
+		game.notice.emit("Something rammed the Mole! The cargo took a hit.", "alarm")
 
 
 @rpc("authority", "call_local", "reliable")

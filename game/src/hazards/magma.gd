@@ -596,7 +596,7 @@ func _rpc_melted(peer_id: int) -> void:
 	if p and p.is_local:
 		_melt_t = -1.0
 		_after_t = 0.0
-		game.notice.emit("Your robot melted in the magma. Everything it carried is gone, and DIG bills the replacement.", "alarm")
+		game.notice.emit("Your robot melted. Everything it carried is gone.", "alarm")
 	elif p:
 		game.notice.emit("A robot melted in the magma.", "warn")
 
@@ -633,7 +633,7 @@ func _rule_mol(dt: float) -> void:
 		_alarm_level += 1
 	if gap < 0.0:
 		_mol_heat += dt / maxf(1.0, Tuning.get_f("magma", "mol_heat_s", 25.0))
-		if _mol_heat >= 1.0 and mol.host_emergency(5.0, "The Mole is overheating: DIG is hauling it up! The cargo got cooked."):
+		if _mol_heat >= 1.0 and mol.host_emergency(5.0, "The Mole is overheating! DIG hauls it up, cargo scorched."):
 			_mol_heat = 0.0
 			# Te heet: de lading verschroeit (ontwerp-7: het magma kost wat je bij je had).
 			var loss := Tuning.get_f("magma", "mol_heat_cargo_loss", 0.4)

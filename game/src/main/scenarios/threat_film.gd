@@ -397,9 +397,8 @@ func _hud() -> void:
 	game.magma.elapsed = 240.0
 	await _wait(1.0)
 	var legacy := CmdArgs.has("legacy")
+	main.hud.hazard.far_rule = not legacy
 	for i in 30:
-		if legacy:
-			main.hud.hazard.always_magma = false
 		await get_tree().process_frame
 	_snap("hud_magma_ver_%s" % ("voor" if legacy else "na"))
 	if legacy:

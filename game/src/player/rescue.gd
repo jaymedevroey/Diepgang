@@ -709,7 +709,7 @@ func _check_wipe() -> void:
 	if n == 0:
 		return
 	var s := Tuning.get_f("rescue", "wipe_s", 12.0)
-	if game.mol and game.mol.host_emergency(s, "Every robot is down. DIG is hauling the Mole up in %d s." % int(s)):
+	if game.mol and game.mol.host_emergency(s, "All robots down! DIG recalls the Mole in %d s." % int(s)):
 		_wipe_called = true
 
 
@@ -809,7 +809,7 @@ func _rpc_broken(peer: int, at: Vector3, melted: bool) -> void:
 	if pl:
 		pl.on_broken(at)
 		if pl.is_local:
-			game.notice.emit("Your robot is broken. You're a ghost drone until the shift is over.", "alarm")
+			game.notice.emit("Your robot is broken. You're a ghost drone now.", "alarm")
 		else:
 			game.notice.emit("%s's robot is broken." % _name_of(peer), "warn")
 	life_changed.emit(peer, Life.BROKEN)

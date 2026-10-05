@@ -26,6 +26,9 @@ var magma_m := INF
 var magma_eta := INF
 ## Onder de grond of in de Mol: het magma altijd tonen.
 var always_magma := false
+## De regel van ontwerp-1 (ver weg toch tonen). Uit = de oude regel (enkel binnen 60 m), voor een
+## voor/na-beeld (threat_film --take=hud --legacy).
+var far_rule := true
 ## Onrust 0..1 in de huidige trap.
 var unrest := 0.0
 var quake := Unrest.Phase.CALM
@@ -67,7 +70,7 @@ func flash_rise(metres: float) -> void:
 
 
 func _magma_shown() -> bool:
-	return magma_m < SHOW_MAGMA_M or (always_magma and magma_m < INF)
+	return magma_m < SHOW_MAGMA_M or (always_magma and far_rule and magma_m < INF)
 
 
 ## Hoe hoog wat er nu getekend wordt (voor wat eronder komt, zoals de aftelling).
@@ -75,7 +78,7 @@ func content_height() -> float:
 	var h := 0.0
 	if magma_m < SHOW_MAGMA_M:
 		h += MAGMA_H + 6.0
-	elif always_magma and magma_m < INF:
+	elif always_magma and far_rule and magma_m < INF:
 		h += FAR_H + 4.0
 	if worm > 0.05:
 		h += WORM_H
@@ -130,7 +133,7 @@ func _draw() -> void:
 		draw_string(_head, Vector2(box.position.x + 14.0, y + 26.0), word, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, col)
 		draw_string(_font, Vector2(box.position.x + 26.0 + wsz.x, y + 27.0), dist, HORIZONTAL_ALIGNMENT_LEFT, -1, 24, UiTheme.CREAM)
 		y += MAGMA_H + 6.0
-	elif always_magma and magma_m < INF:
+	elif always_magma and far_rule and magma_m < INF:
 		# Ver weg: klein en rustig, maar altijd daar. Hoe dichter, hoe warmer de kleur.
 		var k := clampf(1.0 - (magma_m - SHOW_MAGMA_M) / 200.0, 0.0, 1.0)
 		var col := UiTheme.CREAM_DIM.lerp(UiTheme.AMBER, k)
