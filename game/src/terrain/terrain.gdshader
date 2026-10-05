@@ -323,6 +323,9 @@ void fragment() {
 	float qamt = QUANT_AMT[layer] * facet_strength * mix(0.6, 1.0, near) * (1.0 - 0.85 * aa);
 	qamt *= 1.0 - 0.5 * smoothstep(0.55, 0.9, up); // vloeren zijn vlakker (stof vult op)
 	qamt *= 1.0 - 0.6 * ug_floor;
+	// Roestbol: zand op vlakke grond aan het oppervlak is niet gefacetteerd (daar liggen ribbels).
+	float sand = (planet_id == 0 && layer == 3) ? crust_k * smoothstep(0.75, 0.95, up) : 0.0;
+	qamt *= 1.0 - 0.7 * sand;
 	// De landingsplek: aangestampt stof in het midden, dat aan de rand (ruw, niet rond) overgaat in
 	// het gewone terrein. Daar minder platen en barsten, zodat het geen tegelvloer wordt.
 	float pad_k = 0.0;
@@ -594,8 +597,12 @@ void fragment() {
 			// Asymmetrisch: een lichte kam en een donkere luwte, zoals echte ribbels in de zon.
 			float ph = fract(rp / 6.2831853);
 			float crest = smoothstep(0.0, 0.7, ph) * (1.0 - smoothstep(0.7, 0.82, ph));
-			float rip = (crest * 2.0 - 1.0) * clamp(2.0 / rpw, 0.0, 1.0);
-			col *= 1.0 + rip * 0.16 * flat_top * near * smoothstep(0.75, 0.95, up);
+			float rk = clamp(2.0 / rpw, 0.0, 1.0) * flat_top * near * smoothstep(0.75, 0.95, up);
+			col *= 1.0 + (crest * 2.0 - 1.0) * 0.1 * rk;
+			// De ribbels kantelen de normaal (een lange flank, een steile luwte): zo lezen ze in de zon.
+			float slope = ph < 0.7 ? 0.35 : -0.9;
+			vec3 wd3 = normalize(vec3(wd.x, 0.0, wd.y));
+			n = normalize(n - wd3 * slope * 0.26 * rk);
 			float streak = vnoise(vec3(along * 0.06, across * 0.7, seed_s));
 			col = mix(col, light * 1.05, smoothstep(0.62, 0.82, streak) * 0.22 * flat_top);
 		} else if (planet_id == 1) {
