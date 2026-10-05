@@ -29,13 +29,14 @@ static var _meshes: Dictionary = {} # "kind/variant" -> ArrayMesh
 static var _materials: Dictionary = {} # kind -> Material
 
 
-## Erts per laag (Strata.Layer: KRISTAL, GRANIET, ZANDSTEEN, KLEI).
-static func for_layer(layer: Strata.Layer) -> Kind:
+## Erts per laag (Strata.Layer: KRISTAL, GRANIET, ZANDSTEEN, KLEI) en planeet: op de Kristalmaan
+## zit in het zandsteen lichtkristal in plaats van ijzer (planets.cfg glow_ore_in_sand).
+static func for_layer(layer: Strata.Layer, planet := 0) -> Kind:
 	match layer:
 		Strata.Layer.KLEI:
 			return Kind.KOPER
 		Strata.Layer.ZANDSTEEN:
-			return Kind.IJZER
+			return Kind.LICHTKRISTAL if PlanetLoot.value(planet, "glow_ore_in_sand", 0.0) > 0.5 else Kind.IJZER
 		Strata.Layer.GRANIET:
 			return Kind.ZILVER
 	return Kind.LICHTKRISTAL

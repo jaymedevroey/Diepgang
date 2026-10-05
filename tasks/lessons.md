@@ -16,6 +16,26 @@ De keuzes waar het GDD zweeg staan in GDD §6 ("Uitwerking (pakket F2)").
 - **`--shot` is van main.gd** (screenshot na N frames, dan afsluiten): een eigen scenario met `--shot=` sloot meteen af. Films gebruiken `--take=`.
 - **Godot stoppen op PID, met de boom:** `tools\godot.cmd` start een console-exe die zelf een kind start; `taskkill /PID <id> /T /F` stopt beide, en geen andere runs. In PowerShell eerst `$p.Handle` opvragen, anders is `ExitCode` leeg.
 
+## 2026-10-05 — Release-audit, pakket F3: planeten spelen anders, en samen
+
+**Keuzes waar het GDD zweeg** (ter info voor Jayme; cijfers in `planets.cfg`, `carry.cfg`, `finds.cfg`):
+- **Per planeet een andere buit** (PlanetLoot). Roestbol: kampen van vorige bezoekers in de klei, ×1,25 erts, kleine skeletten (Sand strider, 3-5 stukken) in het zandsteen. Fossielwereld: 12 bedden waarvan 75 % een Titan (5-8 stukken, titanschedel 28 kg, bekken 22, reuzendijbeen 20; een heel skelet weegt hooguit ±130 kg en past dus in het grote laadruim van F1, 140 kg, niet in het gewone van 60 kg), al vanaf ±18 m, weinig rommel en ×0,7 erts. Kristalmaan: kristalgrotten (glowshard, kristalroos, geode) rond rijke grotten, lichtkristal-erts in het zandsteen. Overal minder verspreid: 68-76 % van de vondsten heeft 2+ buren binnen 7 m (was 27-30 %).
+- **Gevaren per planeet als factoren** voor F2 in `PlanetType.params(id)`: `gas_mult` 0,5/0,8/2,0, `worm_mult` 0,7/1,0/1,6, `quake_mult` 1,0/1,2/1,0 (plus `tagline` voor de contractkaarten van F1).
+- **Een skelet is een set:** één per bed, de stukken liggen zoals in het beest (kop, rug, bekken, poten). `set_size` is wat er echt in de rots paste (minstens 3), anders kan je hem nooit compleet maken.
+- **Zwaar = boven 18 kg.** Alleen sleep je het (0,33 van de loopsnelheid, het schuurt 0,4 % per meter), met twee is het getild (draagkracht ×1,35 per paar: titanschedel 0,65). Met twee kan je niet ver uit elkaar: een touw (je wordt teruggetrokken), geen muur.
+- **Breekbaar:** een klap telt vanaf ±1,4 m/s (glowshard), een harde klap (4,5 m/s, kristalroos 3,2) breekt hem: 8 % waarde, licht uit. De boor kost ze ×2,2. De sprong bij het vrijkomen telt 1,5 s niet.
+- **Werk voor wie meerijdt: een zijscan**, geen kraan (de lier/kraan is in het GDD een upgrade). Stil, werkt enkel in beweging (de autopiloot, een rit), 6 pijltjes per dienst in de tunnelwand naar wat hij hoorde.
+
+**Wat ik leerde:**
+- **Neerzetten was laten vallen.** `Carry.drop(false)` liet de vondst los op draaghoogte: 1,2 m vallen is 4,8 m/s, boven de schadedrempel van 3 m/s. Elke gewone vondst verloor zo ±11 % per keer neerzetten, en geen test zag het (carry_test gooide enkel). Een kristal brak ervan. Nu zet E hem op de grond eronder; wie omvalt (beving) laat hem nog vallen.
+- **Een wereld wisselen zonder schip** (tests en previews: `host_new_world`) geeft de spelers geen kijker op het nieuwe terrein, enkel de Mol. Dan laadt er geen botsing rond de speler en blijven losse vondsten geparkeerd in de lucht hangen. In het spel is er altijd een schip; in een scenario na de wissel `game._add_viewers(p)`.
+- **Een nieuw `class_name`-script bestaat pas na `--import`.** Zonder faalt main.gd te laden en hangt een test zonder eigen time-out. Godot met een tijdslimiet starten en bij een time-out enkel de eigen PID's (en hun kinderen) stoppen.
+- **Grote stukken niet op de laag van het gereedschap:** die laag (licht van het gereedschap, niet de helmlamp) was voor kleine vondsten op 0,8 m; een titanschedel van 1,5 m werd er een donkere vlek van.
+- **Twee spelers in één headless test:** een nagebootste tweede drager (`carriers = [ik, 9999]`) test de regels; dat host en client even snel gaan, de vondst op dezelfde plek zien en het touw werkt, kan enkel de nettest.
+- **Buit meten voor en na:** één dumpscenario dat op oude en nieuwe code draait (`it.get("set_id")`), en een zijaanzicht per planeet (families in kleur, sets als lijn). Dat toont in één beeld wat gemiddelden verbergen (zie `logs/review_fix/F3/buit_per_planeet_voor_na.png`).
+- **PowerShell kent geen hoofdletters in variabelen:** `$s` (een bestand) overschreef `$S` (een pad).
+- De ±300 fouten `material is null` per nieuwe wereld in headless tests bestaan al (ook in de logs van C); niet van F3.
+
 ## 2026-10-05 — Release-audit, pakket F1: economie en voortgang
 
 **Keuzes waar het GDD zweeg** (ter info voor Jayme; getallen in `company.cfg` en `economy.cfg`):

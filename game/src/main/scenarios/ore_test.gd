@@ -32,7 +32,7 @@ func _run(p: Player) -> void:
 	var right_kind := true
 	for c in ores.clusters:
 		in_rock = in_rock and t.generated_rock_depth(c.global_position) >= 0.09
-		right_kind = right_kind and c.kind == OreKinds.for_layer(t.layer_at(c.global_position))
+		right_kind = right_kind and c.kind == OreKinds.for_layer(t.layer_at(c.global_position), int(main.game.planet_type))
 	_expect(in_rock, "alle clusters zitten in de rots")
 	_expect(right_kind, "soort erts volgt de laag")
 	var c0 := ores.clusters[0]

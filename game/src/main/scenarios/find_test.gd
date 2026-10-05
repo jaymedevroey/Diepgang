@@ -9,7 +9,7 @@ var _failures := PackedStringArray()
 
 func _ready() -> void:
 	main.game.player_spawned.connect(func(p: Player) -> void: _run.call_deferred(p))
-	get_tree().create_timer(60.0).timeout.connect(func() -> void:
+	get_tree().create_timer(200.0).timeout.connect(func() -> void:
 		print("[find_test] GEFAALD: time-out")
 		get_tree().quit(1))
 
@@ -102,10 +102,96 @@ func _run(p: Player) -> void:
 	var snap := finds.snapshot()
 	_expect(snap.size() == finds.items.size() and snap[0][3] == true and snap[2][3] == false, "snapshot voor late joiners klopt")
 
+	await _planets(p)
+
 	print("[find_test] %d controles, %d mislukt → %s" % [_checks, _failures.size(), "GESLAAGD" if _failures.is_empty() else "GEFAALD"])
 	for f in _failures:
 		print("[find_test] MISLUKT: ", f)
 	get_tree().quit(0 if _failures.is_empty() else 1)
+
+
+## Per planeet een andere buit (release-audit ontwerp-5, -8, -9; PlanetLoot): drie planeten × twee seeds,
+## tellen en vergelijken. Elke planeet moet anders spelen: Roestbol rommel en kleine skeletten, Fossielwereld
+## grote skeletten met zware stukken, Kristalmaan breekbare, lichtgevende kristallen.
+func _planets(p: Player) -> void:
+	var game: Game = main.game
+	var finds: FindField = game.finds
+	var stats: Array[Dictionary] = []
+	for planet in 3:
+		var st := {"n": 0, "fam": [0, 0, 0, 0, 0], "heavy": 0, "fragile": 0, "glow": 0, "sets": 0, "titans": 0,
+				"reach_sets": 0, "value": 0, "clustered": 0, "glow_ore_sand": 0, "ore": 0, "set_ok": true, "together": true}
+		for s in [11, 12]:
+			game.host_new_world(s, planet)
+			await _frames(2)
+			var t0 := Time.get_ticks_msec()
+			while not game.world_ready() and Time.get_ticks_msec() - t0 < 20000:
+				await _frames(5)
+			st.n += finds.items.size()
+			for it in finds.items:
+				st.fam[FindKinds.FAMILIES[it.kind]] += 1
+				st.heavy += 0 if FindKinds.liftable_alone(it.mass) else 1
+				st.fragile += 1 if it.fragility > 0.0 else 0
+				st.glow += 1 if FindKinds.GLOW.has(it.kind) else 0
+				st.value += it.base_value
+				var near := 0
+				for o in finds.items:
+					if o != it and o.global_position.distance_to(it.global_position) < 7.0:
+						near += 1
+				st.clustered += 1 if near >= 2 else 0
+			var sets := finds.sets()
+			st.sets += sets.size()
+			for id: String in sets:
+				var pieces: Array = sets[id]
+				var c := Vector3.ZERO
+				for it: FindItem in pieces:
+					c += it.global_position
+				c /= pieces.size()
+				var first: FindItem = pieces[0]
+				var half: float = PlanetLoot.SETS["titan" if first.set_name == "Titan" else "strider"].half_len
+				for it: FindItem in pieces:
+					st.set_ok = st.set_ok and it.set_size == pieces.size() and it.set_name == first.set_name \
+							and pieces.size() >= 3 and pieces.size() <= 8 and FindKinds.FAMILIES[it.kind] == FindKinds.Family.SKELETON
+					st.together = st.together and it.global_position.distance_to(c) < half + 3.0
+				st.set_ok = st.set_ok and pieces.any(func(x: FindItem) -> bool: return x.kind in [FindKinds.Kind.SKULL, FindKinds.Kind.TITAN_SKULL])
+				st.titans += 1 if first.set_name == "Titan" else 0
+				st.reach_sets += 1 if c.y > Strata.TOPS_M[1] else 0
+			for oc in game.ores.clusters:
+				st.ore += 1
+				st.glow_ore_sand += 1 if oc.kind == OreKinds.Kind.LICHTKRISTAL and game.terrain.layer_at(oc.global_position) == Strata.Layer.ZANDSTEEN else 0
+		stats.append(st)
+		var n := float(st.n)
+		print("[find_test] %s (2 werelden): %d vondsten, skelet %d%%, relikwie %d%%, metaal %d%%, rommel %d%%, kristal %d%% · zwaar %d, breekbaar %d, gloeit %d · %d skeletten (%d Titan, %d bereikbaar met T1) · %d%% in groepjes · €%d · erts %d (lichtkristal in zandsteen %d)" % [
+				PlanetType.NAMES[planet], st.n, 100 * st.fam[0] / n, 100 * st.fam[1] / n, 100 * st.fam[2] / n, 100 * st.fam[3] / n,
+				100 * st.fam[4] / n, st.heavy, st.fragile, st.glow, st.sets, st.titans, st.reach_sets, 100 * st.clustered / n, st.value, st.ore, st.glow_ore_sand])
+	var rb: Dictionary = stats[0]
+	var fw: Dictionary = stats[1]
+	var km: Dictionary = stats[2]
+	for i in 3:
+		var st: Dictionary = stats[i]
+		_expect(st.set_ok, "%s: elk skelet heeft 3-8 stukken met een schedel, allemaal botten, met set_size = aantal stukken" % PlanetType.NAMES[i])
+		_expect(st.together, "%s: de stukken van een skelet liggen samen in één bed" % PlanetType.NAMES[i])
+		_expect(st.clustered > st.n * 0.5, "%s: buit geconcentreerd (%d%% met 2+ buren binnen 7 m)" % [PlanetType.NAMES[i], 100 * st.clustered / st.n])
+	_expect(rb.heavy == 0 and rb.sets >= 8 and rb.fam[3] > fw.fam[3] * 2 and rb.fam[3] > km.fam[3],
+			"Roestbol: rommel (%d tegen %d/%d) en kleine skeletten (%d), niets te zwaar" % [rb.fam[3], fw.fam[3], km.fam[3], rb.sets])
+	_expect(fw.titans >= 12 and fw.heavy >= 30 and fw.fam[0] > fw.n * 0.6,
+			"Fossielwereld: grote skeletten (%d Titan, %d stukken te zwaar voor één, %d%% botten)" % [fw.titans, fw.heavy, 100 * fw.fam[0] / fw.n])
+	_expect(fw.reach_sets >= 12, "Fossielwereld: de meeste skeletten bereikbaar met de boor T1 (%d)" % fw.reach_sets)
+	_expect(km.fragile > km.n * 0.3 and km.glow >= 40 and km.fam[4] > rb.fam[4] * 3,
+			"Kristalmaan: breekbare, lichtgevende kristallen (%d breekbaar, %d gloeien, %d tegen %d op Roestbol)" % [km.fragile, km.glow, km.fam[4], rb.fam[4]])
+	_expect(km.glow_ore_sand > 0 and rb.glow_ore_sand == 0, "Kristalmaan: lichtkristal-erts in het zandsteen (%d)" % km.glow_ore_sand)
+	_expect(rb.ore > fw.ore, "Roestbol heeft meer erts dan Fossielwereld (%d tegen %d)" % [rb.ore, fw.ore])
+	# Drie verschillende mixen: de verdeling over de families verschilt duidelijk per paar planeten.
+	for pair in [[0, 1], [0, 2], [1, 2]]:
+		var a: Dictionary = stats[pair[0]]
+		var b: Dictionary = stats[pair[1]]
+		var l1 := 0.0
+		for f in 5:
+			l1 += absf(a.fam[f] / float(a.n) - b.fam[f] / float(b.n))
+		_expect(l1 > 0.4, "%s en %s: andere buit (verschil %.2f)" % [PlanetType.NAMES[pair[0]], PlanetType.NAMES[pair[1]], l1])
+	# Gevaren per planeet voor F2 (gas, worm): de Kristalmaan is het onrustigst.
+	var g := [PlanetType.params(0), PlanetType.params(1), PlanetType.params(2)]
+	_expect(g[2].gas_mult > g[0].gas_mult and g[2].worm_mult > g[1].worm_mult and g[2].worm_mult > g[0].worm_mult,
+			"PlanetType.params: meer gas (%.1f) en een actievere worm (%.1f) op de Kristalmaan" % [g[2].gas_mult, g[2].worm_mult])
 
 
 func _frames(n: int) -> void:

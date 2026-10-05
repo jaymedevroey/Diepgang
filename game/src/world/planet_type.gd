@@ -52,14 +52,39 @@ static func _hex(s: String) -> Color:
 	return Color.html(s)
 
 
-## Parameters van een type: hemel (shader-uniforms), zon (licht) en sfeer aan de oppervlakte.
+## Parameters van een type: hemel (shader-uniforms), zon (licht) en sfeer aan de oppervlakte, plus hoe
+## de planeet speelt (play()).
 static func params(id: Id, style := "") -> Dictionary:
 	if style == "":
 		style = str(CmdArgs.value("sky", SKY_STYLE[clampi(int(id), 0, SKY_STYLE.size() - 1)])).to_lower()
 	var p := _roestbol(style)
 	p["name"] = NAMES[clampi(int(id), 0, NAMES.size() - 1)]
 	p["ground"] = ground(id)
+	p.merge(play(id), true)
 	return p
+
+
+## Wat de planeet in het spelen anders maakt (release-audit ontwerp-5, GDD §4): een korte zin (voor de
+## contractkaarten), wat er te vinden is, en de factoren voor de gevaren. Pakket F2 leest gas_mult,
+## worm_mult en quake_mult (met 1.0 als standaard); de buit zelf zit in PlanetLoot. Uit planets.cfg.
+const TAGLINES: Array[String] = [
+	"Junk camps, ore and small skeletons. A good first dig.",
+	"Giant skeletons in pieces. Bring a buddy to carry them.",
+	"Fragile glowing crystals. More gas, and the worm is restless.",
+]
+
+
+static func play(id: Id) -> Dictionary:
+	var i := clampi(int(id), 0, 2)
+	return {
+		"tagline": TAGLINES[i],
+		"heavy_finds": i == Id.FOSSIELWERELD,
+		"fragile_finds": i == Id.KRISTALMAAN,
+		"gas_mult": PlanetLoot.value(i, "gas", 1.0),
+		"worm_mult": PlanetLoot.value(i, "worm", 1.0),
+		"quake_mult": PlanetLoot.value(i, "quake", 1.0),
+		"ore_mult": PlanetLoot.value(i, "ore_veins", 1.0),
+	}
 
 
 static func _roestbol(style: String) -> Dictionary:
