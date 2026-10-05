@@ -399,10 +399,10 @@ def layer_paint(group):
     text("DIG", 4.2, (-7.8, 3.2, 40.0), (0, -90, 0), "Yellow", group, extrude=0.06)
     text("DIG", 4.2, (7.8, 3.2, 40.0), (0, 90, 0), "Yellow", group, extrude=0.06)
     # Vóór de panelen (die steken ±0,3 m uit de romp).
-    text("DE EKSTER", 2.2, (-15.95, 4.6, -67.5), (0, -90, 0), "Cream", group, extrude=0.04)
-    text("DE EKSTER", 2.2, (15.95, 4.6, -67.5), (0, 90, 0), "Cream", group, extrude=0.04)
-    text("DIG-0017", 1.3, (-15.95, -0.3, -67.5), (0, -90, 0), "Yellow", group, extrude=0.04)
-    text("DIG-0017", 1.3, (15.95, -0.3, -67.5), (0, 90, 0), "Yellow", group, extrude=0.04)
+    text("THE MAGPIE", 2.05, (-15.95, 4.6, -67.8), (0, -90, 0), "Cream", group, extrude=0.04)
+    text("THE MAGPIE", 2.05, (15.95, 4.6, -67.8), (0, 90, 0), "Cream", group, extrude=0.04)
+    text("DIG-0017", 1.3, (-15.95, -0.3, -67.8), (0, -90, 0), "Yellow", group, extrude=0.04)
+    text("DIG-0017", 1.3, (15.95, -0.3, -67.8), (0, 90, 0), "Yellow", group, extrude=0.04)
 
 
 def build():

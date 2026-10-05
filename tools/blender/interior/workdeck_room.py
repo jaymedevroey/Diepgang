@@ -288,7 +288,7 @@ def floor(ctx, D, PN, rng):
                     m="Yellow")
     # Geel-zwart aan de rand van de trap naar het laadrek.
     box(D, (10.0, y + 0.021, 39.68), (7.4, 0.004, 0.3), m="Hazard")
-    text(D, "LET OP: TREDEN", 0.12, (10.0, y + 0.024, 39.2), (0, 1, 0), "Yellow", up=(0, 0, 1))
+    text(D, "MIND THE STEPS", 0.12, (10.0, y + 0.024, 39.2), (0, 1, 0), "Yellow", up=(0, 0, 1))
     # DIG-logo in het midden (10, 35): zeshoekige plaat, gele rand, DIG, de volle naam.
     cx, cz = 10.0, 35.0
     hexo = [(cx + 2.15 * math.cos(math.radians(60 * k + 30)), cz + 2.15 * math.sin(math.radians(60 * k + 30)))
@@ -306,9 +306,9 @@ def floor(ctx, D, PN, rng):
         lx, lz = cx + 2.0 * math.cos(a0), cz + 2.0 * math.sin(a0)
         cyl(D, (lx, y + 0.024, lz), (0, 1, 0), 0.014, 0.06, 8, "DarkSteel" if k == 4 else "LedAmber")
     text(D, "DIG", 0.95, (cx, y + 0.03, cz - 0.1), (0, 1, 0), "Yellow", up=(0, 0, -1))
-    text(D, "DIEPGANG INTERPLANETAIRE GRONDWERKEN", 0.085, (cx, y + 0.03, cz + 0.8), (0, 1, 0), "Yellow",
+    text(D, "DIEPGANG INTERPLANETARY GROUNDWORKS", 0.085, (cx, y + 0.03, cz + 0.8), (0, 1, 0), "Yellow",
          up=(0, 0, -1), max_w=2.9)
-    text(D, "SINDS 2161 · ZONDER SCHADECLAIMS SINDS 2163", 0.05, (cx, y + 0.03, cz + 1.05), (0, 1, 0), "Yellow",
+    text(D, "SINCE 2161 · NO DAMAGE CLAIMS SINCE 2163", 0.05, (cx, y + 0.03, cz + 1.05), (0, 1, 0), "Yellow",
          up=(0, 0, -1), max_w=2.1)
     # Goedkope reparatie: een stalen plaat met bouten over een hoek van het logo.
     box(D, (cx + 1.55, y + 0.034, cz - 1.05), (0.9, 0.012, 0.62), u=(math.cos(0.3), 0, math.sin(0.3)), v=(0, 1, 0),
@@ -325,9 +325,9 @@ def floor(ctx, D, PN, rng):
     for s in (-1, 1):
         box(D, (15.85, y + 0.31, 32.75 + s * 0.09), (0.36, 0.62, 0.025), u=(1, 0, 0), v=(0, 0.96, -s * 0.28),
             m="Yellow")
-        lines(D, [("LET OP:", 0.04), ("GLAD", 0.06), ("SCHOONMAAK", 0.022), ("UITBESTEED", 0.022)],
+        lines(D, [("CAUTION:", 0.035), ("SLIPPERY", 0.05), ("CLEANING", 0.022), ("OUTSOURCED", 0.022)],
               (15.85, y + 0.365, 32.75 + s * 0.103), (0, 0.28, s * 0.96), "DecalDark", up=(0, 0.96, -s * 0.28),
-              gap=0.5)
+              gap=0.5, max_w=0.31)
     ctx.col_box(15.65, 16.05, y, y + 0.62, 32.55, 32.95)
     # Wand-vloer: een schuine plint langs de wanden (Super Destroyer-profiel).
     for (x0, x1, z, s) in ((3.15, 6.55, 30.15, 1), (13.45, 16.85, 30.15, 1), (3.15, 5.75, 39.85, -1),
@@ -352,7 +352,7 @@ def portals(ctx, P, D):
         ctx.col_box(min(x, x + (0.5 if x < 10 else -0.5)), max(x, x + (0.5 if x < 10 else -0.5)), Y0, YN, 30.15, 30.56)
     # Bord boven de poort.
     box(P, (10.0, 4.55, 30.25), (3.6, 0.36, 0.2), m="Anthracite")
-    text(D, "BRUG  ·  OPDRACHTEN", 0.15, (10.0, 4.55, 30.35), (0, 0, 1), "Yellow")
+    text(D, "BRIDGE  ·  CONTRACTS", 0.15, (10.0, 4.55, 30.35), (0, 0, 1), "Yellow")
     box(D, (10.0, 4.41, 30.356), (3.3, 0.012, 0.012), m="LedAmber")
     # Laadrek: lager, met afgeschuinde hoeken (0,4 m). De voorkant kijkt naar −z.
     inner = [(6.15, Y0), (6.15, 2.6), (6.55, 3.0), (13.45, 3.0), (13.85, 2.6), (13.85, Y0)]
@@ -364,7 +364,7 @@ def portals(ctx, P, D):
         ctx.col_box(min(x, 6.15 if x < 10 else 13.85), max(x, 6.15 if x < 10 else 13.85), Y0, 3.0, 39.5, 39.85)
         box(D, ((x + (6.15 if x < 10 else 13.85)) / 2, 1.55, 39.494), (0.4, 0.7, 0.012), m="Hazard")
     box(P, (10.0, 3.75, 39.75), (3.2, 0.42, 0.2), m="Anthracite")
-    text(D, "LAADREK", 0.2, (10.0, 3.75, 39.65), (0, 0, -1), "Yellow")
+    text(D, "LOADING RACK", 0.2, (10.0, 3.75, 39.65), (0, 0, -1), "Yellow")
     box(D, (10.0, 3.6, 39.644), (2.9, 0.012, 0.012), m="LedAmber")
 
 
@@ -422,7 +422,7 @@ def tv(ctx, P, D):
     blk(D, 6.55, 6.7, 1.45, 1.6, 30.15, 30.19, "Cream")
     # Bordje onder de tv.
     sign(D, D, Face((3.15, Y0, 30.15), (1, 0, 0), (0, 1, 0)), 1.85, 0.62, 1.6, 0.24,
-         [("DIG-NIEUWS · 24/7", 0.055), ("ER IS GEEN UITKNOP", 0.04)], bg="DecalDark", fg="Yellow")
+         [("DIG NEWS · 24/7", 0.055), ("THERE IS NO OFF SWITCH", 0.04)], bg="DecalDark", fg="Yellow")
     ctx.col_box(3.42, 6.58, 2.0, 4.06, 30.15, 30.45)
 
 
@@ -462,20 +462,20 @@ def walls(ctx, P, D, PN, rng):
     H = 0.07  # voor de wandplaten
     f.box(P, a, c, H, (1.5, 1.8, 0.05), "Yellow")
     f.box(D, a, c, H + 0.05, (1.36, 1.66, 0.006), "Cream")
-    lines(D, [("LAADROOSTER", 0.1), ("LAADREK · CAPSULES 01-04", 0.035)], f.at(a, c + 0.62, H + 0.056), (0, 0, 1),
-          "DecalDark", gap=0.5)
+    lines(D, [("CHARGING ROTA", 0.1), ("LOADING RACK · PODS 01-04", 0.035)], f.at(a, c + 0.62, H + 0.056), (0, 0, 1),
+          "DecalDark", gap=0.5, max_w=1.2)
     f.box(D, a, c + 0.4, H + 0.056, (1.2, 0.012, 0.003), "DecalDark")
-    for k, (pod, val, m) in enumerate((("01", "3%  - LADEN NA DE QUOTA", "DecalDark"),
-                                       ("02", "11% - LADEN NA DE QUOTA", "DecalDark"),
-                                       ("03", "DEFECT SINDS KWARTAAL 1", "Red"),
-                                       ("04", "1%  - WACHTLIJST", "DecalDark"))):
+    for k, (pod, val, m) in enumerate((("01", "3%  - CHARGING AFTER QUOTA", "DecalDark"),
+                                       ("02", "11% - CHARGING AFTER QUOTA", "DecalDark"),
+                                       ("03", "BROKEN SINCE QUARTER 1", "Red"),
+                                       ("04", "1%  - WAITING LIST", "DecalDark"))):
         cy = c + 0.24 - k * 0.2
         text(D, pod, 0.07, f.at(a - 0.52, cy, H + 0.058), (0, 0, 1), "DecalDark")
         text(D, val, 0.04, f.at(a + 0.1, cy, H + 0.058), (0, 0, 1), m, max_w=0.95)
         f.box(D, a, cy - 0.1, H + 0.056, (1.2, 0.006, 0.003), "DecalDark")
-    lines(D, [("STROOM IS DUUR.", 0.035), ("STILSTAAN OOK.", 0.035)], f.at(a, c - 0.66, H + 0.056), (0, 0, 1),
+    lines(D, [("POWER IS EXPENSIVE.", 0.035), ("SO IS DOWNTIME.", 0.035)], f.at(a, c - 0.66, H + 0.056), (0, 0, 1),
           "DecalDark", gap=0.6)
-    f.tilted(D, a + 0.5, c - 0.37, H + 0.058, (0.3, 0.07, 0.003), -14, "DuctTape")  # plakband over een cijfer
+    f.tilted(D, a + 0.54, c - 0.37, H + 0.058, (0.3, 0.07, 0.003), -14, "DuctTape")  # plakband over een cijfer
     for dx in (-0.6, 0.6):
         f.box(D, a + dx, c + 0.92, 0.0, (0.05, 0.08, H + 0.06), "Steel")
     # Prikklok met kaartenrek.
@@ -486,14 +486,14 @@ def walls(ctx, P, D, PN, rng):
     f.tilted(D, a, c + 0.14, 0.23, (0.012, 0.06, 0.003), 25, "DecalDark")
     f.tilted(D, a + 0.02, c + 0.12, 0.23, (0.045, 0.01, 0.003), 0, "DecalDark")
     f.box(D, a, c - 0.1, 0.22, (0.2, 0.025, 0.01), "Soot")
-    text(D, "PRIKKLOK", 0.035, f.at(a, c - 0.2, 0.22), (0, 0, 1), "Yellow")
+    text(D, "TIME CLOCK", 0.035, f.at(a, c - 0.2, 0.22), (0, 0, 1), "Yellow")
     for k in range(6):
         aa = a + 0.42 + (k % 2) * 0.14
         cc = c + 0.2 - (k // 2) * 0.17
         f.box(D, aa, cc, 0.0, (0.12, 0.04, 0.12), "DarkSteel")
         if k != 3:
             f.box(D, aa, cc + 0.04, 0.09, (0.09, 0.12, 0.004), "Cream")
-    sign(D, D, f, a + 0.2, c + 0.5, 0.82, 0.16, [("INPRIKKEN VERPLICHT", 0.032), ("UITPRIKKEN OPTIONEEL", 0.032)],
+    sign(D, D, f, a + 0.2, c + 0.5, 0.82, 0.16, [("CLOCKING IN: MANDATORY", 0.032), ("CLOCKING OUT: OPTIONAL", 0.032)],
          bg="Cream", fg="DecalDark", gap=0.5, h0=0.07)
     ctx.col_box(15.5, 16.4, 2.1, 2.72, 30.15, 30.4)
 
@@ -521,14 +521,14 @@ def walls(ctx, P, D, PN, rng):
         blk(D, x0 + 0.42, x0 + 0.46, 2.0, 2.2, 39.25, 39.27, "Steel")
         blk(D, x0 + 0.1, x0 + 0.42, 2.55, 2.63, 39.262, 39.268, "Cream")
     tape(D, b, 16.85 - 5.18, 0.8, 16.85 - 5.52, 1.3, 0.59, 0.05)
-    sign(D, D, b, 16.85 - 5.34, 1.12, 0.26, 0.16, [("DEFECT", 0.04)], bg="Cream", fg="Red", depth=0.006, tilt=-6,
+    sign(D, D, b, 16.85 - 5.34, 1.12, 0.26, 0.16, [("BROKEN", 0.04)], bg="Cream", fg="Red", depth=0.006, tilt=-6,
          h0=0.59)
     blk(D, 3.6, 4.2, 3.2, 3.46, 39.4, 39.74, "Cardboard")
     blk(D, 4.4, 4.85, 3.2, 3.38, 39.45, 39.74, "Cardboard")
     # Banier boven de kluisjes.
     blk(D, 3.4, 5.55, 4.08, 4.11, 39.68, 39.78, "Steel")
     blk(D, 3.5, 5.45, 3.52, 4.07, 39.75, 39.77, "DecalDark")
-    lines(D, [("DIEPER GRAVEN.", 0.09), ("MINDER VRAGEN.", 0.09)], (4.475, 3.79, 39.75), (0, 0, -1), "Yellow", gap=0.5)
+    lines(D, [("DIG DEEPER.", 0.09), ("ASK FEWER QUESTIONS.", 0.09)], (4.475, 3.79, 39.75), (0, 0, -1), "Yellow", gap=0.5)
     blk(D, 3.5, 5.45, 3.56, 3.58, 39.744, 39.748, "Yellow")
 
     # --- Achterwand rechts: koelvloeistof, lege blusserhouder, banier ------------------------------
@@ -542,19 +542,20 @@ def walls(ctx, P, D, PN, rng):
     cyl(P, (15.9, 2.15, 39.62), (0, 1, 0), 0.5, 0.17, 12, "Blue")
     cyl(D, (15.9, 2.65, 39.62), (0, 1, 0), 0.04, 0.08, 8, "Blue")
     cyl(D, (16.28, 1.6, 39.6), (0, 1, 0), 0.5, 0.045, 8, "Cream")
-    sign(D, D, b, 16.85 - 15.9, 1.75, 0.7, 0.24, [("KOELVLOEISTOF", 0.05), ("1 BEKER PER DIENST", 0.035)],
+    sign(D, D, b, 16.85 - 15.9, 1.75, 0.7, 0.24, [("COOLANT", 0.05), ("1 CUP PER SHIFT", 0.035)],
          bg="Blue", fg="DecalLight", gap=0.5, h0=0.07)
     ctx.col_box(15.55, 16.35, Y0, 2.7, 39.3, 39.85)
     # Lege houder van een brandblusser.
     blk(D, 14.72, 14.98, 1.75, 1.8, 39.7, 39.85, "DarkSteel")
     blk(D, 14.72, 14.98, 2.25, 2.3, 39.7, 39.85, "DarkSteel")
     blk(D, 14.82, 14.88, 1.75, 2.3, 39.82, 39.85, "DarkSteel")
-    sign(D, D, b, 16.85 - 14.85, 1.4, 0.36, 0.3, [("BRANDBLUSSER", 0.035), ("OP AANVRAAG", 0.03), ("(FORMULIER B-12)", 0.022)],
+    sign(D, D, b, 16.85 - 14.85, 1.4, 0.36, 0.3, [("FIRE", 0.04), ("EXTINGUISHER", 0.03), ("ON REQUEST", 0.03),
+                                                 ("(FORM B-12)", 0.022)],
          bg="Red", fg="DecalLight", gap=0.55, h0=0.07)
     # Banier.
     blk(D, 14.55, 16.55, 4.08, 4.11, 39.68, 39.78, "Steel")
     blk(D, 14.65, 16.45, 3.2, 4.07, 39.75, 39.77, "DecalDark")
-    lines(D, [("VEILIGHEID:", 0.075), ("ONZE 7DE", 0.075), ("PRIORITEIT", 0.075)], (15.55, 3.66, 39.75), (0, 0, -1),
+    lines(D, [("SAFETY:", 0.075), ("OUR 7TH", 0.075), ("PRIORITY", 0.075)], (15.55, 3.66, 39.75), (0, 0, -1),
           "Yellow", gap=0.45)
 
     # --- Banieren aan de middelste kolommen (DIG, zwart en geel) -----------------------------------
@@ -566,4 +567,4 @@ def walls(ctx, P, D, PN, rng):
         box(D, (x - side * 0.02, 2.38, 35.0), (0.012, 0.05, 0.6), m="Yellow")
         for k, ch in enumerate("DIG"):
             text(D, ch, 0.22, (x - side * 0.017, 3.72 - k * 0.32, 35.0), n, "Yellow")
-        text(D, "DIEPER.", 0.05, (x - side * 0.017, 2.6, 35.0), n, "Yellow")
+        text(D, "DEEPER.", 0.05, (x - side * 0.017, 2.6, 35.0), n, "Yellow")

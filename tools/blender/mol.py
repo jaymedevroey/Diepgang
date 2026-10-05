@@ -126,13 +126,13 @@ def build_hull():
     # Opschriften.
     for s in (-1, 1):
         rot = (0, 90 * s, 0)
-        text("DIEPGANG BV", 0.46, (s * (HULL_W / 2 + 0.02), 0.5, 2.45), rot, "DecalDark", "Hull")
-        text("DE MOL  M-01", 0.26, (s * (HULL_W / 2 + 0.02), 0.08, 2.45), rot, "DecalDark", "Hull")
+        text("DIEPGANG LTD", 0.42, (s * (HULL_W / 2 + 0.02), 0.5, 2.45), rot, "DecalDark", "Hull")
+        text("THE MOLE  M-01", 0.24, (s * (HULL_W / 2 + 0.02), 0.08, 2.45), rot, "DecalDark", "Hull")
         # Waarschuwingsbalk vooraan op de flank.
         box((0.02, 0.5, 0.9), (s * (HULL_W / 2 + 0.015), -0.25, -3.25), "Hazard", "Hull", bevel=0.0)
     # Sticker (louche firma).
     box((0.012, 0.32, 0.62), (HULL_W / 2 + 0.022, -0.32, 0.95), "DecalLight", "Hull", bevel=0.0, rot=(0, 0, 6))
-    text("VEILIGHEID EERST?", 0.075, (HULL_W / 2 + 0.03, -0.30, 0.95), (6, 90, 0), "Red", "Hull")
+    text("SAFETY FIRST?", 0.075, (HULL_W / 2 + 0.03, -0.30, 0.95), (6, 90, 0), "Red", "Hull")
 
     # Zijmarkeringslampjes langs de onderrand (silhouet in het donker), hydraulische leiding, roosters.
     for s in (-1, 1):
@@ -408,8 +408,8 @@ def build_ramp():
     # Buitenkant: waarschuwingsrand en opschrift.
     for x in (-1.92, 1.92):
         box((0.18, 2.6, 0.02), (x, 0.0, z1 + 0.005), "Hazard", g, bevel=0.0)
-    text("DE MOL", 0.62, (0, 0.55, z1 + 0.012), (0, 0, 0), "DecalDark", g)
-    text("DIEPGANG BV  ·  M-01", 0.16, (0, -0.1, z1 + 0.012), (0, 0, 0), "DecalDark", g)
+    text("THE MOLE", 0.62, (0, 0.55, z1 + 0.012), (0, 0, 0), "DecalDark", g)
+    text("DIEPGANG LTD  ·  M-01", 0.16, (0, -0.1, z1 + 0.012), (0, 0, 0), "DecalDark", g)
     box((1.2, 0.08, 0.03), (0, -0.55, z1 + 0.01), "Anthracite", g, bevel=0.01)
     # Binnenkant: antislipribben (worden treden als hij open ligt).
     y = IN_Y0 + 0.3
@@ -507,7 +507,7 @@ def build_cockpit(g):
     build_sonar(g)
 
     # Meters: diepte, snelheid, brandstof. De naalden zijn aparte objecten (Needle_i) die in de game draaien.
-    for u, name in zip(GAUGES, ("DIEPTE", "SNELHEID", "BRANDSTOF")):
+    for u, name in zip(GAUGES, ("DEPTH", "SPEED", "FUEL")):
         v = 0.1
         cyl(0.135, 0.05, desk(u, v, 0.05), "Anthracite", g, verts=28, bevel=0.012, rot=DESK_ROT)
         cyl(0.115, 0.012, desk(u, v, 0.072), "Cream", g, verts=28, bevel=0.0, rot=DESK_ROT)
@@ -518,7 +518,7 @@ def build_cockpit(g):
                 bevel=0.0, rot=DESK_ROT)
         desk_label(name, u, -0.11, size=0.04)
     # Autopiloot: drie gele knoppen met de diepte eronder.
-    desk_label("AUTOPILOOT", BTN_AUTO[1], 0.2, size=0.05)
+    desk_label("AUTOPILOT", BTN_AUTO[1], 0.2, size=0.05)
     for u, d in zip(BTN_AUTO, (20, 40, 60)):
         cyl(0.075, 0.03, desk(u, 0.02, 0.045), "Anthracite", g, verts=18, bevel=0.008, rot=DESK_ROT)
         cyl(0.06, 0.05, desk(u, 0.02, 0.07), "Yellow", g, verts=18, bevel=0.012, rot=DESK_ROT)
@@ -526,18 +526,18 @@ def build_cockpit(g):
     # Klep (blauwe knop), lichten (tuimelschakelaars), toeter (rode paddenstoel).
     cyl(0.07, 0.03, desk(BTN_RAMP_U, 0.02, 0.045), "Anthracite", g, verts=16, bevel=0.008, rot=DESK_ROT)
     cyl(0.055, 0.05, desk(BTN_RAMP_U, 0.02, 0.07), "Blue", g, verts=16, bevel=0.012, rot=DESK_ROT)
-    desk_label("KLEP", BTN_RAMP_U, -0.14)
+    desk_label("RAMP", BTN_RAMP_U, -0.14)
     box((0.16, 0.03, 0.12), desk(BTN_LIGHTS_U, 0.02, 0.05), "Anthracite", g, bevel=0.01, rot=DESK_ROT)
     for du in (-0.04, 0.04):
         box((0.025, 0.07, 0.025), desk(BTN_LIGHTS_U + du, 0.03, 0.09), "Steel", g, bevel=0.006,
             rot=(DESK_TILT - 20, 0, 0))
-    desk_label("LICHT", BTN_LIGHTS_U, -0.14)
+    desk_label("LIGHTS", BTN_LIGHTS_U, -0.14)
     cyl(0.07, 0.04, desk(BTN_HORN_U, 0.02, 0.05), "Anthracite", g, verts=16, bevel=0.008, rot=DESK_ROT)
     sphere(0.075, desk(BTN_HORN_U, 0.02, 0.085), "Red", g, scale=(1, 0.55, 1), segments=14, rings=7)
-    desk_label("TOETER", BTN_HORN_U, -0.14)
+    desk_label("HORN", BTN_HORN_U, -0.14)
     # Vertrekhendel: geel-zwart voetplaatje; de hendel zelf is het object Lever.
     box((0.2, 0.012, 0.26), desk(LEVER_U, 0.02, 0.037), "Hazard", g, bevel=0.0, rot=DESK_ROT)
-    desk_label("VERTREK", LEVER_U, -0.17, material="Red")
+    desk_label("LAUNCH", LEVER_U, -0.17, material="Red")
     # Mok koffie op de hoek (het is vroeg, het is altijd vroeg).
     cyl(0.045, 0.1, desk(-1.82, -0.18, 0.09), "Red", g, verts=16, bevel=0.005, rot=DESK_ROT)
     cyl(0.038, 0.005, desk(-1.82, -0.18, 0.141), "Wood", g, verts=16, bevel=0.0, rot=DESK_ROT)
@@ -592,10 +592,10 @@ def build_living(g):
     cyl(0.07, 0.38, (hw - 0.12, -1.0, -1.35), "Red", g, verts=14, bevel=0.03)
     sphere(0.07, (hw - 0.12, -0.8, -1.35), "Red", g, segments=10, rings=5)
     box((0.02, 0.62, 0.46), (hw - 0.01, 0.55, -1.05), "Cream", g, bevel=0.0)
-    text("VEILIGHEID?", 0.07, (hw - 0.025, 0.72, -1.05), (0, -90, 0), "DecalDark", g)
-    text("NOOIT VAN", 0.055, (hw - 0.025, 0.6, -1.05), (0, -90, 0), "DecalDark", g)
-    text("GEHOORD", 0.055, (hw - 0.025, 0.52, -1.05), (0, -90, 0), "DecalDark", g)
-    text("DIEPGANG BV", 0.045, (hw - 0.025, 0.35, -1.05), (0, -90, 0), "Red", g)
+    text("SAFETY?", 0.07, (hw - 0.025, 0.72, -1.05), (0, -90, 0), "DecalDark", g)
+    text("NEVER", 0.055, (hw - 0.025, 0.6, -1.05), (0, -90, 0), "DecalDark", g)
+    text("HEARD OF IT", 0.055, (hw - 0.025, 0.52, -1.05), (0, -90, 0), "DecalDark", g)
+    text("DIEPGANG LTD", 0.045, (hw - 0.025, 0.35, -1.05), (0, -90, 0), "Red", g)
 
 
 def build_cargo(g):
@@ -612,8 +612,8 @@ def build_cargo(g):
         box((sz, sz, sz), (x, y, z), "Wood", g, bevel=0.03)
         for dz in (-sz / 2 + 0.06, sz / 2 - 0.06):
             box((sz + 0.02, sz + 0.02, 0.05), (x, y, z + dz), "Anthracite", g, bevel=0.01)
-    text("LAADRUIM", 0.16, (hw - 0.02, 0.9, 2.9), (0, -90, 0), "DecalDark", g)
-    text("MAX 400 KG  ·  NIET STAPELEN", 0.06, (hw - 0.02, 0.72, 2.9), (0, -90, 0), "DecalDark", g)
+    text("CARGO HOLD", 0.16, (hw - 0.02, 0.9, 2.32), (0, -90, 0), "DecalDark", g)
+    text("MAX 400 KG  ·  DO NOT STACK", 0.06, (hw - 0.02, 0.72, 2.32), (0, -90, 0), "DecalDark", g)
     # Ertstrechter op de linkerwand: brede gele mond, smalle pijp naar de vloer (in het onderstel).
     tx, ty, tz = -(hw - 0.36), 0.05, 3.3
     cyl(0.32, 0.36, (tx, ty, tz), "Yellow", g, verts=12, bevel=0.015, r2=0.1)
@@ -621,7 +621,7 @@ def build_cargo(g):
     tube([(tx, ty - 0.16, tz), (tx, IN_Y0 + 0.04, tz), (-(hw - 0.05), IN_Y0 + 0.04, tz)], 0.07, "DarkSteel", g, verts=10)
     box((0.06, 0.5, 0.08), (-(hw - 0.04), ty - 0.05, tz - 0.3), "Anthracite", g, bevel=0.01)
     box((0.06, 0.5, 0.08), (-(hw - 0.04), ty - 0.05, tz + 0.3), "Anthracite", g, bevel=0.01)
-    text("ERTS", 0.12, (-(hw - 0.02), 0.62, tz), (0, 90, 0), "DecalDark", g)
+    text("ORE", 0.12, (-(hw - 0.02), 0.62, tz), (0, 90, 0), "DecalDark", g)
     # Bediening laadklep bij de klep.
     box((0.08, 0.32, 0.22), (hw - 0.04, -0.25, 3.7), "Anthracite", g, bevel=0.02)
     cyl(0.05, 0.05, (hw - 0.09, -0.25, 3.7), "Yellow", g, axis="x", verts=12, bevel=0.0)
@@ -671,7 +671,7 @@ def build_sonar(g):
     cyl(0.043, 0.03, (pu, knob_v, 0.055), "Anthracite", g, axis="z", verts=28, bevel=0.005)
     cyl(0.034, 0.026, (pu, knob_v, 0.074), "LensOrange", "SonarPing", axis="z", verts=24, bevel=0.009)
     text("PING", 0.026, (pu, knob_v - 0.075, 0.036), (0, 0, 0), "DecalLight", g, extrude=0.002)
-    for ku, label in ((-0.12, "HELDER"),):
+    for ku, label in ((-0.12, "BRIGHT"),):
         cyl(0.036, 0.02, (ku, knob_v, 0.045), "Anthracite", g, axis="z", verts=20, bevel=0.006)
         cyl(0.029, 0.03, (ku, knob_v, 0.06), "DarkSteel", g, axis="z", verts=20, bevel=0.006)
         box((0.007, 0.025, 0.006), (ku, knob_v + 0.016, 0.077), "DecalLight", g, bevel=0.0)

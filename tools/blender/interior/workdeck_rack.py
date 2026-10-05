@@ -39,7 +39,7 @@ def shell(ctx, S, R, ST, PN, D, RD, rng):
     ctx.col_box(rx0, rx1, 2.82, YT, 40.0, 40.26)
     blk(D, rx0 + 0.2, rx1 - 0.2, 2.84, 2.98, 40.26, 40.272, "Hazard")
     blk(D, 8.6, 11.4, 2.85, 2.97, 40.272, 40.276, "DecalDark")
-    text(D, "LET OP UW HOOFD", 0.065, (10.0, 2.91, 40.276), (0, 0, 1), "Yellow")
+    text(D, "MIND YOUR HEAD", 0.065, (10.0, 2.91, 40.276), (0, 0, 1), "Yellow")
     slab(S, rx0, rx1, rz0, rz1, YF)
     ctx.col_box(rx0, rx1, -0.6, YF, rz0, rz1)
     block(R, rx0, rx1, YT, YT + 0.3, 40.0, rz1 + 0.3, WALL)
@@ -79,9 +79,9 @@ def shell(ctx, S, R, ST, PN, D, RD, rng):
             cyl(D, (x + s * 0.09, dy, pipe_z[0]), (0, 0, 1), pipe_z[1] - pipe_z[0], r, 8, m)
         for z in (40.6, 41.6):
             blk(D, *sorted((x, x + s * 0.14)), 2.12, 2.5, z - 0.03, z + 0.03, "DarkSteel")
-    sign(D, D, lf, 2.95, 1.25, 1.65, 0.42, [("OPLADEN IS EEN GUNST,", 0.065), ("GEEN RECHT", 0.065)],
+    sign(D, D, lf, 2.95, 1.25, 1.65, 0.42, [("CHARGING IS A PRIVILEGE,", 0.065), ("NOT A RIGHT", 0.065)],
          bg="Yellow", fg="DecalDark", border="DecalDark", gap=0.45, h0=0.07)
-    sign(D, D, rf, 1.25, 1.25, 1.65, 0.42, [("STROOMVERBRUIK WORDT", 0.05), ("VERREKEND MET UW LOON", 0.05)],
+    sign(D, D, rf, 1.25, 1.25, 1.65, 0.42, [("POWER USAGE WILL BE", 0.05), ("DEDUCTED FROM YOUR PAY", 0.05)],
          bg="DecalDark", fg="Yellow", gap=0.5, h0=0.07)
     # Plafond: platen, een lichtbak langs x (koel wit) en een kabelgoot naar de capsules.
     for (x0, x1) in ((6.62, 8.5), (8.6, 10.0), (10.0, 11.4), (11.5, 13.38)):
@@ -161,8 +161,8 @@ def pod(ctx, P, PN, D, px, i):
                Plane("z", ZF, -1), 0.03, "LedRedSoft" if defect else "LedAmberSoft")
     zf = ZF
     blk(D, px - 0.27, px + 0.27, 2.5, 2.68, zf - 0.012, zf, "Screen")
-    text(D, ("LADEN 3%", "LADEN 11%", "DEFECT", "LADEN 1%")[i], 0.05, (px, 2.59, zf - 0.012), (0, 0, -1),
-         "ScreenAmber" if defect else "ScreenCyan", lift=0.002)
+    text(D, ("CHARGING 3%", "CHARGING 11%", "OUT OF ORDER", "CHARGING 1%")[i], 0.05, (px, 2.59, zf - 0.012), (0, 0, -1),
+         "ScreenAmber" if defect else "ScreenCyan", lift=0.002, max_w=0.48)
     text(D, f"0{i + 1}", 0.1, (px - 0.6, 2.59, zf), (0, 0, -1), "Yellow")
     cyl(D, (px + 0.6, 2.59, zf), (0, 0, -1), 0.012, 0.03, 8, "LensRed" if defect else "LedGreen")
     if defect:
@@ -170,7 +170,7 @@ def pod(ctx, P, PN, D, px, i):
         tape(D, f, -0.3, -0.1, 0.3, 0.1, 0.0, 0.05)
         tape(D, f, -0.3, 0.1, 0.3, -0.1, 0.004, 0.05)
         sign(D, D, Face((px + 0.79, YF, ZF), (-1, 0, 0), (0, 1, 0)), 0.0, 1.05, 0.3, 0.3,
-             [("DEFECT", 0.04), ("MELD BIJ", 0.022), ("FACILITAIR", 0.022), ("(GESLOTEN)", 0.018)],
+             [("BROKEN", 0.04), ("REPORT TO", 0.022), ("FACILITIES", 0.022), ("(CLOSED)", 0.018)],
              bg="Cream", fg="DecalDark", depth=0.004, tilt=5, gap=0.5, h0=0.014)
     # Kabels tussen de kronen (hangen door).
     if i < 3:
@@ -192,7 +192,7 @@ def back_wall(D):
             cyl(D, (x + dx, YF, 43.9), (0, 1, 0), YT - YF, r, 8, m)
         blk(D, x - 0.17, x + 0.17, 1.35, 1.75, 43.7, 43.96, "Anthracite")
         cyl(D, (x + 0.1, 1.68, 43.7), (0, 0, -1), 0.012, 0.018, 6, "LedGreen" if k != 1 else "LensRed")
-        lines(D, [("ZEKERINGEN", 0.022), ("NIET AANKOMEN", 0.016)], (x, 1.5, 43.7), (0, 0, -1), "Yellow", gap=0.6)
+        lines(D, [("FUSES", 0.022), ("DO NOT TOUCH", 0.016)], (x, 1.5, 43.7), (0, 0, -1), "Yellow", gap=0.6)
 
 
 def build_rack(ctx, S, R, ST, P, PN, D, RD, rng):

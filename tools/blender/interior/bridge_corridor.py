@@ -56,8 +56,8 @@ def build(ctx, g):
     ctx.col_box(12.62, 12.85, Y0, 3.0, 26.6, 29.7)
     for (a, b_) in ((26.6, 27.05), (29.35, 29.7)):
         ctx.col_box(7.15, 7.38, Y0, 3.0, a, b_)
-    bulkhead(ctx, g, 25.86, 26.6, "BRUG", +1)
-    bulkhead(ctx, g, 29.7, 30.0, "WERKDEK", -1)
+    bulkhead(ctx, g, 25.86, 26.6, "BRIDGE", +1)
+    bulkhead(ctx, g, 29.7, 30.0, "WORK DECK", -1)
     # Brugzijde van het schot: stijlen met strepen en een kopbord in de achterwand van de brug.
     for (a, b_) in ((6.62, 7.0), (13.0, 13.38)):
         block(P, a, b_, Y0, 4.2, 25.86, 26.0, "DarkSteel")
@@ -70,7 +70,7 @@ def build(ctx, g):
         block(L, a + 0.16, b_ - 0.16, Y0 + 1.75, 3.9, 25.845, 25.86, "LedAmber")
     block(P, 6.62, 13.38, 3.8, 4.2, 25.86, 26.0, "DarkSteel")
     block(D, 8.6, 11.4, 3.86, 4.14, 25.845, 25.86, "DecalDark")
-    text(D, "WERKDEK", 0.17, (10.0, 4.0, 25.842), (0, 0, -1), "Yellow")
+    text(D, "WORK DECK", 0.17, (10.0, 4.0, 25.842), (0, 0, -1), "Yellow")
     # Drempel met strepen in de deuropening.
     block(D, 7.35, 12.65, Y0 - 0.004, Y0 + 0.004, 26.02, 26.28, "Hazard")
     # --- Plafond: lichtbakken, rooster, kabelgoot (bakboord) en leidingen (stuurboord) --------------
@@ -95,10 +95,10 @@ def build(ctx, g):
     for sx in (-0.3, 0.3):
         box(RD, (ex + sx, top - 0.19, 27.0), (0.015, 0.38, 0.015), "Steel")
     box(D, (ex, top - 0.48, 27.0), (0.7, 0.2, 0.05), "Green")
-    text(D, "NOODUITGANG", 0.07, (ex, top - 0.46, 27.03), (0, 0, 1), "Cream")
-    text(D, "(BETALEND)", 0.04, (ex, top - 0.53, 27.03), (0, 0, 1), "Cream")
-    text(D, "NOODUITGANG", 0.07, (ex, top - 0.46, 26.97), (0, 0, -1), "Cream")
-    text(D, "(BETALEND)", 0.04, (ex, top - 0.53, 26.97), (0, 0, -1), "Cream")
+    text(D, "EMERGENCY EXIT", 0.07, (ex, top - 0.46, 27.03), (0, 0, 1), "Cream")
+    text(D, "(PAY PER USE)", 0.04, (ex, top - 0.53, 27.03), (0, 0, 1), "Cream")
+    text(D, "EMERGENCY EXIT", 0.07, (ex, top - 0.46, 26.97), (0, 0, -1), "Cream")
+    text(D, "(PAY PER USE)", 0.04, (ex, top - 0.53, 26.97), (0, 0, -1), "Cream")
     paint_booth(ctx, g, rng)
     company_board(ctx, g, rng)
     ctx.glow("ffe0bc", (10.0, top - 0.35, 28.2))
@@ -179,14 +179,14 @@ def paint_booth(ctx, g, rng):
         block(D, 7.15, 7.157, Y0 + 0.05, Y0 + 1.6, a, b_, "Hazard")
     # Kopbord boven de opening.
     block(P, 7.15, 7.2, ceil + 0.01, 3.24, nz0 + 0.25, nz1 - 0.25, "DarkSteel")
-    text(D, "SPUITCABINE", 0.12, (7.203, ceil + 0.12, zc), (1, 0, 0), "Yellow")
+    text(D, "PAINT BOOTH", 0.12, (7.203, ceil + 0.12, zc), (1, 0, 0), "Yellow")
     # Spiegel op de achterwand.
     fr = Frame((6.0, 0.0, zc), (1, 0, 0))
     fr.box(P, 0, 2.22, 0.03, 0.86, 1.62, 0.05, "DarkSteel")
     fr.box(D, 0, 2.22, 0.058, 0.76, 1.5, 0.006, "Mirror")
     fr.box(L, 0, 3.0, 0.05, 0.7, 0.02, 0.03, "LedWhite")
     fr.box(D, 0, 2.86, 0.062, 0.5, 0.07, 0.003, "DecalDark")
-    fr.text(D, "GLIMLACHEN IS VERPLICHT", 0.026, 0, 2.86, 0.0645, "Cream")
+    fr.text(D, "SMILING IS MANDATORY", 0.026, 0, 2.86, 0.0645, "Cream")
     # Kastje (bakboord van de spiegel, kant van de brug).
     lz0, lz1 = nz0 + 0.02, nz0 + 0.55
     block(P, 6.0, 6.5, Y0, 3.0, lz0, lz1, "DarkSteel")
@@ -244,7 +244,7 @@ def paint_booth(ctx, g, rng):
     for (y, z, r, m) in ((1.3, 28.0, 0.06, "PlayerColor"), (1.25, 28.45, 0.05, "Blue"), (2.0, 27.0, 0.05, "Red")):
         splat(D, 6.002, y, z, r, m, rng, normal="+x")
     block(D, 6.55, 6.95, 2.72, 2.88, nz1 - 0.006, nz1, "Cream")
-    text(D, "VERF OP EIGEN KOSTEN", 0.03, (6.75, 2.8, nz1 - 0.008), (0, 0, -1), "DecalDark")
+    text(D, "PAINT AT OWN EXPENSE", 0.03, (6.75, 2.8, nz1 - 0.008), (0, 0, -1), "DecalDark")
     ctx.anchor("Locker", (CORRIDOR[0] + 1.3, Y0, zc), 90)
     ctx.glow("ffb060", (6.3, 2.92, zc))
 
@@ -273,15 +273,15 @@ def company_board(ctx, g, rng):
     s = (-1 / math.sqrt(2), 1 / math.sqrt(2), 0.0)
     cpt = (12.6, 3.47, zc)
     box(P, cpt, (0.36, 0.04, 1.9), "DecalDark", u=s, v=n)
-    text(D, "KWARTAALCIJFERS", 0.12, (cpt[0] + n[0] * 0.022, cpt[1] + n[1] * 0.022, zc), n, "Yellow", up=s)
+    text(D, "QUARTERLY RESULTS", 0.12, (cpt[0] + n[0] * 0.022, cpt[1] + n[1] * 0.022, zc), n, "Yellow", up=s)
     # Plankje eronder met een bonnenprinter, en het bordje over de kosten van het bordje.
     block(P, 12.62, x, 1.82, 1.86, zc - 0.65, zc + 0.65, "DarkSteel")
     block(D, 12.66, 12.77, 1.86, 1.96, zc + 0.3, zc + 0.55, "Cream")
     block(D, 12.655, 12.66, 1.89, 1.91, zc + 0.33, zc + 0.52, "Soot")
     block(D, 12.648, 12.652, 1.7, 1.9, zc + 0.37, zc + 0.47, "Cream")
     block(D, CORRIDOR[1] - 0.155, CORRIDOR[1] - 0.15, 1.45, 1.66, zc - 0.62, zc + 0.12, "Cream")
-    text(D, "KOSTEN VAN DIT BORDJE WORDEN", 0.034, (CORRIDOR[1] - 0.157, 1.6, zc - 0.25), (-1, 0, 0), "DecalDark")
-    text(D, "INGEHOUDEN OP UW LOON", 0.034, (CORRIDOR[1] - 0.157, 1.52, zc - 0.25), (-1, 0, 0), "DecalDark")
+    text(D, "THE COST OF THIS SIGN", 0.034, (CORRIDOR[1] - 0.157, 1.6, zc - 0.25), (-1, 0, 0), "DecalDark")
+    text(D, "COMES OUT OF YOUR PAY", 0.034, (CORRIDOR[1] - 0.157, 1.52, zc - 0.25), (-1, 0, 0), "DecalDark")
     fr = Frame((x - 0.021, 0.0, zc), (-1, 0, 0))
     sticky(D, fr, -(w / 2 + 0.035), yc + 0.3, 0.0, rng)
     sticky(D, fr, -(w / 2 + 0.04), yc + 0.18, 0.0, rng)
