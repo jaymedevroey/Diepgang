@@ -26,6 +26,10 @@ Jayme: alle tekst in het spel in het Engels, ook de namen. Docs, commentaar en l
 | klei / zandsteen / graniet / kristal | clay / sandstone / granite / crystal |
 | Spatie · overslaan | Space · skip |
 
+- **Drie agents, elk een eigen deel (UI, schip/Mol/wereld, opschriften in de modellen) met één woordenlijst:** samenvoegen zonder conflict. Op twee plaatsen toch verschil (DIEPGANG INC. tegenover LTD; de toastkleur zocht op de oude Nederlandse begintekst): na het samenvoegen altijd zoeken naar namen en naar code die op tekst matcht.
+- **Tests die op getoonde tekst matchen breken bij elke vertaling** (hier 20 regels). Liever op een toestand of id testen dan op de zin.
+- **Opschriften in Blender:** `kit.text` en `bridge_kit.text` hebben geen `fit`; meet de breedte in Blender vóór je een tekst vervangt. Close-ups van borden: een tijdelijke hub-build met extra `Cam_`-punten (`layout.CAMERAS`) en `--out=`, zonder het echte model te raken.
+
 ## 2026-10-05 — Bouwtijd van een wereld, en de planeet in het speelgebied
 
 - **De drop wachtte niet op het verre landschap.** Enkel op het voxelterrein: wie snel na het kiezen de hendel trok, viel in een vierkant zonder omgeving. Nu wacht alles op `Game.world_ready()` (terrein én landschap); ook de tests (die wachtten op `terrain.is_loaded` en faalden daarna 24 keer).

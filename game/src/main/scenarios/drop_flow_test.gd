@@ -150,7 +150,7 @@ func _run_main() -> void:
 	var cd2 := _gt
 	await _frames(3)
 	var note_text: String = (main._terminal._note as Label).text
-	_expect(note_text.contains("op weg"), "de open terminal ververst zodra de Mol vertrekt (QA-16): \"%s\"" % note_text)
+	_expect(note_text.contains("The Mole is out"), "de open terminal ververst zodra de Mol vertrekt (QA-16): \"%s\"" % note_text)
 	await _expect_choose_refused("de open terminal na het vertrek")
 	main._terminal.close()
 	await _wait(0.5)
@@ -691,7 +691,7 @@ func _expect_choose_refused(label: String) -> void:
 	_key(KEY_ENTER)
 	await _wait(0.5)
 	var note_text: String = (main._terminal._note as Label).text
-	_expect(game.company.contract == before and game.pit_seed == seed_before and note_text.contains("Kan nu niet"),
+	_expect(game.company.contract == before and game.pit_seed == seed_before and note_text.contains("Not now"),
 			"%s: KIEZEN verandert niets en zegt waarom (\"%s\")" % [label, note_text])
 
 

@@ -210,7 +210,7 @@ func _run_host(p: Player) -> void:
 	p.velocity = Vector3.ZERO
 	var refused := [false]
 	mol.message.connect(func(t: String) -> void:
-		if t.begins_with("Nog niet iedereen"):
+		if t.begins_with("Not everyone has arrived"):
 			refused[0] = true)
 	# De hendel zodra de eigen wereld er is (zo snel als een host maar kan), en dan om de seconde
 	# opnieuw, zoals een ongeduldige speler, tot het aftellen begint.
