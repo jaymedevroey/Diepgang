@@ -7,7 +7,8 @@ extends Node
 ##   balk onderaan, het DIG-logo in de hoek en een beeldbuis (feed.gdshader). Teksten in
 ##   res://data/hub_tv.gd. Na een dienst komt er een EXTRA-uitzending met het rapport.
 ## - Company_Board (gang): kas, reputatie, kwartaal en dienst, de quota, de opdracht, de vorige dienst.
-## - Terminal_Screen (brug): hologram boven de opdrachttafel: de gekozen opdracht, of "kies er een".
+## - Terminal_Screen (brug): hologram boven de opdrachttafel: de planeet van de gekozen opdracht als
+##   draadmodel, de claim en wat je nu moet doen (aanvullend op het menu, niet hetzelfde nog eens).
 ## - Appraisal_Screen (kade): de taxatie van de vorige dienst (tot de echte taxatiepoort er is).
 ## Alles leest de toestand van de firma (Company) op deze peer, dus ook clients zien het juiste.
 ## Performance: een scherm rendert enkel als de camera binnen VIEW_RANGE × zijn breedte is, het in
@@ -100,6 +101,7 @@ var _line: PackedStringArray = [] # gekozen regel van dit segment (ingevuld, in 
 var _last_pick := {} # soort -> laatste index
 var _ticker_x := 0.0
 var _ticker_w := 0.0
+var _ticker_order: Array = []
 var _share := 412.0
 var _share_up := 3.2
 var _share_down := 1.4
@@ -124,7 +126,7 @@ func setup(game_node: Node, anchors: Dictionary) -> void:
 	if anchors.get(BOARD) is MeshInstance3D:
 		_build_board(_make(BOARD, anchors[BOARD], 2.0))
 	if anchors.get(TERMINAL) is MeshInstance3D:
-		_build_terminal(_make(TERMINAL, anchors[TERMINAL], 4.0, true))
+		_build_terminal(_make(TERMINAL, anchors[TERMINAL], 10.0, true))
 	if anchors.get(APPRAISAL) is MeshInstance3D:
 		_build_appraisal(_make(APPRAISAL, anchors[APPRAISAL], 4.0))
 	var c: Company = game.company
@@ -216,6 +218,8 @@ func _process(delta: float) -> void:
 func _on_changed() -> void:
 	for s: Screen in _screens.values():
 		s.dirty = true
+	if _screens.has(TV) and not _ticker_order.is_empty():
+		_ticker_refill()
 	if _seg in ["quota", "weather"] and not _line.is_empty():
 		_tv_layout() # nieuwe cijfers in hetzelfde segment
 
@@ -259,6 +263,9 @@ func _make(key: String, mesh: MeshInstance3D, fps: float, holo := false) -> Scre
 	if holo:
 		m.shader = HOLO_SHADER
 		m.set_shader_parameter("lines", s.size.y / 2.0)
+		# Voorkant (aan de tafel): een bijna ondoorzichtig donker vlak achter de tekst, zodat de
+		# achterwand (borden, lampen) niet door de letters loopt (ui-03).
+		m.set_shader_parameter("front_panel_alpha", 0.93)
 		mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	else:
 		m.shader = FEED_SHADER
@@ -456,13 +463,14 @@ func _vars() -> Dictionary:
 		"shift": c.shift,
 		"shifts": _shifts(),
 		"left": maxi(1, _shifts() - c.shift + 1),
+		"left_shifts": UiTheme.count(maxi(1, _shifts() - c.shift + 1), "shift"),
 		"rep": "%+d" % c.reputation,
 		"contract": str(c.contract.name) if chosen else "not chosen yet",
 		"risk": Company.RISK_NAMES[int(c.contract.risk)].to_lower() if chosen else "unknown",
 		"magma": _num(c.contract_magma()),
 		"replacement": UiTheme.euro(Tuning.get_i("company", "replacement_cost", 120)),
 		"robots": clampi(game.players.get_child_count(), 1, 4) if game.players else 1,
-		"temp": "%d°C" % _surface_temp(),
+		"temp": "%s°C" % UiTheme.num(_surface_temp()),
 		"share": UiTheme.euro(int(_share)),
 		"up": _num(_share_up, 1),
 		"down": _num(_share_down, 1),
@@ -501,17 +509,16 @@ func _build_tv(s: Screen) -> void:
 	_label(s, "sub", UiTheme.screen(), 28, UiTheme.CREAM_DIM, Vector2.ZERO, Vector2(w, 30), HORIZONTAL_ALIGNMENT_LEFT, true)
 	_label(s, "small", UiTheme.screen(), 24, UiTheme.AMBER, Vector2.ZERO, Vector2(w, 30), HORIZONTAL_ALIGNMENT_LEFT, true)
 	_label(s, "price", UiTheme.heading(), 22, UiTheme.CREAM, Vector2.ZERO, Vector2(150, 70), HORIZONTAL_ALIGNMENT_CENTER, true)
-	# Bovenaan: LIVE en de klok; rechts het logo van de zender (de "bug").
-	_label(s, "live", UiTheme.heading(), 15, UiTheme.CREAM, Vector2(34, 12))
-	_label(s, "clock", UiTheme.screen(), 26, UiTheme.CREAM, Vector2(84, 6))
+	# Bovenaan: een rood bolletje en de klok (LIVE staat al op de kast, ui-17); rechts het logo van
+	# de zender (de "bug").
+	_label(s, "clock", UiTheme.screen(), 26, UiTheme.CREAM, Vector2(38, 6))
 	_label(s, "bug", UiTheme.heading(), 22, UiTheme.ANTHRACITE, Vector2(w - 86, 10), Vector2(70, 30), HORIZONTAL_ALIGNMENT_CENTER)
 	_label(s, "bug2", UiTheme.screen(), 18, UiTheme.ANTHRACITE, Vector2(w - 86, 36), Vector2(70, 18), HORIZONTAL_ALIGNMENT_CENTER)
-	(s.labels["live"] as Label).text = "LIVE"
 	(s.labels["bug"] as Label).text = "DIG"
 	(s.labels["bug2"] as Label).text = "NEWS"
 	# Lopende balk onderaan.
 	_label(s, "tag", UiTheme.heading(), 16, UiTheme.ANTHRACITE, Vector2(0, h - TICKER_H + 9), Vector2(108, 24), HORIZONTAL_ALIGNMENT_CENTER)
-	(s.labels["tag"] as Label).text = "DIG 24"
+	(s.labels["tag"] as Label).text = "DIG NEWS"
 	var clip := Control.new()
 	clip.clip_contents = true
 	clip.position = Vector2(108, h - TICKER_H)
@@ -539,12 +546,20 @@ func _build_tv(s: Screen) -> void:
 	_tv_light.position = s.local_center + s.local_normal * 0.9
 
 
+## Een nieuwe ronde van de lopende balk: 8 willekeurige regels.
 func _ticker_text() -> void:
-	var lines: Array[String] = TEXTS.TICKER.duplicate()
-	var order: Array = range(lines.size())
+	var order: Array = range(TEXTS.TICKER.size())
 	order.shuffle()
+	_ticker_order = order.slice(0, 8)
+	_ticker_refill()
+
+
+## De regels van deze ronde opnieuw invullen (nieuwe cijfers na een dienst), zonder de balk te
+## laten verspringen: na een dienst toonde hij anders tot het einde van de ronde de oude stand (ui-17).
+func _ticker_refill() -> void:
+	var lines: Array[String] = TEXTS.TICKER
 	var parts := PackedStringArray()
-	for i: int in order.slice(0, 8):
+	for i: int in _ticker_order:
 		parts.append(fill(lines[i]).to_upper())
 	var text := "      ·      ".join(parts) + "      ·      "
 	if _screens.has(TV):
@@ -685,9 +700,10 @@ func _tv_layout() -> void:
 			_style(small, UiTheme.screen(), 20, UiTheme.ANTHRACITE_HI)
 			var price: Label = s.labels["price"]
 			price.text = _line[2] if _line.size() > 2 else ""
-			price.add_theme_font_size_override("font_size", 22 if price.text.length() <= 8 else 15)
-			price.size = Vector2(130, 70)
-			price.position = Vector2(w - 120 - 65, bottom - 104 - 35)
+			# Zo groot als past in de ster (±108 px breed, twee regels): het etiket liep over de rand (ui-17).
+			price.size = Vector2(108, 70)
+			price.add_theme_font_size_override("font_size", _fit_size(price.text, UiTheme.heading(), 24, 13, Vector2(104, 62)))
+			price.position = Vector2(w - 120 - 54, bottom - 104 - 35)
 			price.pivot_offset = price.size / 2.0
 			price.rotation = -0.15
 			price.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -723,7 +739,7 @@ func _tv_layout() -> void:
 			_place(sub, _line[1] if _line.size() > 1 else "", Rect2(286, 196, w - 306, 50))
 			_style(sub, UiTheme.screen(), 24, UiTheme.CREAM_DIM)
 			var risk := ("  (RISK %s)" % Company.RISK_NAMES[int(c.contract.risk)]) if c.contract_ready() else ""
-			_place(small, "SURFACE %d°C\nMAGMA ×%s%s" % [_surface_temp(), _num(c.contract_magma()), risk], Rect2(286, 246, w - 300, 56))
+			_place(small, "SURFACE %s°C\nMAGMA ×%s%s" % [UiTheme.num(_surface_temp()), _num(c.contract_magma()), risk], Rect2(286, 246, w - 300, 56))
 			_style(small, UiTheme.screen(), 28, UiTheme.AMBER)
 		"shares":
 			_style(big, UiTheme.heading(), 24, UiTheme.GOOD)
@@ -738,7 +754,51 @@ func _tv_layout() -> void:
 			_style(sub, UiTheme.screen(), 30, UiTheme.AMBER)
 			_place(sub, _line[1] if _line.size() > 1 else "", Rect2(208, 0, w - 228, 40))
 			_stack([head, sub], 80, bottom - 24, 16)
+	# Geen woord alleen op de laatste regel: elke kop zo smal als kan met evenveel regels (ui-17).
+	for k in ["head", "sub", "big", "small"]:
+		_balance(s.labels[k])
 	s.dirty = true
+
+
+## Regels gelijk verdelen: het label zo smal mogelijk maken met hetzelfde aantal regels. Enkel
+## links uitgelijnde labels die afbreken (de linkerrand blijft staan, de hoogte ook).
+func _balance(l: Label) -> void:
+	if l.text == "" or l.autowrap_mode == TextServer.AUTOWRAP_OFF or l.horizontal_alignment != HORIZONTAL_ALIGNMENT_LEFT:
+		return
+	var f := l.get_theme_font("font")
+	var fs := l.get_theme_font_size("font_size")
+	var full := l.size.x
+	var lines := _lines_at(l.text, f, fs, full)
+	if lines <= 1:
+		return
+	var lo := full * 0.35
+	var hi := full
+	for i in 12:
+		var mid := (lo + hi) / 2.0
+		if _lines_at(l.text, f, fs, mid) > lines:
+			lo = mid
+		else:
+			hi = mid
+	l.size.x = minf(full, ceilf(hi) + 4.0)
+
+
+static func _lines_at(text: String, f: Font, fs: int, width: float) -> int:
+	var sz := f.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, width, fs, -1,
+			TextServer.BREAK_MANDATORY | TextServer.BREAK_WORD_BOUND | TextServer.BREAK_ADAPTIVE)
+	return maxi(1, int(round(sz.y / maxf(1.0, f.get_height(fs)))))
+
+
+## De grootste lettergrootte (tussen `hi` en `lo`) waarmee `text` binnen `box` past.
+static func _fit_size(text: String, f: Font, hi: int, lo: int, box: Vector2) -> int:
+	for fs in range(hi, lo - 1, -1):
+		var sz := f.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_CENTER, box.x, fs, -1,
+				TextServer.BREAK_MANDATORY | TextServer.BREAK_WORD_BOUND)
+		var widest := 0.0
+		for word in text.split(" "):
+			widest = maxf(widest, f.get_string_size(word, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x)
+		if sz.y <= box.y and widest <= box.x:
+			return fs
+	return lo
 
 
 ## Onderkant van de tekst van een label (+ marge): om het volgende label eronder te zetten.
@@ -976,42 +1036,36 @@ func _bar(c: CanvasItem, r: Rect2, ratio: float, col: Color, parts: int) -> void
 
 
 # --- Firmabord -----------------------------------------------------------------------------------
+# Leesbaar van waar je ervoor staat (±3,6 m, ui-13): weinig regels, grote letters. Twee tegels
+# (de kas, de quota met een balk), de opdracht en de vorige dienst; de reputatie en de dienst in de
+# kopbalk. Het commentaar van de firma staat op de tv.
 
-const BOARD_TILES := [["cash", "FUNDS"], ["rep", "REPUTATION"], ["quarter", "QUARTER · SHIFT"]]
+const BOARD_TILE_W := 296.0
 
 
 func _build_board(s: Screen) -> void:
 	var w := s.size.x
 	(s.art as Art).painter = _draw_board
-	_label(s, "title", UiTheme.heading(), 26, UiTheme.ANTHRACITE, Vector2(18, 8)).text = "DIG · COMPANY BOARD"
-	_label(s, "status", UiTheme.screen(), 26, UiTheme.ANTHRACITE, Vector2(w - 236, 12), Vector2(218, 28), HORIZONTAL_ALIGNMENT_RIGHT)
-	var tw := (w - 32 - 24) / 3.0
-	for i in BOARD_TILES.size():
-		var x := 16 + i * (tw + 12)
-		_label(s, "cap_" + BOARD_TILES[i][0], UiTheme.screen(), 22, UiTheme.CREAM_DIM, Vector2(x + 14, 70)).text = BOARD_TILES[i][1]
-		_label(s, BOARD_TILES[i][0], UiTheme.heading(), 30, UiTheme.YELLOW, Vector2(x + 14, 94), Vector2(tw - 20, 44))
-	_label(s, "cap_quota", UiTheme.screen(), 24, UiTheme.CREAM_DIM, Vector2(16, 156)).text = "QUOTA THIS QUARTER"
-	_label(s, "quota", UiTheme.screen(), 30, UiTheme.CREAM, Vector2(w - 336, 152), Vector2(320, 32), HORIZONTAL_ALIGNMENT_RIGHT)
-	_label(s, "remark", UiTheme.screen(), 24, UiTheme.AMBER, Vector2(16, 222), Vector2(w - 32, 26))
-	_label(s, "cap_contract", UiTheme.screen(), 24, UiTheme.CREAM_DIM, Vector2(16, 264)).text = "CONTRACT"
-	_label(s, "contract", UiTheme.screen(), 30, UiTheme.CREAM, Vector2(150, 260), Vector2(w - 166, 32))
-	_label(s, "cap_last", UiTheme.screen(), 24, UiTheme.CREAM_DIM, Vector2(16, 302)).text = "LAST SHIFT"
-	_label(s, "last", UiTheme.screen(), 30, UiTheme.CREAM, Vector2(150, 298), Vector2(w - 166, 32))
+	_label(s, "title", UiTheme.heading(), 28, UiTheme.ANTHRACITE, Vector2(16, 7)).text = "DIG · COMPANY BOARD"
+	_label(s, "status", UiTheme.heading(), 22, UiTheme.ANTHRACITE, Vector2(w - 250, 12), Vector2(234, 30), HORIZONTAL_ALIGNMENT_RIGHT)
+	_label(s, "cap_cash", UiTheme.screen(), 28, UiTheme.CREAM_DIM, Vector2(32, 66)).text = "FUNDS"
+	_label(s, "cash", UiTheme.heading(), 50, UiTheme.YELLOW, Vector2(32, 94), Vector2(BOARD_TILE_W - 30, 60))
+	var qx := 16.0 + BOARD_TILE_W + 16.0
+	_label(s, "cap_quota", UiTheme.screen(), 28, UiTheme.CREAM_DIM, Vector2(qx + 16, 66)).text = "QUOTA"
+	_label(s, "quota", UiTheme.heading(), 34, UiTheme.CREAM, Vector2(qx + 16, 98), Vector2(w - qx - 40, 44))
+	_label(s, "cap_contract", UiTheme.screen(), 30, UiTheme.CREAM_DIM, Vector2(18, 198)).text = "CONTRACT"
+	_label(s, "contract", UiTheme.screen(), 40, UiTheme.CREAM, Vector2(156, 190), Vector2(w - 172, 44))
+	_label(s, "cap_last", UiTheme.screen(), 30, UiTheme.CREAM_DIM, Vector2(18, 262)).text = "LAST SHIFT"
+	_label(s, "last", UiTheme.screen(), 38, UiTheme.CREAM, Vector2(156, 255), Vector2(w - 172, 44))
 
 
 func _paint_board(s: Screen) -> void:
 	var c := _company()
 	var q := c.quota()
-	_text(s, "status", "Q%d  ·  SHIFT %d/%d" % [c.quarter, c.shift, _shifts()])
+	_text(s, "status", "REP %+d  ·  SHIFT %d/%d" % [c.reputation, c.shift, _shifts()])
 	_text(s, "cash", UiTheme.euro(c.cash))
 	(s.labels["cash"] as Label).add_theme_color_override("font_color", UiTheme.DANGER if c.cash < 0 else UiTheme.YELLOW)
-	_text(s, "rep", "%+d" % c.reputation)
-	(s.labels["rep"] as Label).add_theme_color_override("font_color", UiTheme.GOOD if c.reputation > 0 else (UiTheme.DANGER if c.reputation < 0 else UiTheme.CREAM))
-	_text(s, "quarter", "%d · %d/%d" % [c.quarter, c.shift, _shifts()])
-	(s.labels["quarter"] as Label).add_theme_color_override("font_color", UiTheme.CREAM)
 	_text(s, "quota", "%s / %s" % [UiTheme.euro(c.earned), UiTheme.euro(q)])
-	var ratio := float(c.earned) / maxf(1.0, q)
-	_text(s, "remark", TEXTS.QUOTA_REMARKS[3 if ratio >= 1.0 else clampi(int(ratio * 3.0), 0, 2)])
 	var contract: Label = s.labels["contract"]
 	if c.contract_ready():
 		var risk := int(c.contract.risk)
@@ -1019,18 +1073,25 @@ func _paint_board(s: Screen) -> void:
 		contract.add_theme_color_override("font_color", [UiTheme.GOOD, UiTheme.YELLOW, UiTheme.DANGER][risk])
 		contract.modulate.a = 1.0
 	else:
-		_text(s, "contract", "NOT CHOSEN YET  ·  SEE THE BRIDGE")
+		_text(s, "contract", "NOT CHOSEN YET")
 		contract.add_theme_color_override("font_color", UiTheme.AMBER)
 		contract.modulate.a = 1.0 if _blink(1.0, 0.7) else 0.45
 	var r := c.last_report
 	if r.is_empty():
-		_text(s, "last", "NONE YET  ·  HEAD OFFICE IS WAITING")
+		_text(s, "last", "NONE YET")
 		(s.labels["last"] as Label).add_theme_color_override("font_color", UiTheme.CREAM_DIM)
 	else:
 		var net := int(r.get("net", 0))
 		var replaced := int(r.get("left_behind", 0)) + int(r.get("melted", 0))
-		_text(s, "last", "NET %s%s  ·  %d %s REPLACED" % ["+" if net > 0 else "", UiTheme.euro(net), replaced, "ROBOT" if replaced == 1 else "ROBOTS"])
+		_text(s, "last", "NET %s  ·  %s REPLACED" % [UiTheme.euro_signed(net), UiTheme.count(replaced, "ROBOT")])
 		(s.labels["last"] as Label).add_theme_color_override("font_color", UiTheme.GOOD if net > 0 else UiTheme.DANGER)
+	# Zo groot als past op één regel (een lange claim of een groot verlies mag niet afgekapt worden).
+	for k in ["contract", "last"]:
+		var l: Label = s.labels[k]
+		var fs := 40
+		while fs > 24 and UiTheme.screen().get_string_size(l.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > l.size.x:
+			fs -= 2
+		l.add_theme_font_size_override("font_size", fs)
 
 
 func _draw_board(c: Control) -> void:
@@ -1040,53 +1101,58 @@ func _draw_board(c: Control) -> void:
 	c.draw_rect(Rect2(0, 0, w, h), Color("#121418"))
 	c.draw_rect(Rect2(0, 0, w, 48), UiTheme.YELLOW)
 	_stripes(c, Rect2(0, 48, w, 8), UiTheme.YELLOW, UiTheme.ANTHRACITE_LO, 10.0)
-	var tw := (w - 32 - 24) / 3.0
-	for i in 3:
-		var x := 16 + i * (tw + 12)
-		_rrect(c, Rect2(x, 66, tw, 76), UiTheme.ANTHRACITE, 6)
-		c.draw_rect(Rect2(x, 66, 4, 76), UiTheme.YELLOW)
+	# Twee tegels: de kas, en de quota met een balk (een streepje per dienst).
+	_rrect(c, Rect2(16, 62, BOARD_TILE_W, 108), UiTheme.ANTHRACITE, 6)
+	c.draw_rect(Rect2(16, 62, 6, 108), UiTheme.YELLOW)
+	var qx := 16.0 + BOARD_TILE_W + 16.0
+	_rrect(c, Rect2(qx, 62, w - qx - 16, 108), UiTheme.ANTHRACITE, 6)
+	c.draw_rect(Rect2(qx, 62, 6, 108), UiTheme.YELLOW)
 	var ratio := clampf(float(co.earned) / maxf(1.0, co.quota()), 0.0, 1.0)
-	_bar(c, Rect2(16, 188, w - 32, 28), ratio, UiTheme.GOOD if ratio >= 1.0 else UiTheme.YELLOW, _shifts())
-	c.draw_line(Vector2(16, 254), Vector2(w - 16, 254), Color(UiTheme.STEEL, 0.35), 2.0)
+	_bar(c, Rect2(qx + 16, 146, w - qx - 48, 16), ratio, UiTheme.GOOD if ratio >= 1.0 else UiTheme.YELLOW, _shifts())
+	c.draw_line(Vector2(16, 184), Vector2(w - 16, 184), Color(UiTheme.STEEL, 0.35), 2.0)
+	c.draw_line(Vector2(16, 248), Vector2(w - 16, 248), Color(UiTheme.STEEL, 0.2), 2.0)
 	if _blink(1.6, 0.5):
 		c.draw_circle(Vector2(w - 12, h - 12), 4.0, UiTheme.GOOD)
 
 
 # --- Opdrachtterminal (hologram) -----------------------------------------------------------------
+# Het hologram vult het menu aan, het herhaalt het niet (ui-03): links de planeet van de gekozen
+# opdracht als draaiend draadmodel met een kruis op de claim, rechts haar naam, de claim met zijn
+# bijnaam, het risico en wat het oplevert, onderaan wat je nu moet doen. De bovenste strook blijft
+# leeg: daar hangt de projector voor (aan de tafel sneed hij de kop af, ui-01).
 
 const HOLO := Color("#4FE3F0")
 const HOLO_DIM := Color(0.31, 0.89, 0.94, 0.75)
+## Vrije strook bovenaan het hologram (px), achter de behuizing van de projector.
+const HOLO_TOP := 58.0
+const HOLO_GLOBE := Vector2(150, 168)
+const HOLO_R := 92.0
 
 
 func _build_terminal(s: Screen) -> void:
 	var w := s.size.x
 	(s.art as Art).painter = _draw_terminal
-	_label(s, "title", UiTheme.heading(), 28, HOLO, Vector2(0, 12), Vector2(w, 36), HORIZONTAL_ALIGNMENT_CENTER).text = "DIG · CONTRACTS"
-	_label(s, "name", UiTheme.screen(), 64, HOLO, Vector2(0, 58), Vector2(w, 60), HORIZONTAL_ALIGNMENT_CENTER)
-	_label(s, "where", UiTheme.screen(), 28, HOLO_DIM, Vector2(0, 118), Vector2(w, 30), HORIZONTAL_ALIGNMENT_CENTER)
-	var cw := (w - 48) / 3.0
-	for i in 3:
-		_label(s, "cap%d" % i, UiTheme.screen(), 24, HOLO_DIM, Vector2(24 + i * cw, 156), Vector2(cw, 26), HORIZONTAL_ALIGNMENT_CENTER)
-		_label(s, "val%d" % i, UiTheme.heading(), 24, HOLO, Vector2(24 + i * cw, 182), Vector2(cw, 34), HORIZONTAL_ALIGNMENT_CENTER)
-	_label(s, "prompt", UiTheme.screen(), 28, HOLO, Vector2(28, s.size.y - 48), Vector2(w - 56, 30))
+	var x := 286.0
+	_label(s, "name", UiTheme.heading(), 44, HOLO, Vector2(x, HOLO_TOP + 2), Vector2(w - x - 20, 52))
+	_label(s, "where", UiTheme.screen(), 32, HOLO, Vector2(x, HOLO_TOP + 56), Vector2(w - x - 20, 34))
+	_label(s, "risk", UiTheme.screen(), 30, HOLO, Vector2(x + 76, HOLO_TOP + 94), Vector2(w - x - 96, 32))
+	_label(s, "pay", UiTheme.screen(), 28, HOLO_DIM, Vector2(x, HOLO_TOP + 130), Vector2(w - x - 20, 30))
+	_label(s, "prompt", UiTheme.screen(), 30, HOLO, Vector2(28, s.size.y - 46), Vector2(w - 56, 32))
 
 
 func _paint_terminal(s: Screen) -> void:
 	var c := _company()
 	var cursor := "_" if _blink(0.9, 0.5) else " "
-	_text(s, "where", "%s  ·  QUARTER %d  ·  SHIFT %d/%d" % [_planet_name().to_upper(), c.quarter, c.shift, _shifts()])
 	var name_l: Label = s.labels["name"]
 	var docked: bool = game.mol == null or game.mol.mode == Mol.Mode.DOCKED
 	if c.contract_ready():
 		var risk := int(c.contract.risk)
-		_text(s, "name", str(c.contract.name))
+		var planet := clampi(int(c.contract.get("planet", 0)), 0, PlanetType.NAMES.size() - 1)
+		_text(s, "name", PlanetType.NAMES[planet].to_upper())
 		name_l.modulate.a = 1.0
-		_text(s, "cap0", "RISK")
-		_text(s, "val0", Company.RISK_NAMES[risk])
-		_text(s, "cap1", "PAYOUT")
-		_text(s, "val1", "×" + _num(Company.pay_factor(risk)))
-		_text(s, "cap2", "MAGMA")
-		_text(s, "val2", "×" + _num(Company.magma_factor(risk)))
+		_text(s, "where", "%s · %s" % [str(c.contract.name), TerminalMenu.nickname(c.contract).to_upper()])
+		_text(s, "risk", "RISK %s" % Company.RISK_NAMES[risk])
+		_text(s, "pay", "PAY ×%s   MAGMA ×%s" % [_num(Company.pay_factor(risk)), _num(Company.magma_factor(risk))])
 		# Na het kiezen laadt de nieuwe wereld: De Ekster vliegt erheen (de hendel wacht daarop).
 		var loading: bool = not game.world_ready()
 		var dots := ".".repeat(1 + int(_time * 2.5) % 3)
@@ -1097,46 +1163,36 @@ func _paint_terminal(s: Screen) -> void:
 		else:
 			_text(s, "prompt", "> BOARD THE MOLE AND PULL THE LEVER" + cursor)
 	else:
-		_text(s, "name", "CHOOSE A CONTRACT")
+		_text(s, "name", "NO ORDERS")
 		name_l.modulate.a = 1.0 if _blink(1.2, 0.7) else 0.6
-		for i in 3:
-			if i < c.options.size():
-				var o: Dictionary = c.options[i]
-				_text(s, "cap%d" % i, str(o.name))
-				_text(s, "val%d" % i, Company.RISK_NAMES[int(o.risk)])
-			else:
-				_text(s, "cap%d" % i, "")
-				_text(s, "val%d" % i, "")
-		_text(s, "prompt", ("> E AT THE TABLE: CHOOSE A CONTRACT" if docked else "> WAIT FOR THE MOLE TO RETURN") + cursor)
+		_text(s, "where", "CHOOSE A CONTRACT")
+		_text(s, "risk", "")
+		_text(s, "pay", "QUARTER %d  ·  SHIFT %d/%d" % [c.quarter, c.shift, _shifts()])
+		_text(s, "prompt", ("> PRESS E AT THE TABLE" if docked else "> WAIT FOR THE MOLE TO RETURN") + cursor)
 
 
 func _draw_terminal(c: Control) -> void:
 	var w := c.size.x
 	var h := c.size.y
 	var co := _company()
-	# Hoeken, een lijn onder de titel, kolommen.
+	# Hoeken onder de projector, een lijn boven de prompt.
 	var k := 26.0
-	for corner: Vector2 in [Vector2(6, 6), Vector2(w - 6, 6), Vector2(w - 6, h - 6), Vector2(6, h - 6)]:
+	for corner: Vector2 in [Vector2(6, HOLO_TOP - 8), Vector2(w - 6, HOLO_TOP - 8), Vector2(w - 6, h - 6), Vector2(6, h - 6)]:
 		var sx := 1.0 if corner.x < w / 2.0 else -1.0
 		var sy := 1.0 if corner.y < h / 2.0 else -1.0
 		c.draw_polyline(PackedVector2Array([corner + Vector2(0, sy * k), corner, corner + Vector2(sx * k, 0)]), HOLO, 3.0)
-	c.draw_line(Vector2(60, 52), Vector2(w - 60, 52), HOLO_DIM, 2.0)
-	var cw := (w - 48) / 3.0
-	for i in range(1, 3):
-		c.draw_line(Vector2(24 + i * cw, 158), Vector2(24 + i * cw, 214), Color(HOLO, 0.3), 1.0)
-	c.draw_line(Vector2(60, h - 58), Vector2(w - 60, h - 58), Color(HOLO, 0.3), 1.0)
-	# Risico in streepjes (1 tot 3) onder elke kolom.
-	var risks: Array[int] = []
-	if co.contract_ready():
-		risks = [int(co.contract.risk)]
-	else:
-		for o: Dictionary in co.options:
-			risks.append(int(o.risk))
-	for i in risks.size():
-		var cx := 24 + (i + 0.5) * cw if risks.size() > 1 else 24 + 0.5 * cw
-		for b in 3:
-			var on := b <= risks[i]
-			c.draw_rect(Rect2(cx - 27 + b * 20, 220, 14, 6), HOLO if on else Color(HOLO, 0.18))
+	c.draw_line(Vector2(40, h - 56), Vector2(w - 40, h - 56), Color(HOLO, 0.35), 1.0)
+	var chosen := co.contract_ready()
+	PlanetGlobe.draw_holo(c, HOLO_GLOBE, HOLO_R, _time, HOLO, int(co.contract.get("seed", 0)) if chosen else 0, chosen)
+	if not chosen:
+		var f := UiTheme.heading()
+		c.draw_string(f, HOLO_GLOBE + Vector2(-60, 22), "?", HORIZONTAL_ALIGNMENT_CENTER, 120, 64, Color(HOLO, 0.85 if _blink(1.2, 0.7) else 0.4))
+		return
+	# Risico in blokjes (1 tot 3) voor het woord.
+	var risk := int(co.contract.risk)
+	for b in 3:
+		var on := b <= risk
+		c.draw_rect(Rect2(286 + b * 22, HOLO_TOP + 104, 16, 16), HOLO if on else Color(HOLO, 0.18))
 
 
 # --- Taxatie -------------------------------------------------------------------------------------

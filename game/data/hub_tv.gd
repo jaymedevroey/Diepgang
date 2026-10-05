@@ -4,7 +4,7 @@ extends RefCounted
 ## - "kop|onderregel": de onderregel is optioneel.
 ## - Reclame: "PRODUCT|slogan|prijs".
 ## - Plaatshouders worden ingevuld met de echte stand van de firma:
-##   {planet} {cash} {earned} {quota} {quarter} {shift} {shifts} {left} {rep} {contract}
+##   {planet} {cash} {earned} {quota} {quarter} {shift} {shifts} {left} {left_shifts} {rep} {contract}
 ##   {risk} {magma} {replacement} {robots} {temp} {share} {up} {down}
 ## Kort houden: een kop past in twee regels (± 50 tekens), een onderregel in één (± 60).
 ## Geen symbolen als ▲ ► ● ■: het schermlettertype (VT323) kent ze niet (€ × · é ë wel).
@@ -126,6 +126,6 @@ const TICKER: Array[String] = [
 	"New rule: laughing in The Mole costs €1 per laugh",
 	"This program is brought to you by DIG",
 	"Contract: {contract}",
-	"{left} shift(s) left this quarter",
+	"{left_shifts} left this quarter",
 	"Tomorrow on DIG News: more of the same",
 ]
