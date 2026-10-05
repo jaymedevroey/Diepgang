@@ -10,7 +10,7 @@ const TIPS := [
 	"Granite stops the Mole's drill head. Nose up, or steer away.",
 	"Launch lever pulled? Ten seconds. Anyone not on board climbs back up on foot.",
 	"Lost? The compass at the top of the screen points the way to the Mole.",
-	"Diepgang Inc. accepts no liability for lost robots, fingers or good spirits.",
+	"Diepgang Ltd. accepts no liability for lost robots, fingers or good spirits.",
 	"Press C in the Mole's seat to watch from outside while you drive.",
 	"Settings > Keys: put every key wherever you want it.",
 ]

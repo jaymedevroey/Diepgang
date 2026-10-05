@@ -69,7 +69,7 @@ func _ready() -> void:
 	strip.custom_minimum_size.x = 440
 	col.add_child(strip)
 	var tag := Label.new()
-	tag.text = "DIEPGANG INC.  ·  DRILL CREW WANTED  ·  NO EXPERIENCE REQUIRED"
+	tag.text = "DIEPGANG LTD  ·  DRILL CREW WANTED  ·  NO EXPERIENCE REQUIRED"
 	tag.theme_type_variation = &"Caption"
 	tag.add_theme_font_size_override("font_size", 14)
 	tag.add_theme_constant_override("line_spacing", 0)
