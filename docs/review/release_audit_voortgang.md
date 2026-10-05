@@ -86,20 +86,20 @@ Legenda: **open**, **bezig**, **klaar** (met verificatie), **deels**, **niet** (
 | binnen-09 | Middel | B | deels | Zie gevoel-19 | B: krater_voor_na.png |
 | binnen-10 | Middel | B | klaar | Zie gevoel-06 | B: na/carry_bot.png |
 | binnen-11 | Middel | B | klaar (ter goedkeuring) | Nieuwe gelede robothand (Glove/Glove_Open) met korte donkere onderarm; referentiestudie DRG/Lethal Company/R.E.P.O. | B: blender/* |
-| binnen-12 | Middel | A | open | | |
-| binnen-13 | Middel | A | deels (Godot klaar, model bij A2) | Zie ui-02 | A1: na/interior_taxatie_* |
+| binnen-12 | Middel | A | deels | Eigen hub-shader (slijtage, vuil, strepen, krassen, roet), decals (voetsporen, olie, koffie), licht per zone (warm/tl/koud/natrium), reflectieprobes en nevel. Open: de Mol is nog schoon (C), mid-range niet gemeten | A2: binnen-12/, route/ |
+| binnen-13 | Middel | A | klaar | Zie ui-02 | A1 + A2 |
 | binnen-14 | Middel | C | open | | |
 | binnen-15 | Klein | C | open | | |
 | binnen-16 | Klein | B | klaar (ter goedkeuring) | Nieuwe schedel en dikkere rib; randlicht en fonkels per waardeklasse | B: blender/skull_*, na/vondsten.png |
-| binnen-17 | Klein | A | open | | |
-| binnen-18 | Klein | A | open | | |
-| ui-01 | Blokkerend | A | open | | |
-| ui-02 | Blokkerend | A | deels (Godot klaar, model bij A2) | Alle 'later/coming soon/M4/Playtest/T2-hint/Steam later' weg; werkbank, nissen, automaat, kast en band geven een DIG-regel zonder belofte; versielabel v0.9 | A1: na/interior_taxatie_*, na/menu.png |
+| binnen-17 | Klein | A | klaar | Taxatiepoort slanker, APPRAISAL op masten boven de poort; verkoopluik met raam en verlicht kantoortje | A2: binnen-17/ |
+| binnen-18 | Klein | A | klaar | MIND THE STEPS leesbaar vanaf de spawn; TO THE MOLE / TO THE BRIDGE met eigen pijl | A2: binnen-18/ |
+| ui-01 | Blokkerend | A | klaar | Oorzaak: de kop van de middenbalk hing voor het bord; balk korter, bord lager en naar voren; alle 279 opschriften van voren gefotografeerd, geen enkel nog bedekt | A2: ui-01/, ui-01/alle_borden/ |
+| ui-02 | Blokkerend | A | klaar | Godot (A1) en model (A2): geen ontwikkelaarstaal meer; nissen worden HUMAN RESOURCES en BREAK ROOM | A1 + A2 |
 | ui-03 | Ernstig | A (+F1: inhoud) | klaar (inhoud volgt in F1) | Contractbalie als DIG-console met drie werkorders (planeetbolletje, bijnaam, risicostempel, pay/magma, vak CONDITIONS voor F1); één bevestiging (SIGNED, COURSE SET); hologram = draadmodel van de planeet + claim | A1: firma_terminal, hud_menu_gekozen, interior_terminal_* |
 | ui-04 | Ernstig | A | klaar | De bron geeft de soort mee (Mol.notice/Game.notice: mol/warn/alarm/contract); alarm = grote rode melding + rode gloed rond het scherm (HudAlarm); de rand pulseert bij beving en voorschok; de aftelling wordt rood bij noodophaling; dikkere onrustbalk | A1: hud_beving*, hud_noodophaling, hud_magma; magma_test op de soort |
 | ui-05 | Ernstig | A | klaar | Alle HUD-tekst ≥ 18 px, toetsen 18–20 px; sonar in buitenzicht ×1,4 | ui_test controleert 57 HUD-labels; A1: na/720p_* |
 | ui-06 | Ernstig | A | klaar | Zie gevoel-07 | ui_test op een release-export |
-| ui-07 | Middel | A | deels (Godot klaar, bordjes CR/cents bij A2) | Stijlregels in lessons.md; UiTheme.cap/euro_signed/num/count; hoofdletters, 'the Mole', m, minteken, meervoud; dubbele Off weg; 'Missed = fine' herschreven | A1 |
+| ui-07 | Middel | A | klaar | Godot (A1) en bordjes (A2): CR/cents → € | A1 + A2 |
 | ui-08 | Middel | A | klaar | Rapport als papieren formulier rechts (DIG-kop, kosten rood met minteken, stempel APPROVED/QUOTA MET/MISSED); doel blijft zichtbaar; vervaagt; laatste dienst op het firmabord | A1 |
 | ui-09 | Middel | A | klaar | Gele rand links aan elk HUD-element, eigen icoon per soort vondst (4 SVG's), CONDITION in palet-geel, info-icoon, kompasafstand op een plaatje, doel groter in crème | A1 |
 | ui-10 | Middel | A | klaar | Laagchip donker met laagkleur als rand; bovenste laag per planeet CLAY/LIMESTONE/BASALT | A1: gezien op Kristalmaan |
