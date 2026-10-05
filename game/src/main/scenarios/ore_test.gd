@@ -82,11 +82,15 @@ func _run(p: Player) -> void:
 	var drilled := OreField.units(ores.bag_of(p.peer_id)) - units
 	_expect(drilled == 2, "6 boortikken = 2 eenheden (%d)" % drilled)
 
-	# 4. Zak vol.
+	# 4. Zak vol. Een verse cluster: met 2-3 eenheden per cluster (ontwerp-13) is c1 al bijna leeg.
+	var c2 := ores.clusters[2]
+	t.debug_dig(c2.global_position + c2.global_basis.y * 0.9, 1.3)
+	p.global_position = c2.global_position + c2.global_basis.y * 1.6
+	await _wait(0.6)
 	Tuning.set_value("ore", "bag_capacity", float(OreField.units(ores.bag_of(p.peer_id)) + 1))
 	for i in 6:
-		ores.hit(c1.cluster_id, Strata.Tool.BOOR_T1, c1.global_position)
-		await _wait(0.1)
+		ores.hit(c2.cluster_id, Strata.Tool.HOUWEEL, c2.global_position)
+		await _wait(0.35)
 	var have := OreField.units(ores.bag_of(p.peer_id))
 	_expect(have == units + drilled + 1 and _full > 0, "zak vol: niet meer dan de capaciteit, met melding (%d, %d meldingen)" % [have, _full])
 	Tuning.set_value("ore", "bag_capacity", 40.0)

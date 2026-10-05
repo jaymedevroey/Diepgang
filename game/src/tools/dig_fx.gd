@@ -3,11 +3,12 @@ extends Node3D
 ## Lokale, cosmetische effecten van graven: stof, steentjes, vonken en geluid.
 ## Niets hiervan gaat over het netwerk; enkel terreinbewerkingen worden gesynchroniseerd.
 
-enum Stream { GRIT, SPARKS, DUST }
+enum Stream { GRIT, SPARKS, DUST, STEAM }
 
 const LAYER_DEBRIS := 1 << 3
-const MAX_PEBBLES := 48
-const PEBBLE_LIFETIME := 5.0
+const MAX_PEBBLES := 64
+const PEBBLE_LIFETIME := 14.0 # puin blijft even op de vloer liggen (binnen-09)
+const MAX_CUTS := 12
 
 const SFX := {
 	"clay": ["pick_clay_1", "pick_clay_2", "pick_clay_3", "pick_clay_4", "pick_clay_5"],
@@ -28,6 +29,11 @@ var _spark_material: ParticleProcessMaterial
 var _spark_draw: QuadMesh
 var _grit_material: ParticleProcessMaterial
 var _grit_draw: Mesh
+var _star_material: ParticleProcessMaterial
+var _star_draw: QuadMesh
+var _steam_material: ParticleProcessMaterial
+var _cuts: Array[Decal] = []
+var _cut_texture: Texture2D
 var _rng := RandomNumberGenerator.new()
 
 
@@ -43,9 +49,10 @@ func _ready() -> void:
 	_build_materials()
 
 
-## Houweel raakt graafbare grond.
+## Houweel raakt graafbare grond. Het stof is lichter dan de wand en blijft dicht bij de inslag,
+## zodat de verse kuil leesbaar blijft (gevoel-19, binnen-09).
 func impact(pos: Vector3, normal: Vector3, color: Color, pebbles: int) -> void:
-	_burst_dust(pos, normal, color, 12, 1.0)
+	_burst_dust(pos, normal, color.lightened(0.22), 4, 0.5, 0.3, 0.75)
 	_burst_grit(pos, normal, color, 14)
 	for i in pebbles:
 		_spawn_pebble(pos + normal * 0.15, normal, color)
@@ -53,23 +60,136 @@ func impact(pos: Vector3, normal: Vector3, color: Color, pebbles: int) -> void:
 	play("crumble", pos, -9.0, 0.12)
 
 
-## Houweel of boor raakt een korst: droge tok, bleek stof, geen steentjes.
-func crust_hit(pos: Vector3, normal: Vector3, with_sound := true) -> void:
-	_burst_dust(pos, normal, CRUST_COLOR, 8, 0.7)
-	_burst_grit(pos, normal, CRUST_COLOR, 10)
+## Verse snede: de binnenkant van de kuil is even donkerder en vochtiger dan de wand, en droogt in
+## ±25 s op (binnen-09). Een decal die over de kuil valt; de oudste maakt plaats.
+func fresh_cut(pos: Vector3, normal: Vector3, radius: float) -> void:
+	if _cut_texture == null:
+		_cut_texture = _blotch_texture()
+	var d: Decal
+	if _cuts.size() >= MAX_CUTS:
+		d = _cuts.pop_front()
+		var old: Tween = d.get_meta("tween", null)
+		if old:
+			old.kill()
+	else:
+		d = Decal.new()
+		d.texture_albedo = _cut_texture
+		d.cull_mask = ~(1 << 1) # niet op het gereedschap in beeld
+		d.normal_fade = 0.25
+		d.upper_fade = 0.15
+		d.lower_fade = 0.15
+		add_child(d)
+	_cuts.append(d)
+	var s := radius * 1.7
+	d.size = Vector3(s, 1.4, s)
+	var y := normal.normalized()
+	var x := y.cross(Vector3.UP if absf(y.y) < 0.9 else Vector3.RIGHT).normalized()
+	d.global_transform = Transform3D(Basis(x, y, x.cross(y)).rotated(y, _rng.randf() * TAU), pos + y * 0.25)
+	d.modulate = Color(Tuning.get_f("pickaxe", "fresh_cut_tint", 0.45), Tuning.get_f("pickaxe", "fresh_cut_tint", 0.45) * 0.9,
+			Tuning.get_f("pickaxe", "fresh_cut_tint", 0.45) * 0.85, 1.0)
+	d.albedo_mix = Tuning.get_f("pickaxe", "fresh_cut_mix", 0.7)
+	var tw := d.create_tween()
+	tw.tween_interval(Tuning.get_f("pickaxe", "fresh_cut_s", 25.0) * 0.4)
+	tw.tween_property(d, "albedo_mix", 0.0, Tuning.get_f("pickaxe", "fresh_cut_s", 25.0) * 0.6)
+	d.set_meta("tween", tw)
+
+
+## Houweel of boor raakt een korst: droge tok, stof en schilfers in de kleur van de korst.
+func crust_hit(pos: Vector3, normal: Vector3, with_sound := true, tint := CRUST_COLOR) -> void:
+	_burst_dust(pos, normal, tint.lightened(0.15), 5, 0.6, 0.35, 1.0)
+	_burst_grit(pos, normal, tint, 12)
 	if with_sound:
+		_spawn_pebble(pos + normal * 0.1, normal, tint)
 		play("tok", pos, -1.0)
 
 
-## Korst springt open: brokken in alle richtingen.
-func crust_break(pos: Vector3, size: float) -> void:
-	for n in [Vector3.UP, Vector3.LEFT, Vector3.RIGHT, Vector3.FORWARD, Vector3.BACK]:
-		_burst_dust(pos, n, CRUST_COLOR, 6, 1.0 + size)
-		_burst_grit(pos, n, CRUST_COLOR, 10)
-	for i in 6:
-		_spawn_pebble(pos + Vector3(_rng.randf_range(-1, 1), _rng.randf_range(-0.5, 1), _rng.randf_range(-1, 1)) * size * 0.6,
-				Vector3.UP, CRUST_COLOR)
+## Korst springt open (gevoel-03). Eerst de vondst: schelpen van de korst vliegen naar buiten weg
+## (niet naar de speler), een licht en sterretjes in de glans van de waardeklasse; pas daarna een
+## kleine, lage stofring. `toward`: richting van de speler (daar komt het stof niet).
+func crust_break(pos: Vector3, size: float, tint := CRUST_COLOR, glint := Color(1.0, 0.9, 0.7), strength := 1.0,
+		toward := Vector3.ZERO, follow: Node3D = null) -> void:
+	var away := -toward.normalized() if toward.length() > 0.01 else Vector3.ZERO
+	for i in 8:
+		var dir := Vector3(_rng.randf_range(-1, 1), _rng.randf_range(-0.2, 1), _rng.randf_range(-1, 1)).normalized()
+		if away != Vector3.ZERO and dir.dot(away) < -0.2:
+			dir = (dir + away * 1.2).normalized()
+		_spawn_pebble(pos + dir * size * 0.5, dir, tint, 1.6)
+	_burst_grit(pos, Vector3.UP, tint, 16)
+	_flash(pos + Vector3(0, 0.15, 0), glint, Tuning.get_f("finds", "reveal_light", 5.0) * strength,
+			Tuning.get_f("finds", "reveal_light_s", 1.8) * strength, 4.0)
+	_sparkle(pos, glint, size, strength, follow)
 	play("break", pos, 0.0)
+	# Het stof pas een tel later, laag en naar buiten (weg van de speler), niet over de vondst.
+	await get_tree().create_timer(Tuning.get_f("finds", "reveal_dust_delay_s", 0.35)).timeout
+	for k in 4:
+		var a := k * TAU / 4.0 + _rng.randf() * 0.6
+		var out := Vector3(cos(a), 0.05, sin(a))
+		if away != Vector3.ZERO and out.dot(away) < -0.3:
+			continue
+		_burst_dust(pos + out * size * 0.9 - Vector3(0, size * 0.6, 0), out.normalized(), tint, 2, 0.35 + size * 0.5, 0.22, 0.9)
+
+
+## Erts geraakt: een heldere tik, fonkels in de kleur van het erts en een paar brokjes (gevoel-16).
+func ore_hit(pos: Vector3, normal: Vector3, kind: int, with_sound := true) -> void:
+	var col: Color = OreKinds.COLORS[kind]
+	_burst_grit(pos, normal, col, 8)
+	_sparkle_burst(pos + normal * 0.05, normal, col.lightened(0.35), 10)
+	if with_sound:
+		_spawn_pebble(pos + normal * 0.12, normal, col)
+		play("clink", pos, -7.0, 0.0, 1.45)
+		play("clay", pos, -8.0)
+
+
+## Ertszak gestort in de trechter: brokjes in de kleur van het erts vallen erin, gerammel, en
+## "+€X" erboven (gevoel-16). `counts`: eenheden per OreKinds.Kind.
+func ore_pour(pos: Vector3, counts: PackedInt32Array, gain: int) -> void:
+	var cols: Array[Color] = []
+	for k in counts.size():
+		for i in mini(counts[k], 6):
+			cols.append(OreKinds.COLORS[k])
+	cols.shuffle()
+	# De trechter hangt onder het dak: de brokjes vallen er net boven in, de tekst staat ervoor.
+	for i in mini(cols.size(), 14):
+		var at := pos + Vector3(_rng.randf_range(-0.12, 0.12), 0.12 + i * 0.03, _rng.randf_range(-0.12, 0.12))
+		_spawn_pebble(at, Vector3.DOWN, cols[i], 0.5)
+	for i in 4:
+		play("crumble", pos, -6.0, i * 0.12, 1.3)
+		play("clink", pos, -14.0, 0.06 + i * 0.12, 1.6)
+	var cam := get_viewport().get_camera_3d()
+	var toward := (cam.global_position - pos).normalized() * 0.4 if cam else Vector3.ZERO
+	float_text(pos + toward + Vector3(0, -0.1, 0), "+€%d" % gain, Color(0.55, 1.0, 0.45), 1.0, 1.8)
+
+
+## Een tekst die even boven een plek zweeft en opstijgt (bv. "−€12" bij schade, "+3 Copper").
+func float_text(pos: Vector3, text: String, color: Color, size := 1.0, seconds := 1.4) -> void:
+	var l := Label3D.new()
+	l.text = text
+	l.font = UiTheme.heading()
+	l.font_size = int(64 * size)
+	l.pixel_size = 0.0024
+	l.modulate = color
+	l.outline_modulate = Color(0.05, 0.04, 0.03, 0.9)
+	l.outline_size = 14
+	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	l.no_depth_test = true
+	l.fixed_size = false
+	l.render_priority = 10
+	add_child(l)
+	l.global_position = pos
+	var tw := l.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(l, "global_position", pos + Vector3(0, 0.45 * size, 0), seconds).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.tween_property(l, "modulate:a", 0.0, seconds * 0.4).set_delay(seconds * 0.6)
+	tw.chain().tween_callback(l.queue_free)
+
+
+## Harde landing: een lage stofring rond de voeten, naar buiten (niet in het gezicht).
+func land_dust(pos: Vector3, color: Color, size: float) -> void:
+	for k in 6:
+		var a := k * TAU / 6.0 + _rng.randf() * 0.5
+		var out := Vector3(cos(a), 0.18, sin(a)).normalized()
+		_burst_dust(pos + Vector3(cos(a), 0.0, sin(a)) * 0.25, out, color.lightened(0.15), 3, 0.7 * size)
+	_burst_grit(pos, Vector3.UP, color, int(8 * size))
 
 
 ## Boorhap van een andere speler: kleine gruiswolk, geen steentjes of geluid
@@ -96,14 +216,31 @@ func make_stream(kind: Stream) -> GPUParticles3D:
 		Stream.SPARKS:
 			p.process_material = _spark_material
 			p.draw_pass_1 = _spark_draw
-			p.amount = 50
-			p.lifetime = 0.3
+			p.amount = 40
+			p.lifetime = 0.25
+			p.transform_align = GPUParticles3D.TRANSFORM_ALIGN_Z_BILLBOARD_Y_TO_VELOCITY
 		Stream.DUST:
 			p.process_material = _dust_material
 			p.draw_pass_1 = _dust_draw
-			p.amount = 26
-			p.lifetime = 1.4
+			p.amount = 18
+			p.lifetime = 1.0
 			p.material_override = _dust_draw.material.duplicate()
+		Stream.STEAM:
+			# Stoom van een oververhitte boor: witte pluimen die opstijgen.
+			p.process_material = _steam_material
+			p.amount = 14
+			p.lifetime = 1.2
+			var sm := _dust_draw.material.duplicate() as StandardMaterial3D
+			sm.albedo_color = Color(0.92, 0.92, 0.9, 0.3)
+			sm.proximity_fade_enabled = false
+			sm.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_PIXEL_ALPHA
+			sm.distance_fade_min_distance = 0.25
+			sm.distance_fade_max_distance = 0.7
+			# Een eigen, klein vlak: de pluimen zijn een paar cm, geen wolk van een halve meter.
+			var q := QuadMesh.new()
+			q.size = Vector2(0.1, 0.1)
+			q.material = sm
+			p.draw_pass_1 = q
 	add_child(p)
 	return p
 
@@ -126,13 +263,14 @@ func clink(pos: Vector3, normal: Vector3, color: Color) -> void:
 	play("clink", pos, -2.0)
 
 
-func play(key: String, pos: Vector3, volume_db := 0.0, delay := 0.0) -> void:
+func play(key: String, pos: Vector3, volume_db := 0.0, delay := 0.0, pitch := 1.0) -> void:
 	if delay > 0.0:
 		await get_tree().create_timer(delay).timeout
 	var p := AudioStreamPlayer3D.new()
 	p.bus = &"SFX"
 	p.stream = _streams[key]
 	p.volume_db = volume_db
+	p.pitch_scale = pitch
 	p.unit_size = 6.0
 	p.max_distance = 40.0
 	add_child(p)
@@ -143,12 +281,51 @@ func play(key: String, pos: Vector3, volume_db := 0.0, delay := 0.0) -> void:
 
 # --- Deeltjes -----------------------------------------------------------------
 
-func _burst_dust(pos: Vector3, normal: Vector3, color: Color, amount: int, scale_mul: float) -> void:
-	var p := _one_shot(_dust_material, _dust_draw, amount, 1.6, pos, normal)
+func _burst_dust(pos: Vector3, normal: Vector3, color: Color, amount: int, scale_mul: float,
+		alpha := 0.45, lifetime := 1.6) -> void:
+	var p := _one_shot(_dust_material, _dust_draw, amount, lifetime, pos, normal)
 	p.explosiveness = 0.85
 	p.scale = Vector3.ONE * scale_mul
 	var m := _dust_draw.material.duplicate() as StandardMaterial3D
-	m.albedo_color = Color(color, 0.45)
+	m.albedo_color = Color(color, alpha)
+	p.material_override = m
+
+
+## Sterretjes rond een vrijgekomen vondst: additief, in de glans van zijn waardeklasse, een paar
+## seconden lang (boven het stof uit: ze zitten dicht bij de vondst en het stof komt later).
+func _sparkle(pos: Vector3, color: Color, size: float, strength: float, follow: Node3D = null) -> void:
+	var p := GPUParticles3D.new()
+	p.process_material = _star_material
+	p.draw_pass_1 = _star_draw
+	p.amount = int(lerpf(10.0, 36.0, clampf(strength - 0.5, 0.0, 1.0)))
+	p.lifetime = 0.9
+	p.local_coords = false
+	var m := _star_draw.material.duplicate() as StandardMaterial3D
+	m.albedo_color = Color(color.r * 3.0, color.g * 3.0, color.b * 3.0, 1.0)
+	p.material_override = m
+	# Met de vondst mee (hij springt eruit); de sterretjes zelf blijven in de wereld hangen.
+	if follow and is_instance_valid(follow):
+		follow.add_child(p)
+		p.top_level = false
+		p.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_INHERIT
+	else:
+		add_child(p)
+	p.global_position = pos
+	p.global_basis = Basis().scaled(Vector3.ONE * clampf(size * 2.2, 0.6, 1.6))
+	p.emitting = true
+	var secs := Tuning.get_f("finds", "reveal_sparkle_s", 2.2) * strength
+	get_tree().create_timer(secs).timeout.connect(func() -> void:
+		if is_instance_valid(p):
+			p.emitting = false)
+	get_tree().create_timer(secs + 1.2).timeout.connect(p.queue_free)
+
+
+## Korte uitbarsting sterretjes langs een normaal (erts).
+func _sparkle_burst(pos: Vector3, normal: Vector3, color: Color, amount: int) -> void:
+	var p := _one_shot(_star_material, _star_draw, amount, 0.5, pos, normal)
+	p.scale = Vector3.ONE * 0.5
+	var m := _star_draw.material.duplicate() as StandardMaterial3D
+	m.albedo_color = Color(color.r * 2.5, color.g * 2.5, color.b * 2.5, 1.0)
 	p.material_override = m
 
 
@@ -169,7 +346,9 @@ func _burst_grit(pos: Vector3, normal: Vector3, color: Color, amount: int) -> vo
 
 
 func _burst_sparks(pos: Vector3, normal: Vector3) -> void:
-	_one_shot(_spark_material, _spark_draw, 18, 0.35, pos, normal)
+	var p := _one_shot(_spark_material, _spark_draw, 26, 0.36, pos, normal)
+	# Uitgerekt langs de snelheid, met het vlak naar de camera (geen rechtopstaande staafjes).
+	p.transform_align = GPUParticles3D.TRANSFORM_ALIGN_Z_BILLBOARD_Y_TO_VELOCITY
 
 
 func _one_shot(material: ParticleProcessMaterial, mesh: Mesh, amount: int, lifetime: float,
@@ -191,21 +370,27 @@ func _one_shot(material: ParticleProcessMaterial, mesh: Mesh, amount: int, lifet
 	return p
 
 
-func _flash(pos: Vector3) -> void:
+func _flash(pos: Vector3, color := Color(1.0, 0.7, 0.35), energy := 2.5, seconds := 0.12, light_range := 3.0) -> void:
 	var light := OmniLight3D.new()
-	light.light_color = Color(1.0, 0.7, 0.35)
-	light.light_energy = 2.5
-	light.omni_range = 3.0
+	light.light_color = color
+	light.light_energy = energy
+	light.omni_range = light_range
+	light.shadow_enabled = false
 	add_child(light)
 	light.global_position = pos
 	var tw := create_tween()
-	tw.tween_property(light, "light_energy", 0.0, 0.12)
+	if seconds > 0.3:
+		# Lange gloed (een vondst): kort vol, dan rustig uitdoven.
+		tw.tween_interval(seconds * 0.25)
+		tw.tween_property(light, "light_energy", 0.0, seconds * 0.75).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	else:
+		tw.tween_property(light, "light_energy", 0.0, seconds)
 	tw.tween_callback(light.queue_free)
 
 
 # --- Steentjes (echte fysica, lokaal) -----------------------------------------
 
-func _spawn_pebble(pos: Vector3, normal: Vector3, color: Color) -> void:
+func _spawn_pebble(pos: Vector3, normal: Vector3, color: Color, speed_mul := 1.0) -> void:
 	if _pebbles.size() >= MAX_PEBBLES:
 		var oldest: RigidBody3D = _pebbles.pop_front()
 		if is_instance_valid(oldest):
@@ -231,11 +416,14 @@ func _spawn_pebble(pos: Vector3, normal: Vector3, color: Color) -> void:
 	mesh.material_override = mat
 	body.add_child(cs)
 	body.add_child(mesh)
+	# Fysica: vloeiend tekenen tussen twee ticks (de rest van de effecten staat stil of beweegt zelf).
+	body.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_ON
 	add_child(body)
 	body.global_position = pos + Vector3(_rng.randf_range(-0.1, 0.1), _rng.randf_range(-0.1, 0.1), _rng.randf_range(-0.1, 0.1))
 	body.rotation = Vector3(_rng.randf() * TAU, _rng.randf() * TAU, _rng.randf() * TAU)
+	body.reset_physics_interpolation()
 	var spread := Vector3(_rng.randf_range(-1, 1), _rng.randf_range(-0.3, 1), _rng.randf_range(-1, 1)) * 0.9
-	body.linear_velocity = (normal + spread).normalized() * _rng.randf_range(1.2, 2.8)
+	body.linear_velocity = (normal + spread).normalized() * _rng.randf_range(1.2, 2.8) * speed_mul
 	body.angular_velocity = Vector3(_rng.randf_range(-8, 8), _rng.randf_range(-8, 8), _rng.randf_range(-8, 8))
 	_pebbles.append(body)
 	var tw := body.create_tween()
@@ -299,15 +487,17 @@ func _build_materials() -> void:
 	_grit_material.angular_velocity_max = 400.0
 	_grit_draw = _scaled(FindKinds.chunk(1), 0.032)
 
-	# Vonken: fel, kort, uitgerekt in de bewegingsrichting.
+	# Vonken (gevoel-10): fel en kort, in een kegel rond de normaal (van de wand weg), uitgerekt
+	# langs hun snelheid (GPUParticles3D.transform_align, Y langs de snelheid, vlak naar de camera),
+	# en onzichtbaar dichter dan ±0,6 m bij de camera (geen neonbalken over het beeld).
 	_spark_material = ParticleProcessMaterial.new()
 	_spark_material.direction = Vector3(1, 0, 0)
-	_spark_material.spread = 65.0
+	_spark_material.spread = 38.0
 	_spark_material.initial_velocity_min = 3.0
-	_spark_material.initial_velocity_max = 6.5
+	_spark_material.initial_velocity_max = 6.0
 	_spark_material.gravity = Vector3(0, -9.8, 0)
 	_spark_material.particle_flag_align_y = true
-	_spark_material.scale_min = 0.6
+	_spark_material.scale_min = 0.5
 	_spark_material.scale_max = 1.0
 	var spark_fade := Gradient.new()
 	spark_fade.set_color(0, Color(1.0, 0.9, 0.6, 1.0))
@@ -316,16 +506,92 @@ func _build_materials() -> void:
 	spark_tex.gradient = spark_fade
 	_spark_material.color_ramp = spark_tex
 	_spark_draw = QuadMesh.new()
-	_spark_draw.size = Vector2(0.015, 0.09)
+	_spark_draw.size = Vector2(0.011, 0.08)
 	var sm := StandardMaterial3D.new()
 	sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	sm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	sm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	sm.billboard_mode = BaseMaterial3D.BILLBOARD_FIXED_Y
-	sm.billboard_keep_scale = true
+	sm.billboard_mode = BaseMaterial3D.BILLBOARD_DISABLED
 	sm.vertex_color_use_as_albedo = true
 	sm.albedo_color = Color(4.0, 2.5, 1.2)
+	sm.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_PIXEL_ALPHA
+	sm.distance_fade_min_distance = 0.6
+	sm.distance_fade_max_distance = 1.0
 	_spark_draw.material = sm
+
+	# Sterretjes (glans van een vondst, fonkels van erts): kleine kruisjes die oplichten en doven.
+	_star_material = ParticleProcessMaterial.new()
+	_star_material.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	_star_material.emission_sphere_radius = 0.28
+	_star_material.direction = Vector3(1, 0, 0)
+	_star_material.spread = 180.0
+	_star_material.initial_velocity_min = 0.05
+	_star_material.initial_velocity_max = 0.35
+	_star_material.gravity = Vector3(0, 0.15, 0)
+	_star_material.scale_min = 0.5
+	_star_material.scale_max = 1.3
+	_star_material.angle_min = -45.0
+	_star_material.angle_max = 45.0
+	var twinkle := Curve.new()
+	twinkle.add_point(Vector2(0.0, 0.0))
+	twinkle.add_point(Vector2(0.2, 1.0))
+	twinkle.add_point(Vector2(1.0, 0.0))
+	var twinkle_tex := CurveTexture.new()
+	twinkle_tex.curve = twinkle
+	_star_material.scale_curve = twinkle_tex
+	_star_draw = QuadMesh.new()
+	_star_draw.size = Vector2(0.07, 0.07)
+	var stm := StandardMaterial3D.new()
+	stm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	stm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	stm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	stm.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	stm.albedo_texture = _star_texture()
+	stm.no_depth_test = false
+	_star_draw.material = stm
+
+	# Stoom: trage witte pluimen die opstijgen en uitzetten.
+	_steam_material = _dust_material.duplicate() as ParticleProcessMaterial
+	_steam_material.direction = Vector3(0, 1, 0)
+	_steam_material.spread = 25.0
+	_steam_material.initial_velocity_min = 0.3
+	_steam_material.initial_velocity_max = 0.7
+	_steam_material.gravity = Vector3(0, 0.6, 0)
+	_steam_material.scale_min = 0.5
+	_steam_material.scale_max = 1.0
+
+
+## Sterretje: een zacht kruis met een heldere kern.
+static func _star_texture() -> Texture2D:
+	var size := 32
+	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
+	for y in size:
+		for x in size:
+			var p := Vector2(x - size * 0.5 + 0.5, y - size * 0.5 + 0.5) / (size * 0.5)
+			var core := clampf(1.0 - p.length() * 2.2, 0.0, 1.0)
+			var cross := clampf(1.0 - absf(p.x) * 9.0, 0.0, 1.0) * clampf(1.0 - absf(p.y), 0.0, 1.0) \
+					+ clampf(1.0 - absf(p.y) * 9.0, 0.0, 1.0) * clampf(1.0 - absf(p.x), 0.0, 1.0)
+			img.set_pixel(x, y, Color(1, 1, 1, clampf(core * core + cross * 0.8, 0.0, 1.0)))
+	return ImageTexture.create_from_image(img)
+
+
+## Vlek voor de verse snede: donker in het midden, rafelige rand.
+static func _blotch_texture() -> Texture2D:
+	var size := 64
+	var noise := FastNoiseLite.new()
+	noise.seed = 11
+	noise.frequency = 0.08
+	noise.fractal_octaves = 3
+	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
+	for y in size:
+		for x in size:
+			var d := Vector2(x - size * 0.5, y - size * 0.5).length() / (size * 0.5)
+			# Rafelige rand, maar naar de rand van de doos altijd helemaal weg (geen rechthoeken).
+			var edge := clampf((0.85 - d) * 2.5 + noise.get_noise_2d(x, y) * 0.8, 0.0, 1.0)
+			edge *= clampf((1.0 - d) / 0.3, 0.0, 1.0)
+			img.set_pixel(x, y, Color(1, 1, 1, edge * edge))
+	img.generate_mipmaps()
+	return ImageTexture.create_from_image(img)
 
 
 ## Wolkje: ruis maal een zachte radiale afval, zodat stof geen egale schijf wordt.

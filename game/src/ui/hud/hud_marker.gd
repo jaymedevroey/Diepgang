@@ -23,10 +23,10 @@ func _ready() -> void:
 	_row.add_theme_constant_override("separation", 6)
 	_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_row)
-	_row.add_child(KeyCap.make("interact", 14))
+	_row.add_child(KeyCap.make("interact", 18))
 	_label = Label.new()
 	_label.add_theme_font_override("font", UiTheme.heading())
-	_label.add_theme_font_size_override("font_size", 15)
+	_label.add_theme_font_size_override("font_size", 19)
 	_label.add_theme_color_override("font_color", UiTheme.YELLOW)
 	_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
 	_label.add_theme_constant_override("outline_size", 6)

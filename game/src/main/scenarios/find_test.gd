@@ -32,15 +32,28 @@ func _run(p: Player) -> void:
 	_expect(closest >= 2.0, "vondsten liggen minstens 2 m uit elkaar (%.2f m)" % closest)
 	var near := finds.items[0].global_position.distance_to(t.spawn_point())
 	_expect(near < 9.0, "eerste vondst ligt dicht bij de spawn (%.1f m)" % near)
+	_expect(FindKinds.FAMILIES[finds.items[0].kind] == FindKinds.Family.SKELETON, "eerste vondst is een bot (%s)" % finds.items[0].display_name())
+	# Niet altijd dezelfde klauw (ontwerp-16): de eerste soort volgt uit de seed (zoals FindField.generate).
+	var firsts := {}
+	for s in range(1, 10):
+		var rng := RandomNumberGenerator.new()
+		rng.seed = s * 7919 + 11
+		firsts[FindField.FIRST_BONES[rng.randi() % FindField.FIRST_BONES.size()]] = true
+	_expect(firsts.size() >= 3, "eerste vondst wisselt per wereld (%d soorten in 9 seeds)" % firsts.size())
 
-	# Houweel: 4 slagen, geen schade.
+	# Houweel: zoveel slagen als de korst levens heeft (meer voor waardevollere vondsten), geen schade.
 	var a := finds.items[0]
 	var value_a := a.value()
+	var hits_a := int(finds.crusts[a.find_id].max_hp)
+	_expect(hits_a >= 7 and hits_a == int(FindField.crust_hp_of(a)), "korst heeft %d levens (waardeklasse %d)" % [hits_a, a.value_class])
 	p.global_position = a.global_position + Vector3(0, 0.3, 1.2)
-	for i in 4:
+	for i in hits_a - 1:
 		finds.hit_crust(a.find_id, Strata.Tool.HOUWEEL, a.global_position)
-		await get_tree().create_timer(0.35).timeout
-	_expect(a.freed, "korst breekt na 4 houweelslagen")
+		await get_tree().create_timer(0.3).timeout
+	_expect(not a.freed, "korst houdt tot de laatste slag")
+	finds.hit_crust(a.find_id, Strata.Tool.HOUWEEL, a.global_position)
+	await get_tree().create_timer(0.3).timeout
+	_expect(a.freed, "korst breekt na %d houweelslagen" % hits_a)
 	_expect(not finds.crusts.has(a.find_id), "korst is weg")
 	_expect(is_equal_approx(a.condition, 1.0) and a.value() == value_a, "houweel: vondst gaaf (%d%%, €%d)" % [int(a.condition * 100), a.value()])
 	await _frames(3)
@@ -61,16 +74,30 @@ func _run(p: Player) -> void:
 		bites += 1
 		await get_tree().create_timer(0.1).timeout
 	var secs := (Time.get_ticks_msec() - t0) / 1000.0
+	var pick_secs := finds.crust_hp_of(b) * 0.55
 	_expect(b.freed, "boor breekt de korst (%d happen, %.1f s)" % [bites, secs])
-	_expect(secs < 1.4, "boor is sneller dan het houweel (%.1f s tegen ±1,4 s)" % secs)
-	_expect(b.condition < 0.85 and b.value() < value_b, "boor: vondst beschadigd (%d%%, €%d → €%d)" % [int(b.condition * 100), value_b, b.value()])
+	_expect(secs < pick_secs * 0.5, "boor is veel sneller dan het houweel (%.1f s tegen ±%.1f s)" % [secs, pick_secs])
+	# Koel geboord: ±10-18 % minder (ontwerp-11), niet een derde van de waarde.
+	_expect(b.condition < 0.95 and b.condition > 0.75 and b.value() < value_b, "boor (koel): vondst beschadigd (%d%%, €%d → €%d)" % [int(b.condition * 100), value_b, b.value()])
+
+	# Hete boor: dubbel zoveel schade per hap.
+	var h := finds.items[3]
+	p.global_position = h.global_position + Vector3(0, 0.3, 1.2)
+	var hot_bites := 0
+	while not h.freed and hot_bites < 30:
+		finds.hit_crust(h.find_id, Strata.Tool.BOOR_T1, h.global_position, true)
+		hot_bites += 1
+		await get_tree().create_timer(0.1).timeout
+	var cool_loss := (1.0 - b.condition) / finds.crust_hp_of(b)
+	var hot_loss := (1.0 - h.condition) / finds.crust_hp_of(h)
+	_expect(h.freed and hot_loss > cool_loss * 1.8, "hete boor: meer schade per hap (%.3f tegen %.3f)" % [hot_loss, cool_loss])
 
 	# Te ver weg: host weigert.
 	var c := finds.items[2]
 	p.global_position = c.global_position + Vector3(0, 0, 10)
 	finds.hit_crust(c.find_id, Strata.Tool.HOUWEEL, c.global_position)
 	await _frames(3)
-	_expect(is_equal_approx(finds.crusts[c.find_id].hp, Tuning.get_f("finds", "crust_hp", 4.0)), "treffer van te ver weg geweigerd")
+	_expect(is_equal_approx(finds.crusts[c.find_id].hp, finds.crusts[c.find_id].max_hp), "treffer van te ver weg geweigerd")
 
 	var snap := finds.snapshot()
 	_expect(snap.size() == finds.items.size() and snap[0][3] == true and snap[2][3] == false, "snapshot voor late joiners klopt")

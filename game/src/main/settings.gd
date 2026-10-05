@@ -29,6 +29,7 @@ const DEFAULTS := {
 	"controls/invert_y": false,
 	"interface/ui_scale": 1.0,
 	"interface/camera_shake": 1.0,
+	"interface/head_bob": true, # camera wiegt mee bij het lopen (uit: tegen bewegingsziekte)
 	"interface/hide_ip": false, # voor streamers: IP-adres nergens tonen
 	# HUD per onderdeel (zoals DRG): 0 uit · 1 dynamisch (verschijnt bij een verandering) · 2 altijd.
 	"hud/crosshair": 2,
@@ -167,7 +168,7 @@ func _notification(what: int) -> void:
 ## Acties die je kan omzetten, in de volgorde van het instellingenmenu, met hun naam.
 const BINDABLE := [
 	["move_forward", "Forward"], ["move_back", "Back"], ["move_left", "Left"], ["move_right", "Right"],
-	["jump", "Jump · nose up"], ["crouch", "Crouch · nose down"], ["interact", "Use · pick up"],
+	["jump", "Jump · nose up"], ["crouch", "Crouch · nose down"], ["sprint", "Sprint"], ["interact", "Use · pick up"],
 	["dig", "Dig"], ["tool_1", "Pickaxe"], ["tool_2", "Drill"], ["horn", "Horn"], ["mol_view", "Outside view (Mole)"],
 	["sonar_ping", "Sonar PING (Mole)"], ["skip_cinematic", "Skip drop"],
 ]
