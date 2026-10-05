@@ -108,7 +108,7 @@ func _run(p: Player) -> void:
 	var pick := 1
 	var want := str(CmdArgs.value("planet", "")).to_lower()
 	for i in game.company.options.size():
-		if want != "" and PlanetType.NAMES[int(game.company.options[i].get("planet", 0))].to_lower() == want:
+		if want != "" and PlanetType.Id.keys()[int(game.company.options[i].get("planet", 0))].to_lower() == want:
 			pick = i
 	game.company.choose(pick)
 	for k in 6:
