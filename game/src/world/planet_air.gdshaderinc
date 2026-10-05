@@ -13,6 +13,9 @@ uniform vec3 mid_sky : source_color = vec3(0.79, 0.59, 0.48);
 uniform vec3 horizon : source_color = vec3(0.91, 0.77, 0.6);
 uniform vec3 haze_band : source_color = vec3(0.95, 0.85, 0.71);
 uniform vec3 aureole : source_color = vec3(0.66, 0.77, 0.85); // krans rond de zon (stof stuurt blauw naar voren)
+// Hoe sterk de lucht rond de zon de kleur van de krans aanneemt (0 = enkel het lichte schijnsel erbovenop,
+// dat na AgX wit wordt). Mars: een blauwe krans in een karamel lucht (hemel A).
+uniform float aureole_mix = 0.0;
 uniform float sky_energy = 1.25;
 uniform float dust_tau = 0.55; // optische dikte recht omhoog, aan de grond
 uniform float haze_height = 900.0; // m: hoe snel de lucht dunner wordt met de hoogte
@@ -97,7 +100,11 @@ vec3 air_haze(float e, float mu, vec3 t_sun) {
 	haze = mix(haze, zenith, smoothstep(0.3, 1.0, el));
 	haze = mix(haze, haze_band, exp(-max(e, 0.0) * 14.0) * 0.6);
 	haze *= mix(0.85, 1.15, smoothstep(-0.6, 1.0, mu)); // zonkant iets lichter
-	haze += aureole * hg(mu, 0.65) * 2.2 * t_sun;
+	// De krans: binnen ±25° van de zon kleurt de waas naar de krans, met dezelfde helderheid (anders
+	// telt het enkel als licht, en dat maakt de tonemapper wit). Het schijnsel erbovenop wordt kleiner.
+	float aw = aureole_mix * (1.0 - smoothstep(0.05, 0.5, acos(clamp(mu, -1.0, 1.0))));
+	haze = mix(haze, aureole * luminance(haze) / max(luminance(aureole), 1e-3) * 1.12, aw);
+	haze += aureole * hg(mu, 0.65) * 2.2 * t_sun * (1.0 - 0.6 * aureole_mix);
 	haze += sun_color * hg(mu, 0.92) * 0.35 * t_sun;
 	return haze * sky_energy;
 }
