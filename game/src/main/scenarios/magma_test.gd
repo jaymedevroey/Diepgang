@@ -13,6 +13,7 @@ var main: Node
 var _checks := 0
 var _failures := PackedStringArray()
 var _messages: Array[String] = []
+var _kinds: Array[String] = []
 
 
 func _ready() -> void:
@@ -31,6 +32,7 @@ func _run(p: Player) -> void:
 	var mol: Mol = game.mol
 	var t: TerrainAPI = main.terrain
 	mol.message.connect(func(text: String) -> void: _messages.append(text))
+	mol.notice.connect(func(text: String, kind: String) -> void: _kinds.append(kind))
 	await _wait(1.0)
 	if CmdArgs.has("late"):
 		await _late(p, game, magma, mol)
@@ -161,10 +163,12 @@ func _late(p: Player, game: Game, magma: Magma, mol: Mol) -> void:
 
 	# 7. De Mol: alarm, en de noodophaling op recall_depth.
 	_messages.clear()
+	_kinds.clear()
 	magma._reset_rules() # het smelten hierboven gaf al een alarm (magma 30 m onder de Mol)
 	magma.debug_depth = 35.0
 	await _wait(0.6)
-	_expect(_messages.any(func(m: String) -> bool: return m.contains("MAGMA 40 M")), "alarm in de Mol: magma 40 m eronder")
+	# Op de soort van de melding (alarm), niet op de zin (ui-04, lessons 2026-10-05).
+	_expect(_kinds.has("alarm") and _messages.any(func(m: String) -> bool: return m.contains("40 m")), "alarm in de Mol: magma 40 m eronder")
 	# Een spoor om terug te rijden (zonder schip kan de Mol enkel langs zijn eigen spoor naar boven).
 	mol._path.assign([mol.body.global_position + Vector3(0.0, 0.0, -8.0), mol.body.global_position])
 	magma.debug_depth = 55.0

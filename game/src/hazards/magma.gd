@@ -351,7 +351,7 @@ func _rpc_melted(peer_id: int) -> void:
 	melted.emit(peer_id)
 	var p: Player = game.player_node(peer_id)
 	if p and p.is_local:
-		game.notice.emit("Your robot melted in the magma. DIG sent a replacement (costs to follow).", "warn")
+		game.notice.emit("Your robot melted in the magma. DIG sent a replacement (costs to follow).", "alarm")
 	elif p:
 		game.notice.emit("A robot melted in the magma.", "warn")
 
@@ -384,7 +384,7 @@ func _rule_mol(dt: float) -> void:
 	if _alarm_level > 0 and gap > alarms[_alarm_level - 1] + 10.0:
 		_alarm_level -= 1 # de Mol reed weg: opnieuw waarschuwen als het weer dichtkomt
 	if _alarm_level < alarms.size() and gap <= alarms[_alarm_level] and gap > 0.0:
-		mol.announce("! MAGMA %d M BELOW THE MOLE" % int(alarms[_alarm_level]))
+		mol.announce("Magma %d m below the Mole!" % int(alarms[_alarm_level]), "alarm")
 		_alarm_level += 1
 	if gap < 0.0:
 		_mol_heat += dt / maxf(1.0, Tuning.get_f("magma", "mol_heat_s", 25.0))

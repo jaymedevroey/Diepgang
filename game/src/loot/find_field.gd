@@ -272,7 +272,7 @@ func host_mol_scoop(it: FindItem, mol: Mol) -> void:
 	var local := Transform3D(Basis(Vector3.UP, randf() * TAU), _cargo_spot(it, mol))
 	_rpc_scooped.rpc(it.find_id, cond, local)
 	mol.announce("The drill head scooped up a find (%s): it's in the cargo hold, but damaged (%d%%)" % [
-			it.display_name(), int(round(cond * 100.0))])
+			it.display_name(), int(round(cond * 100.0))], "warn")
 
 
 ## Plek op de vloer van het laadruim, zo ver mogelijk van wat er al ligt (Mol-ruimte).
