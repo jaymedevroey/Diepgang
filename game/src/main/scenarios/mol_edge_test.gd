@@ -18,7 +18,7 @@ var _saw_edge := false
 
 func _ready() -> void:
 	main.game.player_spawned.connect(func(p: Player) -> void: _run.call_deferred(p))
-	get_tree().create_timer(120.0).timeout.connect(func() -> void:
+	get_tree().create_timer(240.0).timeout.connect(func() -> void:
 		print("[mol_edge_test] GEFAALD: time-out")
 		get_tree().quit(1))
 
@@ -41,13 +41,15 @@ func _run(p: Player) -> void:
 	mol.teleport(start, 0.0, 0.0)
 	await _wait(2.5)
 
-	await _hold("move_left", 5.2, mol, t)
-	await _hold("move_forward", 5.0, mol, t)
-	await _hold("move_back", 4.0, mol, t)
-	await _hold("crouch", 2.0, mol, t)
+	# (De tijden passen bij de trage Mol van het GDD §5A: ±1,5 m/s, draaien met een aanloop. Dezelfde
+	# rit als vroeger, in meter en graden.)
+	await _hold("move_left", 6.8, mol, t)
+	await _hold("move_forward", 12.0, mol, t)
+	await _hold("move_back", 7.5, mol, t)
+	await _hold("crouch", 3.0, mol, t)
 	_expect(rad_to_deg(mol.pitch) < -20.0, "neus omlaag (%.0f°)" % rad_to_deg(mol.pitch))
 	var dive_start := mol.body.global_position
-	await _hold("move_forward", 15.0, mol, t)
+	await _hold("move_forward", 35.0, mol, t)
 	_expect(mol.depth() > 3.0, "schuin de grond in geboord (%.1f m diep)" % mol.depth())
 	_expect(_saw_edge and absf(mol.speed) < 0.1, "gestopt voor de buitenmuur van de put (x %.1f, z %.1f)" % [mol.body.global_position.x, mol.body.global_position.z])
 	var size := t.world_size()
@@ -69,18 +71,24 @@ func _run(p: Player) -> void:
 
 	# Draaien tegen de muur: kop en staart mogen er niet in zwaaien.
 	var overlap := mol._edge_overlap(mol.body.global_position, mol.forward())
-	await _hold("move_left", 2.0, mol, t)
+	var tunnel_yaw := mol.yaw
+	await _hold("move_left", 2.5, mol, t)
 	var after_left := mol._edge_overlap(mol.body.global_position, mol.forward())
-	await _hold("move_right", 4.0, mol, t)
+	await _hold("move_right", 4.8, mol, t)
 	var after_right := mol._edge_overlap(mol.body.global_position, mol.forward())
-	await _hold("move_left", 2.0, mol, t) # terug in de richting van de eigen tunnel
+	# Terug in de richting van de eigen tunnel (draaien heeft een aanloop: sturen tot hij er staat).
+	for i in 40:
+		var off := angle_difference(mol.yaw, tunnel_yaw)
+		if absf(off) < deg_to_rad(3.5):
+			break
+		await _hold("move_left" if off > 0.0 else "move_right", clampf(absf(rad_to_deg(off)) / 18.0, 0.25, 2.0), mol, t)
 	_expect(after_left <= overlap + 0.01 and after_right <= overlap + 0.01,
 			"draaien zwaait niet in de muur (%.2f → %.2f / %.2f m)" % [overlap, after_left, after_right])
 	_expect(_worst == 0, "na het draaien geen rots in de romp")
 
 	# Achteruit weg van de muur, door de eigen tunnel (enkel daar kan achteruit).
 	var before := mol.body.global_position
-	await _hold("move_back", 3.0, mol, t)
+	await _hold("move_back", 5.0, mol, t)
 	_expect(mol.body.global_position.distance_to(before) > 2.0 and not mol.at_edge,
 			"achteruit weg van de muur (%.1f m)" % mol.body.global_position.distance_to(before))
 	_expect(_worst == 0, "ook achteruit geen rots in de romp")

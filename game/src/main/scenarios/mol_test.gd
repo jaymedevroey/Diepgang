@@ -11,7 +11,7 @@ var _summary := Vector3i(-1, -1, -1)
 
 func _ready() -> void:
 	main.game.player_spawned.connect(func(p: Player) -> void: _run.call_deferred(p))
-	get_tree().create_timer(240.0).timeout.connect(func() -> void:
+	get_tree().create_timer(420.0).timeout.connect(func() -> void:
 		print("[mol_test] GEFAALD: time-out")
 		for f in _failures:
 			print("[mol_test] MISLUKT: ", f)
@@ -92,11 +92,15 @@ func _run(p: Player) -> void:
 	p._look_yaw = 0.0
 	p.head.rotation.x = 0.0
 
-	# 4. Zelf rijden en boren (W ingedrukt): klep gaat dicht, er wordt geboord.
+	# 4. Zelf rijden en boren (W ingedrukt): klep gaat dicht, er wordt geboord. De Mol is traag
+	#    (GDD §5A: ±1,5 m/s, trager bij het boren) en trekt traag op.
 	var start := mol.body.global_position
 	var ops_before: int = t.op_log().size()
 	Input.action_press("move_forward")
-	await _wait(4.0)
+	await _wait(0.12)
+	_expect(mol.visual.throttle > 0.9, "motor en hendels reageren meteen op het gas (%.2f)" % mol.visual.throttle)
+	await _wait(6.0)
+	_expect(mol.speed <= Tuning.get_f("mol", "open_speed", 1.8) + 0.01, "rijdt niet sneller dan het GDD (%.2f m/s)" % mol.speed)
 	Input.action_release("move_forward")
 	await _wait(1.5)
 	var moved := (mol.body.global_position - start).length()
@@ -115,20 +119,24 @@ func _run(p: Player) -> void:
 	await _wait(0.6)
 	var stand := mol.to_local_mol(p.global_position)
 	var rel_yaw := angle_difference(mol.yaw, p.rotation.y)
-	mol.press(Mol.Cmd.AUTO, 20.0)
+	var clay := mol.auto_target(0)
+	mol.press(Mol.Cmd.AUTO, 0.0) # de eerste knop: in de klei
 	await _wait(0.2)
-	_expect(mol.mode == Mol.Mode.AUTO_DOWN, "autopiloot gestart (staand bediend)")
+	_expect(mol.mode == Mol.Mode.AUTO_DOWN, "autopiloot gestart (staand bediend, naar −%.0f m)" % clay)
 	var t0 := Time.get_ticks_msec()
 	var drift := 0.0
 	var yaw_drift := 0.0
-	while mol.mode == Mol.Mode.AUTO_DOWN and Time.get_ticks_msec() - t0 < 60000:
+	var auto_max := 0.0
+	while mol.mode == Mol.Mode.AUTO_DOWN and Time.get_ticks_msec() - t0 < 150000:
+		auto_max = maxf(auto_max, absf(mol.speed))
 		await get_tree().physics_frame
 		var now_local := mol.to_local_mol(p.global_position)
 		drift = maxf(drift, Vector2(now_local.x - stand.x, now_local.z - stand.z).length())
 		yaw_drift = maxf(yaw_drift, absf(angle_difference(rel_yaw, angle_difference(mol.yaw, p.rotation.y))))
 	var secs := (Time.get_ticks_msec() - t0) / 1000.0
 	_expect(mol.mode != Mol.Mode.AUTO_DOWN, "autopiloot klaar in %.0f s" % secs)
-	_expect(mol.depth() > 18.0 and mol.depth() < 26.0, "op diepte aangekomen (%.1f m)" % mol.depth())
+	_expect(mol.depth() > clay - 3.0 and mol.depth() < clay + 5.0, "op diepte aangekomen (%.1f m, doel %.0f m)" % [mol.depth(), clay])
+	_expect(auto_max <= Tuning.get_f("mol", "bore_speed", 1.3) + 0.01, "autopiloot niet sneller dan zelf boren (%.2f m/s)" % auto_max)
 	_expect(absf(rad_to_deg(mol.pitch)) < 0.5, "waterpas geparkeerd (%.1f°)" % rad_to_deg(mol.pitch))
 	_expect(mol.ramp_open, "laadklep open op diepte")
 	await _wait(1.0)
@@ -157,7 +165,7 @@ func _run(p: Player) -> void:
 	var yaw0 := mol.yaw
 	p.chase.activate() # zoals Jayme: in buitenzicht rijden en dan uitstappen
 	Input.action_press("move_right")
-	await _wait(4.0)
+	await _wait(5.0)
 	Input.action_release("move_right")
 	_expect(absf(rad_to_deg(angle_difference(yaw0, mol.yaw))) > 60.0, "piloot draait ter plaatse (%.0f°)" % rad_to_deg(absf(angle_difference(yaw0, mol.yaw))))
 	await _wait(0.5)
@@ -165,7 +173,7 @@ func _run(p: Player) -> void:
 	var cam_node: Node3D = mol.visual.anchors["Cam_Feed"]
 	_expect(not t.is_solid(cam_node.global_position), "kopcamera zit na het draaien niet in de rots (sdf %.2f)" % t.sdf_at(cam_node.global_position))
 	Input.action_press("jump")
-	await _wait(1.5)
+	await _wait(2.0)
 	Input.action_release("jump")
 	await _wait(0.3)
 	_expect(rad_to_deg(mol.pitch) > 10.0, "neus omhoog (%.0f°)" % rad_to_deg(mol.pitch))
