@@ -35,31 +35,31 @@ Legenda: **open**, **bezig**, **klaar** (met verificatie), **deels**, **niet** (
 | ontwerp-8 | Ernstig | F2 | open | | |
 | ontwerp-9 | Ernstig | F1 | open | | |
 | ontwerp-10 | Ernstig | F1 | open | | |
-| ontwerp-11 | Middel | B | open | | |
+| ontwerp-11 | Middel | B | klaar (druk volgt met F2) | Houweel 4,9 s gaaf tegenover boor 1,1 s 87% / tikjes 90%; heet boren 2,2× schade | B: metingen |
 | ontwerp-12 | Middel | D | open | | |
-| ontwerp-13 | Middel | B | open | | |
+| ontwerp-13 | Middel | B | klaar (erts als munt voor upgrades: F1) | Zie gevoel-16 | B |
 | ontwerp-14 | Middel | C | open | | |
 | ontwerp-15 | Middel | C | open | | |
-| ontwerp-16 | Klein | B | open | | |
-| gevoel-01 | Blokkerend | B | open | | |
-| gevoel-02 | Blokkerend | B | open | | |
-| gevoel-03 | Blokkerend | B | open | | |
+| ontwerp-16 | Klein | B | klaar | Eerste vondst = een bot uit een rij die met de seed wisselt (4 soorten in 9 seeds) | find_test: nieuwe controle |
+| gevoel-01 | Blokkerend | B | klaar | Optrekken 0,017 → 0,12 s, remmen 0,10 s; sprint (Shift, 6,8 m/s), hurken (Ctrl, 2,2 m/s); coyote-tijd en sprongbuffer; landingsdip + stof; head bob en kanteling met instelling. Open: anderen zien je niet hurken | B: feel_bench-metingen en films |
+| gevoel-02 | Blokkerend | B | klaar | Physics-interpolatie aan; standaard uit op Main, aan voor wat per tick beweegt (speler, Mol, vondsten, steentjes); CamRig op de geïnterpoleerde plek; resets na elke sprong (Mol ook de tick erna). Open: vallende rotsen (D) en grijper (C) nog 60 Hz | Stilstaande beelden bij ±340 fps: lopen 246/300 → 1/300, piloot 225/300 → 1/300; drop_sequence --repeat 0 fouten |
+| gevoel-03 | Blokkerend | B | klaar | Hit-stop 0,11 s bij de breuk; licht en sterretjes in de glans van de waardeklasse; brokken weg van de speler, stof 0,35 s later en laag; de vondst springt naar je toe met naam en waarde (in _reveal_text, voor F1) | B: korst_voor_na.png |
 | gevoel-04 | Ernstig | C | open | | |
 | gevoel-05 | Ernstig | C | open | | |
-| gevoel-06 | Ernstig | B | open | | |
+| gevoel-06 | Ernstig | B | klaar | Twee robothanden, veer (zwaarder = slapper, sleept na, kantelt), belicht als de handen; schade vanaf 3 m/s met plafond; '−€X' in de wereld; anderen zien de drager grimassen | B: na/carry_bot.png, na/film_carry.mp4 |
 | gevoel-07 | Ernstig | A | klaar | F1 (tuning) en V (vliegen) enkel met CmdArgs.dev_mode() (debug-build of --dev) | ui_test op een release-export: F1 vrij, met --dev gebonden |
 | gevoel-08 | Ernstig | D | open | | |
-| gevoel-09 | Ernstig | B | open | | |
-| gevoel-10 | Ernstig | B | open | | |
-| gevoel-11 | Ernstig | B | open | | |
+| gevoel-09 | Ernstig | B | klaar | Zwaai als boog op het vizier, wisselanimatie 0,28 s, ademhaling in rust | B: zwaai_voor_na.png |
+| gevoel-10 | Ernstig | B | klaar | Vonken uitgerekt langs hun snelheid, kegel rond de normaal, onzichtbaar < 0,6 m van de camera | B: vonken_voor_na.png, graniet_voor_na.png |
+| gevoel-11 | Ernstig | B | klaar | Boor in klei 2,6 → 5,0 m in 3 s (±2,4× houweel), zandsteen 1,8 m en heter; houweel ketst op zandsteen (GDD-tabel); boor bijt op vast ritme in speltijd | B: metingen feel_bench |
 | gevoel-12 | Ernstig | D | open | | |
 | gevoel-13 | Middel | C | open | | |
 | gevoel-14 | Middel | C | open | | |
-| gevoel-15 | Middel | B | open | | |
-| gevoel-16 | Middel | B | open | | |
+| gevoel-15 | Middel | B | klaar | Bit en kop gloeien met de hitte, stoom en hangende boor bij oververhitting; boor schuift naar voren bij contact, bereik 2,3 m | B: boor_voor_na.png |
+| gevoel-16 | Middel | B | klaar | Tik met fonkels en '+1 Copper' per slag; storten: brokjes in de trechter, gerammel, '+€X'; clusters 2–3 eenheden; waarden in ore.cfg (8/12/20/32); zak van 30 | B: films |
 | gevoel-17 | Middel | C | open | | |
 | gevoel-18 | Middel | C | open | | |
-| gevoel-19 | Klein | B | open | | |
+| gevoel-19 | Klein | B | deels | Minder, lichter en korter stof; verse donkere snede per slag (decal, droogt in 25 s); puin 14 s; helmlamp vlakker op 1 m. De kuil leest maar iets beter: een echte verse snede hoort in de terreinshader (D) | B: krater_voor_na.png |
 | gevoel-20 | Klein | C | open | | |
 | buiten-1 | Blokkerend | C | open | | |
 | buiten-2 | Ernstig | E | open | | |
@@ -78,19 +78,19 @@ Legenda: **open**, **bezig**, **klaar** (met verificatie), **deels**, **niet** (
 | binnen-01 | Blokkerend | D | open | | |
 | binnen-02 | Ernstig | D (+F1: boor T2) | open | | |
 | binnen-03 | Ernstig | D | open | | |
-| binnen-04 | Ernstig | B | open | | |
+| binnen-04 | Ernstig | B | klaar (ter goedkeuring) | Korst = gefacetteerde knol met kleur per laag en hint per familie (botten steken uit), krimpt per slag | B: na/korsten.png |
 | binnen-05 | Ernstig | D | open | | |
 | binnen-06 | Ernstig | D | open | | |
 | binnen-07 | Middel | D | open | | |
 | binnen-08 | Middel | D | open | | |
-| binnen-09 | Middel | B | open | | |
-| binnen-10 | Middel | B | open | | |
-| binnen-11 | Middel | B | open | | |
+| binnen-09 | Middel | B | deels | Zie gevoel-19 | B: krater_voor_na.png |
+| binnen-10 | Middel | B | klaar | Zie gevoel-06 | B: na/carry_bot.png |
+| binnen-11 | Middel | B | klaar (ter goedkeuring) | Nieuwe gelede robothand (Glove/Glove_Open) met korte donkere onderarm; referentiestudie DRG/Lethal Company/R.E.P.O. | B: blender/* |
 | binnen-12 | Middel | A | open | | |
 | binnen-13 | Middel | A | deels (Godot klaar, model bij A2) | Zie ui-02 | A1: na/interior_taxatie_* |
 | binnen-14 | Middel | C | open | | |
 | binnen-15 | Klein | C | open | | |
-| binnen-16 | Klein | B | open | | |
+| binnen-16 | Klein | B | klaar (ter goedkeuring) | Nieuwe schedel en dikkere rib; randlicht en fonkels per waardeklasse | B: blender/skull_*, na/vondsten.png |
 | binnen-17 | Klein | A | open | | |
 | binnen-18 | Klein | A | open | | |
 | ui-01 | Blokkerend | A | open | | |
