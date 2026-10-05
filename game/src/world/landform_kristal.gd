@@ -308,6 +308,18 @@ func tint(x: float, z: float) -> Color:
 	return c
 
 
+## De kristalader als lichte, lavendel lijn op de kaart van het planeetdek (van de hub uit gezien).
+func map_marks() -> Array:
+	var out := []
+	var t := VEIN_T.x
+	while t < VEIN_T.y:
+		var st := clampf(vein_strength(t) * 1.4, 0.0, 1.0)
+		if st > 0.05:
+			out.append([vein_o + vein_dir * t + vein_n * vein_center(t), 22.0, Color(0.85, 0.8, 0.98, 0.85 * st)])
+		t += 24.0
+	return out
+
+
 ## Binnen het speelgebied: naden van de korst waar ze ligt (dezelfde vlekken als de platen erbuiten).
 func crust_seams(x: float, z: float) -> float:
 	return crust_mask(Vector2(x, z))
@@ -368,9 +380,10 @@ func compute_props(s: PlanetSurface) -> Dictionary:
 	_crust_plates(s, plates)
 	var basalt := KristalMesh.new()
 	_basalt_columns(s, basalt)
-	_crater_rays(s, plates["CrustLeft" if crater_c.x < landing.x else "CrustRight"])
+	var rays_km := KristalMesh.new()
+	_crater_rays(s, rays_km)
 	var rig := _rig_meshes(s)
-	for m: KristalMesh in parts.values() + plates.values() + [basalt, rig.rust, rig.paint]:
+	for m: KristalMesh in parts.values() + plates.values() + [basalt, rig.rust, rig.paint, rays_km]:
 		m.center_on_self()
 	var tris := 0
 	for m: KristalMesh in parts.values():
@@ -388,7 +401,7 @@ func compute_props(s: PlanetSurface) -> Dictionary:
 	# rand te lezen). Tekst in het spel: Engels.
 	var sign_xz := landing + Vector2(side * (play_size.x * 0.5 + 7.0), -play_size.y * 0.5 + 34.0)
 	var sign_pos := Vector3(sign_xz.x, s.far_height(sign_xz.x, sign_xz.y), sign_xz.y)
-	return {"kristal_parts": parts, "kristal_gravel": gravel, "kristal_gravel_mesh": lib[0], "kristal_plates": plates,
+	return {"kristal_parts": parts, "kristal_gravel": gravel, "kristal_gravel_mesh": lib[0], "kristal_plates": plates, "kristal_rays": rays_km,
 			"kristal_basalt": basalt, "kristal_rig": rig, "kristal_sign": sign_pos}
 
 
@@ -555,6 +568,8 @@ func _scattered_crystals(s: PlanetSurface, lib: Array[KristalMesh], parts: Dicti
 
 ## Lichte zeshoekige korstplaten (±9 m breed) in de korstvlekken, op een vast zeshoekrooster in
 ## wereldruimte, elk gekanteld naar de grond. Naden van ±1 m tonen het donkere basalt eronder.
+## Reliëf, geen sticker: een afgeschuinde bovenrand en een donkere zijkant, getekend met de rotsshader
+## van het verre landschap (hoekpuntkleur = tint, gehalveerd), dus in de grondtint, niet wit.
 func _crust_plates(s: PlanetSurface, plates: Dictionary) -> void:
 	var R := 5.0 # straal van een cel van het rooster
 	var gap := 0.5
@@ -565,7 +580,8 @@ func _crust_plates(s: PlanetSurface, plates: Dictionary) -> void:
 	var flat := PackedFloat32Array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
 	for shade: float in [1.0, 0.94, 0.88, 1.04]:
 		var km := KristalMesh.new()
-		km.hex_plate(Vector3.ZERO, 1.0, 0.0, flat, 0.3, 0.9, Color(shade, shade * 0.98, shade), Color(0.6, 0.55, 0.66))
+		km.hex_plate(Vector3.ZERO, 1.0, 0.0, flat, 0.34, 0.9, Color(0.68 * shade, 0.64 * shade, 0.72 * shade, 0.0),
+				Color(0.3, 0.27, 0.35, 0.0), 0.14, Color(0.56, 0.52, 0.62, 0.0))
 		unit.append(km)
 	var i0 := int(floor((landing.x - PLATE_REACH) / dx))
 	var i1 := int(ceil((landing.x + PLATE_REACH) / dx))
@@ -595,13 +611,12 @@ func _crust_plates(s: PlanetSurface, plates: Dictionary) -> void:
 			km.add_instance(unit[rng.randi() % unit.size()], Transform3D(b, Vector3(c.x, y - 0.05, c.y)))
 
 
-## De stralen van de jonge krater als dunne, lichte linten over de grond (vers fijn gruis). De tint
-## alleen haalt het niet: de grond is donker en een lage zon geeft vlak terrein weinig licht, dus
-## een lichter albedo maal weinig licht blijft weinig. Een lint met een eigen licht albedo (dezelfde
-## korst) leest wel, ook van 300 m. Onderbroken (ruis) en met rafelige randen, zoals op de maan.
+## De stralen van de jonge krater als lichte linten over de grond (vers fijn gruis). De tint alleen
+## haalt het niet: de grond is donker en een lage zon geeft vlak terrein weinig licht. Een lint met
+## een eigen licht albedo leest wel, ook van 300 m. Doorschijnend, met zachte randen (alfa 0 aan de
+## rand, hoekpuntkleur) en uitdovend over zijn lengte: verstoven gruis, geen strook papier.
 func _crater_rays(s: PlanetSurface, km: KristalMesh) -> void:
 	var step := 8.0
-	var col := Color(0.97, 0.95, 0.98, 0.0)
 	for i in rays.size():
 		var ray := rays[i]
 		var dir := Vector2(cos(ray.x), sin(ray.x))
@@ -610,6 +625,8 @@ func _crater_rays(s: PlanetSurface, km: KristalMesh) -> void:
 		rng.seed = _seed * 7919 + 1301 + i
 		var prev_l := Vector3.INF
 		var prev_r := Vector3.INF
+		var prev_c := Vector3.INF
+		var prev_a := 0.0
 		var r := crater_r * 1.15
 		while r < ray.y:
 			var c := crater_c + dir * r
@@ -618,16 +635,30 @@ func _crater_rays(s: PlanetSurface, km: KristalMesh) -> void:
 			var pl := c + perp * hw * rng.randf_range(0.75, 1.15)
 			var pr := c - perp * hw * rng.randf_range(0.75, 1.15)
 			var ok := hw > 0.6 and not gap and s.outside(pl.x, pl.y) > 14.0 and s.outside(pr.x, pr.y) > 14.0
-			var vl := Vector3(pl.x, s.far_height(pl.x, pl.y) + 0.25, pl.y) if ok else Vector3.INF
-			var vr := Vector3(pr.x, s.far_height(pr.x, pr.y) + 0.25, pr.y) if ok else Vector3.INF
+			var vl := Vector3(pl.x, s.far_height(pl.x, pl.y) + 0.2, pl.y) if ok else Vector3.INF
+			var vr := Vector3(pr.x, s.far_height(pr.x, pr.y) + 0.2, pr.y) if ok else Vector3.INF
+			var cm := (pl + pr) * 0.5
+			var vc := Vector3(cm.x, s.far_height(cm.x, cm.y) + 0.2, cm.y) if ok else Vector3.INF
+			# Dekking in het midden: dooft uit naar het einde, en de ruis maakt ze vlekkerig.
+			var a := 0.72 * (1.0 - smoothstep(ray.y * 0.35, ray.y, r)) * smoothstep(-0.35, 0.05, _ray_noise.get_noise_2dv(c))
+			var cc := Color(1.0, 1.0, 1.0, a)
+			var ce := Color(1.0, 1.0, 1.0, 0.0)
 			if vl != Vector3.INF and prev_l != Vector3.INF:
-				# Bovenvlak naar boven: de normaal van tri(prev_l, vl, vr) moet omhoog wijzen.
-				if (vl - prev_l).cross(vr - prev_l).y > 0.0:
-					km.quad(prev_l, vl, vr, prev_r, col, col, col, col)
-				else:
-					km.quad(prev_l, prev_r, vr, vl, col, col, col, col)
+				# Twee helften (rand - midden - rand), het bovenvlak naar boven.
+				var pc := Color(1.0, 1.0, 1.0, prev_a)
+				for half in [[prev_l, vl, vc, prev_c, ce, ce, cc, pc], [prev_c, vc, vr, prev_r, pc, cc, ce, ce]]:
+					var h0: Vector3 = half[0]
+					var h1: Vector3 = half[1]
+					var h2: Vector3 = half[2]
+					var h3: Vector3 = half[3]
+					if (h1 - h0).cross(h2 - h0).y > 0.0:
+						km.quad(h0, h1, h2, h3, half[4], half[5], half[6], half[7])
+					else:
+						km.quad(h0, h3, h2, h1, half[4], half[7], half[6], half[5])
 			prev_l = vl
 			prev_r = vr
+			prev_c = vc
+			prev_a = a
 			r += step * rng.randf_range(0.8, 1.2)
 
 
@@ -738,14 +769,13 @@ func commit_props(root: Node3D, out: Dictionary) -> void:
 	root.add_child(node)
 	var crystal_mat := ShaderMaterial.new()
 	crystal_mat.shader = preload("res://src/world/kristal_crystal.gdshader")
-	var plate_mat := ShaderMaterial.new()
-	plate_mat.shader = crystal_mat.shader
-	plate_mat.set_shader_parameter("body", Color.html("B8A2B6"))
-	plate_mat.set_shader_parameter("glow_energy", 0.0)
-	plate_mat.set_shader_parameter("transmit", 0.0)
-	plate_mat.set_shader_parameter("sheen", 0.3)
-	plate_mat.set_shader_parameter("glint", 0.5)
-	plate_mat.set_shader_parameter("roughness", 0.5)
+	# Richting naar de zon (zoals Atmosphere de zon draait): de cyane binnengloed zit aan de schaduwkant.
+	var sr: Vector3 = PlanetType.params(PlanetType.Id.KRISTALMAAN).sun_rotation_deg
+	var sun_basis := Basis.from_euler(Vector3(deg_to_rad(sr.x), deg_to_rad(sr.y), deg_to_rad(sr.z)))
+	crystal_mat.set_shader_parameter("to_sun", sun_basis.z)
+	# De korstplaten in de rotsshader van het verre landschap (zelfde grond, zelfde licht).
+	var far := root.get_parent().get_node_or_null("FarTerrain") as MeshInstance3D
+	var plate_mat: Material = far.material_override if far else StandardMaterial3D.new()
 	var parts: Dictionary = out.get("kristal_parts", {})
 	for name: String in parts:
 		# Verder dan ±700 m langs de ader geen schaduw: die vallen buiten de scherpe cascades en
@@ -755,6 +785,14 @@ func commit_props(root: Node3D, out: Dictionary) -> void:
 	var plates: Dictionary = out.get("kristal_plates", {})
 	for name: String in plates:
 		_add_mesh(node, name, plates[name], plate_mat, false, PROP_HIDE_M)
+	if out.has("kristal_rays"):
+		var ray_mat := StandardMaterial3D.new()
+		ray_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		ray_mat.vertex_color_use_as_albedo = true
+		ray_mat.albedo_color = Color.html("C9B8D4") # vers gruis, lichter dan de korst
+		ray_mat.roughness = 1.0
+		ray_mat.metallic_specular = 0.2
+		_add_mesh(node, "CraterRays", out.kristal_rays, ray_mat, false, PROP_HIDE_M)
 	var basalt_mat := StandardMaterial3D.new()
 	basalt_mat.vertex_color_use_as_albedo = true
 	basalt_mat.roughness = 0.92

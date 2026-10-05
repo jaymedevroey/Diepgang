@@ -44,6 +44,9 @@ var _butte_grid := {} # Vector2i (cel van BUTTE_CELL) -> Array[int]
 const BUTTE_CELL := 160.0
 # Badlands: hoe hoog de ruggen worden (m), en vanaf waar ze uitdoven.
 const BAD_AMP := 21.0
+## Op de kalkbodem en in het speelgebied: lage ruggen en geulen (m), het badland loopt tot onder je
+## voeten (planeten.md §4.2; de audit: "een crème zandbak"). Niet op de landingsplek en de opgravingen.
+const FLOOR_BAD := 3.2
 const BAD_FADE := Vector2(900.0, 1700.0)
 # Het reuzenskelet: midden van de ribbenkast, richting van de kop, en de maten langs de rug.
 var giant_c := Vector2.ZERO
@@ -279,10 +282,11 @@ func height(x: float, z: float, o: float) -> float:
 	return k * h
 
 
-## De droge bedding loopt schuin door het speelgebied (zelfde profiel als in height).
+## De droge bedding loopt schuin door het speelgebied, en de lage badlands van de kalkbodem (zelfde
+## vormen als in height). Op de hoofdthread, vóór de werkthread van PlanetSurface (_fields is gedeeld).
 func near_height(x: float, z: float) -> float:
-	var p := Vector2(x, z)
-	return -WASH_DEPTH * (1.0 - smoothstep(0.0, 16.0, _wash_d(p))) * (1.0 - smoothstep(0.0, 30.0, _cliff_u(p)))
+	_fields(x, z)
+	return -WASH_DEPTH * (1.0 - smoothstep(0.0, 16.0, _f_wd)) * (1.0 - smoothstep(0.0, 30.0, _f_u)) + _f_amp * _f_v
 
 
 func has_near() -> bool:
@@ -432,9 +436,13 @@ func _bad_amp(p: Vector2, u: float, wd: float) -> float:
 	if u > 0.0:
 		return 0.0
 	var fd := _floor_d(p)
-	if fd <= 0.0:
+	# Op de kalkbodem lage ruggen (FLOOR_BAD), daarbuiten oplopend tot de volle badlands.
+	var a := lerpf(FLOOR_BAD, BAD_AMP, smoothstep(0.0, 75.0, fd)) * smoothstep(-6.0, 26.0, wd)
+	# Vlak op de landingsplek, rond het skelet, de tweede ribbenkast en het kamp (opgravingen).
+	a *= smoothstep(55.0, 100.0, p.distance_to(landing)) * smoothstep(40.0, 62.0, _giant_d(p))
+	a *= smoothstep(26.0, 44.0, p.distance_to(ribs2_c)) * smoothstep(24.0, 44.0, p.distance_to(camp_c))
+	if a <= 0.0:
 		return 0.0
-	var a := BAD_AMP * smoothstep(0.0, 75.0, fd) * smoothstep(-6.0, 26.0, wd)
 	a *= 1.0 + 0.4 * smoothstep(-320.0, -110.0, u) # hoger naar de voet van de klif
 	a *= 1.0 - smoothstep(-TALUS_W - 10.0, -8.0, u) # op de puinhelling geen ruggen meer
 	a *= 1.0 - smoothstep(BAD_FADE.x, BAD_FADE.y, p.distance_to(landing))
@@ -559,8 +567,22 @@ func tint(x: float, z: float) -> Color:
 ## oker, dunne grijsblauwe kleilijnen, ook op de minder steile hellingen van de badlands, en één
 ## roestige ijzerband op ±60% van de klif.
 func shader_params(surface_y: float) -> Dictionary:
+	# Lagen enkel op de steile delen (vanaf ±35°): op zachte, ronde hellingen lazen ze als een taart.
 	return {"strata_scale": 9.0, "strata_cuts": Vector2(0.58, 0.9), "strata_strength": 0.75,
-			"strata_steep": Vector2(0.72, 0.94), "strata_key": Vector3(surface_y + cliff_h * 0.6, 5.5, 0.9)}
+			"strata_steep": Vector2(0.62, 0.84), "strata_key": Vector3(surface_y + cliff_h * 0.6, 5.5, 0.9)}
+
+
+## Het reuzenskelet als donkere ribbenkast op de kaart van het planeetdek (van de hub uit gezien).
+func map_marks() -> Array:
+	var out := []
+	var a := giant_c + giant_dir * (RIB_HALF + NECK_L + 30.0)
+	var b := giant_c - giant_dir * (RIB_HALF + TAIL_L * 0.6)
+	for k in 13:
+		var q := a.lerp(b, k / 12.0)
+		var w := 30.0 if q.distance_to(giant_c) < RIB_HALF else 14.0
+		out.append([q, w, Color(0.23, 0.16, 0.18, 0.8)])
+	out.append([ribs2_c, 22.0, Color(0.23, 0.16, 0.18, 0.6)])
+	return out
 
 
 ## Afstand tot de rug van het reuzenskelet (benaderd als lijnstuk).
@@ -1008,8 +1030,9 @@ static func b_rand(x: float) -> float:
 	return fposmod(sin(x * 12.9898) * 43758.5453, 1.0) * 2.0 - 1.0
 
 
-## Mist: een raster (24 m) een paar meter boven de geulbodem, enkel waar badlands of de bedding
-## zijn. Waar geen mist hoort, ligt het onder de grond (de dieptetest verbergt het).
+## Mist: een raster (30 m) een paar meter boven de geulbodem, enkel waar badlands of de bedding
+## zijn. Rond die plekken loopt het vlak vlak door en dooft het uit (hoekpuntkleur, alfa 0): vroeger
+## dook het daar in de grond, en van boven las die schuine rand als een harde, grijze helling.
 func _build_mist(s: PlanetSurface) -> Dictionary:
 	var cell := 30.0
 	var reach := 720.0
@@ -1049,8 +1072,26 @@ func _build_mist(s: PlanetSurface) -> Dictionary:
 					var ii := i + di
 					if jj >= 0 and jj < n and ii >= 0 and ii < n:
 						need[jj * n + ii] = 1
+	# De rand: op de hoogte van de levende buren (gemiddeld), maar onzichtbaar.
+	var lvl2 := lvl.duplicate()
+	for j in n:
+		for i in n:
+			if need[j * n + i] == 0 or live[j * n + i] == 1:
+				continue
+			var sum := 0.0
+			var cnt := 0
+			for dj in range(-1, 2):
+				for di in range(-1, 2):
+					var jj := j + dj
+					var ii := i + di
+					if jj >= 0 and jj < n and ii >= 0 and ii < n and live[jj * n + ii] == 1:
+						sum += lvl[jj * n + ii]
+						cnt += 1
+			lvl2[j * n + i] = sum / maxf(cnt, 1)
 	var verts := PackedVector3Array()
 	verts.resize(n * n)
+	var colors := PackedColorArray()
+	colors.resize(n * n)
 	for j in n:
 		for i in n:
 			if need[j * n + i] == 0:
@@ -1060,7 +1101,8 @@ func _build_mist(s: PlanetSurface) -> Dictionary:
 			var o := s.outside(x, z)
 			# Basis = het landschap zonder de badlands (de mist volgt de geulbodem).
 			var base := s.far_height(x, z) - height(x, z, o)
-			verts[j * n + i] = Vector3(x, base - 0.6 + lvl[j * n + i], z)
+			verts[j * n + i] = Vector3(x, base - 0.6 + lvl2[j * n + i], z)
+			colors[j * n + i] = Color(1, 1, 1, float(live[j * n + i]))
 	var idx := PackedInt32Array()
 	for j in n - 1:
 		for i in n - 1:
@@ -1074,7 +1116,7 @@ func _build_mist(s: PlanetSurface) -> Dictionary:
 				idx.append_array([a, b, c, a, c, d])
 			else:
 				idx.append_array([a, c, b, a, d, c])
-	return {"verts": verts, "idx": idx}
+	return {"verts": verts, "idx": idx, "colors": colors}
 
 
 # --- In de scène (hoofdthread) ---------------------------------------------------------------
@@ -1129,6 +1171,7 @@ func commit_props(root: Node3D, out: Dictionary) -> void:
 			var arr := []
 			arr.resize(Mesh.ARRAY_MAX)
 			arr[Mesh.ARRAY_VERTEX] = verts
+			arr[Mesh.ARRAY_COLOR] = out.fossil_mist.colors
 			arr[Mesh.ARRAY_INDEX] = idx
 			var m := ArrayMesh.new()
 			m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)

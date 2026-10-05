@@ -12,8 +12,10 @@ extends Node3D
 ##   zichtbaar, van boven verraden ze het vierkant), en onzichtbare muren.
 ## - Het speelgebied zelf als grof raster, een halve meter onder het oppervlak, getekend waar het
 ##   voxelterrein niet geladen is. Dichterbij dan de laadafstand valt het weg in de shader.
-##   De ring sluit er naadloos op aan (zelfde hoogte op de rand), met een rok die naar binnen kijkt
-##   voor de kieren tussen de rechte randen en het voxelterrein.
+## - De naad: langs elke zijde een strook (BAND_ROWS) met om de ±1 m een hoekpunt op exact de hoogte
+##   van het voxelterrein (de ring heeft er één om de 7,8 m, en een halve meter lager gaf van op de
+##   grond een trede langs de paaltjes). Het raster, de strook en de ring sluiten op de rand aan, met
+##   een rok die naar binnen kijkt voor de kieren tussen de rechte randen en het voxelterrein.
 ## De meshes worden op een werkthread berekend (`built` zodra ze in de scène hangen). Alles hangt
 ## enkel af van de seed, dus elke peer ziet hetzelfde; de werkthread raakt de scène niet aan.
 
@@ -33,10 +35,28 @@ const POST_SPACING := 16.0
 const SMALL_CRATER_CELL := 56.0
 const BIG_CRATER_CELL := 520.0
 const SKIRT := 30.0
+## Naadstrook langs de rand: rijen op deze afstand buiten het speelgebied (m), en zoveel hoekpunten
+## langs de rand per cel van de ring (7,8 m / 8 ≈ 1 m, zo fijn als het reliëf van de generator).
+const BAND_ROWS: Array[float] = [0.0, 1.2, 3.0, 5.2]
+const BAND_PER_CELL := 8
+## Het voxelterrein sluit op de grens van zijn volume af tegen lucht: zijn laatste cel ligt op de
+## goede hoogte, maar met naar buiten geknikte normalen (van op de grond een donkere lijn langs de
+## paaltjes). De strook begint daarom binnen het speelgebied: rijen op (m binnen de rand, m boven het
+## oppervlak). De binnenste ligt eronder, de volgende er net boven: over die laatste halve meter
+## tekent de strook, verder het voxelterrein. Ook de rij op de rand ligt BAND_LIFT hoger.
+const BAND_INSIDE: Array[Vector2] = [Vector2(1.2, -0.05), Vector2(0.55, 0.05)]
+const BAND_LIFT := 0.05
 ## Landingsplek in de rotsshader: straal van de aangestampte kern en waar ze helemaal terrein is (m).
 const LANDING_PAD := Vector2(11.0, 30.0)
 ## De tint van de landvorm over het speelgebied, als textuur voor het voxelterrein (m per texel).
 const NEAR_TINT_STEP := 2.0
+## Kaarten van de planeet rond de landingsplek voor het planeetdek onder de hub (Atmosphere): een
+## scherpe op het raster van de ring (±496 m, 7,8 m per texel) en een grove tot ±4 km (62,5 m).
+## Rgb = kleur van de grond (sRGB, met reliëf, lagen en landmarks), a = hoogte.
+const MAP_FAR_N := 128
+const MAP_FAR_HALF := 4000.0
+## Hoogte in de kaart: a = (hoogte - oppervlak - MAP_H.x) / MAP_H.y.
+const MAP_H := Vector2(-60.0, 240.0)
 
 var terrain: TerrainAPI
 ## Planeettype van deze wereld, en zijn grote landvormen rond het speelgebied (Landform.create).
@@ -59,6 +79,23 @@ var _t0 := 0 # µs: start van build()
 var _main_us := 0 # µs op de hoofdthread (build + in de scène hangen)
 var _compute_us := 0 # µs op de werkthread
 var _phase_ms: Dictionary = {} # ms per stap op de werkthread (voor de log)
+## Reliëf (planeten.md §3.5: de kleur volgt de vorm): hoogte min het gemiddelde in een venster van
+## ±RELIEF_CELLS cellen van de ring, op het raster van de ring (ook over het speelgebied). Laagtes
+## worden donkerder, hoogtes en randen lichter (PlanetType.ground relief_*), in het verre landschap
+## én in de tint van het voxelterrein: drie waardegroepen die aan de vormen hangen, niet aan ruis.
+const RELIEF_CELLS := 5
+## De kaarten (na _commit): texturen en rechthoeken (x/z van de hoek, breedte), voor Atmosphere.
+var land_map: ImageTexture
+var land_map_rect := Vector4.ZERO
+var land_map_near: ImageTexture
+var land_map_near_rect := Vector4.ZERO
+var _rel_field := PackedFloat32Array()
+var _rel_n := 0
+var _rel_o := 0.0
+var _rel_step := 1.0
+var _relief_m := 0.0 # m hoogteverschil voor het volle effect (0 = uit)
+var _relief_dark := Color(1, 1, 1)
+var _relief_light := Color(1, 1, 1)
 
 
 func build(t: TerrainAPI, planet_seed: int, planet_id := PlanetType.Id.ROESTBOL) -> void:
@@ -102,6 +139,9 @@ func build(t: TerrainAPI, planet_seed: int, planet_id := PlanetType.Id.ROESTBOL)
 		mat.set_shader_parameter(["strata_light", "strata_mid", "strata_dark"][i], Vector3(col.r, col.g, col.b))
 	if t.landform == null:
 		landform.setup(planet_seed, Vector2(c.x, c.z), Vector2(_size.x, _size.z))
+	_relief_m = float(g.get("relief_m", 0.0))
+	_relief_dark = g.get("relief_dark", Color(1, 1, 1))
+	_relief_light = g.get("relief_light", Color(1, 1, 1))
 	var pd: Color = g.patch_dark
 	var pl: Color = g.patch_light
 	mat.set_shader_parameter("patch_dark", Vector4(pd.r, pd.g, pd.b, pd.a))
@@ -149,9 +189,9 @@ func outside(x: float, z: float) -> float:
 	return Vector2(dx, dz).length()
 
 
-## Hoogte van het verre landschap. Op de rand exact het raster van het speelgebied (het oppervlak
-## min 0,5 m); verder heuvels en laagtes die groeien met de afstand, kraters, ruggen en mesa's,
-## en de kromming van de planeet.
+## Hoogte van het verre landschap. Op de rand exact het oppervlak van het voxelterrein (zelfde
+## generator, zelfde hoogte: geen trede); verder heuvels en laagtes die groeien met de afstand,
+## kraters, ruggen en mesa's, en de kromming van de planeet.
 func far_height(x: float, z: float) -> float:
 	var o := outside(x, z)
 	var h := _surface_y
@@ -159,7 +199,6 @@ func far_height(x: float, z: float) -> float:
 		# Het oppervlak van de generator loopt door (kleine heuvels); verder vervaagt het naar zijn
 		# gemiddelde (de generator is duur, en van ver valt dat reliëf weg tegen het grote).
 		h = lerpf(terrain.surface_height_at(x, z), _surface_y, smoothstep(250.0, 420.0, o))
-	h -= 0.5
 	if o <= 0.0:
 		return h
 	# Heuvels en laagtes (geen rand rond het speelgebied: anders ligt het vierkant in een kom).
@@ -248,10 +287,17 @@ func _compute() -> void:
 	var ts := Time.get_ticks_usec()
 	var tp := ts
 	_out = {}
-	for step: String in ["area", "far", "skirt", "tint", "dressing"]:
+	for step: String in ["area", "far", "skirt", "tint", "map", "dressing"]:
 		match step:
 			"tint":
 				_out.near_tint = _near_tint_data()
+			"map":
+				var cell := _size.x / STEPS_INSIDE
+				var near_n := 2 * int(ceil(RING / cell)) + STEPS_INSIDE + 1
+				_out.land_map_near_n = near_n
+				_out.land_map_near_half = near_n * cell * 0.5
+				_out.land_map_near = _land_map_data(_out.far, near_n, near_n * cell * 0.5)
+				_out.land_map = _land_map_data(_out.far, MAP_FAR_N, MAP_FAR_HALF)
 			"area":
 				_out.area = _area_arrays()
 			"far":
@@ -284,8 +330,16 @@ static func _with_normals(verts: PackedVector3Array, idx: PackedInt32Array, colo
 
 
 ## Twee driehoeken per vierhoek a-b-c-d, met de voorkant naar boven (Godot: met de klok mee gezien
-## van voren; dan wijst cross(b - a, c - a) naar beneden).
+## van voren; dan wijst cross(b - a, c - a) naar beneden). Gesplitst langs de diagonaal waarvan de
+## hoeken het minst in hoogte verschillen: die volgt de hoogtelijn, zodat een klifrand of rug die
+## schuin door het raster loopt een rechte rand blijft in plaats van een zaagtand (buiten-7).
 static func _quad(idx: PackedInt32Array, at: int, verts: PackedVector3Array, a: int, b: int, c: int, d: int) -> void:
+	if absf(verts[a].y - verts[c].y) > absf(verts[b].y - verts[d].y):
+		var t := a
+		a = b
+		b = c
+		c = d
+		d = t
 	var up := (verts[b] - verts[a]).cross(verts[c] - verts[a]).y < 0.0
 	if up:
 		idx[at] = a; idx[at + 1] = b; idx[at + 2] = c
@@ -296,7 +350,8 @@ static func _quad(idx: PackedInt32Array, at: int, verts: PackedVector3Array, a: 
 
 
 ## Raster van het speelgebied (gegenereerd oppervlak, zonder gaten), een halve meter lager dan
-## het echte oppervlak: waar het voxelterrein geladen is, ligt dat erover.
+## het echte oppervlak: waar het voxelterrein geladen is, ligt dat erover. Op de rand zelf exact het
+## oppervlak, zodat het aansluit op de naadstrook van het verre landschap.
 func _area_arrays() -> Array:
 	var n := AREA_STEPS + 1
 	var step := _size.x / AREA_STEPS
@@ -304,7 +359,10 @@ func _area_arrays() -> Array:
 	verts.resize(n * n)
 	for j in n:
 		for i in n:
-			verts[j * n + i] = Vector3(i * step, terrain.surface_height_at(i * step, j * step) - 0.5, j * step)
+			var x := i * step
+			var z := j * step
+			var d := minf(minf(x, z), minf(_size.x - x, _size.z - z))
+			verts[j * n + i] = Vector3(x, terrain.surface_height_at(x, z) - 0.5 * smoothstep(0.0, 3.0, d), z)
 	var idx := PackedInt32Array()
 	idx.resize(AREA_STEPS * AREA_STEPS * 6)
 	var at := 0
@@ -330,6 +388,7 @@ func _far_arrays() -> Array:
 			var x := (k0 + i) * step
 			var z := (k0 + j) * step
 			verts[j * n + i] = Vector3(x, far_height(x, z), z)
+	_build_relief(verts, n, k0 * step, step)
 	var quads: Array[PackedInt32Array] = []
 	var ring_idx := PackedInt32Array()
 	ring_idx.resize((n - 1) * (n - 1) * 6)
@@ -338,13 +397,15 @@ func _far_arrays() -> Array:
 		for i in n - 1:
 			var ki := k0 + i
 			var kj := k0 + j
-			# Cellen binnen het speelgebied laat het voxelterrein (en het raster) over.
-			if ki >= 0 and ki < STEPS_INSIDE and kj >= 0 and kj < STEPS_INSIDE:
+			# Cellen binnen het speelgebied laat het voxelterrein (en het raster) over; de rij cellen er
+			# vlak rond vult de naadstrook (hieronder).
+			if ki >= -1 and ki <= STEPS_INSIDE and kj >= -1 and kj <= STEPS_INSIDE:
 				continue
 			_quad(ring_idx, at, verts, j * n + i, j * n + i + 1, (j + 1) * n + i + 1, (j + 1) * n + i)
 			at += 6
 	ring_idx.resize(at)
 	quads.append(ring_idx)
+	quads.append(_band(verts, n, k0))
 	# Buitenrand van de ring, rondom (504 punten), als eerste ring van de schijf.
 	var rim := PackedInt32Array()
 	for i in n - 1:
@@ -392,9 +453,159 @@ func _far_arrays() -> Array:
 	colors.resize(verts.size())
 	for i in verts.size():
 		# Hoekpuntkleuren zijn 8-bit (0..1): de tint (1 = neutraal, tot 2 = lichter) gaat er gehalveerd in.
-		var tc := landform.tint(verts[i].x, verts[i].z)
+		var tc := _relief_tint(landform.tint(verts[i].x, verts[i].z), verts[i].x, verts[i].z)
 		colors[i] = Color(tc.r * 0.5, tc.g * 0.5, tc.b * 0.5, tc.a)
 	return _with_normals(verts, idx, colors)
+
+
+## Het reliëfveld uit de hoogtes van het raster van de ring (n × n, vanaf origin, om de step m), met
+## een sommentabel (een vak van ±RELIEF_CELLS cellen kost zo vier opzoekingen).
+func _build_relief(verts: PackedVector3Array, n: int, origin: float, step: float) -> void:
+	_rel_n = n
+	_rel_o = origin
+	_rel_step = step
+	_rel_field = PackedFloat32Array()
+	if _relief_m <= 0.0:
+		_rel_n = 0
+		return
+	var w := n + 1
+	var sat := PackedFloat64Array()
+	sat.resize(w * w)
+	for j in n:
+		var row := 0.0
+		for i in n:
+			row += verts[j * n + i].y
+			sat[(j + 1) * w + i + 1] = sat[j * w + i + 1] + row
+	_rel_field.resize(n * n)
+	var r := RELIEF_CELLS
+	for j in n:
+		var j0 := maxi(j - r, 0)
+		var j1 := mini(j + r + 1, n)
+		for i in n:
+			var i0 := maxi(i - r, 0)
+			var i1 := mini(i + r + 1, n)
+			var sum := sat[j1 * w + i1] - sat[j0 * w + i1] - sat[j1 * w + i0] + sat[j0 * w + i0]
+			_rel_field[j * n + i] = verts[j * n + i].y - sum / float((j1 - j0) * (i1 - i0))
+
+
+## Reliëf hier (m boven het gemiddelde van de omgeving), bilineair; 0 buiten de fijne ring (en naar
+## haar buitenrand toe uitdovend, zodat de grove schijf aansluit).
+func relief_at(x: float, z: float) -> float:
+	if _rel_n == 0:
+		return 0.0
+	var fx := (x - _rel_o) / _rel_step
+	var fz := (z - _rel_o) / _rel_step
+	if fx < 0.0 or fz < 0.0 or fx >= _rel_n - 1 or fz >= _rel_n - 1:
+		return 0.0
+	var i := int(fx)
+	var j := int(fz)
+	var tx := fx - i
+	var tz := fz - j
+	var k := j * _rel_n + i
+	var v := lerpf(lerpf(_rel_field[k], _rel_field[k + 1], tx), lerpf(_rel_field[k + _rel_n], _rel_field[k + _rel_n + 1], tx), tz)
+	return v * (1.0 - smoothstep(RING - 110.0, RING - 30.0, outside(x, z)))
+
+
+## De tint van de landvorm, met het reliëf erbij (laagtes donker, hoogtes licht).
+func _relief_tint(tc: Color, x: float, z: float) -> Color:
+	if _rel_n == 0:
+		return tc
+	var k := clampf(relief_at(x, z) / _relief_m, -1.0, 1.0)
+	var m := Color(1, 1, 1).lerp(_relief_dark, -k) if k < 0.0 else Color(1, 1, 1).lerp(_relief_light, k)
+	return Color(minf(tc.r * m.r, 2.0), minf(tc.g * m.g, 2.0), minf(tc.b * m.b, 2.0), tc.a)
+
+
+## Naadstrook rond het speelgebied, in de cellen tussen de rand en de eerste rasterlijn van de ring
+## (die laat _far_arrays open). Voegt de hoekpunten toe aan `verts` en geeft de driehoeken:
+## - per zijde rijen op BAND_ROWS buiten de rand, met BAND_PER_CELL hoekpunten per cel van de ring;
+##   rij 0 ligt op de rand zelf, op de hoogte van het voxelterrein, en BAND_INSIDE rijen erbinnen
+##   (over de laatste cel van het voxelterrein, die op de grens van zijn volume donker kleurt);
+## - de buitenste rij geritst aan de rasterlijn van de ring (waaiers, geen T-knopen: geen kieren);
+## - op elke hoek een waaier vanuit het hoekpunt van de ring.
+func _band(verts: PackedVector3Array, n: int, k0: int) -> PackedInt32Array:
+	var s_in := STEPS_INSIDE
+	var m := s_in * BAND_PER_CELL
+	var rows := BAND_ROWS.size()
+	# Zijden: oorsprong, richting langs de rand, richting naar buiten (x/z). W, O, Z, N.
+	var sides: Array[Array] = [
+		[Vector2(0.0, 0.0), Vector2(0.0, 1.0), Vector2(-1.0, 0.0)],
+		[Vector2(_size.x, 0.0), Vector2(0.0, 1.0), Vector2(1.0, 0.0)],
+		[Vector2(0.0, 0.0), Vector2(1.0, 0.0), Vector2(0.0, -1.0)],
+		[Vector2(0.0, _size.z), Vector2(1.0, 0.0), Vector2(0.0, 1.0)],
+	]
+	# De rasterlijn van de ring net buiten elke zijde, als (ki, kj) per k = 0..s_in.
+	var coarse := func(side: int, k: int) -> int:
+		var c := [Vector2i(-1, k), Vector2i(s_in + 1, k), Vector2i(k, -1), Vector2i(k, s_in + 1)][side] as Vector2i
+		return (c.y - k0) * n + (c.x - k0)
+	var first: Array[int] = []
+	for sd: Array in sides:
+		var o0: Vector2 = sd[0]
+		var along: Vector2 = sd[1]
+		var out: Vector2 = sd[2]
+		first.append(verts.size())
+		for r in rows:
+			for i in m + 1:
+				var q := o0 + along * (_size.x * i / m) + out * BAND_ROWS[r]
+				verts.append(Vector3(q.x, far_height(q.x, q.y) + (BAND_LIFT if r == 0 else 0.0), q.y))
+		# Rijen binnen de rand (na de andere), van binnen naar buiten.
+		for bi: Vector2 in BAND_INSIDE:
+			for i in m + 1:
+				var q := o0 + along * (_size.x * i / m) - out * bi.x
+				verts.append(Vector3(q.x, terrain.surface_height_at(q.x, q.y) + bi.y, q.y))
+	var idx := PackedInt32Array()
+	for side in 4:
+		var b := first[side]
+		for r in rows - 1:
+			for i in m:
+				var a := b + r * (m + 1) + i
+				_tri(idx, verts, a, a + 1, a + m + 2)
+				_tri(idx, verts, a, a + m + 2, a + m + 1)
+		for k in BAND_INSIDE.size():
+			var r0 := b + (rows + k) * (m + 1)
+			var r1 := b + (rows + k + 1) * (m + 1) if k + 1 < BAND_INSIDE.size() else b
+			for i in m:
+				_tri(idx, verts, r0 + i, r0 + i + 1, r1 + i + 1)
+				_tri(idx, verts, r0 + i, r1 + i + 1, r1 + i)
+		# Ritsen: elke cel van de ring (k .. k+1) tegen BAND_PER_CELL stukjes van de buitenste rij.
+		var outer := b + (rows - 1) * (m + 1)
+		var half := BAND_PER_CELL >> 1
+		for k in s_in:
+			var c0: int = coarse.call(side, k)
+			var c1: int = coarse.call(side, k + 1)
+			var f := outer + k * BAND_PER_CELL
+			for i in half:
+				_tri(idx, verts, c0, f + i, f + i + 1)
+			_tri(idx, verts, c0, f + half, c1)
+			for i in range(half, BAND_PER_CELL):
+				_tri(idx, verts, c1, f + i, f + i + 1)
+	# Hoeken: [zijde langs z/x die op dit hoekpunt eindigt (i = 0 of m), idem voor de andere, ring-hoek].
+	var corners := [[2, 0, 0, 0, Vector2i(-1, -1)], [2, m, 1, 0, Vector2i(s_in + 1, -1)],
+			[3, 0, 0, m, Vector2i(-1, s_in + 1)], [3, m, 1, m, Vector2i(s_in + 1, s_in + 1)]]
+	for cr: Array in corners:
+		var sa: int = cr[0]
+		var ia: int = cr[1]
+		var sb: int = cr[2]
+		var ib: int = cr[3]
+		var rc: Vector2i = cr[4]
+		var apex := (rc.y - k0) * n + (rc.x - k0)
+		var poly := PackedInt32Array()
+		poly.append(coarse.call(sa, 0 if ia == 0 else s_in))
+		for r in range(rows - 1, -1, -1):
+			poly.append(first[sa] + r * (m + 1) + ia)
+		for r in range(1, rows):
+			poly.append(first[sb] + r * (m + 1) + ib)
+		poly.append(coarse.call(sb, 0 if ib == 0 else s_in))
+		for i in poly.size() - 1:
+			_tri(idx, verts, apex, poly[i], poly[i + 1])
+	return idx
+
+
+## Eén driehoek met de voorkant naar boven (zie _quad).
+static func _tri(idx: PackedInt32Array, verts: PackedVector3Array, a: int, b: int, c: int) -> void:
+	if (verts[b] - verts[a]).cross(verts[c] - verts[a]).y < 0.0:
+		idx.append_array([a, b, c])
+	else:
+		idx.append_array([a, c, b])
 
 
 ## De tint van de landvorm over het speelgebied (rgb gehalveerd zoals de hoekpuntkleuren, a = naden
@@ -410,7 +621,7 @@ func _near_tint_data() -> PackedByteArray:
 		for i in n:
 			var x := i * NEAR_TINT_STEP
 			var z := j * NEAR_TINT_STEP
-			var tc := landform.tint(x, z)
+			var tc := _relief_tint(landform.tint(x, z), x, z)
 			var seams := landform.crust_seams(x, z)
 			var pad := smoothstep(LANDING_PAD.x, LANDING_PAD.y, Vector2(x - c.x, z - c.y).length())
 			var at := (j * n + i) * 4
@@ -421,16 +632,129 @@ func _near_tint_data() -> PackedByteArray:
 	return data
 
 
+## De kaart voor het planeetdek (buiten-11: door de baai zag je voor elke planeet dezelfde grijze
+## kratermaan). Uit de hoekpunten van het verre landschap die er al zijn (geen extra hoogtes: die
+## kosten op Fossielwereld ±30 µs per stuk): elk hoekpunt in zijn texel, gemiddeld, gaten opgevuld
+## vanuit de buren. Daarbovenop de landmarks (Landform.map_marks: de kristalader, het skelet).
+func _land_map_data(far: Array, n: int, half: float) -> PackedByteArray:
+	var verts: PackedVector3Array = far[Mesh.ARRAY_VERTEX]
+	var cols: PackedColorArray = far[Mesh.ARRAY_COLOR]
+	var g := PlanetType.ground(planet)
+	var base := (g.base as Color).srgb_to_linear()
+	var strata := ((g.strata as Array)[1] as Color).srgb_to_linear()
+	var x0 := landform.landing.x - half
+	var z0 := landform.landing.y - half
+	var texel := half * 2.0 / n
+	var acc := PackedFloat32Array()
+	acc.resize(n * n * 5) # r, g, b, hoogte, aantal
+	for i in verts.size():
+		var v := verts[i]
+		var ti := int((v.x - x0) / texel)
+		var tj := int((v.z - z0) / texel)
+		if ti < 0 or tj < 0 or ti >= n or tj >= n:
+			continue
+		var c := cols[i]
+		var lin := Color(base.r * c.r * 2.0, base.g * c.g * 2.0, base.b * c.b * 2.0)
+		lin = lin.lerp(strata, clampf(c.a, 0.0, 1.0) * 0.55)
+		var o := outside(v.x, v.z)
+		var at := (tj * n + ti) * 5
+		acc[at] += lin.r
+		acc[at + 1] += lin.g
+		acc[at + 2] += lin.b
+		acc[at + 3] += v.y + o * o / (2.0 * _radius) - _surface_y
+		acc[at + 4] += 1.0
+	for t in n * n:
+		var k := acc[t * 5 + 4]
+		if k > 0.0:
+			for ch in 4:
+				acc[t * 5 + ch] /= k
+			acc[t * 5 + 4] = 1.0
+	# Gaten (verder dan ±1,5 km liggen de ringen van de schijf verder uit elkaar dan een texel).
+	for pass_i in 8:
+		var filled := acc.duplicate()
+		var left := 0
+		for tj in n:
+			for ti in n:
+				var at := (tj * n + ti) * 5
+				if acc[at + 4] > 0.0:
+					continue
+				var sum := [0.0, 0.0, 0.0, 0.0]
+				var k := 0
+				for dj in range(-1, 2):
+					for di in range(-1, 2):
+						var ii := ti + di
+						var jj := tj + dj
+						if ii < 0 or jj < 0 or ii >= n or jj >= n:
+							continue
+						var b := (jj * n + ii) * 5
+						if acc[b + 4] > 0.0:
+							for ch in 4:
+								sum[ch] += acc[b + ch]
+							k += 1
+				if k == 0:
+					left += 1
+					continue
+				for ch in 4:
+					filled[at + ch] = sum[ch] / k
+				filled[at + 4] = 1.0
+		acc = filled
+		if left == 0:
+			break
+	# Wat dan nog leeg is: het gemiddelde.
+	var mean := [0.0, 0.0, 0.0, 0.0]
+	var cnt := 0
+	for t in n * n:
+		if acc[t * 5 + 4] > 0.0:
+			for ch in 4:
+				mean[ch] += acc[t * 5 + ch]
+			cnt += 1
+	for t in n * n:
+		if acc[t * 5 + 4] <= 0.0:
+			for ch in 4:
+				acc[t * 5 + ch] = mean[ch] / maxi(cnt, 1)
+	for mark: Array in landform.map_marks():
+		var mp: Vector2 = mark[0]
+		var mr: float = mark[1]
+		var mc: Color = (mark[2] as Color).srgb_to_linear()
+		var reach := int(ceil(mr / texel)) + 1
+		var ci := int((mp.x - x0) / texel)
+		var cj := int((mp.y - z0) / texel)
+		for tj in range(cj - reach, cj + reach + 1):
+			for ti in range(ci - reach, ci + reach + 1):
+				if ti < 0 or tj < 0 or ti >= n or tj >= n:
+					continue
+				var d := Vector2(x0 + (ti + 0.5) * texel, z0 + (tj + 0.5) * texel).distance_to(mp)
+				var k := (1.0 - smoothstep(mr * 0.5, mr + texel * 0.5, d)) * mc.a
+				if k <= 0.0:
+					continue
+				var at := (tj * n + ti) * 5
+				acc[at] = lerpf(acc[at], mc.r, k)
+				acc[at + 1] = lerpf(acc[at + 1], mc.g, k)
+				acc[at + 2] = lerpf(acc[at + 2], mc.b, k)
+	var data := PackedByteArray()
+	data.resize(n * n * 4)
+	for t in n * n:
+		var lin := Color(acc[t * 5], acc[t * 5 + 1], acc[t * 5 + 2]).linear_to_srgb()
+		data[t * 4] = int(clampf(lin.r, 0.0, 1.0) * 255.0 + 0.5)
+		data[t * 4 + 1] = int(clampf(lin.g, 0.0, 1.0) * 255.0 + 0.5)
+		data[t * 4 + 2] = int(clampf(lin.b, 0.0, 1.0) * 255.0 + 0.5)
+		data[t * 4 + 3] = int(clampf((acc[t * 5 + 3] - MAP_H.x) / MAP_H.y, 0.0, 1.0) * 255.0 + 0.5)
+	return data
+
+
 ## Rok langs de rand van het speelgebied: hangt 30 m naar beneden en kijkt naar binnen, zodat je
 ## vanuit het speelgebied nooit door een kier tussen de rechte randen van de ring, het raster en
-## het voxelterrein de lucht ziet (die kier tekende een witte lijn rond het vierkant).
+## het voxelterrein de lucht ziet (die kier tekende een witte lijn rond het vierkant). Even fijn als
+## de naadstrook en met haar bovenrand op de rand van de strook (anders steekt de rok tussen twee
+## hoekpunten boven de grond uit, of blijft er een spleet onder de strook).
 func _skirt_arrays() -> Array:
-	var step := _size.x / STEPS_INSIDE
+	var segs := STEPS_INSIDE * BAND_PER_CELL
+	var step := _size.x / segs
 	var verts := PackedVector3Array()
 	var normals := PackedVector3Array()
 	var idx := PackedInt32Array()
 	for side in 4:
-		for k in STEPS_INSIDE:
+		for k in segs:
 			var p0: Vector3
 			var p1: Vector3
 			var inward: Vector3
@@ -451,8 +775,10 @@ func _skirt_arrays() -> Array:
 					p0 = Vector3(0, 0, k * step)
 					p1 = Vector3(0, 0, (k + 1) * step)
 					inward = Vector3(1, 0, 0)
-			p0.y = far_height(p0.x, p0.z)
-			p1.y = far_height(p1.x, p1.z)
+			# Exact de rand van de naadstrook (zelfde punten, zelfde hoogte): geen spleet waar een
+			# scherende straal tussen de strook en het raster onder de strook door naar de lucht kan.
+			p0.y = far_height(p0.x, p0.z) + BAND_LIFT
+			p1.y = far_height(p1.x, p1.z) + BAND_LIFT
 			var q0 := p0 - Vector3(0, SKIRT, 0)
 			var q1 := p1 - Vector3(0, SKIRT, 0)
 			var a := verts.size()
@@ -467,6 +793,11 @@ func _skirt_arrays() -> Array:
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = verts
 	arrays[Mesh.ARRAY_NORMAL] = normals
+	# Neutrale tint en geen lagen (zonder kleuren leest de rotsshader wit: dubbel zo licht).
+	var colors := PackedColorArray()
+	colors.resize(verts.size())
+	colors.fill(Color(0.5, 0.5, 0.5, 0.0))
+	arrays[Mesh.ARRAY_COLOR] = colors
 	arrays[Mesh.ARRAY_INDEX] = idx
 	return arrays
 
@@ -482,6 +813,12 @@ func _commit() -> void:
 	tmat.set_shader_parameter("near_tint", ImageTexture.create_from_image(tint_img))
 	tmat.set_shader_parameter("near_tint_rect", Vector4(0.0, 0.0, NEAR_TINT_STEP, float(tn)))
 	tmat.set_shader_parameter("near_tint_on", true)
+	land_map = ImageTexture.create_from_image(Image.create_from_data(MAP_FAR_N, MAP_FAR_N, false, Image.FORMAT_RGBA8, _out.land_map))
+	land_map_rect = Vector4(landform.landing.x - MAP_FAR_HALF, landform.landing.y - MAP_FAR_HALF, MAP_FAR_HALF * 2.0, 0.0)
+	var nn: int = _out.land_map_near_n
+	var nh: float = _out.land_map_near_half
+	land_map_near = ImageTexture.create_from_image(Image.create_from_data(nn, nn, false, Image.FORMAT_RGBA8, _out.land_map_near))
+	land_map_near_rect = Vector4(landform.landing.x - nh, landform.landing.y - nh, nh * 2.0, 0.0)
 	var area_mesh := ArrayMesh.new()
 	area_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, _out.area)
 	var area := MeshInstance3D.new()

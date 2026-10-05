@@ -13,6 +13,9 @@ uniform vec3 mid_sky : source_color = vec3(0.79, 0.59, 0.48);
 uniform vec3 horizon : source_color = vec3(0.91, 0.77, 0.6);
 uniform vec3 haze_band : source_color = vec3(0.95, 0.85, 0.71);
 uniform vec3 aureole : source_color = vec3(0.66, 0.77, 0.85); // krans rond de zon (stof stuurt blauw naar voren)
+// Hoe sterk de lucht rond de zon de kleur van de krans aanneemt (0 = enkel het lichte schijnsel erbovenop,
+// dat na AgX wit wordt). Mars: een blauwe krans in een karamel lucht (hemel A).
+uniform float aureole_mix = 0.0;
 uniform float sky_energy = 1.25;
 uniform float dust_tau = 0.55; // optische dikte recht omhoog, aan de grond
 uniform float haze_height = 900.0; // m: hoe snel de lucht dunner wordt met de hoogte
@@ -30,6 +33,14 @@ uniform vec3 sun_light : source_color = vec3(1.0, 0.91, 0.82);
 uniform float sun_energy = 1.3;
 uniform vec3 ambient_color : source_color = vec3(0.69, 0.53, 0.47);
 uniform float ambient_energy = 0.42;
+// Kaart van de planeet rond de landingsplek (PlanetSurface.land_map; enkel het planeetdek): rgb =
+// grond (sRGB), a = hoogte (land_map_h: x + a · y m t.o.v. het oppervlak). rect: x/z van de hoek, breedte.
+uniform sampler2D land_map : source_color, filter_linear, repeat_disable;
+uniform vec4 land_map_rect = vec4(0.0);
+uniform sampler2D land_map_near : source_color, filter_linear, repeat_disable; // scherper, kleiner
+uniform vec4 land_map_near_rect = vec4(0.0);
+uniform vec2 land_map_h = vec2(-60.0, 240.0);
+uniform float land_map_on = 0.0;
 uniform float ground_fog_density = 0.0035; // per m aan de grond
 uniform float ground_fog_height = 80.0; // m
 
@@ -97,7 +108,11 @@ vec3 air_haze(float e, float mu, vec3 t_sun) {
 	haze = mix(haze, zenith, smoothstep(0.3, 1.0, el));
 	haze = mix(haze, haze_band, exp(-max(e, 0.0) * 14.0) * 0.6);
 	haze *= mix(0.85, 1.15, smoothstep(-0.6, 1.0, mu)); // zonkant iets lichter
-	haze += aureole * hg(mu, 0.65) * 2.2 * t_sun;
+	// De krans: binnen ±25° van de zon kleurt de waas naar de krans, met dezelfde helderheid (anders
+	// telt het enkel als licht, en dat maakt de tonemapper wit). Het schijnsel erbovenop wordt kleiner.
+	float aw = aureole_mix * (1.0 - smoothstep(0.05, 0.5, acos(clamp(mu, -1.0, 1.0))));
+	haze = mix(haze, aureole * luminance(haze) / max(luminance(aureole), 1e-3) * 1.12, aw);
+	haze += aureole * hg(mu, 0.65) * 2.2 * t_sun * (1.0 - 0.6 * aureole_mix);
 	haze += sun_color * hg(mu, 0.92) * 0.35 * t_sun;
 	return haze * sky_energy;
 }
@@ -179,6 +194,30 @@ vec3 planet_ground(vec3 ro, vec3 d, vec3 s, float alt, float e, float mu, vec3 t
 		g += cr.yz;
 		float mesa = smoothstep(0.58, 0.63, fbm2(p / 2600.0 + 11.0));
 		alb = mix(alb, ground_dark * 1.25, mesa * 0.35); // mesa's: donkere kap
+		// Rond de landingsplek: de echte planeet (de kaarten), niet de algemene kraters.
+		if (land_map_on > 0.5) {
+			vec2 uv = (p - land_map_rect.xy) / land_map_rect.z;
+			float mk = 1.0 - smoothstep(0.4, 0.49, max(abs(uv.x - 0.5), abs(uv.y - 0.5)));
+			if (mk > 0.0) {
+				vec4 lm = texture(land_map, uv);
+				float du = 1.5 / float(textureSize(land_map, 0).x);
+				float hx = texture(land_map, uv + vec2(du, 0.0)).a - texture(land_map, uv - vec2(du, 0.0)).a;
+				float hz = texture(land_map, uv + vec2(0.0, du)).a - texture(land_map, uv - vec2(0.0, du)).a;
+				vec2 gm = vec2(hx, hz) * land_map_h.y / (2.0 * du * land_map_rect.z);
+				alb = mix(alb, lm.rgb, mk);
+				g = mix(g, gm, mk);
+			}
+			vec2 un = (p - land_map_near_rect.xy) / land_map_near_rect.z;
+			float mn = 1.0 - smoothstep(0.42, 0.495, max(abs(un.x - 0.5), abs(un.y - 0.5)));
+			if (mn > 0.0) {
+				vec4 ln = texture(land_map_near, un);
+				float dn = 1.5 / float(textureSize(land_map_near, 0).x);
+				float nx = texture(land_map_near, un + vec2(dn, 0.0)).a - texture(land_map_near, un - vec2(dn, 0.0)).a;
+				float nz = texture(land_map_near, un + vec2(0.0, dn)).a - texture(land_map_near, un - vec2(0.0, dn)).a;
+				alb = mix(alb, ln.rgb, mn);
+				g = mix(g, vec2(nx, nz) * land_map_h.y / (2.0 * dn * land_map_near_rect.z), mn);
+			}
+		}
 		n = normalize(N - vec3(g.x, 0.0, g.y));
 	}
 	float ndl = max(dot(n, s), 0.0);

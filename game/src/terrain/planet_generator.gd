@@ -487,10 +487,12 @@ func _sdf(p: Vector3, h: float, rocks: Array[PackedVector4Array], caverns: Array
 				rough = _rough.get_noise_3dv(p) * ROUGH_AMP
 			dk += rough * 0.25
 		s = minf(s, dk)
-	# Buitenmuur en bodem: enkel onder het oppervlak (geen wand die boven de vlakte uitsteekt).
+	# Buitenmuur en bodem: enkel onder het oppervlak (geen wand die boven de vlakte uitsteekt). Als
+	# afstand: muur ∩ "onder het oppervlak". Een harde afknip op h + 2 liet langs het hele speelgebied
+	# een rand van ±1 m boven de vlakte staan (van op de grond een trede tegen het verre landschap).
 	if p.y < h + 2.0:
 		var edge := minf(minf(p.x, dims.x - 1 - p.x), minf(minf(p.z, dims.z - 1 - p.z), p.y))
-		s = minf(s, edge - wall)
+		s = minf(s, maxf(edge - wall, p.y - h))
 	return s
 
 

@@ -32,6 +32,10 @@ uniform float ring_inner = 1.45; // in straal van de planeet
 uniform float ring_outer = 2.35;
 uniform vec3 ring_color : source_color = vec3(0.9, 0.84, 0.74);
 uniform vec3 ring_glow : source_color = vec3(0.75, 0.85, 0.91); // van achteren belicht
+// Hoeveel van de waas vóór de reus en zijn ringen hangt (1 = natuurgetrouw, zoals de lucht zelf).
+// Natuurgetrouw verdwijnt hij op 20-25° hoogte voor ±75% in de lichte lucht: een doorzichtige schijf.
+// Gestileerd: minder waas, zodat hij als een vast lichaam (met zijn eigen kleur) in de lucht staat.
+uniform float giant_haze = 0.35;
 
 
 // Schijf en ring van de reus. Camera in de oorsprong, planeet op afstand 1. Geeft rgb + alfa.
@@ -58,11 +62,20 @@ vec4 giant(vec3 d, vec3 s) {
 		float r = length(q) / rp;
 		float x = (r - ring_inner) / (ring_outer - ring_inner);
 		if (x > 0.0 && x < 1.0) {
-			// Profiel: drie banden en één duidelijke opening, een vage stofrand buiten.
-			float dens = smoothstep(0.0, 0.06, x) * (1.0 - smoothstep(0.93, 1.0, x));
-			dens *= 0.55 + 0.45 * sin(x * 38.0 + vnoise(vec3(x * 60.0, 1.0, 2.0)) * 2.0);
-			dens *= 1.0 - 0.9 * (smoothstep(0.55, 0.58, x) - smoothstep(0.62, 0.65, x)); // de opening
-			dens *= mix(1.0, 0.35, smoothstep(0.75, 0.95, x));
+			// Profiel zoals Saturnus, gestileerd (hemel.md: 2-3 banden, één duidelijke opening, een vage
+			// stoffige buitenring): een dunne, vage binnenring; de brede, dichte hoofdring (naar buiten
+			// toe dichter); een duidelijke donkere opening; een tweede, minder dichte ring met een smalle
+			// opening; en een stofring die uitdooft. Geen gelijke lijnen (dat leek een vinylplaat).
+			float inner = 0.2 * smoothstep(0.0, 0.05, x) * (1.0 - smoothstep(0.16, 0.19, x));
+			float main_r = mix(0.72, 1.0, smoothstep(0.2, 0.5, x)) * smoothstep(0.17, 0.21, x) * (1.0 - smoothstep(0.52, 0.545, x));
+			float outer_r = 0.62 * smoothstep(0.6, 0.625, x) * (1.0 - smoothstep(0.83, 0.86, x));
+			outer_r *= 1.0 - 0.8 * (smoothstep(0.755, 0.765, x) - smoothstep(0.78, 0.79, x));
+			float dusty = 0.13 * smoothstep(0.83, 0.87, x) * (1.0 - smoothstep(0.88, 1.0, x));
+			float dens = inner + main_r + outer_r + dusty;
+			// Fijne ringetjes als textuur (zwak, en weg waar ze kleiner zijn dan een pixel).
+			float fine = 1.0 - smoothstep(0.002, 0.008, fwidth(x));
+			dens *= 1.0 + 0.22 * (vnoise(vec3(x * 170.0, 0.5, 0.5)) - 0.5) * fine + 0.18 * (vnoise(vec3(x * 34.0, 2.5, 0.5)) - 0.5);
+			dens = clamp(dens, 0.0, 1.0); // boven 1 wordt het tegenlicht (dens · (1 − dens)) negatief
 			// Schaduw van de planeet op de ring.
 			vec3 Q = d * tr;
 			vec3 qc = Q - C;
@@ -113,7 +126,8 @@ vec4 giant(vec3 d, vec3 s) {
 		float view = clamp(dot(N, -d), 0.0, 1.0);
 		vec3 col = albedo * (0.12 + 0.88 * max(ndl, 0.0)) * day * mix(0.6, 1.0, pow(view, 0.4));
 		col += giant_night * (1.0 - day) * 0.6; // planeetschijn
-		col += giant_base * pow(1.0 - view, 4.0) * smoothstep(-0.2, 0.4, ndl) * 0.8; // atmosfeerrand
+		// Atmosfeerrand aan de zonkant: bij een sikkel (de zon achter de reus) een felle lichtrand.
+		col += mix(giant_base, giant_storm, 0.5) * pow(1.0 - view, 2.2) * smoothstep(-0.05, 0.45, ndl) * 1.1;
 		float edge = smoothstep(0.0, 0.003, h / max(rp, 1e-4)); // zachte rand
 		planet = vec4(col, edge);
 	}
@@ -154,12 +168,14 @@ void sky() {
 			}
 		}
 		vec4 g = giant(d, s);
-		bg = mix(bg, g.rgb * 1.6, g.a);
 		// Sterren enkel waar de lucht echt donker is: hoog boven het stof (de hub), niet in de lichte
-		// waas van de drop of aan de grond (de reus is fel genoeg om er altijd te zijn).
+		// waas van de drop of aan de grond.
 		float dark = 1.0 - smoothstep(0.01, 0.06, luminance(haze * (1.0 - T)));
-		vec3 visible_bg = mix(bg * dark, bg, g.a);
-		col = visible_bg * T + (1.0 - T) * haze;
+		col = bg * dark * T + (1.0 - T) * haze;
+		// De reus en zijn ringen achter minder waas (giant_haze): ondoorzichtig, in hun eigen kleur.
+		vec3 Tg = exp(-dust_tau * giant_haze * k * airmass(e) * DUST_TINT);
+		vec3 giant_col = g.rgb * 1.6 * Tg + (1.0 - Tg) * haze;
+		col = mix(col, giant_col, g.a);
 		// Zon: kleine schijf met randverdonkering, door de atmosfeer.
 		float cosr = cos(radians(sun_size_deg));
 		if (mu > cosr) {

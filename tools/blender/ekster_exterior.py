@@ -178,6 +178,21 @@ def layer_trims(b: Builder, rng):
         # Lange flankrail.
         b.box((s * 15.65, -2.0, -31.0), (0.5, 0.6, 30.0), material="Anthracite")
         b.box((s * 7.3, 4.0, 27.0), (0.5, 0.5, 66.0), material="Anthracite")
+    # Kale, afgesleten randen langs de schouders van de grote stukken (stijlgids: "afgeschuinde
+    # randen vangen licht"): van ver een lichte lijn die het silhouet tekent.
+    for part, z0, z1 in (("Prow", -74, -52), ("Mid", -48, -14), ("Spine", -8, 62), ("EngineBlock", 68, 82)):
+        st = [q for q in SHAPE[part][0] if q[0] <= z0][-1]
+        _z, Wd, T, _B, s_, _c, _k = st
+        for side in (-1, 1):
+            # Op de schuine schouder, dicht bij de rug (3/4 van de schouder), net erboven.
+            cx, cy = side * (Wd - s_ * 0.75) + side * 0.06, T - s_ * 0.25 + 0.06
+            v = (-side * 0.7071, 0.7071, 0.0)
+            b.box((cx, cy, (z0 + z1) / 2), ((z1 - z0) - 0.6, 0.45, 0.1), (0, 0, 1), v, "CutterSteel")
+    # Een gele band rond het motorblok (DIG: geel = werk).
+    eb = [q for q in SHAPE["EngineBlock"][0] if q[0] <= 70][-1]
+    for (cx, cy, sx, sy) in ((0, eb[2] + 0.06, eb[1] * 2 - eb[4] * 2, 0.12), (eb[1] + 0.06, (eb[2] + eb[3]) / 2, 0.12, eb[2] - eb[3] - 2.0),
+                             (-eb[1] - 0.06, (eb[2] + eb[3]) / 2, 0.12, eb[2] - eb[3] - 2.0)):
+        b.box((cx, cy, 72.0), (sx, sy, 2.2), material="Yellow")
     # Rugrail met spanten (ritme).
     b.box((0, 9.7, 28.0), (1.6, 1.0, 70.0), material="HullDark")
     for z in range(-6, 63, 4):
@@ -259,7 +274,7 @@ def layer_engines(b: Builder, rng):
     een felle kern."""
     def engine(cx, cy, z, r):
         b.cyl((cx, cy, z - 0.2), (0, 0, 1), 2.6, r * 1.15, 24, "HullDark")
-        b.cyl((cx, cy, z + 2.3), (0, 0, 1), 0.5, r * 1.2, 24, "Anthracite")
+        b.cyl((cx, cy, z + 2.3), (0, 0, 1), 0.5, r * 1.2, 24, "Yellow")
         for k in range(8):  # bladen
             a = 2 * math.pi * k / 8 + math.pi / 8
             px, py = cx + math.cos(a) * r * 1.02, cy + math.sin(a) * r * 1.02
@@ -331,7 +346,7 @@ def layer_armor(b: Builder, rng):
 def layer_deck(b: Builder, rng):
     """Op het dek: containers met gestolen lading op de rug (kleuren van andere firma's), een
     kraan, luiken en een sensormast. Het verhaal van DIG in één oogopslag."""
-    colors = ["Red", "Blue", "GreyGreen", "Yellow", "HullLight", "Red", "Blue"]
+    colors = ["RedOxide", "Cream", "Anthracite", "Yellow", "HullLight", "RedOxide", "GreyGreen"]
     for i, z in enumerate(range(6, 56, 7)):
         for x in (-3.2, 3.2):
             if rng.random() < 0.8:
@@ -437,7 +452,7 @@ def build():
     for o in PARTS["Hull"]:
         for p in o.data.polygons:
             p.use_smooth = False
-        bake_wear(o, strength=3.0, seed=hash(o.name) % 997)
+        bake_wear(o, strength=5.0, seed=hash(o.name) % 997)
         o.parent = root
     empty("Mol_Dock", MOL_DOCK, parent=root)
     OUT.parent.mkdir(parents=True, exist_ok=True)

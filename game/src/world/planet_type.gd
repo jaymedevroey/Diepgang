@@ -14,23 +14,31 @@ const SKY_STYLE: Array[String] = ["a", "b", "c"]
 
 ## Kleuren van de bovenste laag (de rots aan de oppervlakte en het verre landschap), sRGB: basis,
 ## licht, donker, de lagen in steile wanden (licht, midden, donker), en de losse rotsblokken.
+## relief_*: de kleur volgt de vorm (PlanetSurface.relief_at): laagtes maal relief_dark, hoogtes en
+## randen maal relief_light, vol bij relief_m meter boven of onder het gemiddelde van de omgeving.
 static func ground(id: Id) -> Dictionary:
 	match id:
 		Id.FOSSIELWERELD:
 			# Kalksteen (crème in de zon, koel in de schaduw), mergel en een roestige ijzerband.
 			return {"patch_dark": Color(0.86, 0.78, 0.68, 0.55), "patch_light": Color(1.08, 1.06, 1.03, 0.5), "patch_scale": 80.0,
 					"base": _hex("C9B48C"), "light": _hex("E2CFA8"), "dark": _hex("7C8C8E"),
-					"strata": [_hex("E2CFA8"), _hex("C9A46E"), _hex("8C9AA0")], "rock": _hex("A08E70")}
+					"strata": [_hex("E2CFA8"), _hex("C9A46E"), _hex("8C9AA0")], "rock": _hex("A08E70"),
+					# Geulbodems: okerstof en grijsblauwe klei, donker (het enige donker was het skelet).
+					"relief_m": 1.1, "relief_dark": Color(0.6, 0.55, 0.52), "relief_light": Color(1.06, 1.05, 1.03)}
 		Id.KRISTALMAAN:
 			# Donker violet basalt met lange schaduwen.
 			return {"patch_dark": Color(0.7, 0.68, 0.8, 0.65), "patch_light": Color(1.35, 1.3, 1.45, 0.45), "patch_scale": 70.0,
 					"base": _hex("54446A"), "light": _hex("7C6890"), "dark": _hex("2C2240"),
-					"strata": [_hex("7A6080"), _hex("5A4466"), _hex("2E2440")], "rock": _hex("3E3248")}
+					"strata": [_hex("7A6080"), _hex("5A4466"), _hex("2E2440")], "rock": _hex("3E3248"),
+					# Kraterranden en ruggen vangen het gouden licht; kommen blijven diep violet.
+					"relief_m": 1.3, "relief_dark": Color(0.76, 0.72, 0.84), "relief_light": Color(1.42, 1.28, 1.28)}
 		_:
 			# Roestbol: klei (de stijlgids), lagen in de kraterwand zoals in het onderzoek.
 			return {"patch_dark": Color(0.55, 0.46, 0.46, 0.75), "patch_light": Color(1.16, 1.08, 0.97, 0.55), "patch_scale": 110.0,
 					"base": Color(0.431, 0.290, 0.208), "light": Color(0.604, 0.420, 0.298), "dark": Color(0.243, 0.165, 0.122),
-					"strata": [_hex("E0B48C"), _hex("B86A44"), _hex("7A3A2A")], "rock": _hex("6A3A2B")}
+					"strata": [_hex("E0B48C"), _hex("B86A44"), _hex("7A3A2A")], "rock": _hex("6A3A2B"),
+					# Donker basaltzand in de laagtes (#3E2626), licht perzikstof op de ruggen (#D9A27E).
+					"relief_m": 1.3, "relief_dark": Color(0.52, 0.48, 0.56), "relief_light": Color(1.38, 1.22, 1.04)}
 
 
 ## Richting (eenheidsvector) uit een kompasrichting en hoogte in graden. Azimut 0 = +z, 90 = +x.
@@ -67,11 +75,11 @@ static func _roestbol(style: String) -> Dictionary:
 					"giant_base": _hex("B48FC4"), "giant_band": _hex("7A5A9C"), "giant_storm": _hex("EADCF0"),
 					"giant_night": _hex("3A2228"), "ring_color": _hex("F0DDB0"), "ring_glow": _hex("FFE9C4"),
 					"giant_dir": dir(210.0, 25.0), "giant_radius_deg": 9.0, "ring_open_deg": 22.0, "ring_roll_deg": 12.0,
-					"sky_energy": 1.1, "dust_tau": 0.45,
+					"sky_energy": 1.1, "dust_tau": 0.45, "giant_haze": 0.35, "aureole_mix": 0.25,
 				},
 				"sun_rotation_deg": Vector3(-35.0, 60.0, 0.0),
-				"sun_color": _hex("FFF4E0"), "sun_energy": 1.35,
-				"ambient": _hex("8FB5B5"), "ambient_energy": 0.4,
+				"sun_color": _hex("FFF4E0"), "sun_energy": 1.18,
+				"ambient": _hex("8FB5B5"), "ambient_energy": 0.21,
 				"fog": _hex("E0A27E"), "fog_density": 0.0015,
 			}
 		"c":
@@ -85,7 +93,7 @@ static func _roestbol(style: String) -> Dictionary:
 					"giant_base": _hex("F5E6C8"), "giant_band": _hex("C9A88A"), "giant_storm": _hex("FFF4E0"),
 					"giant_night": _hex("4A2A22"), "ring_color": _hex("CDB79A"), "ring_glow": _hex("FFD9A8"),
 					"giant_dir": dir(205.0, 24.0), "giant_radius_deg": 10.0, "ring_open_deg": 16.0, "ring_roll_deg": -18.0,
-					"sky_energy": 1.2, "dust_tau": 0.6,
+					"sky_energy": 1.2, "dust_tau": 0.6, "giant_haze": 0.3, "aureole_mix": 0.35,
 				},
 				"sun_rotation_deg": Vector3(-10.0, 160.0, 0.0),
 				"sun_color": _hex("FFC890"), "sun_energy": 1.4,
@@ -103,10 +111,10 @@ static func _roestbol(style: String) -> Dictionary:
 					"giant_base": _hex("7FA3B8"), "giant_band": _hex("4F7690"), "giant_storm": _hex("D8E3E8"),
 					"giant_night": _hex("3A2420"), "ring_color": _hex("E6D6BC"), "ring_glow": _hex("BFD8E8"),
 					"giant_dir": dir(200.0, 22.0), "giant_radius_deg": 9.5, "ring_open_deg": 20.0, "ring_roll_deg": 15.0,
-					"sky_energy": 1.25, "dust_tau": 0.55,
+					"sky_energy": 1.25, "dust_tau": 0.55, "giant_haze": 0.12, "aureole_mix": 0.8,
 				},
 				"sun_rotation_deg": Vector3(-24.0, 80.0, 0.0),
 				"sun_color": _hex("FFE9D0"), "sun_energy": 1.3,
-				"ambient": _hex("B08878"), "ambient_energy": 0.42,
-				"fog": _hex("E8C49A"), "fog_density": 0.0015,
+				"ambient": _hex("B08878"), "ambient_energy": 0.38,
+				"fog": _hex("E8C49A"), "fog_density": 0.001,
 			}
