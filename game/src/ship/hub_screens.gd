@@ -7,8 +7,9 @@ extends Node
 ##   balk onderaan, het DIG-logo in de hoek en een beeldbuis (feed.gdshader). Teksten in
 ##   res://data/hub_tv.gd. Na een dienst komt er een EXTRA-uitzending met het rapport.
 ## - Company_Board (gang): kas, reputatie, kwartaal en dienst, de quota, de opdracht, de vorige dienst.
-## - Terminal_Screen (brug): hologram boven de opdrachttafel: de planeet van de gekozen opdracht als
-##   draadmodel, de claim en wat je nu moet doen (aanvullend op het menu, niet hetzelfde nog eens).
+## - Terminal_Screen (brug): hologram boven de opdrachttafel (golf 3, ui-03): de kaart van de drie
+##   opdrachten (planeten met hun kenmerk, claim, risico), de gekozen groot met haar voorwaarden, en
+##   wat je nu moet doen. In DIG-amber op een dichte plaat.
 ## - Appraisal_Screen (kade, boven de taxatiepoort; golf 3: het podium van GateShow): de scan en de
 ##   onthulling van elk stuk (soort, gaafheid als stempel, een teller die oploopt, de doel- of
 ##   setbonus), hoeveel van de buit getaxeerd is, en de quotabalk met wat klaarligt. Zonder open
@@ -280,7 +281,7 @@ func _make(key: String, mesh: MeshInstance3D, fps: float, holo := false) -> Scre
 		m.set_shader_parameter("lines", s.size.y / 2.0)
 		# Voorkant (aan de tafel): een bijna ondoorzichtig donker vlak achter de tekst, zodat de
 		# achterwand (borden, lampen) niet door de letters loopt (ui-03).
-		m.set_shader_parameter("front_panel_alpha", 0.93)
+		m.set_shader_parameter("front_panel_alpha", 1.0)
 		mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	else:
 		m.shader = FEED_SHADER
@@ -1138,44 +1139,102 @@ func _draw_board(c: Control) -> void:
 
 
 # --- Opdrachtterminal (hologram) -----------------------------------------------------------------
-# Het hologram vult het menu aan, het herhaalt het niet (ui-03): links de planeet van de gekozen
-# opdracht als draaiend draadmodel met een kruis op de claim, rechts haar naam, de claim met zijn
-# bijnaam, het risico en wat het oplevert, onderaan wat je nu moet doen. De bovenste strook blijft
+# Golf 3 (ui-03): het hologram is de kaart van de opdrachten, niet een tweede menu. De drie planeten
+# van de kaarten aan de balie zweven naast elkaar (elk met haar kenmerk: kraters, ribbenkast,
+# kristalpieken), met de claim, het risico en wat het oplevert. Is er gekozen, dan komt die planeet
+# groot naar voren met haar voorwaarden, en de andere twee schuiven klein opzij. Onderaan wat je nu
+# moet doen. In DIG-amber op een dichte plaat (de achterwand liep door de letters), en de opbrengst als
+# procent ("+15%"), niet met een × die in een pixelletter op een X lijkt. De bovenste strook blijft
 # leeg: daar hangt de projector voor (aan de tafel sneed hij de kop af, ui-01).
 
-const HOLO := Color("#4FE3F0")
-const HOLO_DIM := Color(0.31, 0.89, 0.94, 0.75)
+const HOLO := Color("#FFB45A")
+const HOLO_DIM := Color(1.0, 0.71, 0.35, 0.6)
 ## Vrije strook bovenaan het hologram (px), achter de behuizing van de projector.
 const HOLO_TOP := 58.0
-const HOLO_GLOBE := Vector2(150, 168)
-const HOLO_R := 92.0
+const HOLO_INK := [Color("#9BE05A"), Color("#FFD24A"), Color("#FF6A2E")]
+
+
+## "+15%" (of "STANDARD" bij ×1,00): een factor als procent.
+static func _pct(f: float) -> String:
+	var p := int(round((f - 1.0) * 100.0))
+	return "STANDARD" if p == 0 else ("%+d%%" % p).replace("-", "−")
 
 
 func _build_terminal(s: Screen) -> void:
 	var w := s.size.x
+	var h := s.size.y
 	(s.art as Art).painter = _draw_terminal
-	var x := 286.0
-	_label(s, "name", UiTheme.heading(), 44, HOLO, Vector2(x, HOLO_TOP + 2), Vector2(w - x - 20, 52))
-	_label(s, "where", UiTheme.screen(), 32, HOLO, Vector2(x, HOLO_TOP + 56), Vector2(w - x - 20, 34))
-	_label(s, "risk", UiTheme.screen(), 30, HOLO, Vector2(x + 76, HOLO_TOP + 94), Vector2(w - x - 96, 32))
-	_label(s, "pay", UiTheme.screen(), 28, HOLO_DIM, Vector2(x, HOLO_TOP + 130), Vector2(w - x - 20, 30))
-	_label(s, "prompt", UiTheme.screen(), 30, HOLO, Vector2(28, s.size.y - 46), Vector2(w - 56, 32))
+	# Drie kolommen (geen keuze) of één grote en twee kleine (gekozen): labels per kolom.
+	for i in 3:
+		_label(s, "p%d_name" % i, UiTheme.heading(), 19, HOLO, Vector2(0, 0), Vector2(w / 3.0, 26), HORIZONTAL_ALIGNMENT_CENTER)
+		_label(s, "p%d_claim" % i, UiTheme.screen(), 22, HOLO, Vector2(0, 0), Vector2(w / 3.0, 24), HORIZONTAL_ALIGNMENT_CENTER)
+		_label(s, "p%d_risk" % i, UiTheme.screen(), 22, HOLO, Vector2(0, 0), Vector2(w / 3.0, 24), HORIZONTAL_ALIGNMENT_CENTER)
+	_label(s, "name", UiTheme.heading(), 34, HOLO, Vector2(196, HOLO_TOP + 2), Vector2(w * 0.62 - 196, 42))
+	_label(s, "where", UiTheme.screen(), 24, HOLO, Vector2(196, HOLO_TOP + 44), Vector2(w * 0.62 - 196, 26))
+	_label(s, "risk", UiTheme.screen(), 26, HOLO, Vector2(196, HOLO_TOP + 70), Vector2(w * 0.62 - 196, 28))
+	_label(s, "pay", UiTheme.screen(), 22, HOLO_DIM, Vector2(196, HOLO_TOP + 98), Vector2(w * 0.62 - 196, 24))
+	_label(s, "terms", UiTheme.screen(), 20, HOLO, Vector2(196, HOLO_TOP + 124), Vector2(w * 0.62 - 196, h - HOLO_TOP - 124 - 50), HORIZONTAL_ALIGNMENT_LEFT, true)
+	_label(s, "prompt", UiTheme.screen(), 26, HOLO, Vector2(24, h - 40), Vector2(w - 48, 30))
+
+
+## De drie opdrachten van de balie, de gekozen eerst als ze er is (−1 = geen keuze).
+func _holo_chosen(c: Company) -> int:
+	if not c.contract_ready():
+		return -1
+	for i in c.options.size():
+		if c.options[i] == c.contract:
+			return i
+	return -1
 
 
 func _paint_terminal(s: Screen) -> void:
 	var c := _company()
+	var w := s.size.x
 	var cursor := "_" if _blink(0.9, 0.5) else " "
-	var name_l: Label = s.labels["name"]
 	var docked: bool = game.mol == null or game.mol.mode == Mol.Mode.DOCKED
+	var chosen := _holo_chosen(c)
+	s.fps = 10.0
+	for k in ["name", "where", "risk", "pay", "terms"]:
+		_text(s, k, "")
+	for i in 3:
+		for k in ["name", "claim", "risk"]:
+			_text(s, "p%d_%s" % [i, k], "")
 	if c.contract_ready():
-		var risk := int(c.contract.risk)
-		var planet := clampi(int(c.contract.get("planet", 0)), 0, PlanetType.NAMES.size() - 1)
+		var o := c.contract
+		var risk := int(o.risk)
+		var danger := c.contract_danger()
+		var planet := clampi(int(o.get("planet", 0)), 0, PlanetType.NAMES.size() - 1)
 		_text(s, "name", PlanetType.NAMES[planet].to_upper())
-		name_l.modulate.a = 1.0
-		_text(s, "where", "%s · %s" % [str(c.contract.name), TerminalMenu.nickname(c.contract).to_upper()])
-		_text(s, "risk", "RISK %s" % Company.RISK_NAMES[c.contract_danger()])
-		_text(s, "pay", "PAY ×%s   MAGMA ×%s" % [_num(Company.pay_factor(risk)), _num(Company.magma_factor(risk))])
-		# Na het kiezen laadt de nieuwe wereld: De Ekster vliegt erheen (de hendel wacht daarop).
+		var nl0: Label = s.labels["name"]
+		_style(nl0, UiTheme.heading(), _fit_size(nl0.text, UiTheme.heading(), 34, 20, Vector2(nl0.size.x, 42)), HOLO)
+		_text(s, "where", "%s · %s" % [str(o.name), TerminalMenu.nickname(o).to_upper()])
+		_text(s, "risk", "RISK %s" % Company.RISK_NAMES[danger])
+		(s.labels["risk"] as Label).add_theme_color_override("font_color", HOLO_INK[danger])
+		_text(s, "pay", "PAY %s · MAGMA %s" % [_pct(Company.pay_factor(risk)), _pct(Company.magma_factor(risk))])
+		var lines := PackedStringArray()
+		for m in (o.get("modifiers", []) as Array).slice(0, 3):
+			if m is Dictionary:
+				# Enkel de kop van elke voorwaarde ("GEM BUYER", "SHAKY GROUND"): de uitleg staat aan de balie.
+				var d: Array = Contracts.describe(m)
+				lines.append(["+ ", "! ", "€ "][int(d[1])] + str(d[0]).get_slice(":", 0).get_slice("(", 0).strip_edges().to_upper())
+		_text(s, "terms", "\n".join(lines))
+		# De andere twee klein rechts.
+		var slot := 0
+		for i in c.options.size():
+			if i == chosen:
+				continue
+			var x := w * 0.64 + slot * w * 0.18
+			var l: Label = s.labels["p%d_name" % slot]
+			l.size.x = w * 0.18
+			l.position = Vector2(x, HOLO_TOP + 108)
+			_style(l, UiTheme.heading(), 14, HOLO_DIM)
+			l.text = PlanetType.NAMES[clampi(int(c.options[i].planet), 0, 2)].to_upper()
+			var cl: Label = s.labels["p%d_claim" % slot]
+			cl.size.x = w * 0.18
+			cl.position = Vector2(x, HOLO_TOP + 128)
+			_style(cl, UiTheme.screen(), 18, HOLO_DIM)
+			cl.text = "%s · %s" % [str(c.options[i].name), Company.RISK_NAMES[int(c.options[i].get("danger", 0))]]
+			slot += 1
 		var loading: bool = not game.world_ready()
 		var dots := ".".repeat(1 + int(_time * 2.5) % 3)
 		if not docked:
@@ -1184,13 +1243,27 @@ func _paint_terminal(s: Screen) -> void:
 			_text(s, "prompt", "> EN ROUTE TO THE CLAIM" + dots)
 		else:
 			_text(s, "prompt", "> BOARD THE MOLE AND PULL THE LEVER" + cursor)
-	else:
-		_text(s, "name", "NO ORDERS")
-		name_l.modulate.a = 1.0 if _blink(1.2, 0.7) else 0.6
-		_text(s, "where", "CHOOSE A CONTRACT")
-		_text(s, "risk", "")
-		_text(s, "pay", "QUARTER %d  ·  SHIFT %d/%d" % [c.quarter, c.shift, _shifts()])
-		_text(s, "prompt", ("> PRESS E AT THE TABLE" if docked else "> WAIT FOR THE MOLE TO RETURN") + cursor)
+		return
+	# Geen keuze: de drie opdrachten naast elkaar, zoals aan de balie.
+	for i in mini(3, c.options.size()):
+		var o: Dictionary = c.options[i]
+		var x := w * i / 3.0
+		var nl: Label = s.labels["p%d_name" % i]
+		_style(nl, UiTheme.heading(), 19, HOLO)
+		nl.size.x = w / 3.0
+		nl.position = Vector2(x, HOLO_TOP + 118)
+		nl.text = PlanetType.NAMES[clampi(int(o.planet), 0, 2)].to_upper()
+		var cl2: Label = s.labels["p%d_claim" % i]
+		_style(cl2, UiTheme.screen(), 22, HOLO_DIM)
+		cl2.size.x = w / 3.0
+		cl2.position = Vector2(x, HOLO_TOP + 143)
+		cl2.text = "%s · PAY %s" % [str(o.name), _pct(Company.pay_factor(int(o.risk)))]
+		var rl: Label = s.labels["p%d_risk" % i]
+		_style(rl, UiTheme.screen(), 22, HOLO_INK[int(o.get("danger", 0))])
+		rl.size.x = w / 3.0
+		rl.position = Vector2(x, HOLO_TOP + 165)
+		rl.text = "LOCKED" if c.option_locked(i) else "RISK %s" % Company.RISK_NAMES[int(o.get("danger", 0))]
+	_text(s, "prompt", ("> CHOOSE A CONTRACT AT THE TABLE" if docked else "> CHOOSE A CONTRACT ONCE THE MOLE IS BACK") + cursor)
 
 
 func _draw_terminal(c: Control) -> void:
@@ -1198,23 +1271,31 @@ func _draw_terminal(c: Control) -> void:
 	var h := c.size.y
 	var co := _company()
 	# Hoeken onder de projector, een lijn boven de prompt.
-	var k := 26.0
+	var k := 22.0
 	for corner: Vector2 in [Vector2(6, HOLO_TOP - 8), Vector2(w - 6, HOLO_TOP - 8), Vector2(w - 6, h - 6), Vector2(6, h - 6)]:
 		var sx := 1.0 if corner.x < w / 2.0 else -1.0
 		var sy := 1.0 if corner.y < h / 2.0 else -1.0
 		c.draw_polyline(PackedVector2Array([corner + Vector2(0, sy * k), corner, corner + Vector2(sx * k, 0)]), HOLO, 3.0)
-	c.draw_line(Vector2(40, h - 56), Vector2(w - 40, h - 56), Color(HOLO, 0.35), 1.0)
-	var chosen := co.contract_ready()
-	PlanetGlobe.draw_holo(c, HOLO_GLOBE, HOLO_R, _time, HOLO, int(co.contract.get("seed", 0)) if chosen else 0, chosen)
-	if not chosen:
-		var f := UiTheme.heading()
-		c.draw_string(f, HOLO_GLOBE + Vector2(-60, 22), "?", HORIZONTAL_ALIGNMENT_CENTER, 120, 64, Color(HOLO, 0.85 if _blink(1.2, 0.7) else 0.4))
+	c.draw_line(Vector2(30, h - 46), Vector2(w - 30, h - 46), Color(HOLO, 0.35), 1.0)
+	var chosen := _holo_chosen(co)
+	if co.contract_ready():
+		var planet := int(co.contract.get("planet", 0))
+		PlanetGlobe.draw_holo(c, Vector2(98, HOLO_TOP + 92), 74.0, _time, HOLO, int(co.contract.get("seed", 0)), true, planet)
+		var slot := 0
+		for i in co.options.size():
+			if i == chosen:
+				continue
+			var cx := w * 0.64 + slot * w * 0.18 + w * 0.09
+			PlanetGlobe.draw_holo(c, Vector2(cx, HOLO_TOP + 60), 34.0, _time, HOLO_DIM, 0, false, int(co.options[i].planet))
+			slot += 1
+		# Een lijn van de kleine planeten naar de grote: "dit is de kaart, dit is de gekozen".
+		c.draw_line(Vector2(w * 0.62, HOLO_TOP + 6), Vector2(w * 0.62, h - 56), Color(HOLO, 0.25), 1.0)
 		return
-	# Risico in blokjes (1 tot 3) voor het woord.
-	var risk := int(co.contract.risk)
-	for b in 3:
-		var on := b <= risk
-		c.draw_rect(Rect2(286 + b * 22, HOLO_TOP + 104, 16, 16), HOLO if on else Color(HOLO, 0.18))
+	for i in mini(3, co.options.size()):
+		var o: Dictionary = co.options[i]
+		var cx2 := w * (i + 0.5) / 3.0
+		var col := HOLO if not co.option_locked(i) else Color(HOLO, 0.35)
+		PlanetGlobe.draw_holo(c, Vector2(cx2, HOLO_TOP + 58), 50.0, _time + i * 1.7, col, int(o.get("seed", 0)), true, int(o.planet))
 
 
 # --- Taxatie: het podium boven de poort ----------------------------------------------------------

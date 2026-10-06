@@ -195,11 +195,11 @@ func _build_belts() -> void:
 	_belts.append(_belt_surface(FEED_X, 0.0215))
 	var steel := _mat(Color(0.2, 0.205, 0.215), 0.85, 0.45)
 	var yellow := _mat(Color(0.949, 0.718, 0.02), 0.15, 0.5)
-	var len := FEED_X.y - FEED_X.x
+	var feed_len := FEED_X.y - FEED_X.x
 	var cx := (FEED_X.x + FEED_X.y) / 2.0
 	# Frame (twee langsbalken en een kopse kant) en een rol aan het begin.
 	for z in [-BELT_Z - 0.05, BELT_Z + 0.05]:
-		_box(Vector3(cx, 0.012, z), Vector3(len, 0.03, 0.1), steel)
+		_box(Vector3(cx, 0.012, z), Vector3(feed_len, 0.03, 0.1), steel)
 	_box(Vector3(FEED_X.x - 0.05, 0.012, 0.0), Vector3(0.1, 0.03, BELT_Z * 2.0 + 0.2), yellow)
 	var roller := MeshInstance3D.new()
 	var cyl := CylinderMesh.new()
@@ -280,7 +280,7 @@ func _build_gate_lights() -> void:
 	_fan_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_fan_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 	_fan_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	_fan_mat.albedo_color = Color(0.45, 0.85, 1.0, 0.16)
+	_fan_mat.albedo_color = Color(0.45, 0.85, 1.0, 0.07)
 	_fan.material_override = _fan_mat
 	_fan.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_fan.visible = false

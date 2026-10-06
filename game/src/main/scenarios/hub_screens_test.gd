@@ -70,7 +70,7 @@ func _run() -> void:
 	var term := screens.screen_text(HubScreens.TERMINAL)
 	# Golf 3: het label telt de planeet mee (danger), de opbrengst volgt de voorwaarden (risk).
 	var label: String = Company.RISK_NAMES[int(o.danger)]
-	var pay := HubScreens._num(Company.pay_factor(int(o.risk)))
+	var pay := HubScreens._pct(Company.pay_factor(int(o.risk)))
 	_expect(str(o.name) in term and label in term and pay in term,
 			"terminal: %s, risico %s, opbrengst ×%s" % [o.name, label, pay])
 	_expect(str(o.name) in screens.screen_text(HubScreens.BOARD), "firmabord: opdracht %s" % o.name)
