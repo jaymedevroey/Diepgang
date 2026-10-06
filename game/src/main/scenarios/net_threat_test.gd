@@ -7,6 +7,8 @@ extends Node
 ## - De worm: bij beiden op dezelfde plek; een uitval (zelfde plan) bij de client in een grot gooit de
 ##   client omver (de host beslist, de client ziet het).
 ## - Lichtbakens: de voorraad is bij beiden gelijk.
+## - Grijpen (golf 3): de worm houdt de client vast (bij beiden), de client spartelt los via de host;
+##   daarna grijpt hij de host en slaat de client hem los (de host controleert de afstand opnieuw).
 ## Naam van deze node is "Scenario" op elk peer, zodat de RPC's aankomen.
 
 const TAG := "[net_threat_test]"
@@ -132,6 +134,52 @@ func _host_flow() -> void:
 	var bc: Dictionary = await _ask("beacons")
 	_expect(int(bc.left) == game.beacons.left, "zelfde voorraad bakens (%d / %d)" % [int(bc.left), game.beacons.left])
 
+	# D. Grijpen (golf 3): de uitval greep de client; bij beiden houdt de worm hem vast, de romp hangt
+	# in zijn muil. De client spartelt (Spatie, via de host) en is los.
+	_expect(worm.holds(cid) and rescue.is_held(cid), "host: de worm houdt de client vast")
+	var held: Dictionary = await _ask("held")
+	_expect(held.held and held.worm_holds and held.ragdoll, "client: zelf vastgehouden, als ragdoll")
+	_expect(float(held.to_head) < 3.5, "client: zijn romp hangt bij de kop zoals hij die ziet (%.1f m)" % float(held.to_head))
+	var why := [""]
+	worm.released.connect(func(_peer: int, r: String) -> void: why[0] = r)
+	var fl: Dictionary = await _ask("struggle")
+	_expect(fl.ok, "client: spartelt")
+	var t1 := _now()
+	while _now() - t1 < 4.0 and why[0] == "":
+		await get_tree().physics_frame
+	_expect(why[0] == "struggle" and not rescue.is_held(cid), "host: spartelen van de client maakt hem los (%s)" % why[0])
+	await _wait(0.6)
+	var free: Dictionary = await _ask("held")
+	_expect(not free.held and not free.worm_holds, "client: zelf weer los")
+	await _wait(Tuning.get_f("rescue", "knock_s", 1.8) + 0.5)
+
+	# E. De worm grijpt de host; de client slaat hem los met het houweel (de client meldt de slag, de
+	# host controleert de afstand opnieuw).
+	why[0] = ""
+	me.set_physics_process(false)
+	var spot := ground + Vector3(0.0, 0.1, 0.0)
+	me.global_position = spot
+	me.reset_physics_interpolation()
+	await _wait(0.6)
+	worm.mode = Worm.Mode.HUNT
+	worm.pos = cave + Vector3(10.0, -6.0, 0.0)
+	worm._cool = 0.0
+	worm._grab_cool = 0.0
+	_expect(worm._try_lunge(spot), "host: de worm valt uit bij de host")
+	var t2 := _now()
+	while _now() - t2 < 6.0 and not worm.holds(me.peer_id):
+		await get_tree().physics_frame
+		if rescue.is_ok(me.peer_id):
+			me.global_position = spot
+	_expect(worm.holds(me.peer_id), "host: gegrepen")
+	await _wait(0.6)
+	var hit2: Dictionary = await _ask("hit", {"head": worm.head_world()})
+	_expect(hit2.ok, "client: slaat de kop twee keer (%s)" % str(hit2.get("why", "")))
+	var t3 := _now()
+	while _now() - t3 < 3.0 and why[0] == "":
+		await get_tree().physics_frame
+	_expect(why[0] == "hit" and not rescue.is_held(me.peer_id), "host: de slagen van de client maken de host los (%s)" % why[0])
+
 	var ok := _failures.is_empty()
 	print(TAG, " host: %d controles, %d mislukt → %s" % [_checks, _failures.size(), "GESLAAGD" if ok else "GEFAALD"])
 	for f in _failures:
@@ -152,7 +200,7 @@ func _ask(key: String, args := {}) -> Dictionary:
 		_expect(false, "antwoord van de client op '%s'" % key)
 		return {"life": -1, "ragdoll": false, "on_torso": 99.0, "torso": Vector3.ZERO, "carriers": PackedInt32Array(),
 				"in_mol": false, "pos": Vector3.ZERO, "ok": false, "awake": false, "seen": false, "health": 1.0,
-				"was_knocked": false, "left": -1}
+				"was_knocked": false, "left": -1, "held": false, "worm_holds": false, "to_head": 99.0, "why": ""}
 	return _reports[key]
 
 
@@ -193,6 +241,33 @@ func _rpc_question(key: String, args: Dictionary) -> void:
 			out = {"seen": _lunge_seen, "life": rescue.life_of(me), "health": rescue.health_of(me), "was_knocked": _was_knocked}
 		"beacons":
 			out = {"left": game.beacons.left}
+		"held":
+			var head := game.worm.head_world()
+			out = {"held": rescue.is_held(me), "worm_holds": game.worm.holds(me), "ragdoll": rd != null,
+					"to_head": rd.torso.global_position.distance_to(head) if rd and head != Vector3.INF else 99.0}
+		"struggle":
+			for i in 14:
+				if not rescue.is_held(me):
+					break
+				rescue.request_flail()
+				await get_tree().create_timer(0.15).timeout
+			out = {"ok": true}
+		"hit":
+			# Naast de kop gaan staan (zoals de host hem ziet, of het eigen beeld) en twee keer slaan.
+			var head: Vector3 = game.worm.head_world()
+			if head == Vector3.INF:
+				head = args.head
+			p.set_physics_process(false)
+			p.global_position = head + Vector3(0.0, -0.8, 2.2)
+			var n := 0
+			for i in 2:
+				head = game.worm.head_world() if game.worm.head_world() != Vector3.INF else head
+				p.global_position = head + Vector3(0.0, -0.8, 2.2)
+				game.worm.request_hit(head)
+				n += 1
+				await get_tree().create_timer(0.35).timeout
+			p.set_physics_process(true)
+			out = {"ok": n == 2, "why": "visual" if game.worm.head_world() != Vector3.INF else "host"}
 	_rpc_answer.rpc_id(1, key, out)
 
 
