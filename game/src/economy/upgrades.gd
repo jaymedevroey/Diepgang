@@ -41,7 +41,7 @@ const CATALOG := {
 		"does": "Dig through granite and crystal on foot",
 		"detail": "Carbide bit. The deep layers hold gold, geodes and the big skulls.", "requires": ""},
 	SCANNER: {"counter": SUPPLY_DESK, "name": "Hand scanner",
-		"does": "Press Q: blips of finds within 10 m, on foot",
+		"does": "{scan}: blips of finds within 10 m, on foot",
 		"detail": "Quiet and short-ranged. Shows where, never what.", "requires": ""},
 	LAMP: {"counter": SUPPLY_DESK, "name": "Floodlight helmet lamp",
 		"does": "Light up a whole cave: spot ore and crusts from 40 m",

@@ -138,7 +138,9 @@ func _run(p: Player) -> void:
 	var secs := (Time.get_ticks_msec() - t0) / 1000.0
 	_expect(mol.mode != Mol.Mode.AUTO_DOWN, "autopiloot klaar in %.0f s" % secs)
 	_expect(mol.depth() > clay - 3.0 and mol.depth() < clay + 5.0, "op diepte aangekomen (%.1f m, doel %.0f m)" % [mol.depth(), clay])
-	_expect(auto_max <= Tuning.get_f("mol", "bore_speed", 1.3) + 0.01, "autopiloot niet sneller dan zelf boren (%.2f m/s)" % auto_max)
+	_expect(auto_max <= Mol.bore_speed_at(deg_to_rad(-Tuning.get_f("mol", "max_pitch_deg", 25.0))) + 0.01,
+			"autopiloot niet sneller dan zelf boren met de neus omlaag (%.2f m/s)" % auto_max)
+	_expect(secs < 45.0, "de afdaling naar −%.0f m duurt geen kwart van de dienst (%.0f s, ontwerp2-8)" % [clay, secs])
 	_expect(absf(rad_to_deg(mol.pitch)) < 0.5, "waterpas geparkeerd (%.1f°)" % rad_to_deg(mol.pitch))
 	_expect(mol.ramp_open, "laadklep open op diepte")
 	await _wait(1.0)

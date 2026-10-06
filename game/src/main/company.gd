@@ -379,7 +379,7 @@ func _host_buy(sender: int, id: String, counter: String) -> void:
 	cash -= price
 	upgrades.append(id)
 	_broadcast()
-	game.notice_all("Bought: %s (%s). %s." % [str(Upgrades.info(id).name), UiTheme.euro_signed(-price), Upgrades.does(id, self)], "contract")
+	game.notice_all("Bought: %s (%s). %s." % [str(Upgrades.info(id).name), UiTheme.euro_signed(-price), Settings.fill_keys(Upgrades.does(id, self))], "contract")
 	_save()
 
 

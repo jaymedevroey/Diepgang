@@ -249,7 +249,7 @@ func _refresh() -> void:
 				others.append(str(Upgrades.COUNTER_IN_TEXT[k]))
 		_note.text = "Upgrades are for the whole crew and you keep them, even after a missed quota. More at the %s." % " and the ".join(others)
 	elif company.has_upgrade(_pending):
-		_note.text = "Purchased: %s. %s." % [str(Upgrades.info(_pending).name), Upgrades.does(_pending, company)]
+		_note.text = "Purchased: %s. %s." % [str(Upgrades.info(_pending).name), Settings.fill_keys(Upgrades.does(_pending, company))]
 		_note.add_theme_color_override("font_color", UiTheme.GOOD)
 		_pending = ""
 
@@ -325,7 +325,7 @@ func _card(id: String) -> Control:
 	h.autowrap_mode = TextServer.AUTOWRAP_WORD
 	info.add_child(h)
 	var does := Label.new()
-	does.text = Upgrades.does(id, company)
+	does.text = Settings.fill_keys(Upgrades.does(id, company))
 	does.add_theme_font_override("font", UiTheme.body(800))
 	does.add_theme_font_size_override("font_size", 21)
 	does.add_theme_color_override("font_color", UiTheme.YELLOW)
@@ -348,8 +348,8 @@ func _card(id: String) -> Control:
 		status.text = "%s · %s" % [why, UiTheme.euro(price)] if why == "Not enough funds" else why
 		status.add_theme_color_override("font_color", UiTheme.DANGER)
 	else:
-		var n := company.team_size()
-		status.text = "%s (%s)" % [UiTheme.euro(price), "solo price" if n == 1 else "price for %d robots" % n]
+		var crew := company.team_size()
+		status.text = ("%s · solo price" % UiTheme.euro(price)) if crew <= 1 else ("%s · price for a crew of %d" % [UiTheme.euro(price), crew])
 		status.add_theme_color_override("font_color", Color("#C9C1B2"))
 	info.add_child(status)
 	var bpad := MarginContainer.new()

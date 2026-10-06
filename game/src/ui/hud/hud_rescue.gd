@@ -1,8 +1,8 @@
 class_name HudRescue
 extends Control
 ## Neergaan en redden in de HUD (GDD §6, pakket F2). Alles getekend, groot genoeg (≥ 18 px):
-## - linksonder (boven het draagkaartje): de staat van je robot ("ROBOT 64%") zodra hij schade heeft,
-##   en hoeveel lichtbakens de ploeg nog heeft (G);
+## - linksonder (boven de ertszak en het draagkaartje), op één HUD-plaatje: de staat van je robot
+##   ("ROBOT 64%") zodra hij schade heeft, en hoeveel lichtbakens de ploeg nog heeft (met de toets);
 ## - midden onder het vizier: neer ("ROBOT DOWN" en hoe lang je ploeg nog heeft), strompelend (naar de
 ##   Mol, met de tijd), of kapot (spookdrone: hoe je vliegt en piept);
 ## - in de wereld: een merkteken boven elke neergegane of strompelende ploegmaat (naam, tijd, afstand),
@@ -71,7 +71,7 @@ func _collect_marks(player: Player, game: Game) -> void:
 		var text := "PLAYER %d · %s %s · %d m" % [idx, state, _clock(t), int(d)]
 		if carried:
 			text = "PLAYER %d · CARRIED · %s" % [idx, _clock(t)]
-		var col := UiTheme.DANGER if t < 20.0 else UiTheme.AMBER
+		var col := UiTheme.state_color(UiTheme.State.CRITICAL if t < 20.0 else UiTheme.State.DANGER)
 		var behind := cam.is_position_behind(at)
 		var p := cam.unproject_position(at) * (vp / screen)
 		var edge := behind or p.x < 40.0 or p.y < 40.0 or p.x > vp.x - 40.0 or p.y > vp.y - 40.0
@@ -101,58 +101,36 @@ func _draw() -> void:
 	var health := rescue.health_of(me)
 	var t := Time.get_ticks_msec() / 1000.0
 	var blink := fmod(t, 0.8) < 0.5
-	# 1. De staat van je robot, linksonder (enkel als hij schade heeft of het net kreeg).
-	if life == Rescue.Life.OK and (health < 0.999 or _flash > 0.0):
-		var pos := Vector2(28.0, vp.y - 248.0)
-		var label := "ROBOT"
-		draw_string_outline(_head, pos + Vector2(0, 20), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, 6, Color(0, 0, 0, 0.8))
-		draw_string(_head, pos + Vector2(0, 20), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, UiTheme.CREAM)
-		var lw := _head.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x + 12.0
-		var bar := Rect2(pos + Vector2(lw, 4), Vector2(BAR_W, 18))
-		draw_rect(bar.grow(2.0), Color(0, 0, 0, 0.6))
-		draw_rect(bar, Color(UiTheme.ANTHRACITE_LO, 0.9))
-		var col := UiTheme.GOOD if health > 0.6 else (UiTheme.AMBER if health > 0.3 else UiTheme.DANGER)
-		col = col.lerp(Color.WHITE, _flash * 0.6)
-		draw_rect(Rect2(bar.position, Vector2(bar.size.x * clampf(health, 0.0, 1.0), bar.size.y)), col)
-		var pct := "%d%%" % int(round(health * 100.0))
-		draw_string_outline(_font, bar.position + Vector2(bar.size.x + 10.0, 17), pct, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, 6, Color(0, 0, 0, 0.8))
-		draw_string(_font, bar.position + Vector2(bar.size.x + 10.0, 17), pct, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, col)
-		if _game.mol and _game.mol.body and (_player.seated or _game.mol.contains_point(_player.global_position)) and health < 0.999:
-			var sub := "Repairing in the Mole"
-			draw_string_outline(_font, pos + Vector2(0, 50), sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, 5, Color(0, 0, 0, 0.8))
-			draw_string(_font, pos + Vector2(0, 50), sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, UiTheme.CREAM)
-	# 2. Lichtbakens: hoeveel de ploeg er nog heeft, rechts van de staat (als de worm wakker is).
-	if _game.beacons and life != Rescue.Life.BROKEN and _game.worm and _game.worm.is_awake():
-		var bp := Vector2(28.0, vp.y - 286.0)
-		var bt := "BEACONS %d" % _game.beacons.left
-		draw_string_outline(_head, bp + Vector2(0, 20), bt, HORIZONTAL_ALIGNMENT_LEFT, -1, 19, 6, Color(0, 0, 0, 0.8))
-		draw_string(_head, bp + Vector2(0, 20), bt, HORIZONTAL_ALIGNMENT_LEFT, -1, 19, UiTheme.AMBER if _game.beacons.left > 0 else UiTheme.CREAM_DIM)
-		var bw := _head.get_string_size(bt, HORIZONTAL_ALIGNMENT_LEFT, -1, 19).x
-		_key(bp + Vector2(bw + 10.0, 0), Settings.key_of("beacon"))
+	# 1+2. De staat van je robot (zodra hij schade heeft) en de lichtbakens van de ploeg (als de worm
+	# wakker is): één HUD-plaatje in de huisstijl linksonder, boven de ertszak en het draagkaartje (ui2-06).
+	var show_robot := life == Rescue.Life.OK and (health < 0.999 or _flash > 0.0)
+	var show_beacons := _game.beacons != null and life != Rescue.Life.BROKEN and _game.worm != null and _game.worm.is_awake()
+	if show_robot or show_beacons:
+		_draw_status(vp, health, show_robot, show_beacons)
 	# 3. Neer, strompelend of kapot: groot, onder het vizier.
 	var title := ""
 	var sub1 := ""
 	var sub2 := ""
-	var col2 := UiTheme.DANGER
+	var col2 := UiTheme.state_color(UiTheme.State.CRITICAL)
 	match life:
 		Rescue.Life.KNOCKED:
 			title = "KNOCKED DOWN"
-			col2 = UiTheme.AMBER
+			col2 = UiTheme.state_color(UiTheme.State.DANGER)
 		Rescue.Life.DOWNED:
 			title = "ROBOT DOWN"
 			var carried := not rescue.carriers_of(me).is_empty()
 			sub1 = ("Your crew is carrying you to the Mole · %s" if carried else "Your crew has %s to carry you to the Mole") % _clock(rescue.timer_of(me))
-			sub2 = "Space: flail · mouse: look around"
+			sub2 = "%s: flail · mouse: look around" % Settings.key_of("jump")
 		Rescue.Life.LIMPING:
 			title = "CRITICAL DAMAGE"
-			col2 = UiTheme.AMBER
+			col2 = UiTheme.state_color(UiTheme.State.CRITICAL)
 			sub1 = "Limp back to the Mole for repairs · %s" % _clock(rescue.timer_of(me))
 			sub2 = "No tools, no carrying"
 		Rescue.Life.BROKEN:
 			title = "ROBOT BROKEN"
-			col2 = UiTheme.CYAN
+			col2 = UiTheme.state_color(UiTheme.State.NORMAL) # geen gevaar meer: je kijkt toe
 			sub1 = "You're a ghost drone until the shift is over"
-			sub2 = "WASD, Space, Ctrl: fly · E: beep"
+			sub2 = "%s, %s, %s: fly · %s: beep" % [Settings.move_keys(), Settings.key_of("jump"), Settings.key_of("crouch"), Settings.key_of("interact")]
 	if title != "":
 		var y := vp.y * 0.5 + 120.0
 		var size := 44
@@ -184,16 +162,44 @@ func _draw() -> void:
 		draw_arc(p, r, 0.0, TAU, 24, c, 3.0)
 		draw_line(p + Vector2(-6, -6), p + Vector2(6, 6), c, 3.0)
 		draw_line(p + Vector2(-6, 6), p + Vector2(6, -6), c, 3.0)
+		# De naam en de tijd op een HUD-plaatje (ui2-06), de rand in de kleur van de toestand.
 		var w := _font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 19).x
-		var tp := Vector2(clampf(p.x - w * 0.5, 12.0, vp.x - w - 12.0), p.y - r - 12.0 if p.y > 80.0 else p.y + r + 26.0)
-		draw_string_outline(_font, tp, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 19, 6, Color(0, 0, 0, 0.85))
-		draw_string(_font, tp, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 19, c)
+		var tp := Vector2(clampf(p.x - w * 0.5, 20.0, vp.x - w - 12.0), p.y - r - 14.0 if p.y > 80.0 else p.y + r + 28.0)
+		UiTheme.draw_chip(self, Rect2(tp + Vector2(-14.0, -22.0), Vector2(w + 24.0, 30.0)), c)
+		draw_string(_font, tp, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 19, UiTheme.CREAM)
 
 
-## Een toetsblokje (getekend).
-func _key(pos: Vector2, label: String) -> void:
-	var w := maxf(28.0, _font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x + 14.0)
-	var r := Rect2(pos, Vector2(w, 26))
-	draw_rect(r, Color(UiTheme.ANTHRACITE, 0.92))
-	draw_rect(r, UiTheme.CREAM_DIM, false, 2.0)
-	draw_string(_font, pos + Vector2((w - _font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x) * 0.5, 20), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, UiTheme.CREAM)
+## Het HUD-plaatje linksonder: "ROBOT ▬▬▬ 64%" en/of "BEACONS 3 [toets]", in één regel. De rand is geel,
+## of in de kleur van de toestand als de robot schade heeft (crème gewoon, amber gevaar, rood kritiek).
+func _draw_status(vp: Vector2, health: float, robot: bool, beacons: bool) -> void:
+	var state := UiTheme.State.NORMAL if health > 0.6 else (UiTheme.State.DANGER if health > 0.3 else UiTheme.State.CRITICAL)
+	var col := UiTheme.state_color(state)
+	var repairing := robot and health < 0.999 and _game.mol != null and _game.mol.body != null and (_player.seated or _game.mol.contains_point(_player.global_position))
+	var h := 44.0 + (26.0 if repairing else 0.0)
+	var pos := Vector2(28.0, vp.y - 270.0 - h)
+	var bt := "BEACONS %d" % (_game.beacons.left if _game.beacons else 0)
+	# Eerst de breedte, zodat het plaatje rond wat erop staat past.
+	var robot_w := _head.get_string_size("ROBOT", HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x + 12.0
+	var w := 16.0
+	if robot:
+		w += robot_w + BAR_W + 12.0 + _font.get_string_size("100%", HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x
+	var beacon_x := w + (28.0 if robot else 0.0)
+	if beacons:
+		w = beacon_x + _head.get_string_size(bt, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x + 10.0 + 44.0
+	UiTheme.draw_chip(self, Rect2(pos, Vector2(w + 14.0, h)), col if robot and state != UiTheme.State.NORMAL else UiTheme.YELLOW)
+	if robot:
+		var at := pos + Vector2(16.0, 0.0)
+		draw_string(_head, at + Vector2(0, 30), "ROBOT", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, UiTheme.CREAM)
+		var bar := Rect2(at + Vector2(robot_w, 14), Vector2(BAR_W, 16))
+		draw_rect(bar, Color(0, 0, 0, 0.55))
+		draw_rect(Rect2(bar.position, Vector2(bar.size.x * clampf(health, 0.0, 1.0), bar.size.y)), col.lerp(Color.WHITE, _flash * 0.6))
+		draw_string(_font, bar.position + Vector2(bar.size.x + 12.0, 16), "%d%%" % int(round(health * 100.0)), HORIZONTAL_ALIGNMENT_LEFT, -1, 20, col)
+		if repairing:
+			draw_string(_font, at + Vector2(0, 60), "Repairing in the Mole", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, UiTheme.CREAM_DIM)
+	if beacons:
+		var at := pos + Vector2(beacon_x, 0.0)
+		if robot:
+			draw_string(_head, at + Vector2(-18, 30), "·", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, UiTheme.CREAM_DIM)
+		draw_string(_head, at + Vector2(0, 30), bt, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, UiTheme.YELLOW if _game.beacons.left > 0 else UiTheme.CREAM_DIM)
+		var bw := _head.get_string_size(bt, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x
+		UiTheme.draw_key(self, at + Vector2(bw + 10.0, 8.0), "beacon", 18)

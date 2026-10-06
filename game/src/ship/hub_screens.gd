@@ -462,6 +462,12 @@ static func _num(v: float, decimals := 2) -> String:
 	return ("%." + str(decimals) + "f") % v
 
 
+## Een factor als verschil in procenten: 1.35 → "+35%", 0.9 → "−10%", 1.0 → "±0%".
+static func _pct(v: float) -> String:
+	var p := roundi((v - 1.0) * 100.0)
+	return ("±0" if p == 0 else UiTheme.signed(p)) + "%"
+
+
 func _planet_name() -> String:
 	return PlanetType.NAMES[clampi(int(game.planet_type), 0, PlanetType.NAMES.size() - 1)]
 
@@ -484,7 +490,7 @@ func _vars() -> Dictionary:
 		"shifts": _shifts(),
 		"left": maxi(1, _shifts() - c.shift + 1),
 		"left_shifts": UiTheme.count(maxi(1, _shifts() - c.shift + 1), "shift"),
-		"rep": "%+d" % c.reputation,
+		"rep": UiTheme.signed(c.reputation),
 		"contract": str(c.contract.name) if chosen else "not chosen yet",
 		"risk": Company.RISK_NAMES[c.contract_danger()].to_lower() if chosen else "unknown",
 		"magma": _num(c.contract_magma()),
@@ -1082,7 +1088,7 @@ func _build_board(s: Screen) -> void:
 func _paint_board(s: Screen) -> void:
 	var c := _company()
 	var q := c.quota()
-	_text(s, "status", ("PROBATION  ·  SHIFT %d/%d" % [c.shift, _shifts()]) if c.on_probation() else "REP %+d  ·  SHIFT %d/%d" % [c.reputation, c.shift, _shifts()])
+	_text(s, "status", ("PROBATION  ·  SHIFT %d/%d" % [c.shift, _shifts()]) if c.on_probation() else "REP %s  ·  SHIFT %d/%d" % [UiTheme.signed(c.reputation), c.shift, _shifts()])
 	_text(s, "cash", UiTheme.euro(c.cash))
 	# Schuld = bevroren rekening (F1): geen upgrades tot de kas weer positief is.
 	_text(s, "cap_cash", "FUNDS · FROZEN" if c.in_debt() else "FUNDS")
@@ -1152,12 +1158,6 @@ const HOLO_DIM := Color(1.0, 0.71, 0.35, 0.6)
 ## Vrije strook bovenaan het hologram (px), achter de behuizing van de projector.
 const HOLO_TOP := 58.0
 const HOLO_INK := [Color("#9BE05A"), Color("#FFD24A"), Color("#FF6A2E")]
-
-
-## "+15%" (of "STANDARD" bij ×1,00): een factor als procent.
-static func _pct(f: float) -> String:
-	var p := int(round((f - 1.0) * 100.0))
-	return "STANDARD" if p == 0 else ("%+d%%" % p).replace("-", "−")
 
 
 func _build_terminal(s: Screen) -> void:
@@ -1263,7 +1263,7 @@ func _paint_terminal(s: Screen) -> void:
 		rl.size.x = w / 3.0
 		rl.position = Vector2(x, HOLO_TOP + 165)
 		rl.text = "LOCKED" if c.option_locked(i) else "RISK %s" % Company.RISK_NAMES[int(o.get("danger", 0))]
-	_text(s, "prompt", ("> CHOOSE A CONTRACT AT THE TABLE" if docked else "> CHOOSE A CONTRACT ONCE THE MOLE IS BACK") + cursor)
+	_text(s, "prompt", ("> CHOOSE A CONTRACT AT THE CONTRACT TABLE" if docked else "> CHOOSE A CONTRACT ONCE THE MOLE IS BACK") + cursor)
 
 
 func _draw_terminal(c: Control) -> void:
