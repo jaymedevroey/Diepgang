@@ -348,7 +348,7 @@ def build_pelvis():
                 top = F + Vector((s * math.cos(th) * R, math.sin(th) * R, 0.0))
                 bot = J.lerp(A, u ** 0.8)
                 p = top.lerp(bot, v ** 0.85)
-                p.z += -0.085 * math.sin(math.pi * u) * (1.0 - v) * math.sin(math.pi * (0.2 + 0.8 * v)) + 0.09 * u * (1.0 - v)
+                p.z += -0.15 * math.sin(math.pi * u) * (1.0 - v) * math.sin(math.pi * (0.2 + 0.8 * v)) + 0.17 * u * u * (1.0 - v)
                 row.append(tuple(p))
                 if r == 0:
                     crest.append(tuple(p))
@@ -360,18 +360,21 @@ def build_pelvis():
         cup = Vector((s * 0.38, -0.2, 0.04))
         sphere(0.095, tuple(cup), "Bone", g, scale=(0.8, 1.0, 1.0), segments=16, rings=8)
         cyl(0.062, 0.03, (cup.x + s * 0.06, cup.y, cup.z), "BoneDark", g, axis="x", verts=18, bevel=0.0)
-        # Zit- en schaambeen: een plaat onder de heupkom met een ovaal gat, die naar het midden loopt.
-        O = Vector((s * 0.2, -0.36, 0.06))
-        pl = plate(1.0, tuple(O), (0.19, 0.15, 0.045), (0, 0, s * 18), "Bone", g)
-        pl.data.materials.append(kit.mat("BoneDark"))
-        cut = sphere(0.1, (O.x + s * 0.01, O.y + 0.01, O.z), "BoneDark", "_cut", scale=(0.95, 0.65, 2.5), segments=20, rings=10)
-        unregister(cut)
-        boolean(pl, cut)
         # Zitbeenknobbel onderaan opzij, en de verbinding met de heupkom.
         sphere(0.07, (s * 0.31, -0.47, 0.03), "Bone", g, scale=(1.0, 0.8, 0.9), segments=12, rings=6)
         loft([(s * 0.36, -0.24, 0.04), (s * 0.31, -0.3, 0.05)], [0.06, 0.055], "Bone", g, verts=10)
+    # Zit- en schaambeen: één brede plaat onder de heupkommen, met links en rechts een gat als een
+    # traan (foramen obturatum) en onderaan in het midden de schaamboog (een omgekeerde U).
+    pl = plate(1.0, (0.0, -0.37, 0.05), (0.43, 0.16, 0.05), (0, 0, 0), "Bone", g)
+    for s in (-1, 1):
+        cut = sphere(0.1, (s * 0.2, -0.36, 0.05), "Bone", "_cut", scale=(0.62, 0.85, 2.5), segments=20, rings=10)
+        unregister(cut)
+        boolean(pl, cut)
+    arch = sphere(0.13, (0.0, -0.53, 0.05), "Bone", "_cut", scale=(1.0, 1.0, 2.5), segments=20, rings=10)
+    unregister(arch)
+    boolean(pl, arch)
     # Schaamvoeg vooraan in het midden, waar beide platen samenkomen.
-    loft([(0.0, -0.3, 0.09), (0.0, -0.4, 0.1), (0.0, -0.49, 0.08)], [(0.07, 0.05), (0.075, 0.055), (0.06, 0.045)], "Bone", g, verts=12, up=(0, 0, 1))
+    loft([(0.0, -0.27, 0.09), (0.0, -0.33, 0.1), (0.0, -0.39, 0.09)], [(0.06, 0.045), (0.065, 0.05), (0.05, 0.04)], "Bone", g, verts=12, up=(0, 0, 1))
     # Heiligbeen: een wig in het midden, achter de vleugels, met dwarse richels (vergroeide wervels),
     # donkere gaatjes en een doornkam.
     loft([(0, 0.24, -0.08), (0, 0.1, -0.07), (0, -0.04, -0.05), (0, -0.18, -0.03)],

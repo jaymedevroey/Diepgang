@@ -403,14 +403,14 @@ func _surface_material(name: String, layer: int) -> Material:
 	match name:
 		"FungusCap":
 			# Mat en gekleurd, nauwelijks gloed: de hoed leest als zwam.
-			m.set_shader_parameter("base", Color(0.3, 0.25, 0.22))
-			m.set_shader_parameter("tint_albedo", 0.45)
-			m.set_shader_parameter("glow", 0.04)
+			m.set_shader_parameter("base", Color(0.24, 0.2, 0.18))
+			m.set_shader_parameter("tint_albedo", 0.3)
+			m.set_shader_parameter("glow", 0.03)
 			m.set_shader_parameter("rough", 0.75)
 		"FungusGlow":
 			m.set_shader_parameter("base", Color(0.5, 0.5, 0.5))
 			m.set_shader_parameter("tint_albedo", 1.0)
-			m.set_shader_parameter("glow", 2.6)
+			m.set_shader_parameter("glow", 1.7)
 			m.set_shader_parameter("rough", 0.5)
 		"FungusStem":
 			m.set_shader_parameter("base", Color(0.72, 0.67, 0.58))

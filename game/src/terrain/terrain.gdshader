@@ -634,7 +634,7 @@ void fragment() {
 			col = mix(col, lin(ug_accent[1]), smoothstep(0.85, 0.88, vnoise(wpos * 24.0 + vec3(17.0))) * 0.45 * kd);
 			col = mix(col, lin(PINK), smoothstep(0.86, 0.89, vnoise(wpos * 17.0 + vec3(41.0))) * 0.4 * kd * (planet_id == 0 ? 1.0 : 0.0));
 			// Kristalmaan: violette fonkels in het basalt.
-			emit += lin(ug_accent[1]) * step(0.985, hash1(floor(wpos * 26.0) + vec3(seed_s))) * kd * (planet_id == 2 ? 0.8 : 0.0);
+			emit += lin(ug_accent[1]) * step(0.997, hash1(floor(wpos * 30.0) + vec3(seed_s * 1.3))) * kd * (planet_id == 2 ? 0.35 : 0.0);
 			float mica = step(0.975, hash1(floor(wpos * 30.0) + vec3(seed_s)));
 			rough = mix(rough, 0.15, mica * kd);
 		}
@@ -897,14 +897,14 @@ void fragment() {
 		// Barsten: dun en onregelmatig (de breedte wisselt, een deel van de randen is dicht), met een
 		// lichte stofrand ernaast. Geen zwart honingraatnet (glas-in-lood) op een licht plafond.
 		float edge_d = (d2 - d1) / 1.3; // m
-		float cw = mix(0.004, 0.03, smoothstep(0.35, 0.8, vnoise(wpos * 1.7 + vec3(3.0))));
-		float open_k = smoothstep(0.35, 0.55, vnoise(wpos * 0.9 + vec3(seed_s, 8.0, 1.0)));
+		float cw = mix(0.0015, 0.012, smoothstep(0.4, 0.85, vnoise(wpos * 1.7 + vec3(3.0))));
+		float open_k = smoothstep(0.45, 0.62, vnoise(wpos * 0.9 + vec3(seed_s, 8.0, 1.0)));
 		float cfw = max(fwidth(edge_d), 1e-4);
-		float zcrack = (1.0 - smoothstep(cw, cw + cfw * 1.5, edge_d)) * open_k;
-		float zdust = (1.0 - smoothstep(cw, cw + 0.09, edge_d)) * (1.0 - zcrack) * open_k;
+		float zcrack = (1.0 - smoothstep(cw, cw + cfw, edge_d)) * open_k;
+		float zdust = (1.0 - smoothstep(cw, cw + 0.07, edge_d)) * (1.0 - zcrack) * open_k;
 		col = mix(col, col * 1.2 + vec3(0.05, 0.045, 0.035), zone_k * 0.3); // fijn stof
-		col = mix(col, light * 1.15, zdust * zone_k * 0.45);
-		col = mix(col, col * 0.18, zcrack * zone_k);
+		col = mix(col, light * 1.2, zdust * zone_k * 0.55);
+		col = mix(col, col * 0.35, zcrack * zone_k);
 	}
 
 	// Magma eronder: de rots warmt op naar donkerrood, vooral vlakken die naar beneden kijken, met

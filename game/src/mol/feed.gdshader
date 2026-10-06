@@ -47,7 +47,7 @@ void fragment() {
 		// Helderheid met hoog contrast (een nachtcamera trekt het donker op), en de randen fel.
 		float lum = pow(clamp(l * brightness * 2.2, 0.0, 1.0), 0.6);
 		lum = smoothstep(0.05, 0.85, lum);
-		vec3 night = vec3(1.0, 0.72, 0.32) * (0.12 + 0.55 * lum) + vec3(1.0, 0.86, 0.55) * e * 0.9;
+		vec3 night = vec3(1.0, 0.68, 0.3) * (0.05 + 0.36 * lum) + vec3(1.0, 0.86, 0.55) * e * 0.95;
 		col = mix(col, night * inside, edges);
 	}
 	col *= 0.86 + 0.14 * sin(uv.y * lines * 6.2831);

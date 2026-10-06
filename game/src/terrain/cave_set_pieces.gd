@@ -285,7 +285,8 @@ func _process(delta: float) -> void:
 				_built.erase(i)
 				_parts.erase(i)
 				_lights.erase(i)
-		elif d < build_m and not built_one and not _building and terrain.data_loaded(sp.anchor):
+		elif d < build_m and not built_one and not _building and (terrain.data_loaded(sp.anchor)
+				or (sp.starter and terrain.data_loaded(terrain.starter_ramp()[0]))):
 			_build(i)
 			built_one = true # één per keer, en in stappen over een paar beelden: geen hapering
 
@@ -484,13 +485,18 @@ func _build_ramp(i: int, root: Node3D, body: StaticBody3D) -> void:
 			var lamp := mi.global_transform * Vector3(0.35, 2.15, 0.0)
 			var l := _light(i, root, false, lamp, Color(1.0, 0.72, 0.42), 1.3, 7.0, "lamp")
 			(_parts[i] as Array).back()[3] = l
-	# De monding: een werflamp die de gang in schijnt, en het bord van het kamp.
+	# De monding: een stut net binnen de gang, een werflamp die de gang in schijnt, een knipperlicht
+	# (van op de landingsplek zie je waar de gang begint) en het bord van het kamp.
 	var m := ramp[0]
 	var into := (ramp[1] - ramp[0])
 	into.y = 0.0
 	into = into.normalized()
 	var side := Vector3.UP.cross(into).normalized()
 	var top := m.y + r
+	var gate := m.lerp(ramp[1], 0.12)
+	var mi_g := _place(i, root, body, "MineFrame", gate, atan2(into.x, into.z), gate.y + 1.0)
+	if mi_g:
+		_light(i, root, false, mi_g.global_transform * Vector3(0.0, 3.0, 0.0), Color(1.0, 0.55, 0.12), 2.5, 10.0, "blink")
 	var lamp_at := m - into * 2.2 + side * 2.4
 	var mi_l := _place(i, root, body, "CampLamp", lamp_at, atan2(into.x, into.z) - 0.35, top + 3.0)
 	if mi_l:

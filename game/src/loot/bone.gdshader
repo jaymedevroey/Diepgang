@@ -11,9 +11,9 @@ render_mode diffuse_burley, specular_schlick_ggx;
 //   - `flash` voor het moment bij het vrijkomen (FindItem), zoals de machine-shader.
 
 uniform vec3 ivory : source_color = vec3(0.86, 0.8, 0.66);
-uniform vec3 ochre : source_color = vec3(0.62, 0.42, 0.2);
+uniform vec3 ochre : source_color = vec3(0.56, 0.36, 0.16);
 uniform vec3 umber : source_color = vec3(0.3, 0.2, 0.12);
-uniform float stain = 0.75;      // hoeveel okervlekken
+uniform float stain = 0.9;       // hoeveel okervlekken
 uniform float detail_scale = 7.0; // >1 voor kleine stukken (fijnere vlekken)
 // Lange stukken (dijbeen, rib, slagtand): de uiteinden langs de lange as zijn donkerder.
 // half_size = halve maat (objectruimte), center = midden, long_axis = 1 op de lange as (0 = niet).
@@ -60,7 +60,7 @@ void fragment() {
 		// Grote okervlekken (grillig, met een zachte rand) en een tweede, fijnere laag.
 		float n1 = vnoise(opos * 0.55 + vec3(3.1)) * 0.65 + vnoise(opos * 1.4 + vec3(7.7)) * 0.35;
 		float n2 = vnoise(opos * 2.6 + vec3(11.0));
-		float big = smoothstep(0.48, 0.66, n1) * stain;
+		float big = smoothstep(0.42, 0.6, n1) * stain;
 		float small = smoothstep(0.62, 0.75, n2) * stain * 0.6;
 		vec3 col = ivory * (0.92 + 0.12 * vnoise(opos * 5.0));
 		col = mix(col, ochre, clamp(big * 0.75 + small * 0.45, 0.0, 0.85));
