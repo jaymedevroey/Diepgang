@@ -2,6 +2,18 @@
 
 Wat we onderweg leerden en wat het GDD bijstuurt. Nieuwste bovenaan.
 
+## 2026-10-06 — Golf 3, pakket G3: het geldmoment en de economie
+
+De keuzes waar het GDD zweeg staan in GDD §3 en §5A ("golf 3"). Cijfers zijn schattingen (niet gespeeld): band 0,6 m/s, scan 0,9 s, teller 1,8 s, quota-basis €6.000, upgrades ×1,5, laadruim +20 kg per robot, lichtbakens €150 solo.
+- **Een moment dat in een gedeelde .glb zou moeten, kan ook in code aan een leeg punt hangen.** Het podium, de band, de lichtstroken van de poort, het scherm op de toonbank en de bokken op de Mol-werf zijn in code gebouwd aan Appraisal_Gate, Sell_Hatch en het plan van layout.py. Zo botst het niet met een ander pakket dat het hubmodel opnieuw bouwt (G6 deed dat in dezelfde golf).
+- **Een vlak uit code (QuadMesh) staat niet ondersteboven zoals de schermen uit Blender:** feed.gdshader heeft `flip_v`; HubScreens zet het nu zelf af voor een QuadMesh.
+- **Een transportband: elke tick de snelheid zetten, niet de plek.** Zo blijft de fysica (botsen, op elkaar liggen) en sturen de snapshots het naar de clients. Een klein stuk blijft wel haken achter een naad in de vloer: zit het vast, een tikje omhoog. En wie op de band blijft staan, houdt alles tegen (de nettest stapte er niet af).
+- **Verkochte stukken het luik in laten gaan zonder FindField aan te raken:** kopieën van hun model vliegen (op elke peer), de host haalt de echte vondsten weg. Daarom komt de RPC van de verkoop vóór host_remove: anders bestaan ze bij de client al niet meer.
+- **Een schatting die altijd in het midden ligt, verraadt de prijs.** De bandbreedte ligt per vondst anders (een hash van het id), en de echte waarde zit er altijd in (onderkant 0,62–0,90 × de waarde, bovenkant × 1,65). economy_test controleert dat voor elke vondst van een wereld.
+- **Een risicolabel dat de planeet meetelt, kan drie keer MEDIUM geven** (Roestbol met harde voorwaarden, Kristalmaan met zachte). Dan schuiven de planeten één plek op; de seeds blijven dezelfde.
+- **`var len := …` overschaduwt een ingebouwde functie**: andere naam. En `bool(null)` bestaat niet: `get_shader_parameter` van een parameter die nooit gezet is, geeft null (`== true` vergelijken).
+- **`git checkout <bestand>` gooit ook je eigen niet-gecommitte wijzigingen weg**, niet enkel de proefregels. Debugregels in een apart, klein script, of eerst committen.
+
 ## 2026-10-06 — Golf 3, pakket G5: de ondergrond
 
 - **Een plek om naartoe te gaan moet je ook vinden.** Set pieces in grotten helpen pas als de eerste ervan te zien is: daarom een startgrot met een oude gang vanaf de rand van de landingsplek (een gat met stutten en lampjes), niet enkel taferelen diep in de rots. In GDD §4 ("golf 3").

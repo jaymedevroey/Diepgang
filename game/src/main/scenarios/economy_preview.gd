@@ -3,8 +3,11 @@ extends Node
 ## onverkochte buit), de taxatie (een vondst in de poort: de onthulling boven de vondst en op het
 ## scherm), het draagkaartje met een onbekende waarde, het verkoopluik, de winkel aan elke toonbank
 ## (ook bevroren met schuld), de rapporten, de handscanner en de boor T2 op de planeet.
+## Golf 3: de ceremonie (band van de klep door de poort, scan, podium, onthulling in de HUD voor wie
+## draagt, het luik dat telt), de toonbanken, de Mol-werf en de Mol voor en na de aankoop, en met
+## --only=probe de plekken in de hub en de zichtlijn van de brug.
 ## tools\godot.cmd --path game --resolution 1600x900 -- --scenario=economy_preview --no-steam
-## --only=cards,gate,shop,report,scanner (standaard alles). Beelden: logs/f1_<naam>.png
+## --only=cards,gate,shop,report,scanner,probe (standaard alles behalve probe). Beelden: logs/f1_*.png, logs/g3_*.png
 
 ## Plan van de hub: de Mol staat op de oorsprong; taxatiepoort plan (12, 0, 18,3) = hub (5, 0, 9,3).
 const GATE_CAM := [Vector3(2.9, 1.25, 10.2), Vector3(5.0, 1.0, 9.3)]
@@ -32,7 +35,8 @@ func _run(p: Player) -> void:
 	var hub := ship.global_transform
 
 	if "probe" in only:
-		# Tijdelijk (G3): waar liggen de poort, het luik, de Mol en zijn klep in de hub?
+		# Golf 3: waar liggen de poort, het luik, de Mol en zijn klep in de hub (voor GateShow en
+		# UpgradeShow), en ziet de brug de Mol nog (binnen-17: het podium mag hem niet verbergen)?
 		if not mol.ramp_open:
 			mol.press(Mol.Cmd.RAMP)
 		await _wait(2.5)
@@ -43,14 +47,6 @@ func _run(p: Player) -> void:
 		for z in [3.5, 4.4, 5.5, 6.5, 7.5]:
 			print("[probe] mol local (0,-1.8,%s) -> hub %s" % [z, hubi * mol.to_world_mol(Vector3(0, -1.8, z))])
 		print("[probe] bay %s" % ship.bay)
-		var vm: Node3D = mol.visual.model
-		for mi: MeshInstance3D in vm.find_children("*", "MeshInstance3D", true, false):
-			var bb: AABB = (vm.global_transform.affine_inverse() * mi.global_transform) * mi.get_aabb()
-			if bb.size.length() > 1.0:
-				print("[probe] mol mesh %s %s" % [mi.name, bb])
-		print("[probe] visual xf rel body %s" % (mol.body.global_transform.affine_inverse() * vm.global_transform))
-		_look(hub, Vector3(3.0, 16.0, 6.5), Vector3(3.0, 0.0, 6.6))
-		await _shot("g3_probe_top", 0.5)
 		_look(hub, Vector3(0.0, 3.0, 13.0), Vector3(4.0, 0.0, 8.0))
 		await _shot("g3_probe_ramp", 0.3)
 		# Van de brug naar de Mol (binnen-17: het podium mag de Mol niet verbergen).
@@ -90,6 +86,16 @@ func _run(p: Player) -> void:
 		await _shot("f1_carry_unknown", 0.8)
 		game.finds.request_release(picks[0].find_id, picks[0].global_transform, Vector3.ZERO)
 		await _wait(0.3)
+		# Golf 3: het statusscherm in de cabine met de schatting van de buit en de balk van het laadruim.
+		p.global_transform = Transform3D(Basis(Vector3.UP, mol.yaw), mol.to_world_mol(Vector3(0, -1.45, -1.3)))
+		await _wait(0.3)
+		mol.press(Mol.Cmd.SEAT)
+		await _wait(0.6)
+		p.camera.make_current()
+		p.head.rotation.x = deg_to_rad(-34.0)
+		await _shot("g3_mol_status", 0.8)
+		mol.press(Mol.Cmd.SEAT)
+		await _wait(0.6)
 		# Golf 3: de ceremonie. De drie stukken op de band aan de voet van de klep; de band draagt ze
 		# één voor één de poort in (scanstraal, licht, podium), dan verkopen aan het luik.
 		var a := c.appraisal

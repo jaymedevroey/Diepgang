@@ -90,6 +90,9 @@ De Ekster (moederschip) → planeet en opdracht kiezen → drop met de Mol → b
    - De firma rekent de vervanging aan, en wat hij droeg, is weg.
 9. **Taxatie aan boord.**
    - Je draagt de vondsten uit het laadruim door de **taxatiepoort**. Elk stuk wordt één voor één onthuld: soort, gaafheid, waarde.
+   - **Bijgestuurd (golf 3, ontwerp2-9, ui2-01, binnen2-10, gevoel2-04):** een **band** loopt van de voet van de klep van de Mol door de poort naar het verkoopluik. Je legt de vondsten op de band (dragen blijft in de dienst, waar het risico heeft) en de ploeg kijkt samen. Onder de poort stopt de band: een **scanstraal** zakt over het stuk, de lichtstroken in de palen kleuren naar de waardeklasse (wit, goud, fel goud, regenboog als een skelet compleet raakt), en het **podium** boven de poort onthult het: de soort, de gaafheid als stempel, een teller die oploopt, de doelbonus of hoe ver het skelet is (3/5), en de quotabalk met wat klaarligt. Wie het podium niet ziet (wie zelf door de poort draagt), krijgt de onthulling boven het vizier. Geen zwevende tekst, één melding per gebeurtenis.
+   - **Verkopen (golf 3):** aan het luik gaan de stukken één voor één het luik in; het scherm op de toonbank telt op, vult de quotabalk en stempelt QUOTA MET.
+   - **Schatting in het veld (golf 3, ontwerp2-4):** het draagkaartje toont het gewicht en een bandbreedte van de waarde ("€150–300 ESTIMATE"); het statusscherm van de Mol toont HAUL (de som), het laadruim met een balk en de quota, en linksboven in de hub en de Mol staat de quota met wat de buit naar schatting oplevert. De exacte prijs blijft voor de poort.
    - **Verkopen** = geld in de teamkas. **Schenken** aan het museum = reputatie en ontgrendelingen.
    - Erts wordt automatisch verkocht.
 10. **Quota.**
@@ -97,6 +100,7 @@ De Ekster (moederschip) → planeet en opdracht kiezen → drop met de Mol → b
     - Wie het doel mist, krijgt een **boete** (schuld) en verliest reputatie.
     - **Upgrades en het museum blijven altijd behouden.** Reputatie bepaalt welke planeten je mag doen.
     - Eerste versie (M3): drie concessies per dienst met een risico (meer opbrengst, sneller magma), doel €2.000 voor 4 spelers (40/65/85/100% voor 1–4), ×1,25 per kwartaal, boete 50% van het tekort. Cijfers in `company.cfg`.
+    - **Bijgestuurd (golf 3):** het **risicolabel telt de planeet mee** (ontwerp2-5): label = gevaar van de planeet (Roestbol 0, Fossielwereld 1, Kristalmaan 2) + de voorwaarden; de Kristalmaan is nooit LOW, Roestbol nooit HIGH. De opbrengst en het magma volgen de voorwaarden. Elke kaart zegt wat de planeet vraagt ("worm restless (wakes ±1:30) · lots of gas"). **Proeftijd sluit de veiligste kaart**, niet de rijkste (ontwerp2-11). Doel €6.000 voor 4 (solo €2.400 in kwartaal 1), upgrades ×1,5 (solo samen €15.600), en de automaat verkoopt telkens lichtbakens als bodem voor het geld (ontwerp2-10). Schattingen: na een speeltest bijstellen.
     - **Bijgestuurd 2026-10-05 (release-audit, F1):** doel €5.000 voor 4 spelers, ×1,4 per kwartaal. Een dienst is pas afgesloten als de buit verkocht is (of het hoofdkantoor hem opkoopt aan 60% als je tekent); pas dan valt het oordeel over het kwartaal. **Schuld bevriest de rekening** (geen upgrades) en kost 10% rente per dienst; **reputatie onder 0 = proeftijd**: geen opdracht met hoog risico. Elke opdracht heeft 2–3 voorwaarden (een troef van de planeet, risico's, soms een doelvondst). Een volledige skeletset verkocht na dezelfde dienst = dubbele waarde. Zie lessons.md (2026-10-05, F1).
 
 ### Waarom deze lus werkt
@@ -222,6 +226,7 @@ Een grote rupsvoertuig-drilboor (±10 m lang, ±6 m breed) van DIG: vooraan een 
 
 **Upgrades (later):** boorkop (graniet, kristal), snelheid, brandstoftank, laadruim, hitteschild tegen lava, lier/kraan, lampen, cosmetica (verf, stickers).
 - **Sinds 2026-10-05 (F1) te koop aan de Mol-werf:** boorkop T2 (graniet en kristal) en een groter laadruim (60 → 140 kg). Te zwaar: de hendel weigert, en wat niet past, valt eruit als de grijper vastklikt.
+- **Golf 3:** het laadruim groeit met de ploeg (60/80/100/120 kg, met de upgrade +80): een Titan-skelet (62–120 kg) past met vier, solo enkel met de upgrade, en het draagkaartje zegt het ("set ±95 kg · hold 60 kg: too heavy"). **Upgrades zie je:** de boorkop T2 heeft gouden carbidetanden op een donkere kegel, het grotere laadruim twee bagagebakken op de flanken; op de Mol-werf staan ze op een bok met een prijskaartje tot je ze koopt (binnen2-11).
 
 **Techniek:** de host simuleert de Mol (de piloot stuurt invoer), kinematisch (AnimatableBody3D), met grote terreinbewerkingen vooraan. Wie meerijdt, staat op een bewegend platform; clients interpoleren. Het lift-platform uit M1 is hiervoor de basis.
 
