@@ -166,6 +166,7 @@ Na Early Access komen nog een eindeloze "diepe dienst" en een wekelijkse planeet
   4. **Metalen:** goudklompen, munten, oude machines.
   5. **Rommel van eerdere bezoekers** (een tuinkabouter, een oude tv, een fles): weinig waard maar grappig. Een concurrent was hier al.
 - Elke vondst zit in een korst. Ze liggen geconcentreerd in fossielbedden en rond grotten, niet uniform. Elke waardeklasse heeft een eigen geluid en glans.
+- **Samen dragen op elke planeet (golf 3, ontwerp-8):** niet enkel de Titans van Fossielwereld zijn te zwaar voor één robot. Op Roestbol ligt in een deel van de kampen de loonzak van een vorige ploeg (24 kg), op de Kristalmaan in een deel van de kristalgrotten een reuzengeode (26 kg, breekbaar): ±2 en ±4 per wereld. Zware stukken hebben **twee handgrepen** (de uiteinden): met twee houdt elk zijn greep vast en spant de vondst ertussen; het touw is de afstand tussen de grepen plus de armen (een titanschedel ±3 m, was 4,9 m). Ter goedkeuring van Jayme: beide zijn vergrote versies van een bestaand model (muntzak, geode), geen nieuw model.
 
 ---
 
@@ -277,6 +278,15 @@ Cijfers in `worm.cfg` en `beacon.cfg`. Meting met `--scenario=worm_balance` (zie
 - **De climax** (ontwerp-7, ontwerp2-3). Na de hendel jaagt hij op de Mol zelf en bijt hij zich vast in de flank (de kop stopt tegen de romp): zolang hij bijt, verliest elke vondst 2,5% per s (hooguit 5 s) en rijdt de Mol aan 55%. Wat de ploeg doet: de piloot schudt hem los (links-rechts sturen, 4 keer), wie meerijdt gooit met G een baken door de achterklep (het valt achter de Mol in de tunnel, waar hij vandaan komt, en houdt hem af), en aan de oppervlakte kan je hem van de Mol slaan. Een baken in een rijdende Mol telt niet (de motor overstemt het). Gemeten (±400 m terug): niets doen −13/−38/−63%, een ploeg die iets doet −5/−18/−23% (Roestbol/Fossielwereld/Kristalmaan).
 - **Lichtbakens als fakkel** (gevoel2-07). Een worp met de linkerhand, 18 m warm flikkerlicht met vonken, een gloeiende ring op de vloer zo groot als de veilige zone (14 m), en op het einde sputtert hij.
 - **Per planeet en per opdracht.** De factoren van pakket F3 (`planets.cfg`: `gas_mult`, `worm_mult`, `quake_mult`; Kristalmaan meer gas en een onrustigere worm) en de voorwaarden van pakket F1: "Shaky ground" geeft meer onstabiele zones en twee keer zoveel kans op een instorting, "Hot core" laat het magma sneller stijgen.
+
+### Golf 3 (pakket G2, 2026-10-06; ter info voor Jayme)
+Geluid blijft een apart spoor: de code geeft enkel haken (signalen) waar een geluid hoort (`Gas.fuse_lit`, `Gas.exploded`, `Collapse.started`, `Unrest.quake_warning`/`rumble_level()`/`rock_landed`/`rubble_chipped`, `Rescue.damaged`, `ImpactFx.hit`, `FindField.shattered`). Wat je nu ziet aankomen, zonder geluid:
+- **Beving (golf 3):** in de 4 s aankondiging hapert de helmlamp steeds vaker, sijpelt er gruis uit het plafond vóór je en rolt het beeld steeds harder; bij de hoofdschok vallen er rotsen in beeld.
+- **Instorting (golf 3):** de waarschuwing duurt 2,2 s (was 1,6) en zwelt aan: rollen, steentjes uit het plafond van de zone, de lamp hapert. Puin is echte rots (laagkleur, facetten) die barst en krimpt per slag en in brokken uiteenvalt.
+- **Gas (golf 3):** in een bel staat de waarschuwing op een donker plaatje en gloeit de rand van het scherm geel, nog vóór er een vonk is. De lont duurt 0,9 s (was 0,6) met vonken, een aanzwellende oranje gloed en een trillend beeld.
+- **Een klap (golf 3):** hit-stop (het beeld blijft 0,14 s staan), een flits in de kleur van de bron en een FOV-stoot, dan glijdt het beeld naar een volgcamera die nooit in je robot, een maat of de Mol zit (in de Mol een vast camerapunt). Gedragen draait ze mee met je drager. Opstaan in de kijkrichting van de camera.
+- **Een maat dragen (golf 3):** alleen hou je hem onder de oksels vóór je (zijn gezicht naar jou, de benen slepen met stof); met twee ligt hij tussen jullie in.
+- **Spookdrone (golf 3):** "ROBOT BROKEN" staat 4 s in beeld, daarna een zoeker met REC, de ploeg en je toetsen.
 
 ---
 

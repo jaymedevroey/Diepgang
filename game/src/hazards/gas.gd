@@ -14,6 +14,9 @@ extends Node3D
 
 ## Een bel ontplofte (op elk peer; geluid, tests).
 signal exploded(id: int, at: Vector3)
+## Een bel werd ontstoken: de lont sist fuse_s lang (op elk peer). Haak voor het geluid (M6: gesis met
+## een stijgende toon); geen geluid uit code.
+signal fuse_lit(id: int, at: Vector3)
 
 const MAX_HAZE := 6
 
@@ -222,16 +225,22 @@ func _host_explode(id: int) -> void:
 # --- Op elk peer ---------------------------------------------------------------------------------
 
 @rpc("authority", "call_local", "reliable")
-func _rpc_fuse(id: int, _spark: Vector3) -> void:
+func _rpc_fuse(id: int, spark: Vector3) -> void:
 	var p := pocket(id)
 	if p == null:
 		return
 	p.igniting = true
+	var fuse := Tuning.get_f("gas", "fuse_s", 0.6)
 	var h: GPUParticles3D = _haze_of.get(id)
 	if h:
+		# De waas licht op en kleurt van geel naar oranje, steeds feller en flakkerend (golf 3, gevoel2-01).
 		var m := h.draw_pass_1.surface_get_material(0) as StandardMaterial3D
 		var tw := h.create_tween()
-		tw.tween_method(func(e: float) -> void: m.emission_energy_multiplier = e, 0.2, 4.0, Tuning.get_f("gas", "fuse_s", 0.6))
+		tw.tween_method(func(k: float) -> void:
+			m.emission_energy_multiplier = lerpf(0.4, 5.0, k * k) * (0.75 + 0.25 * sin(k * 40.0))
+			m.emission = Color(0.75, 0.7, 0.2).lerp(Color(1.0, 0.45, 0.08), k), 0.0, 1.0, fuse)
+	_fuse_fx(p, spark, fuse)
+	fuse_lit.emit(id, p.center)
 	var me: Player = game.local_player
 	if me and me.global_position.distance_to(p.center) < p.radius * 3.0:
 		game.notice.emit("Gas! Get clear!", "alarm")
@@ -314,7 +323,9 @@ func _update_haze() -> void:
 			h.global_position = p.center
 			var pm := h.process_material as ParticleProcessMaterial
 			pm.emission_sphere_radius = p.radius * 0.75
-			(h.draw_pass_1.surface_get_material(0) as StandardMaterial3D).emission_energy_multiplier = 0.2
+			var hm := h.draw_pass_1.surface_get_material(0) as StandardMaterial3D
+			hm.emission_energy_multiplier = 0.2
+			hm.emission = Color(0.75, 0.7, 0.2)
 			h.restart()
 			h.visible = true
 			h.emitting = true
@@ -377,12 +388,51 @@ func _make_haze() -> GPUParticles3D:
 	qm.emission = Color(0.75, 0.7, 0.2)
 	qm.emission_energy_multiplier = 0.2
 	qm.roughness = 1.0
+	# Midden in de wolk geen egale gele muur (golf 3, ui2-02): vlokken vlak voor de camera doven uit, je
+	# ziet slierten en de rots erachter (en de HUD blijft leesbaar).
+	qm.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_PIXEL_ALPHA
+	qm.distance_fade_min_distance = Tuning.get_f("gas", "haze_fade_min_m", 0.8)
+	qm.distance_fade_max_distance = Tuning.get_f("gas", "haze_fade_max_m", 3.2)
 	q.material = qm
 	d.draw_pass_1 = q
 	d.visible = false
 	d.emitting = false
 	add_child(d)
 	return d
+
+
+## De lont (op elk peer): vonken die knetteren waar de vonk viel en in de bel, een oranje gloed die
+## aanzwelt, en wie dichtbij staat, voelt het beeld trillen. Zo zie je de ontploffing aankomen.
+func _fuse_fx(p: Pocket, spark: Vector3, fuse: float) -> void:
+	var glow := OmniLight3D.new()
+	glow.light_color = Color(1.0, 0.55, 0.18)
+	glow.omni_range = p.radius * 2.5
+	glow.light_energy = 0.0
+	glow.shadow_enabled = false
+	add_child(glow)
+	glow.global_position = p.center
+	var tw := glow.create_tween()
+	tw.tween_property(glow, "light_energy", 5.0, fuse).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_IN)
+	tw.tween_callback(glow.queue_free)
+	for at: Vector3 in [spark, p.center]:
+		var s := _burst(at, 0.4, 40, 0.35, [Color(1.0, 0.95, 0.7, 1.0), Color(1.0, 0.6, 0.15, 0.9), Color(0.6, 0.2, 0.0, 0.0)], true, 4.0)
+		s.one_shot = false
+		s.explosiveness = 0.0
+		(s.draw_pass_1 as QuadMesh).size = Vector2(0.12, 0.12)
+		get_tree().create_timer(fuse).timeout.connect(func() -> void:
+			if is_instance_valid(s):
+				s.emitting = false)
+		get_tree().create_timer(fuse + 1.0).timeout.connect(s.queue_free)
+	var me: Player = game.local_player
+	if me and me.camera_fx:
+		var k := 1.0 - smoothstep(p.radius, p.radius * 4.0, me.global_position.distance_to(p.center))
+		if k > 0.0:
+			me.camera_fx.add_trauma(0.15 * k)
+			var shake := me.create_tween()
+			shake.tween_method(func(v: float) -> void:
+				if is_instance_valid(me) and me.camera_fx:
+					me.camera_fx.hold_trauma(v * 0.35 * k)
+					me.camera_fx.hold_rumble(v * 2.0 * k), 0.0, 1.0, fuse)
 
 
 func _soft_dot() -> Texture2D:
@@ -414,11 +464,19 @@ func _explosion_fx(at: Vector3, radius: float) -> void:
 	var tw := light.create_tween()
 	tw.tween_property(light, "light_energy", 0.0, 0.7).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
 	tw.tween_callback(light.queue_free)
-	var fire := _burst(at, radius * 0.7, 90, 0.9, [Color(1.0, 0.95, 0.6, 1.0), Color(1.0, 0.55, 0.12, 0.9), Color(0.5, 0.12, 0.02, 0.0)], true, 6.0 + radius)
-	var smoke := _burst(at, radius * 0.6, 50, 4.0, [Color(0.25, 0.22, 0.2, 0.0), Color(0.22, 0.2, 0.18, 0.55), Color(0.15, 0.14, 0.13, 0.0)], false, 2.5)
+	# Groter (golf 3, gevoel2-10): een vuurbal die de grot vult, rook die blijft hangen, en een golf
+	# stof die over de vloer naar buiten rolt.
+	var fire := _burst(at, radius * 0.9, 120, 1.0, [Color(1.0, 0.95, 0.6, 1.0), Color(1.0, 0.55, 0.12, 0.9), Color(0.5, 0.12, 0.02, 0.0)], true, 7.0 + radius * 1.3)
+	var smoke := _burst(at, radius * 0.7, 70, 7.0, [Color(0.25, 0.22, 0.2, 0.0), Color(0.22, 0.2, 0.18, 0.5), Color(0.15, 0.14, 0.13, 0.0)], false, 2.5)
+	(smoke.process_material as ParticleProcessMaterial).damping_min = 1.2
+	(smoke.process_material as ParticleProcessMaterial).damping_max = 2.0
 	for e in [fire, smoke]:
-		get_tree().create_timer(6.0).timeout.connect(e.queue_free)
+		get_tree().create_timer(9.0).timeout.connect(e.queue_free)
 	var col := Strata.DEBRIS_COLORS[game.terrain.layer_at(at)]
+	var floor_hit: Dictionary = game.terrain.raycast(at, at + Vector3.DOWN * radius * 2.0)
+	var ground: Vector3 = floor_hit.position if not floor_hit.is_empty() else at
+	var ring := _shockwave(ground, radius, col)
+	get_tree().create_timer(4.0).timeout.connect(ring.queue_free)
 	for i in 10:
 		var dir := Vector3(randf_range(-1, 1), randf_range(-0.2, 1), randf_range(-1, 1)).normalized()
 		game.fx.grit_puff(at + dir * radius * 0.8, dir, col)
@@ -428,6 +486,60 @@ func _explosion_fx(at: Vector3, radius: float) -> void:
 		me.camera_fx.add_trauma(0.9 * k)
 		me.camera_fx.hold_rumble(4.0 * k)
 		me.camera_fx.kick(-6.0 * k, randf_range(-4.0, 4.0) * k)
+		# Uit eigen ogen: een witte flits en een FOV-stoot, ook als je net buiten de klap staat.
+		if me.impact_fx and k > 0.05:
+			me.impact_fx.punch(clampf(k * 1.1, 0.0, 1.0), Player.IMPACT_TINTS["gas"], "gas")
+
+
+## Een ring stof die vanaf de vloer onder de ontploffing naar buiten rolt (laag, in de kleur van de laag).
+func _shockwave(ground: Vector3, radius: float, col: Color) -> GPUParticles3D:
+	var d := GPUParticles3D.new()
+	d.amount = 90
+	d.lifetime = 2.2
+	d.one_shot = true
+	d.explosiveness = 1.0
+	d.visibility_aabb = AABB(Vector3(-16, -3, -16), Vector3(32, 8, 32))
+	var m := ParticleProcessMaterial.new()
+	m.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_RING
+	m.emission_ring_axis = Vector3.UP
+	m.emission_ring_radius = radius * 0.4
+	m.emission_ring_inner_radius = radius * 0.3
+	m.emission_ring_height = 0.2
+	m.direction = Vector3(1, 0, 0)
+	m.spread = 180.0
+	m.flatness = 0.9
+	m.initial_velocity_min = 6.0 + radius
+	m.initial_velocity_max = 9.0 + radius * 1.5
+	m.damping_min = 5.0
+	m.damping_max = 8.0
+	m.gravity = Vector3(0, 0.3, 0)
+	m.scale_min = 0.9
+	m.scale_max = 1.8
+	var g := Gradient.new()
+	g.set_color(0, Color(col, 0.0))
+	g.add_point(0.12, Color(col, 0.55))
+	g.set_color(g.get_point_count() - 1, Color(col, 0.0))
+	var gt := GradientTexture1D.new()
+	gt.gradient = g
+	m.color_ramp = gt
+	d.process_material = m
+	var q := QuadMesh.new()
+	q.size = Vector2(1.6, 1.6)
+	var qm := StandardMaterial3D.new()
+	qm.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	qm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	qm.vertex_color_use_as_albedo = true
+	qm.albedo_texture = _soft_dot()
+	qm.roughness = 1.0
+	qm.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_PIXEL_ALPHA
+	qm.distance_fade_min_distance = 0.6
+	qm.distance_fade_max_distance = 2.0
+	q.material = qm
+	d.draw_pass_1 = q
+	add_child(d)
+	d.global_position = ground + Vector3.UP * 0.3
+	d.emitting = true
+	return d
 
 
 func _burst(at: Vector3, r: float, amount: int, life: float, ramp: Array, additive: bool, speed: float) -> GPUParticles3D:

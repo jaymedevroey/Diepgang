@@ -124,28 +124,66 @@ func aimed_body(p: Player) -> int:
 	return peer if peer != p.peer_id and i.life == Life.DOWNED and i.carriers.size() < 2 else -1
 
 
-## Waar een gedragen robot hoort: dwars in de armen van zijn dragers (de heup iets rechts, zodat de pop
-## gecentreerd hangt), niet door een muur.
+## Waar een gedragen robot hoort (de romp; hoofd, armen en benen bengelen eraan). Op elk peer dezelfde
+## regel, los van waar de dragers kijken (omhoog of omlaag kijken trekt hem niet door de vloer).
+## - Met twee (golf 3, gevoel2-06): liggend tussen de twee dragers, op de rug, het hoofd bij de eerste
+##   drager; elk houdt een kant vast (schouders en knieën).
+## - Alleen (te zwaar om te tillen, zoals zware buit): je houdt hem onder de oksels vóór je, rechtop
+##   en wat van je weg gekanteld, zijn gezicht naar jou; de benen slepen over de grond (stof). Zo zie je wie je draagt.
 func carry_target(peer: int) -> Transform3D:
-	var sum := Vector3.ZERO
-	var yaw := 0.0
-	var n := 0
+	var rd := ragdoll_of(peer)
+	var cs: Array[Player] = []
 	for c in info(peer).carriers:
 		var p: Player = game.player_node(c)
 		if p:
-			sum += p.hold_point(0.55) + Vector3(0.0, -0.3, 0.0) + p.global_basis.x * 0.2
-			yaw = p.rotation.y
-			n += 1
-	var rd := ragdoll_of(peer)
-	if n == 0:
+			cs.append(p)
+	if cs.is_empty():
 		return rd.torso.global_transform if rd else Transform3D()
-	# Liggend op de armen: het lijf dwars (hoofd links), het gezicht naar boven. Alleen sleep je hem
-	# laag over de grond (te zwaar om te tillen, zoals zware buit: FindKinds.liftable_alone).
-	var b := Basis(Vector3.UP, yaw) * Basis(Vector3(0, 0, 1), Vector3(-1, 0, 0), Vector3(0, -1, 0))
-	var at := sum / n
-	if n == 1 and not FindKinds.liftable_alone(Tuning.get_f("rescue", "body_mass", 24.0)):
-		at.y -= Tuning.get_f("rescue", "drag_drop", 0.6)
-	return Transform3D(b, at)
+	if cs.size() >= 2:
+		var a := _body_hold(cs[0], cs[1].global_position)
+		var b := _body_hold(cs[1], cs[0].global_position)
+		var along := a - b
+		along.y *= 0.5
+		if along.length() < 0.05:
+			along = -cs[0].global_basis.z
+		var y_w := along.normalized() # het hoofd naar de eerste drager
+		var z_w := (Vector3.DOWN - y_w * Vector3.DOWN.dot(y_w)).normalized() # het gezicht (−Z) naar boven
+		var basis := Basis(y_w.cross(z_w), y_w, z_w)
+		return Transform3D(basis, (a + b) * 0.5 - y_w * 0.2)
+	var me := cs[0]
+	var fwd := -me.global_basis.z
+	fwd.y = 0.0
+	fwd = fwd.normalized() if fwd.length() > 0.01 else Vector3.FORWARD
+	var eye := me.global_position + Vector3.UP * Player.EYE_STAND
+	var ahead := Tuning.get_f("rescue", "carry_alone_ahead", 0.8)
+	var hit: Dictionary = game.terrain.raycast(eye, eye + fwd * (ahead + 0.35), Layers.TERRAIN | Layers.LIFT)
+	if not hit.is_empty():
+		ahead = maxf(0.45, eye.distance_to(hit.position) - 0.35)
+	var at := eye + fwd * ahead + Vector3.DOWN * Tuning.get_f("rescue", "carry_alone_drop", 1.0)
+	var up := (Vector3.UP - fwd * Tuning.get_f("rescue", "carry_alone_lean", 0.45)).normalized()
+	var z := (fwd - up * fwd.dot(up)).normalized() # het gezicht (−Z) naar de drager
+	return Transform3D(Basis(up.cross(z), up, z), at)
+
+
+## Waar de handen van drager `peer` een robot vasthouden (wereld): de schouders, of met twee de heupen
+## voor de tweede drager. INF als hij niemand draagt. Voor zijn armen bij de anderen (RobotRig.reach).
+func grip_of_carrier(peer: int) -> Vector3:
+	for p: int in ragdolls.keys():
+		var c := info(p).carriers
+		var i := c.find(peer)
+		var rd := ragdoll_of(p)
+		if i >= 0 and rd:
+			return rd.torso.global_transform * (Vector3(0.0, -0.05, 0.0) if c.size() >= 2 and i == 1 else Vector3(0.0, 0.3, 0.0))
+	return Vector3.INF
+
+
+## Waar een drager zijn kant van een robot vasthoudt: voor zich op borsthoogte, naar zijn maat toe.
+func _body_hold(p: Player, mate: Vector3) -> Vector3:
+	var to := mate - p.global_position
+	to.y = 0.0
+	var dir := to.normalized() if to.length() > 0.05 else -p.global_basis.z
+	return p.global_position + Vector3.UP * (Player.EYE_STAND - Tuning.get_f("rescue", "carry_two_drop", 0.55)) \
+			+ dir * Tuning.get_f("carry", "team_hold", 0.55)
 
 
 ## Hoeveel deze robot telt bij het vertrek van de Mol (Mol._dock): 1 = achtergebleven (een wrak op de
@@ -541,6 +579,7 @@ func _rpc_carriers(peer: int, carriers: PackedInt32Array) -> void:
 func _physics_process(delta: float) -> void:
 	if game == null or game.terrain == null:
 		return
+	_drag_dust()
 	if multiplayer.is_server():
 		_host_tick(delta)
 	else:
@@ -552,6 +591,31 @@ func _physics_process(delta: float) -> void:
 			if info(peer).carriers.has(me):
 				continue # zelf drager: Carry zet de romp (voorspelling)
 			rd.follow_snapshots(game.mol)
+
+
+## Een robot die alleen gesleept wordt, schuurt over de grond (golf 3, gevoel2-06): om de halve meter een
+## stofwolkje onder zijn benen, op elk peer (enkel beeld; het geluid komt later hier, M6).
+var _drag_from := {} # peer -> plek van de romp bij het vorige wolkje
+
+
+func _drag_dust() -> void:
+	for peer: int in ragdolls.keys():
+		var rd := ragdoll_of(peer)
+		if rd == null or info(peer).carriers.size() != 1:
+			_drag_from.erase(peer)
+			continue
+		var at := rd.torso.global_position
+		var last: Variant = _drag_from.get(peer)
+		if last == null or at.distance_to(last as Vector3) > 3.0:
+			_drag_from[peer] = at
+			continue
+		if Vector2(at.x - (last as Vector3).x, at.z - (last as Vector3).z).length() < 0.5:
+			continue
+		_drag_from[peer] = at
+		var hit: Dictionary = game.terrain.raycast(at, at + Vector3.DOWN * 1.5, Layers.TERRAIN | Layers.LIFT)
+		if not hit.is_empty():
+			var floor_p: Vector3 = hit.position
+			game.fx.grit_puff(floor_p, Vector3.UP, Strata.DEBRIS_COLORS[game.terrain.layer_at(floor_p)])
 
 
 func _host_tick(delta: float) -> void:
@@ -818,6 +882,9 @@ func _rpc_damaged(peer: int, amount: float, source: String) -> void:
 	if pl and pl.is_local and pl.camera_fx:
 		pl.camera_fx.add_trauma(clampf(amount * 1.2, 0.15, 0.6))
 		pl.camera_fx.kick(-4.0 - amount * 10.0, randf_range(-4.0, 4.0))
+		# Het klapmoment (golf 3, gevoel2-02): een flits in de kleur van de bron en een FOV-stoot.
+		if pl.impact_fx:
+			pl.impact_fx.punch(clampf(0.3 + amount * 1.4, 0.3, 1.0), Player.IMPACT_TINTS.get(source, Player.IMPACT_TINTS[""]), source)
 	elif pl and pl.rig:
 		pl.rig.grimace()
 
@@ -886,10 +953,9 @@ func _rpc_broken(peer: int, at: Vector3, melted: bool) -> void:
 	var pl: Player = game.player_node(peer)
 	if pl:
 		pl.on_broken(at)
-		if pl.is_local:
-			if not melted: # gesmolten: Magma gaf al de enige melding (golf 3, binnen2-05)
-				game.notice.emit("Your robot is broken. You're a ghost drone now.", "alarm")
-		else:
+		# Wie zelf kapot is, ziet het groot in beeld (HudRescue, golf 3, ui2-03), en gesmolten gaf Magma al
+		# de enige melding (binnen2-05): voor jezelf geen melding meer, enkel voor de anderen.
+		if not pl.is_local:
 			game.notice.emit("%s's robot is broken." % _name_of(peer), "warn")
 	life_changed.emit(peer, Life.BROKEN)
 

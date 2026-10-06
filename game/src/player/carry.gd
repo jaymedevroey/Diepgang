@@ -243,7 +243,9 @@ func _physics_process(delta: float) -> void:
 		_set_item(null)
 		return
 	# Veer naar het houdpunt: zwaarder = slapper, dus meer naslepen en slingeren.
-	var target := finds.carry_target(item)
+	var two := item.carriers.size() >= 2
+	var xf := finds.carry_xform(item) if two or item.dragged() else Transform3D()
+	var target := xf.origin if two or item.dragged() else finds.carry_target(item)
 	var heavy := 1.0 + item.mass / maxf(Tuning.get_f("carry", "follow_mass_ref", 6.0), 0.1)
 	var k := Tuning.get_f("carry", "follow_stiffness", 260.0) / heavy
 	var c := Tuning.get_f("carry", "follow_damping", 26.0) / sqrt(heavy)
@@ -256,11 +258,16 @@ func _physics_process(delta: float) -> void:
 	_vel += ((target - pos) * k - _vel * c) * delta
 	pos += _vel * delta
 	var yaw_basis := Basis(Vector3.UP, player.rotation.y)
-	if item.dragged():
-		# Slepen: plat op de grond (zoals hij lag), enkel wat schuren in de draaiing, geen kantelen.
-		_drag_t += delta * clampf(Vector2(player.velocity.x, player.velocity.z).length(), 0.0, 3.0)
-		var scrape := Basis(Vector3.UP, sin(_drag_t * 7.0) * 0.03)
-		item.global_transform = Transform3D(yaw_basis * scrape * _rel_basis, pos)
+	if two or item.dragged():
+		# Twee handgrepen (golf 3, gevoel2-03): de vondst spant tussen de grepen (met twee), of het dichtste
+		# uiteinde ligt voor je voeten (slepen, met wat schuren). Hij draait er traag naartoe (zwaar).
+		var rot := item.global_basis.get_rotation_quaternion().slerp(xf.basis.get_rotation_quaternion(),
+				1.0 - exp(-delta * Tuning.get_f("carry", "team_turn_rate", 7.0)))
+		var b := Basis(rot)
+		if item.dragged():
+			_drag_t += delta * clampf(Vector2(player.velocity.x, player.velocity.z).length(), 0.0, 3.0)
+			b = Basis(Vector3.UP, sin(_drag_t * 7.0) * 0.03) * b
+		item.global_transform = Transform3D(b, pos)
 	else:
 		# Kantelen met het naslepen: de onderkant blijft achter, als iets zwaars aan twee handen.
 		var lag := player.head.global_basis.inverse() * (target - pos)
@@ -270,8 +277,8 @@ func _physics_process(delta: float) -> void:
 	_leash()
 
 
-## Met twee dragen: je kan niet verder van je maat dan de vondst toelaat (carry.team_span + de afstand
-## waarop jullie hem vasthouden). Loop je verder, dan houdt het gewicht je terug: een touw, geen muur.
+## Met twee dragen: je kan niet verder van je maat dan de vondst toelaat (team_limit: de afstand tussen
+## de grepen plus jullie armen). Loop je verder, dan houdt het gewicht je terug: een touw, geen muur.
 ## Elk op zijn eigen scherm (zijn maat zoals hij hem ziet), dus het werkt ook met wat vertraging.
 func _leash() -> void:
 	if item.carriers.size() < 2:
@@ -282,8 +289,7 @@ func _leash() -> void:
 			other = player.game.player_node(peer)
 	if other == null:
 		return
-	var hold := Tuning.get_f("carry", "hold_near", 0.62) + item.half_extents.length() * Tuning.get_f("carry", "hold_per_radius", 1.1)
-	var limit := 2.0 * hold + Tuning.get_f("carry", "team_span", 1.0)
+	var limit := team_limit(item)
 	var d := player.global_position - other.global_position
 	d.y = 0.0
 	var dist := d.length()
@@ -294,6 +300,13 @@ func _leash() -> void:
 	var out := player.velocity.dot(away)
 	if out > 0.0:
 		player.velocity -= away * out
+
+
+## Hoe ver twee dragers van `it` hooguit uit elkaar kunnen (vlak gemeten): de afstand tussen de twee
+## grepen, plus aan elke kant de houdafstand, plus carry.team_slack (golf 3: geen 4,9 m touw meer).
+static func team_limit(it: FindItem) -> float:
+	var g := it.grips()
+	return g[0].distance_to(g[1]) + 2.0 * Tuning.get_f("carry", "team_hold", 0.55) + Tuning.get_f("carry", "team_slack", 0.5)
 
 
 ## Een neergegane robot in je armen: de romp volgt het houdpunt met een veer (zwaar: traag), de
@@ -327,17 +340,51 @@ func _process(_delta: float) -> void:
 	if not show:
 		return
 	var cam := player.camera.global_transform
-	var at := rd.torso.get_global_transform_interpolated().origin if rd else item.get_global_transform_interpolated().origin
-	var r := 0.4 if rd else item.half_extents.length()
 	var right := cam.basis.x
 	var up := cam.basis.y
+	# Waar de handen vastpakken (golf 3, gevoel2-03, binnen2-07): een greep op de vondst (met twee je eigen
+	# uiteinde, gesleept het dichtste), of de schouders van een gedragen robot; anders de zijkanten.
+	var grip := Vector3.INF
+	var spread := 0.0
+	var along := Vector3.ZERO
+	var heavy := false
+	if rd:
+		var t := rd.torso.get_global_transform_interpolated()
+		var two: bool = player.game.rescue.carriers_of(body_peer).size() >= 2
+		var mine: int = player.game.rescue.carriers_of(body_peer).find(player.peer_id)
+		grip = t * (Vector3(0.0, -0.05, 0.0) if two and mine == 1 else Vector3(0.0, 0.3, 0.0))
+		along = t.basis.y
+		spread = 0.24
+		heavy = true
+	elif finds.grip_index(item, player.peer_id) >= 0:
+		var xf := item.get_global_transform_interpolated()
+		var g := item.grips()
+		var idx := finds.grip_index(item, player.peer_id)
+		grip = xf * g[idx]
+		along = (xf.basis * (g[1] - g[0])).normalized()
+		spread = minf(item.grip_half_width() * 0.7, Tuning.get_f("carry", "grip_spread_max", 0.24)) + 0.03
+		heavy = true
 	for h in _hands:
 		var side: float = h.get_meta("side")
-		# Handpalm tegen de zijkant van de vondst, iets onder het midden. De hand kantelt zodat de
-		# onderarm schuin naar onder en opzij uit beeld loopt (niet recht naar de camera).
-		var p := at + right * side * (r * 0.78 + 0.02) - up * r * 0.3
+		var p: Vector3
+		if grip != Vector3.INF:
+			# Aan weerszijden van de greep, dwars op de lange as: de handen raken de vondst.
+			var across := right - along * right.dot(along)
+			across = across.normalized() if across.length() > 0.05 else right
+			p = grip + across * side * spread
+		else:
+			# Handpalm tegen de zijkant van de vondst, iets onder het midden.
+			var at := item.get_global_transform_interpolated().origin
+			var r := item.half_extents.length()
+			p = at + right * side * (r * 0.78 + 0.02) - up * r * 0.3
+		# De hand kantelt zodat de onderarm schuin naar onder en opzij uit beeld loopt (niet recht naar de camera).
 		var tilt := cam.basis * Basis(Vector3.UP, deg_to_rad(HAND_YAW * side)) * Basis(Vector3.RIGHT, deg_to_rad(HAND_PITCH))
 		h.global_transform = Transform3D(tilt.scaled_local(Vector3(side, 1.0, 1.0)), p)
+		# Zware stukken hangen in de wereld (belicht door de helmlamp): de handen dan ook, anders zijn het
+		# zwarte vlekken naast een helder bot.
+		for mi in h.get_children():
+			if mi is MeshInstance3D:
+				(mi as MeshInstance3D).layers = 1 if heavy else PickaxeModel.VIEWMODEL_LAYER
 
 
 func _on_carriers_changed(it: FindItem) -> void:

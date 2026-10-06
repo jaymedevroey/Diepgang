@@ -13,7 +13,7 @@ extends Node3D
 
 const VIEWMODEL_FOV := 68.0
 ## Links onder in beeld, het scherm schuin naar je toe.
-const POSE := [Vector3(-0.19, -0.27, -0.4), Vector3(24, 14, 6)]
+const POSE := [Vector3(-0.2, -0.2, -0.46), Vector3(18, 14, 6)]
 const POSE_LOW := [Vector3(-0.3, -0.8, -0.4), Vector3(-30, 20, 0)]
 const SCREEN_PX := Vector2i(320, 240)
 const PHOSPHOR := Color(0.42, 1.0, 0.52)

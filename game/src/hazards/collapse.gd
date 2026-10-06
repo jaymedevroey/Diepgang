@@ -75,6 +75,8 @@ func _process(delta: float) -> void:
 		var plan: Array = e[1]
 		var done: Dictionary = e[2]
 		var warn := Tuning.get_f("collapse", "warn_s", 1.6)
+		if t < warn:
+			_warn_tick(plan, t / warn, delta)
 		for i in plan.size():
 			var r: Array = plan[i]
 			if not done.has(i) and t >= warn + float(r[2]):
@@ -155,11 +157,39 @@ func host_collapse(z: Vector4) -> bool:
 	return true
 
 
+## De waarschuwing zwelt aan (golf 3, gevoel2-01; zonder geluid, M6): wie dichtbij staat, voelt het
+## beeld steeds harder rollen, ziet steentjes uit het plafond van de zone vallen en zijn lamp haperen.
+## `k`: 0..1 door de waarschuwing heen. Enkel beeld, op elk peer zelf.
+var _warn_pebble := 0.0
+
+
+func _warn_tick(plan: Array, k: float, delta: float) -> void:
+	var p: Player = game.local_player
+	if p == null or plan.is_empty() or p.camera_fx == null:
+		return
+	var c: Vector3 = (plan[0] as Array)[0]
+	var near := 1.0 - smoothstep(4.0, Tuning.get_f("collapse", "warn_near_m", 16.0), p.global_position.distance_to(c))
+	if near <= 0.0:
+		return
+	p.camera_fx.hold_rumble(lerpf(0.4, Tuning.get_f("collapse", "warn_rumble_deg", 2.2), k * k) * near)
+	p.camera_fx.hold_trauma(lerpf(0.05, 0.22, k) * near)
+	_warn_pebble -= delta
+	if _warn_pebble <= 0.0:
+		_warn_pebble = lerpf(0.35, 0.12, k)
+		var r: Array = plan[_rng.randi() % plan.size()]
+		var at: Vector3 = (r[0] as Vector3) + Vector3(_rng.randf_range(-0.5, 0.5), 0.0, _rng.randf_range(-0.5, 0.5))
+		game.unrest._spawn_pebble(at, _rng.randf_range(0.06, 0.16))
+		if k > 0.4 and _rng.randf() < 0.5:
+			game.unrest._start_flicker(0.12)
+
+
 @rpc("authority", "call_local", "reliable")
 func _rpc_collapse(at: Vector3, plan: Array) -> void:
 	var warn := Tuning.get_f("collapse", "warn_s", 1.6)
+	var col: Color = Strata.DEBRIS_COLORS[game.terrain.layer_at(at)]
+	_warn_pebble = 0.0
 	for r: Array in plan:
-		game.unrest._dust_stream(r[0], warn + float(r[2]) + 0.4)
+		game.unrest._dust_stream(r[0], warn + float(r[2]) + 0.4, col)
 	_plans.append([0.0, plan, {}])
 	# Kraken: een korte schok voor wie in de buurt is (geluid: M6).
 	var p: Player = game.local_player

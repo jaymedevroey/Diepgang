@@ -203,11 +203,14 @@ func _draw() -> void:
 		draw_polyline(pts, c, 2.0)
 		y += WORM_H
 	if gas:
+		# Op een donker HUD-plaatje met de rand van een alarm (golf 3, ui2-02; UiTheme.draw_chip): in de
+		# gele mist zelf moet hij leesbaar blijven (hud-menu.md §4.9: nooit geel op licht).
 		var word := "GAS  ·  NO DRILLING"
 		var gw := _head.get_string_size(word, HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x
-		var gcol := Color("#E3D24A") if blink else Color("#E3D24A", 0.55)
-		draw_string_outline(_head, Vector2(WIDTH / 2.0 - gw / 2.0, y + 24.0), word, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, 7, Color(0.1, 0.08, 0.0, 0.9))
-		draw_string(_head, Vector2(WIDTH / 2.0 - gw / 2.0, y + 24.0), word, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, gcol)
+		var crit := UiTheme.state_color(UiTheme.State.CRITICAL)
+		UiTheme.draw_chip(self, Rect2(WIDTH / 2.0 - gw / 2.0 - 16.0, y + 1.0, gw + 30.0, GAS_H - 2.0), crit)
+		draw_string(_head, Vector2(WIDTH / 2.0 - gw / 2.0, y + 24.0), word, HORIZONTAL_ALIGNMENT_LEFT, -1, 22,
+				crit if blink else crit.lerp(UiTheme.CREAM, 0.35))
 		y += GAS_H
 	if unrest >= SHOW_UNREST or quake != Unrest.Phase.CALM:
 		var label := "UNREST"

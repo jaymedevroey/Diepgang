@@ -12,6 +12,9 @@ const FACE_SHADER := preload("res://src/player/robot_face.gdshader")
 var velocity := Vector3.ZERO
 var on_floor := true
 var look_pitch := 0.0
+## Waar zijn handen naartoe reiken als hij draagt (wereld): de greep van een zwaar stuk of de kant van
+## een robot die hij draagt (golf 3, gevoel2-03). INF = de gewone draagstand (armen vooruit).
+var reach := Vector3.INF
 
 var _torso: Node3D
 var _head: Node3D
@@ -197,6 +200,11 @@ func _process(delta: float) -> void:
 		if k >= 1.0:
 			_swing_t = -1.0
 	_arm_r.transform = _rest[_arm_r] * Transform3D(Basis(Vector3.RIGHT, right), Vector3.ZERO)
+	if _carrying and reach != Vector3.INF:
+		# Beide armen naar de greep (net naast elkaar): je ziet hem vastpakken, geen zwevend stuk.
+		var side := global_basis.x * 0.11
+		_aim_arm(_arm_l, reach - side)
+		_aim_arm(_arm_r, reach + side)
 
 	# Antenne: veer die reageert op versnelling.
 	var accel := (velocity - _last_velocity) / maxf(delta, 0.0001)
@@ -226,6 +234,19 @@ func _update_face(delta: float, speed: float) -> void:
 	_grimace = maxf(0.0, _grimace - delta)
 	_face.set_shader_parameter("squint", 1.0 if (_swing_t >= 0.0 and _swing_t < 0.25) or _grimace > 0.0 else 0.0)
 	_face.set_shader_parameter("happy", 0.0)
+
+
+## Een arm (die in rust recht naar beneden hangt) naar een punt in de wereld laten wijzen.
+func _aim_arm(arm: Node3D, target: Vector3) -> void:
+	var parent := arm.get_parent() as Node3D
+	if parent == null:
+		return
+	var rest: Transform3D = _rest[arm]
+	var frame := parent.global_transform * rest
+	var d := frame.basis.inverse() * (target - frame.origin)
+	if d.length() < 0.05:
+		return
+	arm.transform = rest * Transform3D(Basis(Quaternion(Vector3.DOWN, d.normalized())), Vector3.ZERO)
 
 
 static func _ease_in(k: float) -> float:

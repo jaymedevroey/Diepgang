@@ -12,39 +12,45 @@ extends RefCounted
 ## Plaatsing volgt uit de seed (FindField), dus elke peer kiest dezelfde soorten.
 
 enum Kind { FEMUR, VERTEBRA, RIB, SKULL, CLAW, LAMP, COINS, BOTTLE, GNOME, TV, GEODE, GOLD,
-		TITAN_SKULL, PELVIS, TITAN_FEMUR, SPINE, TUSK, GLOWSHARD, BLOOM }
+		TITAN_SKULL, PELVIS, TITAN_FEMUR, SPINE, TUSK, GLOWSHARD, BLOOM, GIANT_GEODE, PAYROLL }
 enum Family { SKELETON, RELIC, METAL, JUNK, CRYSTAL }
 
-## Objectnamen in finds.glb.
+## Objectnamen in finds.glb. Golf 3 (ontwerp-8): ook op Roestbol en de Kristalmaan iets om samen te
+## dragen, als vergrote versie van een bestaand model (MESH_SCALE): een reuzengeode (Kristalmaan,
+## breekbaar) en de loonzak van een vorige ploeg (Roestbol, in de kampen).
 const KEYS: Array[String] = ["Femur", "Vertebra", "Rib", "Skull", "Claw", "Lamp", "Coins", "Bottle", "Gnome", "Tv", "Geode", "Gold",
-		"TitanSkull", "Pelvis", "TitanFemur", "Spine", "Tusk", "Glowshard", "Bloom"]
+		"TitanSkull", "Pelvis", "TitanFemur", "Spine", "Tusk", "Glowshard", "Bloom", "Geode", "Coins"]
 const NAMES: Array[String] = ["Femur", "Vertebra", "Rib", "Skull", "Claw", "Miner's lamp", "Coin pouch",
 		"Old bottle", "Garden gnome", "Old TV", "Geode", "Gold nugget",
-		"Titan skull", "Pelvis", "Giant femur", "Spine segment", "Tusk", "Glowshard", "Crystal bloom"]
+		"Titan skull", "Pelvis", "Giant femur", "Spine segment", "Tusk", "Glowshard", "Crystal bloom",
+		"Giant geode", "Payroll sack"]
 const FAMILIES: Array[Family] = [Family.SKELETON, Family.SKELETON, Family.SKELETON, Family.SKELETON, Family.SKELETON,
 		Family.RELIC, Family.METAL, Family.JUNK, Family.JUNK, Family.JUNK, Family.CRYSTAL, Family.METAL,
-		Family.SKELETON, Family.SKELETON, Family.SKELETON, Family.SKELETON, Family.SKELETON, Family.CRYSTAL, Family.CRYSTAL]
+		Family.SKELETON, Family.SKELETON, Family.SKELETON, Family.SKELETON, Family.SKELETON, Family.CRYSTAL, Family.CRYSTAL,
+		Family.CRYSTAL, Family.METAL]
 const BASE_VALUES: Array[int] = [180, 60, 45, 350, 90, 120, 85, 40, 15, 25, 260, 320,
-		600, 360, 280, 150, 220, 240, 420]
+		600, 360, 280, 150, 220, 240, 420, 620, 540]
+## Vergrote modellen (zelfde model, groter): soort -> schaal.
+const MESH_SCALE := {Kind.GIANT_GEODE: 2.8, Kind.PAYROLL: 3.6}
 ## Massa (kg). Boven carry.lift_max (18 kg) til je het niet alleen: alleen sleep je het (traag,
 ## het schuurt), met twee draag je het (ontwerp-8). Titanschedel, bekken en reuzendijbeen. Een heel
 ## Titan-skelet (tot 8 stukken) weegt hooguit ±130 kg: het past in het grote laadruim (140 kg, F1),
 ## niet in het gewone (60 kg).
 const MASSES: Array[float] = [8.0, 3.0, 2.0, 14.0, 2.0, 3.0, 2.0, 1.0, 4.0, 12.0, 6.0, 9.0,
-		28.0, 22.0, 20.0, 10.0, 8.0, 3.0, 6.0]
+		28.0, 22.0, 20.0, 10.0, 8.0, 3.0, 6.0, 26.0, 24.0]
 ## Breekbaarheid (0 = stevig): kristallen en geodes (GDD §4: "gloeiend en breekbaar"). Een klap
 ## kost dan sneller gaafheid, een harde klap breekt ze (FindField._check_impact), en de boor
 ## beschadigt ze meer. Ook verder dan 1 kan (de kristalroos is het broosst).
 const FRAGILITY: Array[float] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.5, 0,
-		0, 0, 0, 0, 0, 1.0, 1.4]
+		0, 0, 0, 0, 0, 1.0, 1.4, 0.5, 0]
 ## Lichtgevende vondsten: kleur van hun licht (een klein lampje zodra ze los zijn). Kapot = uit.
 const GLOW := {Kind.GLOWSHARD: Color(0.35, 0.9, 1.0), Kind.BLOOM: Color(1.0, 0.5, 0.86)}
 ## Kans per soort in elke zone (som hoeft niet 1 te zijn). Per planeet bijgestuurd (PlanetLoot).
-const WEIGHTS_CLAY: Array[float] = [0, 0, 0, 0, 0, 0, 30, 30, 18, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-const WEIGHTS_SAND: Array[float] = [25, 30, 25, 5, 15, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-const WEIGHTS_DEEP: Array[float] = [14, 10, 10, 9, 8, 5, 0, 0, 0, 0, 20, 16, 0, 0, 0, 0, 0, 0, 0]
-const WEIGHTS_GRANITE: Array[float] = [10, 6, 6, 12, 8, 6, 0, 0, 0, 0, 24, 26, 0, 0, 0, 0, 0, 0, 0]
-const WEIGHTS_CRYSTAL: Array[float] = [4, 2, 2, 8, 6, 2, 0, 0, 0, 0, 46, 22, 0, 0, 0, 0, 0, 0, 0]
+const WEIGHTS_CLAY: Array[float] = [0, 0, 0, 0, 0, 0, 30, 30, 18, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+const WEIGHTS_SAND: Array[float] = [25, 30, 25, 5, 15, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+const WEIGHTS_DEEP: Array[float] = [14, 10, 10, 9, 8, 5, 0, 0, 0, 0, 20, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+const WEIGHTS_GRANITE: Array[float] = [10, 6, 6, 12, 8, 6, 0, 0, 0, 0, 24, 26, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+const WEIGHTS_CRYSTAL: Array[float] = [4, 2, 2, 8, 6, 2, 0, 0, 0, 0, 46, 22, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 ## Diep zandsteen: zoveel meter boven de top van het graniet.
 const DEEP_BAND := 14.0
 ## Vondsten met zoveel waarde of meer krijgen een gouden glans bij het vrijkomen.
@@ -113,7 +119,28 @@ static func liftable_alone(mass: float) -> bool:
 
 
 static func mesh(kind: Kind) -> Mesh:
+	if MESH_SCALE.has(kind):
+		return _scaled(KEYS[kind], float(MESH_SCALE[kind]))
 	return _mesh(KEYS[kind])
+
+
+## Een vergrote kopie van een model uit finds.glb (zelfde materialen), eenmaal gemaakt.
+static func _scaled(key: String, s: float) -> Mesh:
+	var cache := "%s@%.2f" % [key, s]
+	if _meshes.has(cache):
+		return _meshes[cache]
+	var src := _mesh(key) as ArrayMesh
+	var out := ArrayMesh.new()
+	for i in src.get_surface_count():
+		var arr := src.surface_get_arrays(i)
+		var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		for j in v.size():
+			v[j] *= s
+		arr[Mesh.ARRAY_VERTEX] = v
+		out.add_surface_from_arrays(src.surface_get_primitive_type(i), arr)
+		out.surface_set_material(i, src.surface_get_material(i))
+	_meshes[cache] = out
+	return out
 
 
 static var _radii := {}
