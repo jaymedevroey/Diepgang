@@ -253,7 +253,9 @@ def niche_tools(ctx, S, R, PN, D, RD, P, rng):
 
 def niche_supply(ctx, S, R, PN, D, RD, P, rng):
     n = Niche("Niche_Supply", *NICHES["Niche_Supply"])
-    shell(ctx, S, R, PN, D, RD, P, n, rng, "SUPPLIES", "LedGreen", back_skip=lambda a, c: c < 1.95)
+    # De prijslijst op de zijwand (z 35,15) zat achter een wandplaat: daar geen plaat (ui2-08).
+    shell(ctx, S, R, PN, D, RD, P, n, rng, "SUPPLIES", "LedGreen", back_skip=lambda a, c: c < 1.95,
+          side_skip=(lambda a, c: 1.85 < a < 2.85 and c > 1.05, None))
     # Rek tegen de achterwand.
     for x in (0.22, 0.72):
         for z in (35.4, 36.95, 38.5):
@@ -263,10 +265,10 @@ def niche_supply(ctx, S, R, PN, D, RD, P, rng):
         blk(P, 0.2, 0.76, y, y + 0.025, 35.38, 38.52, "DarkSteel")
         blk(D, 0.74, 0.76, y + 0.025, y + 0.06, 35.38, 38.52, "Yellow")
     items = [
-        (0, 35.5, 36.2, 0.32, "Cardboard", "ROPE"), (0, 36.35, 36.9, 0.4, "Cardboard", "SCANNERS"),
-        (0, 37.05, 37.6, 0.28, "GreyGreen", ""), (0, 37.7, 38.4, 0.36, "Cardboard", "LADDERS?"),
+        (0, 35.5, 36.2, 0.32, "Cardboard", "DUCT TAPE"), (0, 36.35, 36.9, 0.4, "Cardboard", "SCANNERS"),
+        (0, 37.05, 37.6, 0.28, "GreyGreen", ""), (0, 37.7, 38.4, 0.36, "Cardboard", "EMPTY"),
         (1, 35.45, 36.0, 0.3, "Cardboard", "HEADLAMPS"), (1, 36.1, 36.85, 0.42, "DarkSteel", ""),
-        (1, 37.6, 38.45, 0.3, "Cardboard", "WALKIE-TALKIES"),
+        (1, 37.6, 38.45, 0.3, "Cardboard", "BATTERIES"),  # enkel wat bestaat (ui2-08)
         (2, 35.5, 36.3, 0.36, "Cardboard", "BROKEN"), (2, 37.1, 37.7, 0.24, "Cardboard", ""),
         (2, 37.75, 38.45, 0.38, "Yellow", "SPARE"),
         (3, 35.45, 36.1, 0.22, "Cardboard", ""), (3, 36.2, 37.2, 0.28, "Cardboard", "ARCHIVE 2163"),

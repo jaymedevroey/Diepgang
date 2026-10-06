@@ -307,13 +307,29 @@ def sell_booth(ctx, B):
     fbox(props, (x1 - 0.1, 0.85, z1), Nz, 0.26, 0.34, 0.12, "GreyGreen")
     fbox(det, (x1 - 0.1, 0.85, z1 + 0.12), Nz, 0.12, 0.05, 0.004, "Yellow")
     vent_on(det, (15.85, 0.38, z1), Nz, 0.6, 0.36, 5)
-    py = 2.6
-    fbox(det, (15.98, py, z1), Nz, 0.56, 0.36, 0.006, "Cream", up=(0.04, 1, 0))
+    # Openingsuren onder het raam (de bovenkant krijgt de lichtbak).
+    py = 1.0
+    fbox(det, (15.8, py, z1), Nz, 0.56, 0.36, 0.006, "Cream", up=(0.04, 1, 0))
     for (dv, txt, hgt, m) in ((0.1, "OPENING HOURS", 0.04, DARK_TXT), (0.01, "MON-SUN: WHEN IT SUITS US", 0.022, DARK_TXT),
                               (-0.05, "BREAK: ALWAYS", 0.022, "Red"), (-0.115, "COMPLAINTS: SEE VENDING MACHINE", 0.016, DARK_TXT)):
-        text(det, txt, hgt, (15.98 - dv * 0.04, py + dv, z1 + 0.006), Nz, (0.04, 1, 0), m, fit=0.5, res=1)
+        text(det, txt, hgt, (15.8 - dv * 0.04, py + dv, z1 + 0.006), Nz, (0.04, 1, 0), m, fit=0.5, res=1)
     for (dx, dy) in ((-0.26, 0.16), (0.26, 0.16)):
-        tape_strip(det, (15.98 + dx, py + dy, z1 + 0.006), Nz, (1, 0.5 if dx < 0 else -0.5, 0), 0.12)
+        tape_strip(det, (15.8 + dx, py + dy, z1 + 0.006), Nz, (1, 0.5 if dx < 0 else -0.5, 0), 0.12)
+    # Vanaf de brug was deze kant een donkere kast die een kwart van het beeld vulde (binnen-17). Nu een
+    # verlichte bak boven het raam die zegt waar je verkoopt, met een pijl naar het luik (om de hoek, −x),
+    # een lampje dat de kant verlicht, en geel-zwarte hoekbeschermers.
+    lb = (15.95, 2.62, z1)
+    fbox(props, lb, Nz, 0.92, 0.4, 0.07, "Anthracite")
+    fbox(det, lb, Nz, 0.84, 0.32, 0.006, "Yellow", lift=0.07)
+    fbox(det, lb, Nz, 0.84, 0.02, 0.008, "LedAmber", lift=0.07, dv=-0.17)
+    text(det, "SELL HATCH", 0.085, (16.03, 2.62, z1 + 0.077), Nz, (0, 1, 0), DARK_TXT, fit=0.6)
+    for sg in (1, -1):  # pijl naar links (−x, waar het luik is)
+        fbox(det, lb, Nz, 0.1, 0.03, 0.004, DARK_TXT, up=(sg * 0.7, 0.7, 0), lift=0.077, du=-0.33, dv=sg * 0.03)
+    for xe in (x0 + 0.02, x1 - 0.02):
+        fbox(det, (xe, 0.6, z1), Nz, 0.04, 1.2, 0.008, "Hazard")
+    cyl(det, (15.95, 2.95, z1), (0, 0, 1), 0.24, 0.015, "DarkSteel", segs=8)
+    cyl(det, (15.95, 2.95, z1 + 0.24), (0, -0.6, 0.8), 0.09, 0.025, "Yellow", segs=12, r2=0.075)
+    ctx.glow("ffd08a", (15.95, 2.7, z1 + 0.6), e=0.5)
     ctx.col_box(14.88, x1, 0.0, 2.9, z0, z1)
     ctx.anchor("Sell_Hatch", (14.4, 0.0, 18.3), -90)
 
