@@ -99,7 +99,7 @@ func _run(p: Player) -> void:
 		var site := get_tree().current_scene.find_child("LandingSite", true, false) as Node3D
 		if site:
 			var focus: Vector3 = site.get_meta("focus", site.global_position)
-			var from := land + (focus - land).normalized() * 5.5
+			var from := land + (focus - land).normalized() * 9.0
 			var d := focus - from
 			d.y = 0.0
 			await _ground_shot("plek_vanaf_mol", from, d.normalized(), -4.0)

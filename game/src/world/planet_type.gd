@@ -55,7 +55,7 @@ static func ground(id: Id) -> Dictionary:
 				# Golf 3: violet basaltzand in de laagtes, perzikstof op de ruggen (planeten.md §4.1), donker
 				# basaltgrind en lichte zandsteenscherven, ribbels enkel in de normaal, roodbruine blokken.
 				"g4_low": _hex("4B2E30"), "g4_high": _hex("C98A62"), "g4_peb_a": _hex("3A2424"), "g4_peb_b": _hex("B07A58"),
-				"g4_rock": _hex("4E2A22"), "g4_amt": Vector4(0.8, 0.65, 0.35, 0.7), "g4_amt2": Vector4(0.0, 1.0, 0.0, 0.0),
+				"g4_rock": _hex("4E2A22"), "g4_amt": Vector4(0.8, 0.65, 0.35, 0.45), "g4_amt2": Vector4(0.0, 1.0, 0.0, 0.0),
 				"g4_sheet": Vector4(0.7, 0.5, 26.0, 7.0)}
 
 

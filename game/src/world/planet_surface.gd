@@ -861,6 +861,11 @@ func _commit() -> void:
 	scatter.name = "GroundScatter"
 	scatter.setup(terrain, _seed, planet, landform.landing)
 	add_child(scatter)
+	# Een gecomponeerde landingsplek: een vaste groep met een verhaal schuin vóór de Mol (golf 3).
+	var site := LandingSite.new()
+	site.name = "LandingSite"
+	add_child(site)
+	site.build(terrain, planet, landform.landing, _seed)
 	_out.clear()
 	is_built = true
 	_main_us += Time.get_ticks_usec() - commit_t0
