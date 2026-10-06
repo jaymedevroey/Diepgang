@@ -43,6 +43,12 @@ func _run(p: Player) -> void:
 		for z in [3.5, 4.4, 5.5, 6.5, 7.5]:
 			print("[probe] mol local (0,-1.8,%s) -> hub %s" % [z, hubi * mol.to_world_mol(Vector3(0, -1.8, z))])
 		print("[probe] bay %s" % ship.bay)
+		var vm: Node3D = mol.visual.model
+		for mi: MeshInstance3D in vm.find_children("*", "MeshInstance3D", true, false):
+			var bb: AABB = (vm.global_transform.affine_inverse() * mi.global_transform) * mi.get_aabb()
+			if bb.size.length() > 1.0:
+				print("[probe] mol mesh %s %s" % [mi.name, bb])
+		print("[probe] visual xf rel body %s" % (mol.body.global_transform.affine_inverse() * vm.global_transform))
 		_look(hub, Vector3(3.0, 16.0, 6.5), Vector3(3.0, 0.0, 6.6))
 		await _shot("g3_probe_top", 0.5)
 		_look(hub, Vector3(0.0, 3.0, 13.0), Vector3(4.0, 0.0, 8.0))
@@ -157,6 +163,8 @@ func _run(p: Player) -> void:
 	if only.is_empty() or "shop" in only:
 		c.cash = 4200
 		c.changed.emit()
+		# Golf 3: de toonbanken in de hub, voor de aankoop (de boor T2 op het rek, lege balie, de bokken).
+		await _world_shots("voor")
 		p.camera.make_current()
 		for counter: String in Upgrades.COUNTERS:
 			main._shop.open(c, counter)
@@ -169,6 +177,23 @@ func _run(p: Player) -> void:
 		c.buy(Upgrades.DRILL_T2, Upgrades.TOOL_RACK)
 		await _shot("f1_shop_bought", 0.6)
 		main._shop.close()
+		# De rest kopen (zoals aan elke toonbank), dan dezelfde plekken: het gevolg in de wereld.
+		c.cash = 30000
+		for id: String in Upgrades.ORDER:
+			if not c.has_upgrade(id):
+				c.upgrades.append(id)
+		c.changed.emit()
+		await _wait(1.4)
+		await _world_shots("na")
+		# De boor T2 in de hand (andere kleur, carbidepunt).
+		p.global_position = ship.anchor_position(Upgrades.TOOL_RACK) + Vector3(0, 0.05, 0)
+		await get_tree().physics_frame
+		p.rotation.y = 0.0
+		p.head.rotation.x = deg_to_rad(-12.0)
+		p.camera.make_current()
+		p.select_tool(1)
+		await _shot("g3_drill_t2_hand", 0.8)
+		p.select_tool(0)
 		# Schuld: bevroren.
 		c.cash = -640
 		c.changed.emit()
@@ -216,6 +241,27 @@ func _run(p: Player) -> void:
 		await _shot("f1_scanner_late", 2.5)
 
 	get_tree().quit(0)
+
+
+## Golf 3: het gereedschapsrek, de uitgiftebalie, de Mol-werf en de Mol, telkens op dezelfde plek.
+func _world_shots(tag: String) -> void:
+	var hub: Transform3D = main.game.ship.global_transform
+	var mol: Mol = main.game.mol
+	_look(hub, Vector3(-4.5, 2.7, 24.0), Vector3(-6.8, 2.45, 24.0))
+	await _shot("g3_rack_%s" % tag, 0.5)
+	_look(hub, Vector3(-3.3, 2.75, 28.0), Vector3(-4.8, 2.15, 28.0))
+	await _shot("g3_supply_%s" % tag, 0.3)
+	_look(hub, Vector3(12.7, 3.3, 0.5), Vector3(9.9, 1.4, 0.5))
+	await _shot("g3_yard_%s" % tag, 0.3)
+	_look(hub, Vector3(11.8, 2.4, -1.4), Vector3(9.95, 1.7, -2.6))
+	await _shot("g3_yard_kop_%s" % tag, 0.2)
+	_look(hub, Vector3(7.5, 3.2, 8.0), Vector3(0.0, 1.5, -1.0))
+	await _shot("g3_mol_%s" % tag, 0.3)
+	# De boorkop van dichtbij (vooraan, van de kade) en de flank met de bagagebak.
+	_look(hub, Vector3(5.5, 3.0, -8.5), Vector3(0.0, 2.6, -5.0))
+	await _shot("g3_molkop_%s" % tag, 0.3)
+	_look(hub, Vector3(6.2, 2.2, 5.6), Vector3(3.1, 1.8, 2.6))
+	await _shot("g3_molflank_%s" % tag, 0.3)
 
 
 func _pick(game: Game, kinds: Array) -> Array[FindItem]:

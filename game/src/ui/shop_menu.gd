@@ -2,8 +2,9 @@ class_name ShopMenu
 extends Control
 ## Een toonbank in de hub (E aan het gereedschapsrek, de uitgiftebalie of de Mol-werf): de
 ## upgrades van die toonbank als werkorders, in dezelfde DIG-console als de contractbalie (ui-03).
-## Per kaart: een beeld, de naam, wat je er NIEUW mee kan (GDD §5), een regel uitleg, de prijs voor
-## deze ploeg en de knop (BUY, OWNED, of waarom niet: bevroren rekening, te weinig geld).
+## Per kaart: het echte model (golf 3, ui2-11), de naam, wat je er NIEUW mee kan (GDD §5), een regel
+## uitleg, de prijs voor deze ploeg en de knop (BUY, OWNED, of waarom niet: bevroren rekening, te
+## weinig geld). Na een koop verschijnt het ding ook in de hub (UpgradeShow).
 ## Kopen kan iedereen; de host beslist (Company.buy). Na een koop een stempel PURCHASED op de kaart.
 ## Het spel loopt door; Esc, E of CLOSE sluit.
 
@@ -347,7 +348,8 @@ func _card(id: String) -> Control:
 		status.text = "%s · %s" % [why, UiTheme.euro(price)] if why == "Not enough funds" else why
 		status.add_theme_color_override("font_color", UiTheme.DANGER)
 	else:
-		status.text = "%s for a crew of %d" % [UiTheme.euro(price), company.team_size()]
+		var n := company.team_size()
+		status.text = "%s (%s)" % [UiTheme.euro(price), "solo price" if n == 1 else "price for %d robots" % n]
 		status.add_theme_color_override("font_color", Color("#C9C1B2"))
 	info.add_child(status)
 	var bpad := MarginContainer.new()
@@ -365,66 +367,84 @@ func _card(id: String) -> Control:
 	return p
 
 
-## Het beeld bovenaan een kaart: een eenvoudige tekening van de upgrade op een donkere plaat.
+## Het beeld bovenaan een kaart: het echte model van de upgrade (UpgradeShow.model_for), draaiend in
+## een eigen kleine 3D-wereld, met licht van de toonbank (golf 3, ui2-11: geen pictogrammen meer).
 class _ItemArt extends Control:
 	var menu: ShopMenu
 	var item := ""
+	var _vp: SubViewport
+	var _pivot: Node3D
 
 	func _init() -> void:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
 		clip_contents = true
 
-	func _process(_delta: float) -> void:
-		if is_visible_in_tree():
-			queue_redraw()
+	func _ready() -> void:
+		var box := SubViewportContainer.new()
+		box.stretch = true
+		box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		add_child(box)
+		_vp = SubViewport.new()
+		_vp.own_world_3d = true
+		_vp.msaa_3d = Viewport.MSAA_4X
+		_vp.size = Vector2i(440, 150)
+		box.add_child(_vp)
+		var env := WorldEnvironment.new()
+		var e := Environment.new()
+		e.background_mode = Environment.BG_COLOR
+		e.background_color = Color("#0B0C10")
+		e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+		e.ambient_light_color = Color(0.55, 0.5, 0.45)
+		e.ambient_light_energy = 1.3
+		e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+		env.environment = e
+		_vp.add_child(env)
+		var key := DirectionalLight3D.new()
+		key.light_color = Color(1.0, 0.9, 0.75)
+		key.light_energy = 1.6
+		key.rotation = Vector3(deg_to_rad(-35.0), deg_to_rad(-40.0), 0.0)
+		_vp.add_child(key)
+		var rim := DirectionalLight3D.new()
+		rim.light_color = Color(0.5, 0.75, 1.0)
+		rim.light_energy = 0.7
+		rim.rotation = Vector3(deg_to_rad(-20.0), deg_to_rad(150.0), 0.0)
+		_vp.add_child(rim)
+		_pivot = Node3D.new()
+		_vp.add_child(_pivot)
+		var m := UpgradeShow.model_for(item)
+		_pivot.add_child(m)
+		# Van de goede kant: de boor en de scanner van opzij, de boorkop schuin van voren.
+		match item:
+			Upgrades.DRILL_T2, Upgrades.SCANNER:
+				m.rotation = Vector3(0.0, PI / 2.0, 0.0)
+			Upgrades.MOL_HEAD_T2:
+				m.rotation = Vector3(deg_to_rad(-25.0), deg_to_rad(35.0), 0.0)
+			Upgrades.CARGO:
+				m.rotation = Vector3(0.0, deg_to_rad(-60.0), 0.0)
+		# Het model in beeld: zijn grenzen meten en de camera op die maat zetten.
+		var bb := AABB()
+		var first := true
+		for mi: MeshInstance3D in m.find_children("*", "MeshInstance3D", true, false):
+			var b: AABB = (m.global_transform.affine_inverse() * mi.global_transform) * mi.get_aabb() if mi.is_inside_tree() else mi.get_aabb()
+			bb = b if first else bb.merge(b)
+			first = false
+		m.position = -(m.basis * bb.get_center())
+		var cam := Camera3D.new()
+		cam.fov = 30.0
+		var dist := maxf(bb.size.length(), 0.05) * 0.95 / tan(deg_to_rad(15.0)) * 0.5
+		cam.position = Vector3(0.0, bb.size.length() * 0.18, dist)
+		_vp.add_child(cam)
+		cam.look_at(Vector3.ZERO)
+		cam.current = true
+
+	func _process(delta: float) -> void:
+		if _pivot and is_visible_in_tree():
+			_pivot.rotate_y(delta * 0.6)
+		if _vp:
+			var want := Vector2i(maxi(16, int(size.x)), maxi(16, int(size.y)))
+			if _vp.size != want:
+				_vp.size = want
 
 	func _draw() -> void:
-		var w := size.x
-		var h := size.y
-		var t := menu._time if menu else 0.0
-		draw_rect(Rect2(0, 0, w, h), Color("#0B0C10"))
-		for i in range(0, int(w), 24):
-			draw_line(Vector2(i, 0), Vector2(i, h), Color(1, 1, 1, 0.025))
-		for j in range(0, int(h), 24):
-			draw_line(Vector2(0, j), Vector2(w, j), Color(1, 1, 1, 0.025))
-		var c := Vector2(w * 0.5, h * 0.52)
-		var y := UiTheme.YELLOW
-		match item:
-			Upgrades.DRILL_T2:
-				var tex: Texture2D = load("res://assets/ui/icons/drill.svg")
-				draw_texture_rect(tex, Rect2(c - Vector2(56, 56), Vector2(112, 112)), false, y)
-				_badge(c + Vector2(70, -40), "T2")
-			Upgrades.MOL_HEAD_T2:
-				var tex2: Texture2D = load("res://assets/ui/icons/mol.svg")
-				draw_texture_rect(tex2, Rect2(c - Vector2(60, 60), Vector2(120, 120)), false, y)
-				_badge(c + Vector2(76, -42), "T2")
-			Upgrades.SCANNER:
-				var r := 56.0
-				draw_circle(c, r, Color("#0E2A14"))
-				draw_arc(c, r, 0, TAU, 48, Color(0.42, 1.0, 0.52, 0.8), 3.0)
-				draw_arc(c, r * 0.55, 0, TAU, 40, Color(0.42, 1.0, 0.52, 0.35), 2.0)
-				var a := fmod(t * 2.2, TAU)
-				draw_line(c, c + Vector2(cos(a), sin(a)) * r, Color(0.42, 1.0, 0.52, 0.9), 3.0)
-				for bp: Vector2 in [Vector2(20, -24), Vector2(-30, 12), Vector2(8, 34)]:
-					draw_circle(c + bp, 5.0, Color(0.6, 1.0, 0.6, 0.6 + 0.4 * sin(t * 3.0 + bp.x)))
-			Upgrades.LAMP:
-				var o := c + Vector2(-70, 0)
-				draw_colored_polygon(PackedVector2Array([o, o + Vector2(160, -56), o + Vector2(160, 56)]), Color(1.0, 0.86, 0.55, 0.22))
-				draw_colored_polygon(PackedVector2Array([o, o + Vector2(110, -26), o + Vector2(110, 26)]), Color(1.0, 0.9, 0.65, 0.35))
-				draw_circle(o, 22.0, y)
-				draw_circle(o + Vector2(6, 0), 11.0, Color(1.0, 0.95, 0.8))
-			Upgrades.CARGO:
-				var r2 := Rect2(c - Vector2(70, 44), Vector2(140, 88))
-				draw_rect(r2, Color("#3B2A12"))
-				draw_rect(r2, y, false, 4.0)
-				draw_line(r2.position, r2.end, Color(y, 0.6), 3.0)
-				draw_line(Vector2(r2.position.x, r2.end.y), Vector2(r2.end.x, r2.position.y), Color(y, 0.6), 3.0)
-				var f := UiTheme.heading()
-				var kg := "%d KG" % int(Tuning.get_f("economy", "cargo_kg_t2", 140.0))
-				draw_string(f, Vector2(r2.position.x, r2.end.y + 30), kg, HORIZONTAL_ALIGNMENT_CENTER, r2.size.x, 24, UiTheme.CREAM)
-		draw_rect(Rect2(0, h - 4, w, 4), Color("#2A2E35"))
-
-	func _badge(at: Vector2, text: String) -> void:
-		var f := UiTheme.heading()
-		draw_rect(Rect2(at - Vector2(24, 20), Vector2(56, 36)), UiTheme.DANGER)
-		draw_string(f, at + Vector2(-20, 10), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 26, UiTheme.CREAM)
+		draw_rect(Rect2(0, size.y - 4, size.x, 4), Color("#2A2E35"))

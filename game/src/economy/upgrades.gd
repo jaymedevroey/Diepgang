@@ -125,6 +125,20 @@ static func has_scanner(c: Company) -> bool:
 	return owned(c, SCANNER)
 
 
+## Wat je van de upgrades ziet (golf 3, binnen2-11): de boorkop en de bagagebakken op de Mol, de
+## grote lamp op de helm van de anderen. Op elke peer, na elke wijziging van de firma.
+static func apply_visuals(game: Node, c: Company) -> void:
+	if game == null or c == null:
+		return
+	var mol: Mol = game.get("mol")
+	if mol and mol.visual:
+		mol.visual.set_upgrades(owned(c, MOL_HEAD_T2), owned(c, CARGO))
+	var players: Node = game.get("players")
+	if players:
+		for p: Node in players.get_children():
+			apply_lamp(p as Node3D, c)
+
+
 ## De helmlamp van een speler (lokaal en de kopieën van anderen) naar het niveau van de ploeg.
 ## De lamp en zijn gloed hangen onder CamRig (lokaal) of Head (kopie), zie Player._ready.
 static func apply_lamp(p: Node3D, c: Company) -> void:
@@ -138,6 +152,14 @@ static func apply_lamp(p: Node3D, c: Company) -> void:
 			else:
 				continue
 		var base: Array = l.get_meta("lamp_base")
+		# Golf 3: de grote lamp zie je op de helm van de anderen (de eigen helm zie je niet).
+		if l.name == "HelmetLamp" and l.get_parent() and l.get_parent().name != "CamRig":
+			var housing := l.get_node_or_null("LampT2") as Node3D
+			if t2 and housing == null:
+				housing = UpgradeShow.lamp_t2()
+				l.add_child(housing)
+			if housing:
+				housing.visible = t2
 		if l.name == "HelmetLamp":
 			l.spot_range = Tuning.get_f("economy", "lamp2_range", 42.0) if t2 else float(base[0])
 			l.spot_angle = Tuning.get_f("economy", "lamp2_angle", 58.0) if t2 else float(base[1])

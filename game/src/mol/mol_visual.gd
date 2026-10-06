@@ -240,6 +240,58 @@ func set_gauges(values: Array) -> void:
 		_needles[k][3] = deg_to_rad(135.0 - 270.0 * clampf(values[k], 0.0, 1.0))
 
 
+# --- Upgrades die je ziet (golf 3, binnen2-11) ------------------------------------------------------
+
+## Materialen van de boorkop T2: carbidetanden en -ring in goud, de kegel donker wolfraam.
+const HEAD_T2_MATS := {"Steel": "Gold", "CutterSteel": "DarkSteel"}
+## Bagagebakken van het grotere laadruim op de flanken (lokaal t.o.v. de Mol): achter het midden,
+## boven de rupsen, net buiten de romp (x ±2,92).
+const POD_POS := Vector3(3.14, -1.0, 2.0)
+
+var _head_t2 := false
+var _pods: Node3D
+
+
+## De boorkop T2 en het grotere laadruim tonen (Upgrades.apply_visuals, op elke peer).
+func set_upgrades(head_t2: bool, cargo_t2: bool) -> void:
+	if head_t2 != _head_t2 and _head:
+		_head_t2 = head_t2
+		apply_head_tier(_head, head_t2)
+	if cargo_t2 and _pods == null:
+		_pods = Node3D.new()
+		_pods.name = "CargoPods"
+		model.add_child(_pods)
+		for s in [-1.0, 1.0]:
+			var pod := UpgradeShow.cargo_pod()
+			_pods.add_child(pod)
+			pod.position = Vector3(POD_POS.x * s, POD_POS.y, POD_POS.z)
+			pod.scale = Vector3(1.0, 1.0, 2.0)
+			if s < 0.0:
+				pod.rotation = Vector3(0.0, PI, 0.0) # het bordje naar buiten
+	if _pods:
+		_pods.visible = cargo_t2
+
+
+## Materialen van een boorkop (uit het model van de Mol) voor T1 of T2. Ook voor de bok op de Mol-werf
+## en de kaart in de winkel (UpgradeShow).
+static func apply_head_tier(head: Node3D, t2: bool) -> void:
+	var meshes: Array = head.find_children("*", "MeshInstance3D", true, false)
+	if head is MeshInstance3D:
+		meshes.append(head)
+	for mi: MeshInstance3D in meshes:
+		for i in mi.mesh.get_surface_count():
+			var src := mi.mesh.surface_get_material(i)
+			var n := src.resource_name if src else ""
+			if not HEAD_T2_MATS.has(n):
+				if mi.get_surface_override_material(i) == null:
+					mi.set_surface_override_material(i, palette_material(n, src))
+				continue
+			if not mi.has_meta("t1_%d" % i):
+				var cur := mi.get_surface_override_material(i)
+				mi.set_meta("t1_%d" % i, cur if cur else palette_material(n, src))
+			mi.set_surface_override_material(i, machine_material(HEAD_T2_MATS[n]) if t2 else mi.get_meta("t1_%d" % i))
+
+
 ## Tekst op het statusscherm links van het camerascherm (amber, op dezelfde beeldbuis als de rest).
 func set_readout(text: String) -> void:
 	if _status_body.text != text:

@@ -75,6 +75,8 @@ var screens: Dictionary = {}
 var hub_screens: HubScreens
 ## De taxatiepoort en het verkoopluik als ceremonie (band, scanstraal, licht, podium; golf 3).
 var gate_show: GateShow
+## Upgrades in de wereld: de boor op het rek, pakjes aan de balie, bokken op de Mol-werf (golf 3).
+var upgrade_show: UpgradeShow
 ## De opening van de dropbaai in de vloer (lokaal, x en z), uit de dichte luiken.
 var bay := AABB()
 
@@ -106,6 +108,8 @@ func _ready() -> void:
 	add_lights(model)
 	gate_show = GateShow.new(self)
 	add_child(gate_show)
+	upgrade_show = UpgradeShow.new(self)
+	add_child(upgrade_show)
 	_build_screens()
 	_build_buttons()
 	add_child(HubDropFx.new(self))
@@ -395,6 +399,7 @@ func _build_screens() -> void:
 	hub_screens.setup(game, screens)
 	if gate_show and game and game.company:
 		gate_show.connect_company(game.company)
+		upgrade_show.connect_company(game.company)
 
 
 ## E-knop op de terminal; op de rest een korte uitleg (HINTS). Een leeg punt kijkt met

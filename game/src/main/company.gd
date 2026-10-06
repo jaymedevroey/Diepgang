@@ -86,16 +86,13 @@ func _ready() -> void:
 	add_child(appraisal)
 	if game:
 		game.player_spawned.connect(_on_player_spawned)
-	# Upgrades die je ziet: de helmlamp van iedereen volgt de ploeg.
-	changed.connect(func() -> void:
-		if game and game.players:
-			for p: Player in game.players.get_children():
-				Upgrades.apply_lamp(p, self))
+	# Upgrades die je ziet: de helmlamp van iedereen, de boorkop en het laadruim op de Mol (golf 3).
+	changed.connect(func() -> void: Upgrades.apply_visuals(game, self))
 
 
 ## Elke speler: de helmlamp van de ploeg; de lokale speler krijgt de handscanner (gadget, Q).
 func _on_player_spawned(p: Player) -> void:
-	Upgrades.apply_lamp(p, self)
+	Upgrades.apply_visuals(game, self)
 	if p.is_local and p.camera:
 		var scanner := HandScanner.new()
 		scanner.name = "HandScanner"

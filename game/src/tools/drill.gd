@@ -295,9 +295,8 @@ func _update_tier() -> void:
 	var want := Upgrades.drill_tier(p.game.company) if p and p.game and p.game.company else Strata.Tool.BOOR_T1
 	if want != tool:
 		tool = want
-		var band := _model.get_node_or_null("T2")
-		if band:
-			band.visible = tool >= Strata.Tool.BOOR_T2
+		# Golf 3: T2 zie je (andere kleur, carbidepunt, band en label).
+		DrillModel.set_tier(_model, tool >= Strata.Tool.BOOR_T2)
 
 
 func _set_running(on: bool) -> void:
