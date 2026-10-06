@@ -1677,7 +1677,6 @@ func _update_visual() -> void:
 		for i in _auto_buttons.size():
 			_auto_buttons[i].hint = "E: autopilot · descend to −%d m (%s)" % [int(auto_target(i)), auto_layer(i)]
 		var front: Strata.Layer = game.terrain.layer_at(body.global_position + forward() * (BORE_AHEAD + 2.0))
-		var cargo := cargo_contents()
 		var kg := cargo_mass()
 		var cap := cargo_capacity()
 		var c: Company = game.company
@@ -1685,17 +1684,21 @@ func _update_visual() -> void:
 				"IN THE MAGPIE", "DROP %d" % int(ceil(countdown)), "DROP", "GRAPPLE INBOUND", "TO THE MAGPIE"]
 		var state: String = ("! PIT EDGE" if at_edge else ("! TOO HARD: HEAD T2" if tier() < Strata.Tool.BOOR_T2 else "! TOO HARD")) if blocked else ("DRILLING" if drilling and mode == Mode.DRIVING else states[mode])
 		var ore: PackedInt32Array = game.ores.hold
+		# Golf 3 (ontwerp2-4, ui2-12): de buit als schatting naast de quota, het laadruim met een balk.
+		var hold := Appraisal.hold_items(game)
+		var haul := Appraisal.estimate_haul(hold, c.appraisal.field_contract(), not bool(c.haul.get("target_paid", false))) if c else Vector2i.ZERO
+		var bar := int(round(clampf(kg / maxf(1.0, cap), 0.0, 1.0) * 8.0))
 		visual.set_readout("%s
 DEPTH    %4d m
 %s
-UNREST   %4d%%
-FUEL     %4d%%
+UNREST %3d%%  FUEL %3d%%
+HAUL  %s
 %s
-ORE      %d · €%d
+ORE   ×%d · %s
 QUOTA %s/%s" % [state, int(depth()), _magma_line(), int(game.unrest.value / maxf(1.0, Tuning.get_f("unrest", "stage", 100.0)) * 100.0),
-				int(fuel * 100.0), ("! CARGO %d/%d KG" if kg > cap + 0.01 else "CARGO %d · %d/%d kg") % ([int(ceil(kg)), int(cap)] if kg > cap + 0.01
-				else [cargo.size(), int(ceil(kg)), int(cap)]), OreField.units(ore), OreField.value(ore),
-				UiTheme.euro(c.earned).replace(",", ""), UiTheme.euro(c.quota()).replace(",", "")])
+				int(fuel * 100.0), Appraisal.range_text(haul) if not hold.is_empty() else "EMPTY",
+				("! HOLD %d/%d kg" % [int(ceil(kg)), int(cap)]) if kg > cap + 0.01 else "HOLD %s %d/%d kg" % ["#".repeat(bar) + "·".repeat(8 - bar), int(ceil(kg)), int(cap)],
+				OreField.units(ore), UiTheme.euro(OreField.value(ore)), UiTheme.euro(c.earned), UiTheme.euro(c.quota())])
 		visual.feed_text = "%d m  ·  %s  ·  %.1f m/s" % [int(depth()), HudCompass.layer_name(front, int(game.planet_type)), absf(speed)]
 		if mode == Mode.DROP_COUNTDOWN:
 			visual.feed_text = "HATCHES  ·  DROP IN %d s" % int(ceil(countdown))

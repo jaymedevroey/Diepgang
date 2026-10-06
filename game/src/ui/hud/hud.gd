@@ -74,6 +74,10 @@ var _carry_bar_bg: ColorRect
 var _carry_pct: Label
 var _carry_note: Label
 var _carry_cond_label: Label # "CONDITION", of "TIME LEFT" bij een neergegane ploegmaat
+var _carry_value_cap: Label # "ESTIMATE" of "APPRAISED" onder het bedrag (golf 3)
+## Quota en laadruim linksboven (hub en Mol, golf 3).
+var quota: HudQuota
+var _carry_set: Label # skelet: stukken aan boord en het gewicht van de hele set (golf 3)
 var _toasts: VBoxContainer
 var _banner: PanelContainer
 var _banner_title: Label
@@ -213,6 +217,11 @@ func _build_top() -> void:
 	add_child(objective)
 	_marker = HudMarker.new()
 	add_child(_marker)
+	# De quota en het laadruim, linksboven, enkel in de hub en in de Mol (golf 3, ui2-12).
+	quota = HudQuota.new()
+	quota.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	quota.position = Vector2(24, 18)
+	add_child(quota)
 
 	_host_chip = HudFader.new()
 	_host_chip.hold = 8.0
@@ -328,7 +337,19 @@ func _build_bottom() -> void:
 	_carry_value.add_theme_font_override("font", UiTheme.body(900))
 	_carry_value.add_theme_font_size_override("font_size", 26)
 	_carry_value.add_theme_color_override("font_color", UiTheme.YELLOW)
-	top.add_child(_carry_value)
+	_carry_value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	var vc := VBoxContainer.new()
+	vc.add_theme_constant_override("separation", -4)
+	vc.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	top.add_child(vc)
+	vc.add_child(_carry_value)
+	# Onder het bedrag: "ESTIMATE" (een bandbreedte in het veld, golf 3) of "APPRAISED" (de echte prijs).
+	_carry_value_cap = Label.new()
+	_carry_value_cap.add_theme_font_override("font", UiTheme.heading())
+	_carry_value_cap.add_theme_font_size_override("font_size", MIN_FONT)
+	_carry_value_cap.add_theme_color_override("font_color", Color("#C2BAAC"))
+	_carry_value_cap.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	vc.add_child(_carry_value_cap)
 	# Gaafheid: een label, een balk in de kleuren van de huisstijl, en het percentage.
 	var cond := HBoxContainer.new()
 	cond.add_theme_constant_override("separation", 10)
@@ -359,6 +380,11 @@ func _build_bottom() -> void:
 	_carry_pct.custom_minimum_size.x = 56
 	_carry_pct.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	cond.add_child(_carry_pct)
+	# Een skelet (set): hoeveel stukken al aan boord zijn, en wat de hele set weegt tegenover het
+	# laadruim (golf 3, ontwerp2-6: zeg het als de set niet past).
+	_carry_set = _hud_label(MIN_FONT, UiTheme.body(800), UiTheme.AMBER)
+	_carry_set.visible = false
+	cc.add_child(_carry_set)
 	var keys := HBoxContainer.new()
 	keys.add_theme_constant_override("separation", 6)
 	cc.add_child(keys)
@@ -843,7 +869,7 @@ func _show_quarter(r: Dictionary) -> void:
 		_result_row("Reputation", "%+d" % int(r.get("reputation", 0)), INK_RED)
 		_set_report_stamp("QUOTA MISSED", INK_RED)
 	if bool(r.get("probation", false)):
-		_result_row("Probation: no HIGH-risk contracts", "", INK_RED)
+		_result_row("Probation: no easy claims", "", INK_RED)
 	if bool(r.get("frozen", false)):
 		_result_row("Account frozen until funds are positive", "", INK_RED)
 	var cash := int(r.get("cash", 0))
@@ -976,6 +1002,8 @@ func update(player: Player, game: Game, terrain: TerrainAPI) -> void:
 	_update_hazard(player, game)
 	_update_tools(player)
 	_update_carry(player)
+	quota.blocked = _world_hidden or player.seated
+	quota.update_from(player, game)
 	_update_ore(player, game)
 	_update_prompt(player, game, terrain)
 	_update_pilot(player)
@@ -1120,6 +1148,8 @@ func _update_carry(player: Player) -> void:
 		var g: Game = player.game
 		_carry_name.text = _player_name(g, player.carry.body_peer)
 		_carry_value.text = "DOWN"
+		_carry_value_cap.text = ""
+		_carry_set.visible = false
 		var others := g.rescue.carriers_of(player.carry.body_peer).size() - 1
 		_carry_note.text = "Carried together: get to the Mole" if others > 0 else "To the Mole for repairs · faster with a buddy"
 		var left := clampf(g.rescue.timer_of(player.carry.body_peer) / maxf(1.0, Tuning.get_f("rescue", "downed_s", 90.0)), 0.0, 1.0)
@@ -1142,10 +1172,32 @@ func _update_carry(player: Player) -> void:
 	if it == null:
 		return
 	_carry_name.text = it.display_name()
-	# De waarde is pas aan boord bekend (F1, taxatiepoort); tot dan de waardeklasse.
+	# De exacte waarde is pas aan de poort bekend (F1); in het veld een schatting met een
+	# bandbreedte (golf 3, ontwerp2-4): genoeg om te kiezen, niet de prijs.
 	var known := _appraised_value(it)
-	_carry_value.text = UiTheme.euro(known) if known >= 0 else "€ ?"
-	_carry_note.text = player.carry.note() # slepen, samen, breekbaar, skelet, gewicht (F3: Carry.note)
+	var game_c: Company = player.game.company if player.game else null
+	if known >= 0:
+		_carry_value.text = UiTheme.euro(known)
+		_carry_value.add_theme_color_override("font_color", UiTheme.YELLOW)
+		_carry_value.add_theme_font_size_override("font_size", 26)
+		_carry_value_cap.text = "APPRAISED"
+	elif game_c:
+		_carry_value.text = Appraisal.range_text(game_c.appraisal.estimate_of(it))
+		_carry_value.add_theme_color_override("font_color", UiTheme.AMBER)
+		_carry_value.add_theme_font_size_override("font_size", 22)
+		_carry_value_cap.text = "ESTIMATE"
+	else:
+		_carry_value.text = "€ ?"
+		_carry_value_cap.text = ""
+	# Het gewicht altijd (het laadruim telt kg), dan wat je doet (slepen, samen, breekbaar).
+	var note := player.carry.note() # slepen, samen, breekbaar, skelet, gewicht (F3: Carry.note)
+	var kg := "%d kg" % int(round(it.mass))
+	if it.set_id != "" and note == it.set_label():
+		note = ""
+	_carry_note.text = kg if note == "" or note == kg else "%s · %s" % [kg, note]
+	_carry_set.visible = it.set_id != "" and game_c != null
+	if _carry_set.visible:
+		_carry_set.text = _set_line(player.game, it)
 	var cond := clampf(it.condition, 0.0, 1.0)
 	_carry_bar.anchor_right = cond
 	_carry_bar.offset_right = 0
@@ -1153,6 +1205,26 @@ func _update_carry(player: Player) -> void:
 	_carry_bar.color = col
 	_carry_pct.text = "%d%%" % int(round(cond * 100.0))
 	_carry_pct.add_theme_color_override("font_color", col)
+
+
+## Skelet op het draagkaartje: "Titan skeleton 2/6 aboard · set ±95 kg", en of de hele set in het
+## laadruim past (golf 3, ontwerp2-6).
+func _set_line(game: Game, it: FindItem) -> String:
+	var set_kg := 0.0
+	var aboard := 0
+	var pieces := 0
+	for f: FindItem in game.finds.items:
+		if f.set_id != it.set_id:
+			continue
+		pieces += 1
+		set_kg += f.mass
+		if f.freed and game.mol and game.mol.contains_point(f.global_position):
+			aboard += 1
+	var cap := game.mol.cargo_capacity() if game.mol else 60.0
+	var line := "%s skeleton %d/%d aboard · set ±%d kg" % [it.set_name, aboard, maxi(pieces, it.set_size), int(round(set_kg / 5.0)) * 5]
+	if set_kg > cap + 0.01:
+		line += " · hold %d kg: too heavy" % int(cap)
+	return line
 
 
 func _update_prompt(player: Player, game: Game, terrain: TerrainAPI) -> void:
@@ -1233,7 +1305,12 @@ func _update_prompt(player: Player, game: Game, terrain: TerrainAPI) -> void:
 			else:
 				text = f.display_name()
 			var known := _appraised_value(f)
-			sub = ("%s · condition %d%%" % [UiTheme.euro(known), int(round(f.condition * 100))]) if known >= 0 else 					("%s · condition %d%% · value: appraised aboard" % [FindKinds.CLASS_NAMES[f.value_class], int(round(f.condition * 100))])
+			if known >= 0:
+				sub = "%s · condition %d%%" % [UiTheme.euro(known), int(round(f.condition * 100))]
+			else:
+				# Golf 3 (ontwerp2-4): een schatting en het gewicht; de exacte prijs geeft de poort.
+				sub = "%s (estimate) · %d kg · condition %d%%" % [Appraisal.range_text(game.company.appraisal.estimate_of(f)),
+						int(round(f.mass)), int(round(f.condition * 100))]
 		elif aim == Pickaxe.Aim.TOO_HARD:
 			state = HudCrosshair.State.HARD
 			text = player.active_tool.hint_too_hard()

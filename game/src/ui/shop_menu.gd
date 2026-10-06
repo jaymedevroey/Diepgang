@@ -248,7 +248,7 @@ func _refresh() -> void:
 				others.append(str(Upgrades.COUNTER_IN_TEXT[k]))
 		_note.text = "Upgrades are for the whole crew and you keep them, even after a missed quota. More at the %s." % " and the ".join(others)
 	elif company.has_upgrade(_pending):
-		_note.text = "Purchased: %s. %s." % [str(Upgrades.info(_pending).name), str(Upgrades.info(_pending).does)]
+		_note.text = "Purchased: %s. %s." % [str(Upgrades.info(_pending).name), Upgrades.does(_pending, company)]
 		_note.add_theme_color_override("font_color", UiTheme.GOOD)
 		_pending = ""
 
@@ -324,7 +324,7 @@ func _card(id: String) -> Control:
 	h.autowrap_mode = TextServer.AUTOWRAP_WORD
 	info.add_child(h)
 	var does := Label.new()
-	does.text = str(u.does)
+	does.text = Upgrades.does(id, company)
 	does.add_theme_font_override("font", UiTheme.body(800))
 	does.add_theme_font_size_override("font_size", 21)
 	does.add_theme_color_override("font_color", UiTheme.YELLOW)

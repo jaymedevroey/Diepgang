@@ -475,7 +475,7 @@ func _vars() -> Dictionary:
 		"left_shifts": UiTheme.count(maxi(1, _shifts() - c.shift + 1), "shift"),
 		"rep": "%+d" % c.reputation,
 		"contract": str(c.contract.name) if chosen else "not chosen yet",
-		"risk": Company.RISK_NAMES[int(c.contract.risk)].to_lower() if chosen else "unknown",
+		"risk": Company.RISK_NAMES[c.contract_danger()].to_lower() if chosen else "unknown",
 		"magma": _num(c.contract_magma()),
 		"replacement": UiTheme.euro(Tuning.get_i("company", "replacement_cost", 120)),
 		"robots": clampi(game.players.get_child_count(), 1, 4) if game.players else 1,
@@ -747,7 +747,7 @@ func _tv_layout() -> void:
 			_style(head, UiTheme.screen(), 32, UiTheme.CREAM)
 			_place(sub, _line[1] if _line.size() > 1 else "", Rect2(286, 196, w - 306, 50))
 			_style(sub, UiTheme.screen(), 24, UiTheme.CREAM_DIM)
-			var risk := ("  (RISK %s)" % Company.RISK_NAMES[int(c.contract.risk)]) if c.contract_ready() else ""
+			var risk := ("  (RISK %s)" % Company.RISK_NAMES[c.contract_danger()]) if c.contract_ready() else ""
 			_place(small, "SURFACE %s°C\nMAGMA ×%s%s" % [UiTheme.num(_surface_temp()), _num(c.contract_magma()), risk], Rect2(286, 246, w - 300, 56))
 			_style(small, UiTheme.screen(), 28, UiTheme.AMBER)
 		"shares":
@@ -1080,7 +1080,7 @@ func _paint_board(s: Screen) -> void:
 	_text(s, "quota", "%s / %s" % [UiTheme.euro(c.earned), UiTheme.euro(q)])
 	var contract: Label = s.labels["contract"]
 	if c.contract_ready():
-		var risk := int(c.contract.risk)
+		var risk := c.contract_danger()
 		_text(s, "contract", "%s  ·  RISK %s" % [str(c.contract.name), Company.RISK_NAMES[risk]])
 		contract.add_theme_color_override("font_color", [UiTheme.GOOD, UiTheme.YELLOW, UiTheme.DANGER][risk])
 		contract.modulate.a = 1.0

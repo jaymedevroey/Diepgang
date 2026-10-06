@@ -151,6 +151,23 @@ static func describe(m: Dictionary) -> Array:
 	return [str(m.get("id", "")), Tone.GOOD]
 
 
+## Wat de planeet zelf vraagt, voor de kaart (golf 3, ontwerp2-5): de worm (en wanneer hij wakker
+## wordt), het gas en brokkelige rots, uit dezelfde getallen als het spel (planets.cfg, worm.cfg).
+## [tekst, niveau 0..2] (niveau = Company.planet_danger: de kleur op de kaart).
+static func planet_hazards(planet: int) -> Array:
+	var p := PlanetType.play(clampi(planet, 0, 2) as PlanetType.Id)
+	var worm := float(p.get("worm_mult", 1.0))
+	var gas := float(p.get("gas_mult", 1.0))
+	var wake := Tuning.get_f("worm", "wake_s", 150.0) / maxf(0.1, worm)
+	var half_minutes := maxi(1, int(round(wake / 30.0)))
+	var worm_word := "sleepy" if worm < 0.85 else ("awake" if worm < 1.25 else "restless")
+	var gas_word := "little gas" if gas < 0.65 else ("some gas" if gas < 1.25 else "lots of gas")
+	var line := "worm %s (wakes ±%d:%02d) · %s" % [worm_word, half_minutes / 2, 30 * (half_minutes % 2), gas_word]
+	if float(p.get("quake_mult", 1.0)) > 1.1:
+		line += " · crumbly rock"
+	return [line, Company.planet_danger(planet)]
+
+
 ## "1.4" of "3": zonder overbodige nullen.
 static func _x(v: float) -> String:
 	return str(snappedf(v, 0.01)).trim_suffix(".0")

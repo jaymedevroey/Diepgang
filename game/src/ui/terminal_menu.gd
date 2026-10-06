@@ -300,7 +300,7 @@ func _choose(index: int) -> void:
 	if company.contract == company.options[index]:
 		return
 	if company.option_locked(index):
-		_note.text = "Probation: head office won't sign a HIGH-risk claim with you. Meet a quota first."
+		_note.text = Company.PROBATION_TEXT
 		_note.add_theme_color_override("font_color", UiTheme.DANGER)
 		Sfx.ui("back")
 		return
@@ -347,7 +347,7 @@ func _refresh() -> void:
 	elif c.contract_ready():
 		_note.text = "Board the Mole and pull the LAUNCH lever to drop."
 	else:
-		_note.text = "More risk pays more, but brings risky conditions and faster magma. Miss the quota and head office fines you."
+		_note.text = "Risk counts the planet and the terms. Harsh terms pay more and speed up the magma. Miss the quota and head office fines you."
 
 
 func _first_button(n: Node) -> Button:
@@ -359,6 +359,8 @@ func _first_button(n: Node) -> Button:
 ## de knop. De eerste knop van de kaart is de keuzeknop (tests zoeken hem zo).
 func _option_card(index: int, o: Dictionary, chosen: bool) -> Control:
 	var risk := clampi(int(o.risk), 0, 2)
+	# Het label telt de planeet mee (golf 3, ontwerp2-5); de opbrengst en het magma volgen de voorwaarden.
+	var danger := clampi(int(o.get("danger", Company.danger_of(o))), 0, 2)
 	var planet := clampi(int(o.get("planet", 0)), 0, PlanetType.NAMES.size() - 1)
 	var p := PanelContainer.new()
 	p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -413,6 +415,16 @@ func _option_card(index: int, o: Dictionary, chosen: bool) -> Control:
 	info.add_child(nick)
 	info.add_child(_stat_row("Pay", "×%.2f" % Company.pay_factor(risk), UiTheme.CREAM))
 	info.add_child(_stat_row("Magma rises", "×%.2f" % Company.magma_factor(risk), RISK_INK[risk]))
+	# De planeet zelf: de worm, het gas, brokkelige rots (golf 3: het risico is niet enkel de voorwaarden).
+	var haz: Array = Contracts.planet_hazards(planet)
+	var hz := Label.new()
+	hz.text = "Planet: " + str(haz[0])
+	hz.add_theme_font_override("font", UiTheme.body(800))
+	hz.add_theme_font_size_override("font_size", 18)
+	hz.add_theme_color_override("font_color", [Color("#C9C1B2"), UiTheme.AMBER, UiTheme.DANGER][int(haz[1])])
+	hz.autowrap_mode = TextServer.AUTOWRAP_WORD
+	hz.custom_minimum_size.y = 2 * 24
+	info.add_child(hz)
 	# Voorwaarden van de opdracht (pakket F1 vult `modifiers`); altijd plaats voor drie regels.
 	var cond := Label.new()
 	cond.text = "CONDITIONS"
@@ -441,7 +453,7 @@ func _option_card(index: int, o: Dictionary, chosen: bool) -> Control:
 	v.add_child(bpad)
 	# Risicostempel schuin rechtsonder in het beeld, en SIGNED over de gekozen planeet. Kinderen van
 	# het beeld (een gewone Control): een container zou ze uitrekken.
-	var stamp := InkStamp.make("RISK %s" % Company.RISK_NAMES[risk], RISK_INK[risk], 22, -7.0)
+	var stamp := InkStamp.make("RISK %s" % Company.RISK_NAMES[danger], RISK_INK[danger], 22, -7.0)
 	stamp.fill = Color(0.06, 0.05, 0.05, 0.75)
 	art.add_child(stamp)
 	var signed: InkStamp = null
@@ -506,7 +518,7 @@ func _refresh_warning(c: Company, q: int, shifts: int) -> void:
 		if c.shift >= shifts:
 			lines.append("Signing closes quarter %d: %s of %s so far." % [c.quarter, UiTheme.euro(c.earned), UiTheme.euro(q)])
 	if c.on_probation():
-		lines.append("Probation (reputation %+d): no HIGH-risk contracts until you meet a quota." % c.reputation)
+		lines.append("Probation (reputation %+d): no easy claims until you meet a quota." % c.reputation)
 	_warn.visible = not lines.is_empty()
 	_warn_label.text = "
 ".join(lines)

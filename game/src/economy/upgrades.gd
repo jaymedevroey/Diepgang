@@ -11,7 +11,9 @@ extends RefCounted
 ## - Helmlamp T2 (uitgiftebalie): een bundel die een hele grot verlicht (42 m): erts en korsten van
 ##   ver zien.
 ## - Boorkop T2 (Mol-werf): de Mol boort door graniet en kristal (zelfde laagregels als de handboor).
-## - Groter laadruim (Mol-werf): de grijper tilt meer op (cargo_kg).
+## - Groter laadruim (Mol-werf): de grijper tilt meer op (cargo_kg). Het laadruim groeit ook met de
+##   ploeg (golf 3, ontwerp2-6): de quota schaalt met de ploeg, en een Titan-skelet (62-120 kg) moet
+##   met vier zonder upgrade kunnen passen.
 ## Prijzen in economy.cfg, voor een ploeg van 4; een kleinere ploeg betaalt het deel van haar quota.
 
 const DRILL_T2 := "drill_t2"
@@ -48,7 +50,7 @@ const CATALOG := {
 		"does": "The Mole bores through granite and crystal",
 		"detail": "Drive the Mole into the deep layers. The magma is down there too.", "requires": ""},
 	CARGO: {"counter": MOLE_YARD, "name": "Extended cargo hold",
-		"does": "The grapple lifts 140 kg instead of 60 kg",
+		"does": "The grapple lifts {t2} kg instead of {t1} kg",
 		"detail": "Bring the whole skeleton home. Reinforced floor, same old ramp.", "requires": ""},
 }
 
@@ -59,6 +61,12 @@ static func exists(id: String) -> bool:
 
 static func info(id: String) -> Dictionary:
 	return CATALOG.get(id, {})
+
+
+## Wat de upgrade doet, ingevuld voor deze ploeg (het laadruim hangt af van de ploeggrootte).
+static func does(id: String, c: Company) -> String:
+	var n := c.team_size() if c else 1
+	return str(info(id).get("does", "")).format({"t1": int(cargo_for(n, false)), "t2": int(cargo_for(n, true))})
 
 
 ## Prijs voor een ploeg van `players` robots: de prijs voor 4 × het deel van de quota (company.cfg).
@@ -101,9 +109,16 @@ static func mol_tier(c: Company) -> Strata.Tool:
 	return Strata.Tool.BOOR_T2 if owned(c, MOL_HEAD_T2) else Strata.Tool.BOOR_T1
 
 
-## Wat de grijper kan optillen (kg).
+## Wat de grijper kan optillen (kg): voor deze ploeg, met of zonder het grotere laadruim.
 static func cargo_kg(c: Company) -> float:
-	return Tuning.get_f("economy", "cargo_kg_t2" if owned(c, CARGO) else "cargo_kg", 140.0 if owned(c, CARGO) else 60.0)
+	return cargo_for(c.team_size() if c else 1, owned(c, CARGO))
+
+
+## Laadruim voor een ploeg van `players` robots (economy.cfg): de basis (cargo_kg, met de upgrade
+## cargo_kg_t2) plus cargo_kg_per_robot voor elke robot na de eerste.
+static func cargo_for(players: int, upgraded: bool) -> float:
+	var base := Tuning.get_f("economy", "cargo_kg_t2", 140.0) if upgraded else Tuning.get_f("economy", "cargo_kg", 60.0)
+	return base + Tuning.get_f("economy", "cargo_kg_per_robot", 20.0) * (clampi(players, 1, 4) - 1)
 
 
 static func has_scanner(c: Company) -> bool:

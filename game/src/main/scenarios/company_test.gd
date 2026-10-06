@@ -32,11 +32,33 @@ func _run(_p: Player) -> void:
 	# 1. Een nieuwe firma en drie opdrachten.
 	c.host_setup(SAVE)
 	_expect(c.cash == Tuning.get_i("company", "start_cash", 0) and c.quarter == 1 and c.shift == 1, "nieuwe firma: kas €%d, kwartaal 1, dienst 1" % c.cash)
-	_expect(c.options.size() == 3 and int(c.options[0].risk) == Company.Risk.LOW and int(c.options[2].risk) == Company.Risk.HIGH, "drie opdrachten: laag, middel, hoog risico")
+	# Drie opdrachten: elk een andere planeet en andere voorwaarden (laag, middel, hoog). Het label op
+	# de kaart telt de planeet mee (golf 3, ontwerp2-5): van veilig naar gevaarlijk, de Kristalmaan
+	# nooit LOW en Roestbol nooit HIGH.
+	var tiers := c.options.map(func(o: Dictionary) -> int: return int(o.risk))
+	tiers.sort()
+	var sorted_ok := true
+	var honest := true
+	for i in c.options.size():
+		var o: Dictionary = c.options[i]
+		if i > 0 and int(o.danger) < int(c.options[i - 1].danger):
+			sorted_ok = false
+		if int(o.danger) != Company.danger_of(o) or (int(o.planet) == PlanetType.Id.KRISTALMAAN and int(o.danger) == Company.Risk.LOW) 				or (int(o.planet) == PlanetType.Id.ROESTBOL and int(o.danger) == Company.Risk.HIGH):
+			honest = false
+	_expect(c.options.size() == 3 and tiers == [0, 1, 2], "drie opdrachten: voorwaarden laag, middel, hoog")
+	var labels := {}
+	for o: Dictionary in c.options:
+		labels[int(o.danger)] = true
+	_expect(sorted_ok and honest and labels.size() >= 2, "het risicolabel telt de planeet mee, van veilig naar gevaarlijk, niet drie keer hetzelfde (%s)" % ", ".join(c.options.map(
+			func(o: Dictionary) -> String: return "%s %s" % [PlanetType.NAMES[int(o.planet)], Company.RISK_NAMES[int(o.danger)]])))
+	var hard := 0
+	for i in c.options.size():
+		if int(c.options[i].risk) == Company.Risk.HIGH:
+			hard = i
 	var base := int(Tuning.get_f("company", "quota_base", 5000.0))
 	_expect(c.quota() == int(round(base * 0.4)), "quota voor 1 robot: 40%% van €%d (€%d)" % [base, c.quota()])
 	_expect(not c.contract_ready(), "nog geen opdracht")
-	c.choose(2)
+	c.choose(hard)
 	await get_tree().process_frame
 	while not game.world_ready():
 		await get_tree().physics_frame

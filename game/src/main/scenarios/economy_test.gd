@@ -42,7 +42,7 @@ func _run(p: Player) -> void:
 
 	# 1. Een nieuwe firma: quota en voorwaarden op de kaarten.
 	c.host_setup(SAVE)
-	_expect(c.quota() == 2000, "quota solo kwartaal 1: €%d (40%% van €5000)" % c.quota())
+	_expect(c.quota() == int(round(Tuning.get_f("company", "quota_base", 6000.0) * 0.4)), "quota solo kwartaal 1: €%d (40%% van de basis)" % c.quota())
 	var ok_mods := true
 	for o: Dictionary in c.options:
 		var mods: Array = o.modifiers
@@ -55,6 +55,23 @@ func _run(p: Player) -> void:
 				ok_mods = false
 	_expect(ok_mods, "elke kaart: 2-3 voorwaarden, een troef van haar planeet, zoveel risico's als haar risico (%s)" %
 			" | ".join(c.options.map(func(o: Dictionary) -> String: return ", ".join((o.modifiers as Array).map(func(m: Dictionary) -> String: return str(m.id))))))
+
+	# 1b. Golf 3: het risicolabel telt de planeet mee (ontwerp2-5), het laadruim groeit met de ploeg
+	# (ontwerp2-6), en elke kaart zegt wat de planeet zelf vraagt.
+	var labels_ok := true
+	for planet in 3:
+		for tier in 3:
+			var d := Company.danger_of({"planet": planet, "risk": tier})
+			if (planet == PlanetType.Id.KRISTALMAAN and d == Company.Risk.LOW) or (planet == PlanetType.Id.ROESTBOL and d == Company.Risk.HIGH):
+				labels_ok = false
+	_expect(labels_ok, "risicolabel: de Kristalmaan is nooit LOW, Roestbol nooit HIGH")
+	var cargo_ok := true
+	for n in range(1, 5):
+		if not is_equal_approx(Upgrades.cargo_for(n, false), 60.0 + 20.0 * (n - 1)) or not is_equal_approx(Upgrades.cargo_for(n, true), 140.0 + 20.0 * (n - 1)):
+			cargo_ok = false
+	_expect(cargo_ok, "laadruim per ploeg: 60/80/100/120 kg, met de upgrade 140/160/180/200 kg")
+	_expect(str(Contracts.planet_hazards(PlanetType.Id.KRISTALMAAN)[0]).contains("restless") and int(Contracts.planet_hazards(PlanetType.Id.KRISTALMAAN)[1]) == 2,
+			"kaart: de planeet zegt zelf wat ze vraagt (%s)" % str(Contracts.planet_hazards(PlanetType.Id.KRISTALMAAN)[0]))
 
 	# 2. Een opdracht kiezen: de voorwaarden gaan mee naar de wereld. Op Roestbol: elke planeet heeft nu
 	# haar eigen buit (F3), en enkel daar zit zeker een schedel, een dijbeen en een kabouter.
@@ -74,6 +91,21 @@ func _run(p: Player) -> void:
 	# 3. Einde van de dienst: erts verkocht, vondsten blijven in het laadruim (waarde verborgen).
 	var finds := _pick(game, [FindKinds.Kind.SKULL, FindKinds.Kind.FEMUR, FindKinds.Kind.GNOME])
 	_expect(finds.size() == 3, "drie vondsten om mee te testen (schedel, dijbeen, kabouter)")
+	# Golf 3 (ontwerp2-4): de schatting in het veld bevat altijd de echte prijs, is niet te breed en
+	# ligt niet altijd op dezelfde plek (anders reken je de prijs uit het midden).
+	var est_ok := true
+	var est_pos := {}
+	var est_worst := 0.0
+	for it: FindItem in game.finds.items:
+		var v := int(Appraisal.appraise(it, c.contract, false)[0])
+		var e := Appraisal.estimate(it, c.contract)
+		if v < e.x or v > e.y:
+			est_ok = false
+		if v >= 100:
+			est_worst = maxf(est_worst, float(e.y) / maxf(1.0, float(e.x)))
+			est_pos[int(round(float(v - e.x) / maxf(1.0, float(e.y - e.x)) * 4.0))] = true
+	_expect(est_ok and est_worst < 2.0 and est_pos.size() >= 3,
+			"schatting: de echte waarde zit er altijd in (%d vondsten), hooguit ×%.2f breed, op %d plekken in de band" % [game.finds.items.size(), est_worst, est_pos.size()])
 	var spots := [Vector3(-0.8, -1.2, 2.6), Vector3(0.0, -1.2, 3.0), Vector3(0.8, -1.2, 3.4)]
 	for i in finds.size():
 		_free_at(finds[i], mol.to_world_mol(spots[i]))
@@ -195,10 +227,13 @@ func _run(p: Player) -> void:
 	_expect(str(q_report.get("type", "")) == "quarter" and str(q_report.get("quarter_result", "")) == "gemist",
 			"kwartaalrapport: gemist (geen buit: meteen afgesloten)")
 	_expect(c.cash < 0 and c.reputation == rep0 - 1 and c.quarter == 2, "boete: kas %s (schuld), reputatie %d, kwartaal 2" % [UiTheme.euro(c.cash), c.reputation])
-	_expect(c.on_probation() and c.option_locked(2) and not c.option_locked(0), "proeftijd: de kaart met hoog risico is op slot")
-	c.choose(2)
+	# Golf 3 (ontwerp2-11): op proeftijd is de veiligste kaart op slot, niet de rijkste.
+	var easy := c.safest_option()
+	_expect(c.on_probation() and easy >= 0 and c.option_locked(easy) and not c.option_locked(2 if easy != 2 else 1),
+			"proeftijd: de veiligste kaart (%s) is op slot, de rest blijft open" % str(c.options[easy].name))
+	c.choose(easy)
 	await get_tree().process_frame
-	_expect(not c.contract_ready(), "hoog risico kiezen op proeftijd: geweigerd")
+	_expect(not c.contract_ready(), "de veiligste claim kiezen op proeftijd: geweigerd")
 	_expect(Upgrades.blocker(c, Upgrades.DRILL_T2).begins_with("Account frozen"), "met schuld: de rekening is bevroren")
 	p.global_position = ship.anchor_position("Niche_Tools") + Vector3(0, 0.1, 0)
 	await _wait(0.2)

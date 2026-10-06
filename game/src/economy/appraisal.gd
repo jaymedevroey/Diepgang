@@ -44,6 +44,73 @@ static func appraise(it: FindItem, contract: Dictionary, target_free := true) ->
 	return [value, bonus]
 
 
+## Schatting in het veld (golf 3, ontwerp2-4): een bandbreedte rond wat de poort zal zeggen
+## (dezelfde gaafheid, opbrengst en opkoper; zonder de doelbonus). De echte waarde zit er altijd in,
+## maar niet op een vaste plek (per vondst anders), dus de exacte prijs blijft voor de poort. Zo
+## weet je in de dienst of iets de moeite is en hoe ver je van de quota bent (GDD §3: "nog één
+## fossiel?"). Breedte en ligging in economy.cfg (estimate_*).
+static func estimate(it: FindItem, contract: Dictionary) -> Vector2i:
+	var v := float(appraise(it, contract, false)[0])
+	var h := float(((it.find_id + 1) * 2654435761 + int(it.kind) * 40503) & 0xFFFF) / 65535.0
+	var lo := v * (Tuning.get_f("economy", "estimate_low_min", 0.62) + Tuning.get_f("economy", "estimate_low_span", 0.28) * h)
+	var hi := lo * Tuning.get_f("economy", "estimate_ratio", 1.65)
+	return Vector2i(_nice(lo, false), maxi(_nice(hi, true), _nice(lo, false) + 10))
+
+
+## De schatting van een hele buit: de som van de bandbreedtes, plus de doelbonus als de gezochte
+## soort erbij zit (die is bekend: hij staat op de kaart).
+static func estimate_haul(items: Array, contract: Dictionary, target_free := true) -> Vector2i:
+	var out := Vector2i.ZERO
+	var target := Contracts.target_kind(contract.get("modifiers", []))
+	var target_in := false
+	for it: FindItem in items:
+		var e := estimate(it, contract)
+		out += e
+		target_in = target_in or int(it.kind) == target
+	if target_in and target_free:
+		var b := Contracts.target_bonus(target)
+		out += Vector2i(b, b)
+	return out
+
+
+## Alles wat los in de Mol ligt of daar gedragen wordt (zoals Mol.cargo_mass telt): wat de grijper
+## straks optilt, en dus wat de schatting van de buit telt.
+static func hold_items(game: Node) -> Array:
+	var out: Array = []
+	var mol: Mol = game.mol if game else null
+	if mol == null or mol.body == null or game.finds == null:
+		return out
+	for it: FindItem in game.finds.items:
+		if it.freed and mol.contains_point(it.global_position):
+			out.append(it)
+	return out
+
+
+## "€150–300" (of "€1,200–1,900"): een bandbreedte, met het streepje van een bereik.
+static func range_text(r: Vector2i) -> String:
+	if r.x == r.y:
+		return UiTheme.euro(r.x)
+	return "%s–%s" % [UiTheme.euro(r.x), UiTheme.euro(r.y).trim_prefix("€")]
+
+
+## Ronde getallen voor een schatting: op 10, boven 500 op 50, boven 2.000 op 100.
+static func _nice(v: float, up: bool) -> int:
+	var step := 10.0 if v < 500.0 else (50.0 if v < 2000.0 else 100.0)
+	return int((ceil(v / step) if up else floor(v / step)) * step)
+
+
+## De opdracht waaronder nu geschat wordt: de gekozen (in de dienst), anders die van de open buit.
+func field_contract() -> Dictionary:
+	if company.contract_ready():
+		return company.contract
+	return company.haul.get("contract", {})
+
+
+## Schatting van één vondst (−1, −1 zonder opdracht: in de hub voor de eerste dienst).
+func estimate_of(it: FindItem) -> Vector2i:
+	return estimate(it, field_contract())
+
+
 ## Set van een vondst: [set_id, set_size] (de eigenschappen van pakket F3; zonder die eigenschappen
 ## ook als metadata, voor tests), of ["", 0].
 static func set_of(it: Object) -> Array:
@@ -104,6 +171,35 @@ func unappraised_items() -> Array:
 		if it and not is_appraised(it.find_id):
 			out.append(it)
 	return out
+
+
+# --- Laden in het laadruim (lokaal) -------------------------------------------------------------
+
+## Lokaal: wat los in de Mol ligt (find_id -> true), om te zien wat er net bijkwam.
+var _hold_ids := {}
+var _hold_timer := 0.0
+
+
+## Wie een vondst in de Mol neerlegt, krijgt één melding met het gewicht en wat het laadruim nu
+## draagt (golf 3, ui2-12: de limiet zie je aankomen, niet pas aan de hendel).
+func _process(delta: float) -> void:
+	_hold_timer -= delta
+	if _hold_timer > 0.0 or company == null or company.game == null or company.game.mol == null or company.game.finds == null:
+		return
+	_hold_timer = 0.25
+	var mol: Mol = company.game.mol
+	var me := multiplayer.get_unique_id() if multiplayer.has_multiplayer_peer() else 1
+	var now := {}
+	for it: FindItem in mol.cargo_contents():
+		now[it.find_id] = true
+		if not _hold_ids.has(it.find_id) and it.last_carriers.has(me) and mol.mode != Mol.Mode.DOCKED:
+			var kg := mol.cargo_mass()
+			var cap := mol.cargo_capacity()
+			if kg > cap + 0.01:
+				company.game.notice.emit("Hold %d/%d kg: too heavy for the grapple. Take something out." % [int(ceil(kg)), int(cap)], "warn")
+			else:
+				company.game.notice.emit("Hold +%d kg: %d/%d kg" % [int(round(it.mass)), int(ceil(kg)), int(cap)], "mol")
+	_hold_ids = now
 
 
 ## Dictionary-sleutels: na JSON en het netwerk zijn het strings, dus altijd strings.

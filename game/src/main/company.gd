@@ -14,8 +14,12 @@ extends Node
 ## - Kwartaal: na `shifts` diensten, bij het afsluiten van de laatste: doel gehaald (reputatie +1,
 ##   het volgende doel hoger) of gemist (boete = schuld, reputatie −1).
 ## - Gevolgen (F1; waar het GDD zwijgt): met schuld is de rekening bevroren (geen upgrades) en rekent
-##   de firma rente per dienst; met reputatie onder 0 (proeftijd) geen opdracht met hoog risico (GDD:
-##   "reputatie bepaalt welke planeten je mag doen"). Upgrades blijven altijd (GDD §3.10).
+##   de firma rente per dienst; met reputatie onder 0 (proeftijd) geeft de firma je de veiligste claim
+##   niet (golf 3, ontwerp2-11: "DIG stuurt je naar de rotklus"; GDD: "reputatie bepaalt welke planeten
+##   je mag doen"). Upgrades blijven altijd (GDD §3.10).
+## - Risico (golf 3, ontwerp2-5): `risk` is wat de voorwaarden vragen (aantal risicoregels, magma,
+##   opbrengst); `danger` is het label op de kaart: de planeet zelf telt mee (Kristalmaan is nooit LOW,
+##   Roestbol nooit HIGH). De kaarten staan van veilig naar gevaarlijk.
 ## Getallen in company.cfg en economy.cfg.
 
 ## De toestand veranderde (op elke peer): terminal en HUD bijwerken.
@@ -30,6 +34,10 @@ signal buy_denied(id: String, reason: String)
 enum Risk { LOW, MID, HIGH }
 const RISK_NAMES := ["LOW", "MEDIUM", "HIGH"]
 const RISK_KEYS := ["low", "mid", "high"]
+## Sleutels per planeet (PlanetType.Id) in company.cfg (danger_*).
+const PLANET_KEYS := ["roestbol", "fossiel", "kristal"]
+## Wat de firma zegt als je op proeftijd de veiligste claim wil (golf 3, ontwerp2-11).
+const PROBATION_TEXT := "Probation: head office keeps the easy claims for crews in good standing. Meet a quota first."
 ## 2: upgrades, voorwaarden en de open taxatie (F1). Een save van versie 1 laadt gewoon.
 const SAVE_VERSION := 2
 
@@ -149,9 +157,47 @@ func on_probation() -> bool:
 	return reputation < 0
 
 
-## Opdracht `index` mag niet gekozen worden (proeftijd en hoog risico)?
+## Opdracht `index` mag niet gekozen worden? Op proeftijd geeft de firma je de veiligste claim niet
+## (golf 3, ontwerp2-11): je moet je reputatie terugverdienen met een riskantere klus, en de rijkste
+## kaart blijft open.
 func option_locked(index: int) -> bool:
-	return index >= 0 and index < options.size() and int(options[index].risk) == Risk.HIGH and on_probation()
+	return on_probation() and index >= 0 and index == safest_option()
+
+
+## De veiligste opdracht van de drie (laagste label, dan de minste voorwaarden), of −1.
+func safest_option() -> int:
+	var best := -1
+	for i in options.size():
+		if best < 0 or _danger_key(options[i]) < _danger_key(options[best]):
+			best = i
+	return best
+
+
+static func _danger_key(o: Dictionary) -> int:
+	return int(o.get("danger", o.get("risk", 0))) * 10 + int(o.get("risk", 0))
+
+
+## Hoe gevaarlijk een planeet zelf is (0..2: worm, gas, bevingen), voor het risicolabel (company.cfg).
+static func planet_danger(planet: int) -> int:
+	var i := clampi(planet, 0, PLANET_KEYS.size() - 1)
+	return clampi(Tuning.get_i("company", "danger_" + PLANET_KEYS[i], i), 0, 2)
+
+
+## Het risicolabel van een opdracht (Risk): de planeet plus wat de voorwaarden vragen. Som tot
+## danger_low_max = LOW, tot danger_mid_max = MEDIUM, daarboven HIGH (company.cfg).
+static func danger_of(o: Dictionary) -> int:
+	var sum := planet_danger(int(o.get("planet", 0))) + clampi(int(o.get("risk", 0)), 0, 2)
+	if sum <= Tuning.get_i("company", "danger_low_max", 1):
+		return Risk.LOW
+	if sum <= Tuning.get_i("company", "danger_mid_max", 2):
+		return Risk.MID
+	return Risk.HIGH
+
+
+## Het label van de gekozen opdracht (of van de buit die nog open staat), voor de schermen.
+func contract_danger() -> int:
+	var o: Dictionary = contract if contract_ready() else haul.get("contract", {})
+	return int(o.get("danger", danger_of(o))) if not o.is_empty() else Risk.LOW
 
 
 static func pay_factor(risk: int) -> float:
@@ -191,6 +237,14 @@ func _make_options() -> void:
 		var tmp: int = planets[i]
 		planets[i] = planets[j]
 		planets[j] = tmp
+	# Drie dezelfde labels (Roestbol met harde voorwaarden, Kristalmaan met zachte: alles MEDIUM) is
+	# geen keuze: dan schuiven de planeten één plek op (golf 3, de seeds blijven dezelfde).
+	var same := true
+	for r in range(1, planets.size()):
+		if danger_of({"planet": planets[r], "risk": r}) != danger_of({"planet": planets[0], "risk": 0}):
+			same = false
+	if same:
+		planets.push_back(planets.pop_front())
 	for r in [Risk.LOW, Risk.MID, Risk.HIGH]:
 		var s := rng.randi_range(1, 999999)
 		options.append({"seed": s, "risk": r, "planet": int(planets[r]), "name": "CLAIM %d" % (s % 97 + 1)})
@@ -199,6 +253,9 @@ func _make_options() -> void:
 	mrng.seed = _company_seed * 4421 + shifts_total * 977 + 3
 	for o: Dictionary in options:
 		o["modifiers"] = Contracts.roll(mrng, int(o.planet), int(o.risk))
+		o["danger"] = danger_of(o)
+	# Van veilig naar gevaarlijk (het label telt de planeet mee, golf 3).
+	options.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return _danger_key(a) < _danger_key(b))
 
 
 func state() -> Dictionary:
@@ -281,7 +338,7 @@ func _host_choose(index: int) -> void:
 	if haul_open():
 		host_settle(true)
 	if option_locked(index):
-		game.notice_all("Probation: head office won't sign a HIGH-risk claim with you. Meet a quota first.", "warn")
+		game.notice_all(PROBATION_TEXT, "warn")
 		_broadcast()
 		return
 	contract = options[index]
@@ -289,7 +346,7 @@ func _host_choose(index: int) -> void:
 	_broadcast()
 	game.host_new_world(int(contract.seed), int(contract.get("planet", 0)))
 	# Soort "contract": wie hem net aan de terminal koos, zag dat al (de HUD toont hem dan niet, ui-03).
-	game.notice_all("Contract chosen: %s (risk %s)." % [contract.name, RISK_NAMES[int(contract.risk)]], "contract")
+	game.notice_all("Contract chosen: %s (risk %s)." % [contract.name, RISK_NAMES[contract_danger()]], "contract")
 	_save()
 
 
@@ -325,7 +382,7 @@ func _host_buy(sender: int, id: String, counter: String) -> void:
 	cash -= price
 	upgrades.append(id)
 	_broadcast()
-	game.notice_all("Bought: %s (%s). %s." % [str(Upgrades.info(id).name), UiTheme.euro_signed(-price), str(Upgrades.info(id).does)], "contract")
+	game.notice_all("Bought: %s (%s). %s." % [str(Upgrades.info(id).name), UiTheme.euro_signed(-price), Upgrades.does(id, self)], "contract")
 	_save()
 
 
@@ -518,6 +575,7 @@ func _load() -> bool:
 	for o: Dictionary in options:
 		for k in ["seed", "risk", "planet"]:
 			o[k] = int(o.get(k, 0))
+		o["danger"] = int(o.get("danger", danger_of(o)))
 	# Een buit die openstond toen er bewaard werd: het hoofdkantoor heeft hem intussen opgekocht.
 	if haul_open():
 		var left_value := int(haul.get("left_value", 0))
