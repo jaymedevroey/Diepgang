@@ -466,7 +466,8 @@ func _aboard(world: Vector3) -> bool:
 
 ## Host: de dienst afsluiten. `forced`: er wordt getekend terwijl er nog buit ligt; die koopt het
 ## hoofdkantoor op aan unsold_factor. Daarna de volgende dienst, of het einde van het kwartaal.
-func host_settle(forced: bool, leftover_value := -1) -> void:
+## `quiet`: de verkoop meldde het al (één melding per gebeurtenis, golf 3).
+func host_settle(forced: bool, leftover_value := -1, quiet := false) -> void:
 	if not haul_open():
 		return
 	var left := 0
@@ -515,7 +516,7 @@ func host_settle(forced: bool, leftover_value := -1) -> void:
 		report["frozen"] = in_debt()
 	else:
 		shift += 1
-		if not forced:
+		if not forced and not quiet:
 			game.notice_all("Haul sold: %s for %s. On to shift %d." % [UiTheme.count(sold.size(), "find"),
 					UiTheme.euro(int(haul.get("sold_value", 0)) + int(haul.get("set_bonus", 0)) + int(haul.get("target_bonus", 0))), shift], "contract")
 	haul = {}

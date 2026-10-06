@@ -133,7 +133,9 @@ func _run(p: Player) -> void:
 		it.global_position = Vector3(gate.x, floor_y + it.rest_height() + 0.05, gate.z + (i - 0.5) * 0.7)
 		it.linear_velocity = Vector3.ZERO
 		it.angular_velocity = Vector3.ZERO
-	await _wait(3.0)
+	# Golf 3: elk stuk krijgt de scanstraal (scan_s) en de band staat stil terwijl de teller loopt
+	# (reveal_hold_s): het tweede stuk komt pas daarna.
+	await _wait(Tuning.get_f("economy", "scan_s", 0.9) * 2.0 + Tuning.get_f("economy", "reveal_hold_s", 1.8) + 0.8)
 	_expect(reveals.size() == 2, "twee vondsten door de poort: twee onthullingen (%d)" % reveals.size())
 	if reveals.size() == 2:
 		var gap := float(reveals[1][1] - reveals[0][1]) / 1000.0

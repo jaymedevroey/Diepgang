@@ -1,33 +1,64 @@
 class_name Appraisal
 extends Node
-## Taxatie en verkoop aan boord (GDD §3.9, M3 stap 8; ontwerp-9). Na de dienst blijven de vondsten
-## in het laadruim. Je draagt ze door de taxatiepoort op de kade: elk stuk wordt één voor één
-## onthuld (soort, gaafheid, waarde), met een moment (gloed, tekst boven de vondst, het scherm aan de
-## poort, een melding). Tot dan is de waarde verborgen (FindField._reveal_text, de HUD). Aan het
-## verkoopluik (E) verkoop je alles wat getaxeerd is: geld in de teamkas.
+## Taxatie en verkoop aan boord (GDD §3.9, M3 stap 8; ontwerp-9; golf 3: de ceremonie).
+## Na de dienst blijven de vondsten in het laadruim. Op de kade loopt een band van de klep van de Mol
+## door de taxatiepoort naar het verkoopluik (golf 3, ontwerp2-9): wat je erop legt, rijdt vanzelf
+## de poort in. Daar stopt de band, een scanstraal gaat over het stuk en het scherm boven de poort
+## onthult het (soort, gaafheid als stempel, een teller die oploopt, de doel- of setbonus, de quota);
+## het licht in de poort kleurt naar de waardeklasse. Wie zelf door de poort draagt, wordt ook
+## gescand; wie het scherm niet ziet, krijgt de onthulling in de HUD (HudReveal). Tot dan is de
+## waarde enkel een schatting (estimate). Aan het verkoopluik (E) verkoop je alles wat getaxeerd
+## is: de stukken gaan één voor één het luik in, het scherm op de toonbank telt op en vult de
+## quotabalk (GateShow, HubScreens).
 ## - Waarde = basis × gaafheid × opbrengst van de opdracht × opkoper (Contracts), plus de bonus voor
 ##   de doelvondst (de eerste van die soort).
 ## - Sets (pakket F3 geeft vondsten `set_id` en `set_size`): zijn alle stukken van een set verkocht
 ##   na dezelfde dienst, dan komt er set_bonus × hun waarde bij (economy.cfg). Lege set_id = geen set.
 ## - Is alles verkocht, dan sluit de firma de dienst af (Company.host_settle).
-## De host beslist (poort, afstand tot het luik, waarde); iedereen krijgt de onthulling en de verkoop.
-## Kind van Company (Game/Company/Appraisal), op elke peer.
+## De host beslist (band, poort, afstand tot het luik, waarde); iedereen krijgt de scan, de
+## onthulling en de verkoop. Kind van Company (Game/Company/Appraisal), op elke peer.
+## Geluid: enkel haken (`cue`), de echte opnames komen apart (golf 3: geen geluid uit code).
 
-## Een vondst werd onthuld (op elke peer): {find_id, kind, name, condition, value, bonus, pos}.
+## Een vondst werd onthuld (op elke peer): {find_id, kind, name, condition, value, bonus, pos,
+## value_class, set: [naam, getaxeerd in de buit, grootte, in de buit] of [], set_done}.
 signal revealed(info: Dictionary)
-## Er werd verkocht (op elke peer): {count, value, set_bonus, sets: [naam], target_bonus, by}.
+## De scanstraal begint over een vondst te gaan (op elke peer): {find_id, kind, name, pos}.
+signal scan_started(info: Dictionary)
+## Er werd verkocht (op elke peer): {count, value, set_bonus, sets, target_bonus, by, items:
+## [[naam, waarde, find_id]], ids, earned_before, earned_after, quota, last}.
 signal sold(info: Dictionary)
+## Haak voor geluid (op elke peer): "gate_scan", "reveal" (met de waardeklasse), "set_complete",
+## "belt_start", "belt_stop", "hatch_item", "payout", "quota_met". De opnames komen apart.
+signal cue(cue_name: String, pos: Vector3, value_class: int)
 
 ## De opening van de poort rond het lege punt Appraisal_Gate (lokaal, m).
 const GATE_BOX := AABB(Vector3(-0.8, 0.0, -0.8), Vector3(1.6, 2.6, 1.6))
+## De band (lokaal t.o.v. Appraisal_Gate): van de voet van de klep van de Mol (x −3,45, GateShow
+## legt daar het verlengde) door de poort tot vlak voor het verkoopluik (x 1,65, het model).
+const BELT_X := Vector2(-3.45, 1.65)
+const BELT_HALF_W := 0.95
+## Op de band wordt een stuk enkel gescand als het onder de scanner staat (|x| kleiner dan dit).
+const SCAN_ZONE := 0.22
+## Hier stopt de band een stuk (lokaal x): het wacht aan het einde op de verkoop.
+const BELT_END := 1.3
 
 var company: Company
-## Host: vondsten in de poort die op hun onthulling wachten (één voor één).
-var _queue: Array[int] = []
 var _gap := 0.0
-## Lokaal: wat het laatst onthuld werd (het scherm aan de poort).
+## Host: de vondst onder de scanstraal (−1 = geen), de tijd sinds de scan begon, en hoe lang de band
+## nog stilstaat na een onthulling (de teller loopt op het scherm).
+var _scan_id := -1
+var _scan_t := 0.0
+var _hold := 0.0
+var _belt_was_running := false
+## Lokaal: wat het laatst onthuld werd (het scherm aan de poort) en verkocht (het luik).
 var last_reveal: Dictionary = {}
 var last_sale: Dictionary = {}
+## Lokaal: wanneer (ms) de laatste scan begon, de laatste onthulling kwam en de laatste verkoop.
+var scan_at := -100000
+var reveal_at := -100000
+var sale_at := -100000
+## Lokaal: de vondst onder de scanstraal (−1 = geen).
+var scanning_id := -1
 
 
 # --- Waarde --------------------------------------------------------------------------------------
@@ -207,35 +238,117 @@ static func _key(find_id: int) -> String:
 	return str(find_id)
 
 
-# --- De poort (host) -----------------------------------------------------------------------------
+# --- De band en de poort (host) ----------------------------------------------------------------
 
 ## Staat een wereldpunt in de opening van de taxatiepoort?
 func in_gate(world: Vector3) -> bool:
+	var l := _gate_local(world)
+	return l != Vector3.INF and GATE_BOX.has_point(l)
+
+
+## Een wereldpunt t.o.v. het lege punt Appraisal_Gate (INF zonder schip).
+func _gate_local(world: Vector3) -> Vector3:
 	var ship: Ekster = company.game.ship if company.game else null
 	if ship == null or not ship.anchors.has("Appraisal_Gate"):
+		return Vector3.INF
+	return (ship.anchors["Appraisal_Gate"] as Node3D).global_transform.affine_inverse() * world
+
+
+## Ligt een vondst op de band (los, niet gedragen)?
+func on_belt(it: FindItem) -> bool:
+	if not it.freed or not it.carriers.is_empty():
 		return false
-	var gate := (ship.anchors["Appraisal_Gate"] as Node3D).global_transform
-	return GATE_BOX.has_point(gate.affine_inverse() * world)
+	var l := _gate_local(it.global_position)
+	return l != Vector3.INF and l.x > BELT_X.x and l.x < BELT_X.y and absf(l.z) < BELT_HALF_W and l.y < 1.2
+
+
+## Draait de band nu (niet stil voor een scan of een onthulling)? Voor het beeld (GateShow), op elke peer.
+func belt_running() -> bool:
+	return company.haul_open() and scanning_id < 0 \
+			and Time.get_ticks_msec() > reveal_at + int(Tuning.get_f("economy", "reveal_hold_s", 1.8) * 1000.0)
 
 
 func _physics_process(delta: float) -> void:
 	if company == null or company.game == null or not multiplayer.has_multiplayer_peer() or not multiplayer.is_server():
 		return
 	if not company.haul_open():
-		_queue.clear()
+		_scan_id = -1
 		return
-	for it: FindItem in unappraised_items():
-		if it.freed and not _queue.has(it.find_id) and in_gate(it.global_position):
-			_queue.append(it.find_id)
 	_gap -= delta
-	if _gap > 0.0 or _queue.is_empty():
+	_hold -= delta
+	if _scan_id >= 0:
+		_scan_t += delta
+		var cur: FindItem = company.game.finds.item(_scan_id)
+		if cur == null or is_appraised(_scan_id):
+			_scan_id = -1
+		elif _scan_t >= Tuning.get_f("economy", "scan_s", 0.9):
+			_scan_id = -1
+			host_appraise(cur)
+			_hold = Tuning.get_f("economy", "reveal_hold_s", 1.8)
+			_gap = Tuning.get_f("economy", "reveal_gap_s", 1.1)
+	elif _hold <= 0.0 and _gap <= 0.0:
+		for it: FindItem in unappraised_items():
+			if not it.freed:
+				continue
+			var l := _gate_local(it.global_position)
+			if l == Vector3.INF:
+				break
+			# Gedragen: overal in de poort. Op de band: als hij onder de scanner staat. Los in de poort
+			# maar naast de band (neergezet): ook.
+			var belt := on_belt(it)
+			var ready := absf(l.x) < SCAN_ZONE if belt else GATE_BOX.has_point(l)
+			if ready:
+				_scan_id = it.find_id
+				_scan_t = 0.0
+				_rpc_scan.rpc(it.find_id)
+				break
+	_move_belt()
+
+
+## Host: wat op de band ligt, rijdt naar het luik; tijdens een scan en een onthulling staat de band
+## stil (één stuk tegelijk onder de scanner). Aan het einde blijft het liggen tot de verkoop.
+func _move_belt() -> void:
+	var ship: Ekster = company.game.ship
+	if ship == null or not ship.anchors.has("Appraisal_Gate"):
 		return
-	var id: int = _queue.pop_front()
-	var it: FindItem = company.game.finds.item(id)
-	if it == null or is_appraised(id):
-		return
-	host_appraise(it)
-	_gap = Tuning.get_f("economy", "reveal_gap_s", 1.1)
+	var running := _scan_id < 0 and _hold <= 0.0
+	var speed := Tuning.get_f("economy", "belt_speed", 0.6)
+	var basis := (ship.anchors["Appraisal_Gate"] as Node3D).global_basis
+	var any_moving := false
+	for it: FindItem in company.game.finds.items:
+		if not on_belt(it):
+			continue
+		var l := _gate_local(it.global_position)
+		var v := it.linear_velocity
+		var want := Vector3.ZERO
+		if running and l.x < BELT_END:
+			# Naar het midden van de band schuiven als hij op de rand ligt.
+			want = Vector3(speed, 0.0, clampf(-l.z * 1.5, -0.4, 0.4) if absf(l.z) > 0.55 else 0.0)
+			any_moving = true
+		var w := basis * want
+		it.linear_velocity = Vector3(w.x, minf(v.y, 0.5), w.z)
+		if want != Vector3.ZERO:
+			it.angular_velocity = it.angular_velocity * 0.8
+	if any_moving != _belt_was_running:
+		_belt_was_running = any_moving
+		_rpc_belt.rpc(any_moving)
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_belt(on: bool) -> void:
+	var at: Vector3 = company.game.ship.anchor_position("Appraisal_Gate") if company.game.ship else Vector3.ZERO
+	cue.emit("belt_start" if on else "belt_stop", at, -1)
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_scan(find_id: int) -> void:
+	var it: FindItem = company.game.finds.item(find_id)
+	scanning_id = find_id
+	scan_at = Time.get_ticks_msec()
+	var info := {"find_id": find_id, "kind": int(it.kind) if it else -1, "name": it.display_name() if it else "Find",
+			"pos": it.global_position if it else Vector3.ZERO}
+	scan_started.emit(info)
+	cue.emit("gate_scan", info.pos, -1)
 
 
 ## Host: één vondst onthullen (ook voor tests, zonder poort).
@@ -246,45 +359,50 @@ func host_appraise(it: FindItem) -> void:
 	if int(r[1]) > 0:
 		h["target_paid"] = true
 	company._broadcast()
-	_rpc_revealed.rpc(it.find_id, int(r[0]), int(r[1]), it.condition)
+	# De set van dit stuk: hoeveel ervan in deze buit zitten en al getaxeerd zijn (een skelet dat
+	# compleet raakt, ziet de ploeg op het scherm, golf 3).
+	var set_info: Array = []
+	var s := set_of(it)
+	if str(s[0]) != "" and int(s[1]) > 1:
+		var in_haul_n := 0
+		var done_n := 0
+		for id in h.get("ids", []):
+			var o: FindItem = company.game.finds.item(int(id))
+			if o and str(set_of(o)[0]) == str(s[0]):
+				in_haul_n += 1
+				if is_appraised(o.find_id):
+					done_n += 1
+		var set_name: Variant = it.get("set_name")
+		set_info = [str(set_name) if set_name != null else "", done_n, int(s[1]), in_haul_n]
+	_rpc_revealed.rpc(it.find_id, int(r[0]), int(r[1]), it.condition, set_info)
 
 
 @rpc("authority", "call_local", "reliable")
-func _rpc_revealed(find_id: int, value: int, bonus: int, condition: float) -> void:
+func _rpc_revealed(find_id: int, value: int, bonus: int, condition: float, set_info: Array = []) -> void:
 	var it: FindItem = company.game.finds.item(find_id)
+	var vc := int(it.value_class) if it else 0
 	var info := {"find_id": find_id, "value": value, "bonus": bonus, "condition": condition,
 			"kind": int(it.kind) if it else -1, "name": it.display_name() if it else "Find",
-			"pos": it.global_position if it else Vector3.ZERO}
+			"pos": it.global_position if it else Vector3.ZERO, "value_class": vc, "set": set_info,
+			"set_done": set_info.size() >= 4 and int(set_info[1]) >= int(set_info[2])}
 	last_reveal = info
+	scanning_id = -1
+	reveal_at = Time.get_ticks_msec()
 	if it:
-		_reveal_moment(it, value, bonus, condition)
-	var line := "Appraised: %s, %d%%: %s" % [info.name, int(round(condition * 100.0)), UiTheme.euro(value)]
-	if bonus > 0:
-		line += " · target bonus %s" % UiTheme.euro_signed(bonus)
-	company.game.notice.emit(line, "find")
+		_reveal_moment(it)
+	# Geen melding en geen zwevende tekst meer (golf 3, ui2-01): het scherm boven de poort is het
+	# podium, en wie het niet ziet, krijgt de onthulling in de HUD (HudReveal).
 	revealed.emit(info)
+	cue.emit("set_complete" if info.set_done else "reveal", info.pos, vc)
 
 
-## Het moment (op elke peer): eerst de soort, dan de gaafheid, dan de waarde, boven de vondst, met de
-## gloed van zijn waardeklasse en de "ding" (geluid: M6, de haak is er).
-func _reveal_moment(it: FindItem, value: int, bonus: int, condition: float) -> void:
+## Het moment op de vondst zelf (op elke peer): de gloed van zijn waardeklasse en de "ding" (een
+## bestaande opname).
+func _reveal_moment(it: FindItem) -> void:
 	var fx: DigFx = company.game.fx
-	var vc := it.value_class
-	var col: Color = FindKinds.CLASS_GLINT[vc]
-	var at := it.global_position + Vector3(0, it.half_extents.length() + 0.35, 0)
 	it.celebrate()
-	fx.play("ding", it.global_position, -2.0 + 2.0 * (FindKinds.CLASS_STRENGTH[it.value_class] - 1.0), 0.0, FindKinds.CLASS_PITCH[it.value_class])
-	# Onder elkaar, met ruimte: soort bovenaan, dan de gaafheid, dan de waarde (groot), dan de bonus.
-	fx.float_text(at + Vector3(0, 0.62, 0), it.display_name().to_upper(), col.lerp(Color.WHITE, 0.3), 0.9, 2.8)
-	var tw := create_tween()
-	tw.tween_interval(0.25)
-	tw.tween_callback(func() -> void:
-		fx.float_text(at + Vector3(0, 0.42, 0), "%d%%" % int(round(condition * 100.0)), Color(0.85, 0.82, 0.76), 0.75, 2.5))
-	tw.tween_interval(0.35)
-	tw.tween_callback(func() -> void:
-		fx.float_text(at + Vector3(0, 0.12, 0), UiTheme.euro(value), Color(1.0, 0.8, 0.25), 1.3 + 0.15 * vc, 3.0)
-		if bonus > 0:
-			fx.float_text(at - Vector3(0, 0.2, 0), "TARGET %s" % UiTheme.euro_signed(bonus), UiTheme.GOOD, 0.9, 3.0))
+	if fx:
+		fx.play("ding", it.global_position, -2.0 + 2.0 * (FindKinds.CLASS_STRENGTH[it.value_class] - 1.0), 0.0, FindKinds.CLASS_PITCH[it.value_class])
 
 
 # --- Het verkoopluik -----------------------------------------------------------------------------
@@ -315,22 +433,26 @@ func _host_sell(sender: int) -> void:
 		if it.carriers.is_empty() or (it.carriers.size() == 1 and it.carriers[0] == sender):
 			items.append(it)
 	if items.is_empty():
-		var msg := "Nothing appraised yet: carry finds through the appraisal gate first." if not unappraised_items().is_empty() \
+		var msg := "Nothing appraised yet: put your finds on the belt to the appraisal gate first." if not unappraised_items().is_empty() \
 				else "Nothing left to sell."
 		if sender == multiplayer.get_unique_id():
 			_rpc_nothing(msg)
 		else:
 			_rpc_nothing.rpc_id(sender, msg)
 		return
+	# Wat het dichtst bij het luik ligt (het einde van de band), gaat eerst het luik in.
+	items.sort_custom(func(a: FindItem, b: FindItem) -> bool: return _gate_local(a.global_position).x > _gate_local(b.global_position).x)
 	var total := 0
 	var target := 0
 	var set_bonus := 0
 	var sets_done: Array = []
 	var sets: Dictionary = h.get("sets", {})
+	var lines: Array = []
 	for it: FindItem in items:
 		var v: Array = (h["appraised"] as Dictionary)[_key(it.find_id)]
 		total += int(v[0])
 		target += int(v[1])
+		lines.append([it.display_name(), int(v[0]) + int(v[1]), it.find_id])
 		(h["sold"] as Array).append([it.display_name(), int(v[0]) + int(v[1]), int(round(it.condition * 100.0))])
 		var s := set_of(it)
 		if str(s[0]) != "" and int(s[1]) > 1:
@@ -349,25 +471,26 @@ func _host_sell(sender: int) -> void:
 	h["set_bonus"] = int(h.get("set_bonus", 0)) + set_bonus
 	h["target_bonus"] = int(h.get("target_bonus", 0)) + target
 	var gain := total + target + set_bonus
-	var quota_before := company.earned >= company.quota()
+	var earned_before := company.earned
 	company.cash += gain
 	company.earned += gain
 	var ids := PackedInt32Array()
 	for it: FindItem in items:
 		ids.append(it.find_id)
-		company.game.finds.host_remove(it.find_id)
-	company._broadcast()
-	_rpc_sold.rpc(ids, total, target, set_bonus, sets_done, sender)
-	if not quota_before and company.earned >= company.quota():
-		company.game.notice_all("Quota met: %s of %s this quarter!" % [UiTheme.euro(company.earned), UiTheme.euro(company.quota())], "contract")
-	# Alles verkocht (wat nog aan boord is): de dienst is afgesloten.
+	# Is daarmee alles van de buit verkocht (wat nog aan boord is)? Dan sluit de dienst af.
 	var any_left := false
 	for id in h.get("ids", []):
 		if company.game.finds.item(int(id)) != null and not ids.has(int(id)):
 			any_left = true
 			break
+	var meta := {"earned_before": earned_before, "earned_after": company.earned, "quota": company.quota(), "last": not any_left}
+	# Eerst de verkoop (iedereen ziet de stukken het luik in gaan, ze bestaan dan nog), dan weg.
+	_rpc_sold.rpc(ids, total, target, set_bonus, sets_done, sender, lines, meta)
+	for it: FindItem in items:
+		company.game.finds.host_remove(it.find_id)
+	company._broadcast()
 	if not any_left:
-		company.host_settle(false)
+		company.host_settle(false, -1, true)
 	else:
 		company._save()
 
@@ -378,16 +501,28 @@ func _rpc_nothing(msg: String) -> void:
 
 
 @rpc("authority", "call_local", "reliable")
-func _rpc_sold(ids: PackedInt32Array, total: int, target: int, set_bonus: int, sets_done: Array, by: int) -> void:
-	var info := {"count": ids.size(), "value": total, "target_bonus": target, "set_bonus": set_bonus, "sets": sets_done, "by": by}
+func _rpc_sold(ids: PackedInt32Array, total: int, target: int, set_bonus: int, sets_done: Array, by: int,
+		lines: Array = [], meta: Dictionary = {}) -> void:
+	var info := {"count": ids.size(), "value": total, "target_bonus": target, "set_bonus": set_bonus, "sets": sets_done,
+			"by": by, "items": lines, "ids": ids}
+	info.merge(meta)
 	last_sale = info
+	sale_at = Time.get_ticks_msec()
 	var game: Game = company.game
-	if game.ship and game.ship.anchors.has("Sell_Hatch"):
-		var at := game.ship.anchor_position("Sell_Hatch") + Vector3(0, 1.9, 0)
-		game.fx.float_text(at, UiTheme.euro_signed(total + target + set_bonus), UiTheme.GOOD, 1.4, 3.0)
-		game.fx.play("ding", at, -4.0, 0.0, 1.3)
-	game.notice.emit("Sold %s: %s" % [UiTheme.count(ids.size(), "find"), UiTheme.euro_signed(total + target)], "contract")
+	var at: Vector3 = game.ship.anchor_position("Sell_Hatch") if game.ship and game.ship.anchors.has("Sell_Hatch") else Vector3.ZERO
+	# Eén melding voor de hele verkoop (golf 3, ui2-01): wat het opbracht, een volledig skelet, de
+	# quota en of de dienst daarmee rond is. Het moment zelf staat op het scherm aan het luik.
+	var line := "Sold %s: %s" % [UiTheme.count(ids.size(), "find"), UiTheme.euro_signed(total + target + set_bonus)]
 	for s: Array in sets_done:
 		var what := "%s skeleton" % str(s[3]) if s.size() > 3 and str(s[3]) != "" else "set"
-		game.notice.emit("Complete %s (%d pieces): set bonus %s!" % [what, int(s[2]), UiTheme.euro_signed(int(s[1]))], "find")
+		line += " · complete %s %s" % [what, UiTheme.euro_signed(int(s[1]))]
+	var met := int(meta.get("earned_before", 0)) < int(meta.get("quota", 0)) and int(meta.get("earned_after", 0)) >= int(meta.get("quota", 0))
+	if met:
+		line += " · QUOTA MET"
+	if bool(meta.get("last", false)):
+		line += " · shift closed"
+	game.notice.emit(line, "contract")
 	sold.emit(info)
+	cue.emit("payout", at, -1)
+	if met:
+		cue.emit("quota_met", at, -1)
