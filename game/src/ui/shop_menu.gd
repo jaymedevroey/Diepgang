@@ -248,7 +248,7 @@ func _refresh() -> void:
 				others.append(str(Upgrades.COUNTER_IN_TEXT[k]))
 		_note.text = "Upgrades are for the whole crew and you keep them, even after a missed quota. More at the %s." % " and the ".join(others)
 	elif company.has_upgrade(_pending):
-		_note.text = "Purchased: %s. %s." % [str(Upgrades.info(_pending).name), str(Upgrades.info(_pending).does)]
+		_note.text = "Purchased: %s. %s." % [str(Upgrades.info(_pending).name), Settings.fill_keys(str(Upgrades.info(_pending).does))]
 		_note.add_theme_color_override("font_color", UiTheme.GOOD)
 		_pending = ""
 
@@ -324,7 +324,7 @@ func _card(id: String) -> Control:
 	h.autowrap_mode = TextServer.AUTOWRAP_WORD
 	info.add_child(h)
 	var does := Label.new()
-	does.text = str(u.does)
+	does.text = Settings.fill_keys(str(u.does))
 	does.add_theme_font_override("font", UiTheme.body(800))
 	does.add_theme_font_size_override("font_size", 21)
 	does.add_theme_color_override("font_color", UiTheme.YELLOW)
@@ -347,7 +347,8 @@ func _card(id: String) -> Control:
 		status.text = "%s · %s" % [why, UiTheme.euro(price)] if why == "Not enough funds" else why
 		status.add_theme_color_override("font_color", UiTheme.DANGER)
 	else:
-		status.text = "%s for a crew of %d" % [UiTheme.euro(price), company.team_size()]
+		var crew := company.team_size()
+		status.text = ("%s · solo price" % UiTheme.euro(price)) if crew <= 1 else ("%s · price for a crew of %d" % [UiTheme.euro(price), crew])
 		status.add_theme_color_override("font_color", Color("#C9C1B2"))
 	info.add_child(status)
 	var bpad := MarginContainer.new()
@@ -420,7 +421,7 @@ class _ItemArt extends Control:
 				draw_line(r2.position, r2.end, Color(y, 0.6), 3.0)
 				draw_line(Vector2(r2.position.x, r2.end.y), Vector2(r2.end.x, r2.position.y), Color(y, 0.6), 3.0)
 				var f := UiTheme.heading()
-				var kg := "%d KG" % int(Tuning.get_f("economy", "cargo_kg_t2", 140.0))
+				var kg := "%d kg" % int(Tuning.get_f("economy", "cargo_kg_t2", 140.0))
 				draw_string(f, Vector2(r2.position.x, r2.end.y + 30), kg, HORIZONTAL_ALIGNMENT_CENTER, r2.size.x, 24, UiTheme.CREAM)
 		draw_rect(Rect2(0, h - 4, w, 4), Color("#2A2E35"))
 

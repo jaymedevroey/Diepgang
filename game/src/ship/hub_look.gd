@@ -46,6 +46,8 @@ const PROBES := [
 	[0.0, 20.0, 1.2, 4.2, 21.0, 26.0, 13.0, 2.6, 23.0, Color(0.58, 0.7, 0.95)], # brug: koud
 	[0.0, 20.0, -0.6, 9.4, 0.0, 21.0, 14.2, 3.0, 12.5, Color(0.66, 0.66, 0.68)], # hangar: neutraal
 ]
+## Varianten van de voetsporen (zone_wear.py kiest er een per stuk).
+const FEET_VARIANTS := 4
 ## Glanzend (olie, koffie): ruwheid in de decal.
 const GLOSSY := ["oil", "coffee"]
 static var _tex := {}
@@ -144,6 +146,8 @@ static func add_probes(root: Node3D) -> void:
 
 ## Zachte decals op de lege punten Decal_* van het model (olie, vuil, voetsporen, strepen, schoppen).
 ## Vloerdecals projecteren naar beneden, wanddecals in de wand (zone_wear.py draait het punt).
+## In de naam ook: vN = variant van de textuur (voetsporen: FEET_VARIANTS), aNN = dekking in %
+## (binnen2-13: één stempel die overal herhaald werd).
 static func add_decals(root: Node3D) -> void:
 	for n: Node3D in root.find_children("Decal_*", "Node3D", true, false):
 		var parts := String(n.name).split("_")
@@ -151,6 +155,8 @@ static func add_decals(root: Node3D) -> void:
 			continue
 		var w := 1.0
 		var l := 1.0
+		var variant := 0
+		var alpha := 1.0
 		for i in range(2, parts.size()):
 			var p := parts[i]
 			if p.length() > 1 and p.substr(1).is_valid_int():
@@ -158,12 +164,21 @@ static func add_decals(root: Node3D) -> void:
 					w = p.substr(1).to_int() / 100.0
 				elif p[0] == "l":
 					l = p.substr(1).to_int() / 100.0
+				elif p[0] == "v":
+					variant = p.substr(1).to_int()
+				elif p[0] == "a":
+					alpha = p.substr(1).to_int() / 100.0
 		var d := Decal.new()
 		d.size = Vector3(w, 0.4, l)
-		d.texture_albedo = _texture(DECALS[parts[1]][0])
+		var tex: String = DECALS[parts[1]][0]
+		if tex.begins_with("feet"):
+			tex += str(variant % FEET_VARIANTS)
+		d.texture_albedo = _texture(tex)
 		if parts[1] in GLOSSY:
 			d.texture_orm = _texture("gloss")
-		d.modulate = DECALS[parts[1]][1]
+		var col: Color = DECALS[parts[1]][1]
+		col.a *= alpha
+		d.modulate = col
 		d.cull_mask = LAYER
 		d.normal_fade = 0.35
 		d.upper_fade = 0.3
@@ -175,11 +190,11 @@ static func _texture(kind: String) -> Texture2D:
 	if _tex.has(kind):
 		return _tex[kind]
 	var img: Image
-	match kind:
+	match kind.rstrip("0123456789"):
 		"feet":
-			img = _feet_image(false)
+			img = _feet_image(false, kind.right(1).to_int())
 		"feetfade":
-			img = _feet_image(true)
+			img = _feet_image(true, kind.right(1).to_int())
 		"streak":
 			img = _streak_image()
 		"scuff":
@@ -215,29 +230,44 @@ static func _blob_image() -> Image:
 
 ## Vier voetafdrukken van een robot (0,1 × 0,17 m, met een profiel van drie balken), links en rechts om de
 ## beurt over 0,45 × 1,44 m (zone_wear.FEET_L). −z van het punt (v = 0) is de looprichting. `fade`: de
-## sporen worden zwakker in de looprichting (verf of koffie die opraakt).
-static func _feet_image(fade: bool) -> Image:
+## sporen worden zwakker in de looprichting (verf of koffie die opraakt). `variant`: elke variant zet de
+## stappen anders (een beetje opzij, gedraaid, langer of korter, soms een halve of uitgeveegde stap), zodat
+## een looproute niet meer één herhaalde stempel is (binnen2-13).
+static func _feet_image(fade: bool, variant := 0) -> Image:
 	var w := 64
 	var h := 256
 	var img := Image.create_empty(w, h, false, Image.FORMAT_RGBA8)
 	var noise := FastNoiseLite.new()
-	noise.seed = 11
+	noise.seed = 11 + variant * 17
 	noise.frequency = 0.12
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 501 + variant
+	# Per stap: zijwaarts (m), langs (deel van een stap), draaiing (rad), sterkte.
+	var steps := []
+	for k in 4:
+		steps.append([rng.randf_range(-0.04, 0.04), rng.randf_range(-0.09, 0.09), rng.randf_range(-0.22, 0.22),
+				0.0 if (variant > 0 and rng.randf() < 0.18) else rng.randf_range(0.45, 1.0)])
 	for y in h:
 		for x in w:
 			var u := (x + 0.5) / w
 			var v := (y + 0.5) / h
 			var a := 0.0
 			for k in 4:
-				var cu := 0.5 + (0.22 if k % 2 == 0 else -0.22)
-				var cv := (k + 0.5) / 4.0
-				var du := (u - cu) * 0.45 / 0.05 # in halve breedtes van een voet
-				var dv := (v - cv) * 1.44 / 0.085
+				var st: Array = steps[k]
+				var cu := 0.5 + (0.22 if k % 2 == 0 else -0.22) + float(st[0]) / 0.45
+				var cv := (k + 0.5 + float(st[1])) / 4.0
+				var px := (u - cu) * 0.45 # in m
+				var py := (v - cv) * 1.44
+				var rot := float(st[2])
+				var rx := px * cos(rot) - py * sin(rot)
+				var ry := px * sin(rot) + py * cos(rot)
+				var du := rx / 0.05 # in halve breedtes van een voet
+				var dv := ry / 0.085
 				var q := pow(absf(du), 4.0) + pow(absf(dv), 4.0)
 				if q < 1.6:
 					var foot := 1.0 - smoothstep(0.55, 1.1, q)
 					var tread := 0.55 + (0.45 if fposmod(dv * 1.6 + 0.2, 1.0) >= 0.35 else 0.0)
-					a = maxf(a, foot * tread)
+					a = maxf(a, foot * tread * float(st[3]))
 			a *= 0.55 + 0.45 * (noise.get_noise_2d(x, y) * 0.5 + 0.5)
 			if fade:
 				a *= lerpf(0.1, 1.0, v)

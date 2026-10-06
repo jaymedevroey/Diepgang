@@ -44,8 +44,13 @@ const HUD_OFF := 0
 const HUD_DYNAMIC := 1
 const HUD_ALWAYS := 2
 
+const DEVICE_KEYBOARD := "keyboard"
+const DEVICE_PAD := "pad"
+
 var _cfg := ConfigFile.new()
 var _key_cache: Dictionary = {}
+## Het toestel dat de speler laatst gebruikte (toetsenbord en muis, of een controller).
+var device := DEVICE_KEYBOARD
 var _log_keys := "--log-keys" in OS.get_cmdline_user_args() # toetsen loggen (diagnose)
 var _ready_done := false
 
@@ -144,6 +149,14 @@ func _apply(key: String) -> void:
 
 
 func _input(event: InputEvent) -> void:
+	# Welk toestel de speler nu gebruikt: daarnaar kiezen de toetsblokjes hun teken (toetsenbord of
+	# controller). Een stick die nauwelijks beweegt telt niet.
+	var pad: bool = event is InputEventJoypadButton or (event is InputEventJoypadMotion and absf((event as InputEventJoypadMotion).axis_value) > 0.5)
+	var kb: bool = (event is InputEventKey and event.is_pressed()) or event is InputEventMouseButton
+	if (pad and device != DEVICE_PAD) or (kb and device != DEVICE_KEYBOARD):
+		device = DEVICE_PAD if pad else DEVICE_KEYBOARD
+		_key_cache.clear()
+		changed.emit("keys/device")
 	if _log_keys and event is InputEventKey and event.pressed:
 		var k := event as InputEventKey
 		var line := "[toets] keycode=%d physical=%d ui_cancel=%s" % [k.keycode, k.physical_keycode, event.is_action_pressed("ui_cancel")]
@@ -175,8 +188,15 @@ const BINDABLE := [
 ]
 
 
-## Eerste toets of muisknop van een actie, of null.
+## Eerste toets of muisknop van een actie, of null. Met een controller in de hand eerst zijn knop
+## (als de actie er een heeft), anders de toets.
 func binding(action: String) -> InputEvent:
+	if not InputMap.has_action(action):
+		return null
+	if device == DEVICE_PAD:
+		for ev in InputMap.action_get_events(action):
+			if ev is InputEventJoypadButton or ev is InputEventJoypadMotion:
+				return ev
 	for ev in InputMap.action_get_events(action):
 		if ev is InputEventKey or ev is InputEventMouseButton:
 			return ev
@@ -235,13 +255,54 @@ static func event_label(ev: InputEvent) -> String:
 		return {MOUSE_BUTTON_LEFT: "Left mouse", MOUSE_BUTTON_RIGHT: "Right mouse", MOUSE_BUTTON_MIDDLE: "Middle mouse",
 				MOUSE_BUTTON_WHEEL_UP: "Wheel up", MOUSE_BUTTON_WHEEL_DOWN: "Wheel down"}.get(
 				(ev as InputEventMouseButton).button_index, "Mouse %d" % (ev as InputEventMouseButton).button_index)
+	# Controller: de namen van een Xbox-controller (Steam Input zet andere controllers daarop om).
+	if ev is InputEventJoypadButton:
+		return {JOY_BUTTON_A: "A", JOY_BUTTON_B: "B", JOY_BUTTON_X: "X", JOY_BUTTON_Y: "Y", JOY_BUTTON_LEFT_SHOULDER: "LB",
+				JOY_BUTTON_RIGHT_SHOULDER: "RB", JOY_BUTTON_LEFT_STICK: "LS", JOY_BUTTON_RIGHT_STICK: "RS", JOY_BUTTON_BACK: "View",
+				JOY_BUTTON_START: "Menu", JOY_BUTTON_DPAD_UP: "D-pad up", JOY_BUTTON_DPAD_DOWN: "D-pad down",
+				JOY_BUTTON_DPAD_LEFT: "D-pad left", JOY_BUTTON_DPAD_RIGHT: "D-pad right"}.get(
+				(ev as InputEventJoypadButton).button_index, "Button %d" % (ev as InputEventJoypadButton).button_index)
+	if ev is InputEventJoypadMotion:
+		var axis := (ev as InputEventJoypadMotion).axis
+		return {JOY_AXIS_TRIGGER_LEFT: "LT", JOY_AXIS_TRIGGER_RIGHT: "RT", JOY_AXIS_LEFT_X: "LS", JOY_AXIS_LEFT_Y: "LS",
+				JOY_AXIS_RIGHT_X: "RS", JOY_AXIS_RIGHT_Y: "RS"}.get(axis, "Axis %d" % axis)
 	return "?"
 
 
-## Toets van een actie als korte tekst voor in de HUD ("E", "Linkermuis"). Gecachet: de HUD vraagt
-## dit elke frame, en de indeling van het toetsenbord opvragen is niet gratis.
+## Toets van een actie als korte tekst voor in de HUD ("E", "Left mouse", met een controller "X").
+## Gecachet: de HUD vraagt dit elke frame, en de indeling van het toetsenbord opvragen is niet gratis.
+## Eén bron voor elke toets in elke zin (ui2-09): nooit een toets in de tekst gieten.
 func key_of(action: String) -> String:
 	if not _key_cache.has(action):
 		var ev := binding(action)
 		_key_cache[action] = event_label(ev) if ev else "?"
 	return _key_cache[action]
+
+
+## De vier looptoetsen in één woord, zoals de speler ze heeft: "WASD", op AZERTY "ZQSD", met een
+## controller "LS". Omgezette toetsen die geen letter zijn: "Up/Left/Down/Right".
+func move_keys() -> String:
+	var keys := PackedStringArray()
+	for a in ["move_forward", "move_left", "move_back", "move_right"]:
+		keys.append(key_of(a))
+	if device == DEVICE_PAD and keys[0] == keys[1] and keys[1] == keys[2]:
+		return keys[0]
+	if keys.size() == 4 and keys[0].length() == 1 and keys[1].length() == 1 and keys[2].length() == 1 and keys[3].length() == 1:
+		return "".join(keys)
+	return "/".join(keys)
+
+
+## Vult {actie} in een zin in met de toets van de speler: "{scan}: blips" wordt "Q: blips". Zo staat
+## een toets nooit vast in de tekst (ui2-09). {move} is de vier looptoetsen.
+func fill_keys(text: String) -> String:
+	if not text.contains("{"):
+		return text
+	var re := RegEx.create_from_string("\\{([a-z0-9_]+)\\}")
+	var out := text
+	for m in re.search_all(text):
+		var a := m.get_string(1)
+		if a == "move":
+			out = out.replace(m.get_string(), move_keys())
+		elif InputMap.has_action(a):
+			out = out.replace(m.get_string(), key_of(a))
+	return out

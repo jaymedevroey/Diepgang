@@ -64,7 +64,7 @@ func setup(screen: MeshInstance3D, lamp: MeshInstance3D, ping_button: MeshInstan
 	# Dieptestrook: meters naast de streepjes.
 	for m: int in [20, 10, 0, -10, -20]:
 		var y := STRIP.get_center().y - m * STRIP.size.y * 0.5 / STRIP_RANGE
-		_label("tick%d" % m, ("+%d" % m) if m > 0 else str(m), Vector2(STRIP.end.x + 6.0, y - 13.0), 24, 0.55)
+		_label("tick%d" % m, UiTheme.signed(m), Vector2(STRIP.end.x + 6.0, y - 13.0), 24, 0.55)
 	_label("head", "TARGET", Vector2(TEXT_X, 22), 32, 0.55)
 	_label("dist", "", Vector2(TEXT_X, 50), 76, 1.0)
 	_label("clock", "", Vector2(TEXT_X, 128), 48, 0.9)
