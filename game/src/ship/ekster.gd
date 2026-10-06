@@ -45,7 +45,7 @@ const PREVIEW_ONLY := ["Sign_", "Cam_", "Look_"]
 ## ding zelf, nooit een belofte ("komt later", "binnenkort"): de demo moet af aanvoelen (ui-02,
 ## binnen-13). Wat echt iets doet (verkopen, upgrades: pakket F1), staat in BUTTONS.
 const HINTS := {
-	"Appraisal_Gate": ["Appraisal gate", "Carry finds through: each one is appraised"],
+	"Appraisal_Gate": ["Appraisal gate", "Put finds on the belt: the gate appraises them one by one"],
 	"Vending": ["DIG vending machine · sold out", "No refunds, no restock date"],
 	"Locker": ["Paint booth · closed for fumes", "Your color is assigned by head office"],
 	"Niche_Free_A": ["Human resources · closed", "No humans left to resource"],
@@ -73,6 +73,8 @@ var door_amount := 0.0
 ## Company_Board, TV_Screen. HubScreens tekent erop.
 var screens: Dictionary = {}
 var hub_screens: HubScreens
+## De taxatiepoort en het verkoopluik als ceremonie (band, scanstraal, licht, podium; golf 3).
+var gate_show: GateShow
 ## De opening van de dropbaai in de vloer (lokaal, x en z), uit de dichte luiken.
 var bay := AABB()
 
@@ -102,6 +104,8 @@ func _ready() -> void:
 	_doors = [anchors["BayDoor_L"], anchors["BayDoor_R"]]
 	_build_collision()
 	add_lights(model)
+	gate_show = GateShow.new(self)
+	add_child(gate_show)
 	_build_screens()
 	_build_buttons()
 	add_child(HubDropFx.new(self))
@@ -382,9 +386,15 @@ func _build_screens() -> void:
 	for n: String in [HubScreens.TERMINAL, HubScreens.APPRAISAL, HubScreens.BOARD, HubScreens.TV]:
 		if anchors.has(n):
 			screens[n] = anchors[n]
+	# Golf 3: het podium boven de poort en het scherm aan het luik komen van GateShow.
+	if gate_show and gate_show.stage:
+		screens[HubScreens.APPRAISAL] = gate_show.stage
+		screens[HubScreens.PAYOUT] = gate_show.payout
 	hub_screens = HubScreens.new()
 	add_child(hub_screens)
 	hub_screens.setup(game, screens)
+	if gate_show and game and game.company:
+		gate_show.connect_company(game.company)
 
 
 ## E-knop op de terminal; op de rest een korte uitleg (HINTS). Een leeg punt kijkt met
@@ -470,7 +480,7 @@ func _update_economy_hints() -> void:
 			hatch.sub = "%s still to appraise" % UiTheme.count(waiting, "find") if waiting > 0 else "That's the whole haul"
 		elif waiting > 0:
 			hatch.hint = "Sell hatch"
-			hatch.sub = "Carry finds through the appraisal gate first"
+			hatch.sub = "Put finds on the belt to the appraisal gate first"
 		else:
 			hatch.hint = "Sell hatch"
 			hatch.sub = "Bring finds back from a shift to sell them here"

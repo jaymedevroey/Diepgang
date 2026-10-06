@@ -31,6 +31,28 @@ func _run(p: Player) -> void:
 	main.add_child(_cam)
 	var hub := ship.global_transform
 
+	if "probe" in only:
+		# Tijdelijk (G3): waar liggen de poort, het luik, de Mol en zijn klep in de hub?
+		if not mol.ramp_open:
+			mol.press(Mol.Cmd.RAMP)
+		await _wait(2.5)
+		var hubi := hub.affine_inverse()
+		for n in ["Appraisal_Gate", "Sell_Hatch", "Mol_Dock", "Mol_Werf", "Niche_Tools", "Niche_Supply", "Vending"]:
+			print("[probe] %s hub=%s" % [n, hubi * ship.anchor_position(n)])
+		print("[probe] mol body hub=%s yaw=%s" % [hubi * mol.body.global_position, mol.yaw])
+		for z in [3.5, 4.4, 5.5, 6.5, 7.5]:
+			print("[probe] mol local (0,-1.8,%s) -> hub %s" % [z, hubi * mol.to_world_mol(Vector3(0, -1.8, z))])
+		print("[probe] bay %s" % ship.bay)
+		_look(hub, Vector3(3.0, 16.0, 6.5), Vector3(3.0, 0.0, 6.6))
+		await _shot("g3_probe_top", 0.5)
+		_look(hub, Vector3(0.0, 3.0, 13.0), Vector3(4.0, 0.0, 8.0))
+		await _shot("g3_probe_ramp", 0.3)
+		# Van de brug naar de Mol (binnen-17: het podium mag de Mol niet verbergen).
+		for k in 3:
+			var from: Vector3 = [Vector3(2.0, 2.6, 15.5), Vector3(4.5, 2.6, 14.5), Vector3(-1.0, 2.6, 15.5)][k]
+			_look(hub, from, Vector3(0.0, 3.2, 0.0))
+			await _shot("g3_probe_bridge_%d" % k, 0.3)
+
 	if only.is_empty() or "cards" in only:
 		p.camera.make_current()
 		main._terminal.open(c)
@@ -62,32 +84,75 @@ func _run(p: Player) -> void:
 		await _shot("f1_carry_unknown", 0.8)
 		game.finds.request_release(picks[0].find_id, picks[0].global_transform, Vector3.ZERO)
 		await _wait(0.3)
-		# De poort: de schedel in de opening, de onthulling boven hem en op het scherm.
-		_look(hub, GATE_CAM[0], GATE_CAM[1])
-		var gate := ship.anchor_position("Appraisal_Gate")
-		var it: FindItem = picks[0]
-		it.global_position = gate + Vector3(0.0, it.rest_height() + 0.05, 0.0)
-		it.linear_velocity = Vector3.ZERO
-		await _shot("f1_gate_reveal_1", 0.45)
-		await _shot("f1_gate_reveal_2", 0.55)
-		await _shot("f1_gate_reveal_3", 1.0)
-		# Close-up van het scherm boven de poort.
-		var info := ship.hub_screens.screen_info(HubScreens.APPRAISAL)
-		_cam.global_position = (info.center as Vector3) + (info.normal as Vector3) * 2.2
-		_cam.look_at(info.center)
-		await _shot("f1_gate_screen", 0.2)
-		# De andere twee, en dan verkopen aan het luik.
-		for k in [1, 2]:
+		# Golf 3: de ceremonie. De drie stukken op de band aan de voet van de klep; de band draagt ze
+		# één voor één de poort in (scanstraal, licht, podium), dan verkopen aan het luik.
+		var a := c.appraisal
+		var reveals := [0]
+		a.revealed.connect(func(_i: Dictionary) -> void: reveals[0] += 1)
+		var gate_xf := (ship.anchors["Appraisal_Gate"] as Node3D).global_transform
+		for k in picks.size():
 			var o: FindItem = picks[k]
-			o.global_position = gate + Vector3(0.0, o.rest_height() + 0.05, (k - 1.5) * 0.7)
+			o.global_position = gate_xf * Vector3(-3.1 + k * 0.85, o.rest_height() + 0.05, (k - 1) * 0.25)
+			o.reset_physics_interpolation()
 			o.linear_velocity = Vector3.ZERO
-		await _wait(2.6)
-		p.global_position = ship.anchor_position("Sell_Hatch") + Vector3(0, 0.05, 0)
-		await get_tree().physics_frame
+			o.angular_velocity = Vector3.ZERO
+		_look(hub, Vector3(0.6, 2.3, 6.0), Vector3(3.4, 0.3, 9.3))
+		await _shot("f1_gate_belt", 0.8)
+		# Een toeschouwer op de kade: de poort en het podium.
+		_look(hub, Vector3(0.9, 1.45, 7.4), Vector3(5.0, 2.3, 9.3))
+		await _until(func() -> bool: return a.scanning_id >= 0, 20.0)
+		await _shot("f1_gate_scan", 0.45)
+		await _until(func() -> bool: return reveals[0] >= 1, 10.0)
+		await _shot("f1_gate_stage_rolling", 0.55)
+		await _shot("f1_gate_stage", 0.9)
+		# Dezelfde plek als de beelden van voor (in de poort): geen zwevende tekst meer.
+		_look(hub, GATE_CAM[0], GATE_CAM[1])
+		await _until(func() -> bool: return reveals[0] >= 2, 15.0)
+		await _shot("f1_gate_reveal_1", 0.55)
+		await _shot("f1_gate_reveal_2", 1.0)
+		# Close-up van het podium, tijdens de derde onthulling.
+		var info := ship.hub_screens.screen_info(HubScreens.APPRAISAL)
+		_cam.global_position = (info.center as Vector3) + (info.normal as Vector3) * 2.6 + Vector3(0, -0.6, 0)
+		_cam.look_at(info.center)
+		await _until(func() -> bool: return reveals[0] >= 3, 15.0)
+		await _shot("f1_gate_screen", 1.4)
+		await _shot("f1_gate_reveal_3", 1.5)
+		# Wie zelf door de poort draagt, krijgt de onthulling onder het vizier.
+		var extra := _pick(game, [FindKinds.Kind.CLAW])
+		if not extra.is_empty():
+			var cl: FindItem = extra[0]
+			_free_at(cl, gate_xf * Vector3(-2.0, cl.rest_height() + 0.05, 1.15))
+			c.haul.ids.append(cl.find_id)
+			p.global_position = gate_xf * Vector3(-2.6, 0.05, 0.4)
+			p.rotation.y = -PI / 2.0
+			p.head.rotation.x = deg_to_rad(-8.0)
+			p.camera.make_current()
+			await _wait(0.4)
+			game.finds.request_grab(cl.find_id)
+			await _wait(0.4)
+			for i in 30:
+				p.global_position = gate_xf * Vector3(-2.6 + i * 0.08, 0.05, 0.3)
+				await get_tree().physics_frame
+			await _until(func() -> bool: return reveals[0] >= 4, 10.0)
+			await _shot("f1_gate_carrier", 1.1)
+			game.finds.request_release(cl.find_id, cl.global_transform, Vector3.ZERO)
+		await _until(func() -> bool: return a.unappraised_items().is_empty(), 20.0)
+		await _wait(1.5)
+		# Verkopen: vlak onder de quota, zodat het scherm aan het luik QUOTA MET stempelt.
+		var ready_v := 0
+		for o: FindItem in a.appraised_items():
+			ready_v += a.value_of(o)
+		c.earned = maxi(c.earned, c.quota() - ready_v + 120)
+		c.changed.emit()
+		await _stand(p, hub, hub.affine_inverse() * ship.anchor_position("Sell_Hatch") + Vector3(-0.35, 0.0, 0.25),
+				hub.affine_inverse() * (gate_xf * Vector3(3.05, 1.25, -0.25)))
+		await _wait(0.5)
+		a.request_sell()
+		await _shot("f1_sold", 0.55)
+		await _shot("f1_sold_count", 0.6)
+		await _shot("f1_sold_settled", 2.4)
 		_look(hub, Vector3(2.6, 1.6, 10.8), Vector3(7.4, 1.6, 9.3))
-		c.appraisal.request_sell()
-		await _shot("f1_sold", 0.5)
-		await _shot("f1_sold_settled", 1.8)
+		await _shot("f1_sold_quay", 0.4)
 
 	if only.is_empty() or "shop" in only:
 		c.cash = 4200
@@ -200,6 +265,13 @@ func _shot(shot_name: String, settle := 0.4) -> void:
 	var path := PerfLog.log_dir().path_join(shot_name + ".png")
 	get_viewport().get_texture().get_image().save_png(path)
 	print("[economy_preview] ", path)
+
+
+## Wachten tot `cond` waar is (hooguit `limit` s): de ceremonie volgt de band, niet de klok.
+func _until(cond: Callable, limit: float) -> void:
+	var t0 := Time.get_ticks_msec()
+	while not cond.call() and Time.get_ticks_msec() - t0 < limit * 1000.0:
+		await get_tree().process_frame
 
 
 func _wait(seconds: float) -> void:

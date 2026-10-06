@@ -9,9 +9,12 @@ extends Node
 ## - Company_Board (gang): kas, reputatie, kwartaal en dienst, de quota, de opdracht, de vorige dienst.
 ## - Terminal_Screen (brug): hologram boven de opdrachttafel: de planeet van de gekozen opdracht als
 ##   draadmodel, de claim en wat je nu moet doen (aanvullend op het menu, niet hetzelfde nog eens).
-## - Appraisal_Screen (kade, boven de taxatiepoort): de onthulling van elke vondst die door de poort
-##   gaat (soort, gaafheid, de waarde die optelt), hoeveel van de buit al getaxeerd is, wat verkocht
-##   is en wat aan het luik klaarligt (F1, Appraisal). Zonder open buit: de vorige dienst.
+## - Appraisal_Screen (kade, boven de taxatiepoort; golf 3: het podium van GateShow): de scan en de
+##   onthulling van elk stuk (soort, gaafheid als stempel, een teller die oploopt, de doel- of
+##   setbonus), hoeveel van de buit getaxeerd is, en de quotabalk met wat klaarligt. Zonder open
+##   buit: de vorige dienst.
+## - Payout_Screen (golf 3, op de toonbank van het verkoopluik, GateShow): de verkoop telt per stuk
+##   op, dan de bonussen, het totaal en de quotabalk die vult (QUOTA MET).
 ## Alles leest de toestand van de firma (Company) op deze peer, dus ook clients zien het juiste.
 ## Performance: een scherm rendert enkel als de camera binnen VIEW_RANGE × zijn breedte is, het in
 ## beeld staat en naar de camera kijkt, en dan nog op zijn eigen tempo (UPDATE_ONCE, `fps`);
@@ -132,6 +135,8 @@ func setup(game_node: Node, anchors: Dictionary) -> void:
 		_build_terminal(_make(TERMINAL, anchors[TERMINAL], 10.0, true))
 	if anchors.get(APPRAISAL) is MeshInstance3D:
 		_build_appraisal(_make(APPRAISAL, anchors[APPRAISAL], 4.0))
+	if anchors.get(PAYOUT) is MeshInstance3D:
+		_build_payout(_make(PAYOUT, anchors[PAYOUT], 4.0))
 	var c: Company = game.company
 	c.changed.connect(_on_changed)
 	c.report_ready.connect(_on_report)
@@ -139,6 +144,7 @@ func setup(game_node: Node, anchors: Dictionary) -> void:
 		_reveal_t = 0.0
 		_on_changed())
 	c.appraisal.sold.connect(func(_info: Dictionary) -> void: _on_changed())
+	c.appraisal.scan_started.connect(func(_info: Dictionary) -> void: _on_changed())
 	_tv_enter("ident")
 	for s: Screen in _screens.values():
 		_paint(s)
@@ -283,6 +289,8 @@ func _make(key: String, mesh: MeshInstance3D, fps: float, holo := false) -> Scre
 		m.set_shader_parameter("vignette", 0.35)
 		m.set_shader_parameter("brightness", 1.1)
 		m.set_shader_parameter("lines", s.size.y / 2.0)
+		# Een vlak uit code (QuadMesh, GateShow) staat niet ondersteboven zoals de schermen uit het model.
+		m.set_shader_parameter("flip_v", not (mesh.mesh is QuadMesh))
 	m.set_shader_parameter("feed", s.viewport.get_texture())
 	mesh.material_override = m
 	_screens[key] = s
@@ -352,6 +360,8 @@ func _paint(s: Screen) -> void:
 			_paint_terminal(s)
 		APPRAISAL:
 			_paint_appraisal(s)
+		PAYOUT:
+			_paint_payout(s)
 	s.art.queue_redraw()
 
 
@@ -1163,7 +1173,7 @@ func _paint_terminal(s: Screen) -> void:
 		_text(s, "name", PlanetType.NAMES[planet].to_upper())
 		name_l.modulate.a = 1.0
 		_text(s, "where", "%s · %s" % [str(c.contract.name), TerminalMenu.nickname(c.contract).to_upper()])
-		_text(s, "risk", "RISK %s" % Company.RISK_NAMES[risk])
+		_text(s, "risk", "RISK %s" % Company.RISK_NAMES[c.contract_danger()])
 		_text(s, "pay", "PAY ×%s   MAGMA ×%s" % [_num(Company.pay_factor(risk)), _num(Company.magma_factor(risk))])
 		# Na het kiezen laadt de nieuwe wereld: De Ekster vliegt erheen (de hendel wacht daarop).
 		var loading: bool = not game.world_ready()
@@ -1207,136 +1217,158 @@ func _draw_terminal(c: Control) -> void:
 		c.draw_rect(Rect2(286 + b * 22, HOLO_TOP + 104, 16, 16), HOLO if on else Color(HOLO, 0.18))
 
 
-# --- Taxatie -------------------------------------------------------------------------------------
+# --- Taxatie: het podium boven de poort ----------------------------------------------------------
+# Golf 3 (ui2-01, gevoel2-04, binnen2-10): het scherm boven de poort is het podium van de onthulling.
+# Per stuk: de soort groot, de gaafheid als stempel, een teller die oploopt tot de waarde, de doelbonus
+# of hoe ver het skelet is (5/7 ▮▮▮▮▮▯▯, met COMPLETE als het rond is), en onderaan de quotabalk met
+# wat al getaxeerd klaarligt. Tijdens de scan: SCANNING met een lopende lijn. Zonder buit: de vorige
+# dienst als lopende tekst. Het podium is een vlak van GateShow (2,4 × 0,98 m); in tests het kleine
+# scherm uit het model: de opmaak volgt de hoogte van het scherm.
 
-## Breedte van het linker- en rechterblok van het taxatiescherm (px).
-const APPRAISAL_LEFT := 136.0
-const APPRAISAL_RIGHT := 150.0
+## Kleur per waardeklasse op het podium (FindKinds.ValueClass).
+const STAGE_CLASS: Array[Color] = [Color("#C9C1B2"), Color("#E9E1D3"), Color("#FFC92E"), Color("#FFB000")]
+const STAGE_CLASS_NAMES: Array[String] = ["JUNK", "FIND", "VALUABLE", "PRECIOUS"]
+## Wanneer de teller begint (s na de onthulling) en hoe lang hij loopt.
+const ROLL_START := 0.25
+const ROLL_S := 1.0
+
+
+## Gaafheid als stempel: een woord en een kleur.
+static func condition_stamp(cond: float) -> Array:
+	if cond >= 0.95:
+		return ["MINT", UiTheme.GOOD]
+	if cond >= 0.75:
+		return ["GOOD", Color("#C6E07A")]
+	if cond >= 0.5:
+		return ["SCUFFED", UiTheme.AMBER]
+	if cond > 0.1:
+		return ["BATTERED", UiTheme.DANGER]
+	return ["SHATTERED", UiTheme.DANGER]
 
 
 func _build_appraisal(s: Screen) -> void:
 	var w := s.size.x
 	var h := s.size.y
+	var head := roundf(h * 0.155)
+	var foot := roundf(h * 0.24)
 	(s.art as Art).painter = _draw_appraisal
-	_label(s, "title", UiTheme.heading(), 17, UiTheme.YELLOW, Vector2(10, 14), Vector2(APPRAISAL_LEFT - 16, 28)).text = "APPRAISAL"
-	_label(s, "when", UiTheme.screen(), 24, UiTheme.CREAM_DIM, Vector2(10, 44), Vector2(APPRAISAL_LEFT - 16, 60), HORIZONTAL_ALIGNMENT_LEFT, true)
+	_label(s, "title", UiTheme.heading(), int(head * 0.62), UiTheme.ANTHRACITE, Vector2(14, head * 0.12), Vector2(w * 0.5, head)).text = "DIG · APPRAISAL"
+	_label(s, "count", UiTheme.heading(), int(head * 0.55), UiTheme.ANTHRACITE, Vector2(w * 0.5, head * 0.16), Vector2(w * 0.5 - 14, head), HORIZONTAL_ALIGNMENT_RIGHT)
+	var main_h := h - head - foot
+	_label(s, "name", UiTheme.heading(), int(main_h * 0.26), UiTheme.CREAM, Vector2(18, head + main_h * 0.06), Vector2(w * 0.5, main_h * 0.3))
+	var stamp := _label(s, "stamp", UiTheme.heading(), int(main_h * 0.17), UiTheme.GOOD, Vector2(26, head + main_h * 0.44), Vector2(w * 0.36, main_h * 0.24), HORIZONTAL_ALIGNMENT_CENTER)
+	stamp.pivot_offset = stamp.size / 2.0
+	stamp.rotation = -0.1
+	_label(s, "value", UiTheme.heading(), int(main_h * 0.56), UiTheme.YELLOW, Vector2(w * 0.4, head + main_h * 0.02), Vector2(w * 0.6 - 18, main_h * 0.62), HORIZONTAL_ALIGNMENT_RIGHT)
+	_label(s, "bonus", UiTheme.heading(), int(main_h * 0.17), UiTheme.GOOD, Vector2(w * 0.4, head + main_h * 0.68), Vector2(w * 0.6 - 18, main_h * 0.26), HORIZONTAL_ALIGNMENT_RIGHT)
+	_label(s, "set", UiTheme.screen(), int(main_h * 0.2), UiTheme.AMBER, Vector2(18, head + main_h * 0.74), Vector2(w * 0.42, main_h * 0.26))
+	# Zonder onthulling: een grote regel en een kleinere eronder, of een lopende tekst (clip).
+	_label(s, "big", UiTheme.screen(), int(main_h * 0.36), UiTheme.AMBER, Vector2(0, head + main_h * 0.08), Vector2(w, main_h * 0.5), HORIZONTAL_ALIGNMENT_CENTER)
+	_label(s, "detail", UiTheme.screen(), int(main_h * 0.17), UiTheme.CREAM_DIM, Vector2(14, head + main_h * 0.64), Vector2(w - 28, main_h * 0.34), HORIZONTAL_ALIGNMENT_CENTER, true)
 	var clip := Control.new()
 	clip.clip_contents = true
-	clip.position = Vector2(APPRAISAL_LEFT + 8, 0)
-	clip.size = Vector2(w - APPRAISAL_LEFT - APPRAISAL_RIGHT - 16, h)
+	clip.position = Vector2(0, head + main_h * 0.12)
+	clip.size = Vector2(w, main_h * 0.5)
 	clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	s.root.add_child(clip)
 	s.labels["clip"] = clip
-	_label(s, "marquee", UiTheme.screen(), 44, UiTheme.AMBER, Vector2(0, 14), Vector2(clip.size.x, 50), HORIZONTAL_ALIGNMENT_LEFT, false, clip)
-	_label(s, "detail", UiTheme.screen(), 24, UiTheme.CREAM_DIM, Vector2(0, h - 54), Vector2(clip.size.x, 50), HORIZONTAL_ALIGNMENT_CENTER, true, clip)
-	var rx := w - APPRAISAL_RIGHT + 8
-	_label(s, "cap_total", UiTheme.screen(), 22, UiTheme.CREAM_DIM, Vector2(rx, 10), Vector2(APPRAISAL_RIGHT - 18, 24), HORIZONTAL_ALIGNMENT_RIGHT).text = "SOLD"
-	_label(s, "total", UiTheme.heading(), 24, UiTheme.YELLOW, Vector2(rx - 4, 34), Vector2(APPRAISAL_RIGHT - 14, 34), HORIZONTAL_ALIGNMENT_RIGHT)
-	_label(s, "net", UiTheme.screen(), 22, UiTheme.CREAM, Vector2(rx, 80), Vector2(APPRAISAL_RIGHT - 18, 60), HORIZONTAL_ALIGNMENT_RIGHT, true)
+	_label(s, "marquee", UiTheme.screen(), int(main_h * 0.34), UiTheme.AMBER, Vector2(0, 0), Vector2(w, main_h * 0.5), HORIZONTAL_ALIGNMENT_LEFT, false, clip)
+	var fy := h - foot
+	_label(s, "quota", UiTheme.screen(), int(foot * 0.4), UiTheme.CREAM, Vector2(14, fy + foot * 0.02), Vector2(w * 0.55, foot * 0.45))
+	_label(s, "total", UiTheme.screen(), int(foot * 0.4), UiTheme.YELLOW, Vector2(w * 0.45, fy + foot * 0.02), Vector2(w * 0.55 - 14, foot * 0.45), HORIZONTAL_ALIGNMENT_RIGHT)
 
 
 func _paint_appraisal(s: Screen) -> void:
 	var c := _company()
-	var r := c.last_report
-	var marquee: Label = s.labels["marquee"]
-	var clip: Control = s.labels["clip"]
-	if c.haul_open():
-		_paint_haul(s, c, marquee, clip)
-		return
-	if not c.last_haul.is_empty():
-		_paint_last_haul(s, c.last_haul, r, marquee, clip)
-		return
-	if r.is_empty():
-		# Nog niets verkocht: een stilstaande, knipperende oproep. Geen belofte ("binnenkort"): de
-		# taxatie gebeurt echt, na elke dienst, met wat in de Mol ligt (ui-02, binnen-13).
-		_text(s, "when", "NO SHIFT\nYET")
-		_style(marquee, UiTheme.screen(), 40, UiTheme.AMBER)
-		_place(marquee, "AWAITING\nYOUR HAUL", Rect2(0, 8, clip.size.x, 80), HORIZONTAL_ALIGNMENT_CENTER)
-		marquee.modulate.a = 1.0 if _blink(1.4, 0.75) else 0.5
-		_text(s, "detail", "FINDS IN THE MOLE ARE APPRAISED AFTER THE SHIFT")
-		_text(s, "total", UiTheme.euro(0))
-		_text(s, "net", "")
-		s.fps = 4.0
-		return
-	marquee.modulate.a = 1.0
-	_text(s, "when", "SHIFT %d\nQ%d · %d/%d" % [int(r.get("shift_total", 0)), int(r.get("quarter", 1)), int(r.get("shift", 1)), _shifts()])
-	var parts := PackedStringArray()
-	for it: Array in r.get("sold", []):
-		parts.append("%s %s (%d%%)" % [str(it[0]).to_upper(), UiTheme.euro(int(it[1])), int(it[2])])
-	if int(r.get("ore_units", 0)) > 0:
-		parts.append("ORE ×%d %s" % [int(r.get("ore_units", 0)), UiTheme.euro(int(r.get("ore_value", 0)))])
-	if int(r.get("bonus", 0)) != 0:
-		parts.append("RISK BONUS %s" % UiTheme.euro(int(r.get("bonus", 0))))
-	if parts.is_empty():
-		parts.append("NOTHING SOLD. HEAD OFFICE SIGHS.")
-	var text := "    ·    ".join(parts) + "    ·    "
-	if marquee.text != text:
-		# Nieuwe lijst: meteen leesbaar vanaf links, daarna lopend van rechts.
-		_style(marquee, UiTheme.screen(), 44, UiTheme.AMBER)
-		marquee.text = text
-		marquee.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-		_marquee_w = UiTheme.screen().get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 44).x
-		marquee.size = Vector2(_marquee_w + 8.0, 50)
-		marquee.position.y = 18
-		_marquee_x = 0.0
-	# Lopende tekst: 20 beelden per seconde zolang er iets loopt.
-	s.fps = 20.0
-	_marquee_x -= 60.0 / s.fps
-	if _marquee_x < -_marquee_w:
-		_marquee_x = clip.size.x
-	marquee.position.x = roundf(_marquee_x)
-	var sold := (r.get("sold", []) as Array).size()
-	_text(s, "detail", "%d %s  ·  DAMAGE %s" % [sold, "FIND" if sold == 1 else "FINDS", UiTheme.euro(int(r.get("damage", 0)))])
-	var gross := int(r.get("finds_value", 0)) + int(r.get("ore_value", 0)) + int(r.get("bonus", 0))
-	_text(s, "total", UiTheme.euro(gross))
-	var costs := int(r.get("costs", 0))
-	_text(s, "net", ("COSTS %s\n" % UiTheme.euro(-costs) if costs > 0 else "") + "NET %s" % UiTheme.euro(int(r.get("net", 0))))
-
-
-## De taxatie loopt (F1): de laatste onthulling groot (de waarde telt op), anders wat je moet doen;
-## links hoeveel van de buit getaxeerd is, rechts wat verkocht is en wat aan het luik klaarligt.
-func _paint_haul(s: Screen, c: Company, marquee: Label, clip: Control) -> void:
 	var a := c.appraisal
-	var total := (c.haul.get("ids", []) as Array).size()
-	var waiting := a.unappraised_items().size()
-	var ready := a.appraised_items()
-	var sold_n := (c.haul.get("sold", []) as Array).size()
-	_text(s, "when", "HAUL
-%d/%d" % [total - waiting, total])
-	var last := a.last_reveal
-	s.fps = 20.0 if _reveal_t < 2.0 else 6.0
-	marquee.position.x = 0.0
-	if not last.is_empty() and _reveal_t < 7.0 and a.in_haul(int(last.get("find_id", -1))):
-		# De waarde telt op in 0,6 s, na de naam en de gaafheid (zoals boven de vondst).
-		var k := clampf((_reveal_t - 0.5) / 0.6, 0.0, 1.0)
-		var shown := int(round(int(last.value) * k * k * (3.0 - 2.0 * k)))
-		var line := "%s  %d%%  %s" % [str(last.name).to_upper(), int(round(float(last.condition) * 100.0)), UiTheme.euro(shown) if _reveal_t > 0.5 else "€..."]
-		var col := UiTheme.YELLOW if _reveal_t > 1.1 or _blink(0.15, 0.5) else UiTheme.CREAM
-		_style(marquee, UiTheme.screen(), _fit_size(line, UiTheme.screen(), 46, 28, Vector2(clip.size.x, 60)), col)
-		_place(marquee, line, Rect2(0, 14, clip.size.x, 60), HORIZONTAL_ALIGNMENT_CENTER)
-		marquee.modulate.a = 1.0
-		var bonus := int(last.get("bonus", 0))
-		_text(s, "detail", ("TARGET BONUS %s" % UiTheme.euro_signed(bonus)) if bonus > 0 else ("%s TO APPRAISE" % UiTheme.count(waiting, "FIND", "FINDS") if waiting > 0 else "ALL APPRAISED · SELL AT THE HATCH"))
-	else:
-		var line2 := "CARRY FINDS THROUGH" if waiting > 0 else ("SELL AT THE HATCH" if not ready.is_empty() else "HAUL SOLD")
-		_style(marquee, UiTheme.screen(), 40, UiTheme.AMBER)
-		_place(marquee, line2, Rect2(0, 18, clip.size.x, 60), HORIZONTAL_ALIGNMENT_CENTER)
-		marquee.modulate.a = 1.0 if _blink(1.4, 0.75) else 0.55
-		_text(s, "detail", "%s WAITING IN THE MOLE" % UiTheme.count(waiting, "FIND", "FINDS") if waiting > 0 else "%s SOLD" % UiTheme.count(sold_n, "FIND", "FINDS"))
+	var r := c.last_report
+	for k in ["name", "stamp", "value", "bonus", "set", "big", "detail", "marquee"]:
+		_text(s, k, "")
+	(s.labels["clip"] as Control).visible = false
+	s.fps = 6.0
+	# De quota onderaan, altijd: verdiend tegenover de quota, plus wat getaxeerd klaarligt.
 	var ready_value := 0
-	for it: FindItem in ready:
+	for it: FindItem in a.appraised_items():
 		ready_value += a.value_of(it)
-	_text(s, "total", UiTheme.euro(int(c.haul.get("sold_value", 0)) + int(c.haul.get("set_bonus", 0)) + int(c.haul.get("target_bonus", 0))))
-	_text(s, "net", "READY %s" % UiTheme.euro(ready_value) if ready_value > 0 else "")
+	_text(s, "quota", "QUOTA %s / %s" % [UiTheme.euro(c.earned), UiTheme.euro(c.quota())])
+	_text(s, "total", ("READY %s" % UiTheme.euro(ready_value)) if ready_value > 0 else "")
+	if c.haul_open():
+		var total := (c.haul.get("ids", []) as Array).size()
+		var waiting := a.unappraised_items().size()
+		_text(s, "count", "HAUL %d/%d" % [total - waiting, total])
+		_paint_stage(s, c, waiting, ready_value)
+		return
+	_text(s, "count", "")
+	if not c.last_haul.is_empty() or not r.is_empty():
+		_paint_summary(s, c.last_haul, r)
+		return
+	# Nog niets verkocht: een knipperende oproep (de taxatie gebeurt echt, na elke dienst).
+	_text(s, "big", "AWAITING YOUR HAUL")
+	(s.labels["big"] as Label).modulate.a = 1.0 if _blink(1.4, 0.75) else 0.5
+	_text(s, "detail", "PUT FINDS ON THE BELT AT THE MOLE'S RAMP AFTER THE SHIFT")
 
 
-## De vorige buit is verkocht (F1): wat er verkocht werd, lopend, met de bonussen; rechts het totaal.
-func _paint_last_haul(s: Screen, h: Dictionary, r: Dictionary, marquee: Label, clip: Control) -> void:
-	marquee.modulate.a = 1.0
-	_text(s, "when", "SHIFT %d
-SOLD" % int(h.get("shift_total", 0)))
+## De buit staat open: de scan, de onthulling met de teller, of wat je nu moet doen.
+func _paint_stage(s: Screen, c: Company, waiting: int, ready_value: int) -> void:
+	var a := c.appraisal
+	var now := Time.get_ticks_msec()
+	var big: Label = s.labels["big"]
+	big.modulate.a = 1.0
+	if a.scanning_id >= 0 and (now - a.scan_at) < 4000:
+		var it: FindItem = c.game.finds.item(a.scanning_id)
+		s.fps = 24.0
+		_text(s, "name", it.display_name().to_upper() if it else "")
+		_text(s, "value", "SCANNING" + ".".repeat(1 + int(_time * 4.0) % 3))
+		_style(s.labels["value"], UiTheme.heading(), int((s.labels["name"] as Label).get_theme_font_size("font_size") * 1.1), UiTheme.CYAN)
+		return
+	var last := a.last_reveal
+	var since := (now - a.reveal_at) / 1000.0
+	if not last.is_empty() and since < 7.0 and a.in_haul(int(last.get("find_id", -1))):
+		s.fps = 24.0 if since < ROLL_START + ROLL_S + 0.3 else 8.0
+		var vc := clampi(int(last.get("value_class", 1)), 0, 3)
+		_text(s, "name", str(last.name).to_upper())
+		# De teller loopt op (zachte start en landing), en springt dan in de kleur van de klasse.
+		var k := clampf((since - ROLL_START) / ROLL_S, 0.0, 1.0)
+		var shown := int(round(int(last.value) * k * k * (3.0 - 2.0 * k)))
+		var vl: Label = s.labels["value"]
+		_style(vl, UiTheme.heading(), int(s.size.y * (1.0 - 0.155 - 0.24) * 0.56), STAGE_CLASS[vc] if k >= 1.0 else UiTheme.CREAM)
+		vl.text = UiTheme.euro(shown)
+		var st: Array = condition_stamp(float(last.condition))
+		_text(s, "stamp", "%s %d%%" % [str(st[0]), int(round(float(last.condition) * 100.0))])
+		(s.labels["stamp"] as Label).add_theme_color_override("font_color", st[1])
+		var bonus := int(last.get("bonus", 0))
+		var set_info: Array = last.get("set", [])
+		if bonus > 0:
+			_text(s, "bonus", "TARGET %s" % UiTheme.euro_signed(bonus))
+		elif bool(last.get("set_done", false)):
+			_text(s, "bonus", "SET COMPLETE")
+		else:
+			_text(s, "bonus", STAGE_CLASS_NAMES[vc])
+		(s.labels["bonus"] as Label).add_theme_color_override("font_color", UiTheme.GOOD if bonus > 0 or bool(last.get("set_done", false)) else STAGE_CLASS[vc])
+		if set_info.size() >= 4:
+			_text(s, "set", "%s %d/%d" % [str(set_info[0]).to_upper(), int(set_info[1]), int(set_info[2])])
+		return
+	# Niets op het podium: wat er nu moet gebeuren.
+	if waiting > 0:
+		_text(s, "big", "PUT FINDS ON THE BELT")
+		big.modulate.a = 1.0 if _blink(1.4, 0.75) else 0.55
+		_text(s, "detail", "%s WAITING IN THE MOLE · THE BELT STARTS AT ITS RAMP" % UiTheme.count(waiting, "FIND", "FINDS"))
+	elif ready_value > 0:
+		_text(s, "big", "SELL AT THE HATCH  >")
+		_text(s, "detail", "EVERYTHING APPRAISED · %s READY" % UiTheme.euro(ready_value))
+	else:
+		_text(s, "big", "HAUL SOLD")
+
+
+## Geen open buit: de vorige dienst als lopende tekst (wat verkocht werd, bonussen, erts), onderaan
+## wat de dienst opbracht.
+func _paint_summary(s: Screen, h: Dictionary, r: Dictionary) -> void:
+	var clip: Control = s.labels["clip"]
+	clip.visible = true
+	var marquee: Label = s.labels["marquee"]
 	var parts := PackedStringArray()
-	for it: Array in h.get("sold", []):
+	var sold: Array = h.get("sold", []) if not h.is_empty() else r.get("sold", [])
+	for it: Array in sold:
 		parts.append("%s %s (%d%%)" % [str(it[0]).to_upper(), UiTheme.euro(int(it[1])), int(it[2])])
 	if int(h.get("set_bonus", 0)) > 0:
 		parts.append("SET BONUS %s" % UiTheme.euro(int(h.set_bonus)))
@@ -1347,33 +1379,231 @@ SOLD" % int(h.get("shift_total", 0)))
 	if parts.is_empty():
 		parts.append("NOTHING SOLD. HEAD OFFICE SIGHS.")
 	var text := "    ·    ".join(parts) + "    ·    "
+	var fs := marquee.get_theme_font_size("font_size")
 	if marquee.text != text:
-		_style(marquee, UiTheme.screen(), 44, UiTheme.AMBER)
 		marquee.text = text
-		marquee.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-		_marquee_w = UiTheme.screen().get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 44).x
-		marquee.size = Vector2(_marquee_w + 8.0, 50)
-		marquee.position.y = 18
+		_marquee_w = UiTheme.screen().get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		marquee.size = Vector2(_marquee_w + 8.0, clip.size.y)
 		_marquee_x = 0.0
 	s.fps = 20.0
 	_marquee_x -= 60.0 / s.fps
 	if _marquee_x < -_marquee_w:
 		_marquee_x = clip.size.x
 	marquee.position.x = roundf(_marquee_x)
-	var n := (h.get("sold", []) as Array).size()
-	_text(s, "detail", "%s SOLD  ·  NEXT CONTRACT AT THE BRIDGE" % UiTheme.count(n, "FIND", "FINDS"))
-	_text(s, "total", UiTheme.euro(int(h.get("sold_value", 0)) + int(h.get("set_bonus", 0)) + int(h.get("target_bonus", 0)) + int(h.get("leftover_value", 0))))
-	_text(s, "net", "")
+	var gross := int(h.get("sold_value", 0)) + int(h.get("set_bonus", 0)) + int(h.get("target_bonus", 0)) + int(h.get("leftover_value", 0)) \
+			if not h.is_empty() else int(r.get("finds_value", 0)) + int(r.get("ore_value", 0)) + int(r.get("bonus", 0))
+	if not h.is_empty() and int(r.get("shift_total", -1)) == int(h.get("shift_total", -2)):
+		gross += int(r.get("ore_value", 0)) + int(r.get("bonus", 0))
+	_text(s, "detail", "SHIFT %d · %s · NET %s" % [int(h.get("shift_total", r.get("shift_total", 0))), UiTheme.euro(gross), UiTheme.euro(int(r.get("net", 0)))] if not r.is_empty()
+			else "SHIFT %d · %s" % [int(h.get("shift_total", 0)), UiTheme.euro(gross)])
+	(s.labels["detail"] as Label).position.y = clip.position.y + clip.size.y + 2.0
 
 
 func _draw_appraisal(c: Control) -> void:
 	var w := c.size.x
 	var h := c.size.y
+	var head := roundf(h * 0.155)
+	var foot := roundf(h * 0.24)
+	var co := _company()
+	var a := co.appraisal
 	c.draw_rect(Rect2(0, 0, w, h), Color("#0c0a08"))
-	for y in range(2, int(h), 4):
-		c.draw_line(Vector2(APPRAISAL_LEFT, y), Vector2(w - APPRAISAL_RIGHT, y), Color(1.0, 0.7, 0.3, 0.035))
-	c.draw_rect(Rect2(0, 0, APPRAISAL_LEFT, h), UiTheme.ANTHRACITE)
-	c.draw_rect(Rect2(APPRAISAL_LEFT - 4, 0, 4, h), UiTheme.YELLOW)
-	c.draw_rect(Rect2(w - APPRAISAL_RIGHT, 0, APPRAISAL_RIGHT, h), UiTheme.ANTHRACITE)
-	c.draw_rect(Rect2(w - APPRAISAL_RIGHT, 0, 4, h), UiTheme.YELLOW)
-	_stripes(c, Rect2(0, h - 10, APPRAISAL_LEFT - 4, 10), UiTheme.YELLOW, UiTheme.ANTHRACITE_LO, 8.0, _time * 12.0)
+	for y in range(int(head) + 2, int(h - foot), 4):
+		c.draw_line(Vector2(0, y), Vector2(w, y), Color(1.0, 0.7, 0.3, 0.03))
+	# Kopbalk in DIG-geel, met de waardeklasse als gloed na een onthulling.
+	var since := (Time.get_ticks_msec() - a.reveal_at) / 1000.0
+	var last := a.last_reveal
+	var revealing := co.haul_open() and not last.is_empty() and since < 7.0 and a.in_haul(int(last.get("find_id", -1)))
+	var band := UiTheme.YELLOW
+	if revealing and bool(last.get("set_done", false)):
+		band = Color.from_hsv(fmod(_time * 0.5, 1.0), 0.55, 1.0)
+	c.draw_rect(Rect2(0, 0, w, head), band)
+	_stripes(c, Rect2(0, head, w, 5), UiTheme.YELLOW, UiTheme.ANTHRACITE_LO, 8.0, _time * 10.0)
+	if revealing:
+		var vc := clampi(int(last.get("value_class", 1)), 0, 3)
+		var k := clampf((since - ROLL_START - ROLL_S) / 0.5, 0.0, 1.0)
+		if k > 0.0 and since < 3.5:
+			var glow := STAGE_CLASS[vc]
+			c.draw_rect(Rect2(0, head + 5, w, h - head - foot - 5), Color(glow, 0.07 * (1.0 - clampf((since - 2.0) / 1.5, 0.0, 1.0))))
+		# Het kader van de stempel (schuin, zoals een inktstempel).
+		var sl: Label = _stamp_label(c)
+		if sl and sl.text != "":
+			c.draw_set_transform(sl.position + sl.pivot_offset, sl.rotation, Vector2.ONE)
+			var col: Color = sl.get_theme_color("font_color")
+			var r := Rect2(-sl.size / 2.0, sl.size)
+			c.draw_rect(r, Color(col, 0.12))
+			c.draw_rect(r, col, false, 3.0)
+			c.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		# Het skelet: een blokje per stuk, gevuld voor wat getaxeerd is.
+		var set_info: Array = last.get("set", [])
+		var setl: Label = _screen_label(c, "set")
+		if set_info.size() >= 4 and setl:
+			var n := int(set_info[2])
+			var done := int(set_info[1])
+			var bx := setl.position.x + UiTheme.screen().get_string_size(setl.text, HORIZONTAL_ALIGNMENT_LEFT, -1, setl.get_theme_font_size("font_size")).x + 12.0
+			var bs := minf(18.0, (w * 0.45 - bx) / maxf(1.0, n) - 4.0)
+			for i in n:
+				var rr := Rect2(bx + i * (bs + 4.0), setl.position.y + setl.size.y * 0.25, bs, bs)
+				if i < done:
+					c.draw_rect(rr, UiTheme.GOOD if done >= n else UiTheme.AMBER)
+				else:
+					c.draw_rect(rr, UiTheme.AMBER, false, 2.0)
+	elif co.haul_open() and a.scanning_id >= 0:
+		# De scanlijn loopt over het podium terwijl de straal over het stuk gaat.
+		var k := fmod(_time * 1.6, 1.0)
+		var y := head + 6.0 + k * (h - head - foot - 10.0)
+		c.draw_rect(Rect2(0, y - 2, w, 4), Color(UiTheme.CYAN, 0.6))
+		c.draw_rect(Rect2(0, y - 10, w, 20), Color(UiTheme.CYAN, 0.08))
+	# De quotabalk: verdiend (geel, groen als gehaald) en wat klaarligt (lichter erachter).
+	var fy := h - foot
+	c.draw_rect(Rect2(0, fy, w, foot), UiTheme.ANTHRACITE)
+	c.draw_rect(Rect2(0, fy, w, 3), UiTheme.YELLOW)
+	var q := maxf(1.0, float(co.quota()))
+	var ready := 0
+	for it: FindItem in a.appraised_items():
+		ready += a.value_of(it)
+	var bar := Rect2(14, fy + foot * 0.56, w - 28, foot * 0.28)
+	var done := clampf(co.earned / q, 0.0, 1.0)
+	var col := UiTheme.GOOD if co.earned >= q else UiTheme.YELLOW
+	_bar(c, bar, done, col, _shifts())
+	var extra := clampf((co.earned + ready) / q, 0.0, 1.0)
+	if extra > done:
+		c.draw_rect(Rect2(bar.position.x + bar.size.x * done, bar.position.y + 3, bar.size.x * (extra - done), bar.size.y - 6), Color(col, 0.35))
+
+
+## Het label van de stempel op het podium (voor het kader in de tekening).
+func _stamp_label(art: Control) -> Label:
+	return _screen_label(art, "stamp")
+
+
+func _screen_label(art: Control, key: String) -> Label:
+	for s: Screen in _screens.values():
+		if s.art == art:
+			return s.labels.get(key)
+	return null
+
+
+# --- Het scherm aan het verkoopluik -----------------------------------------------------------------
+# Golf 3 (gevoel2-04, ui2-01): op ooghoogte op de toonbank. Bij een verkoop telt het per stuk op (elk
+# stuk gaat het luik in), dan de bonussen, het totaal en de quotabalk die vult; QUOTA MET als stempel.
+# Zonder verkoop: wat klaarligt, en wat E doet.
+
+const PAYOUT := "Payout_Screen"
+
+
+func _build_payout(s: Screen) -> void:
+	var w := s.size.x
+	var h := s.size.y
+	(s.art as Art).painter = _draw_payout
+	_label(s, "title", UiTheme.heading(), int(h * 0.1), UiTheme.ANTHRACITE, Vector2(14, h * 0.015), Vector2(w * 0.6, h * 0.13)).text = "DIG · PAYOUT"
+	_label(s, "rate", UiTheme.screen(), int(h * 0.09), UiTheme.ANTHRACITE, Vector2(w * 0.45, h * 0.025), Vector2(w * 0.55 - 14, h * 0.13), HORIZONTAL_ALIGNMENT_RIGHT).text = "TODAY'S RATE: LOW"
+	_label(s, "line", UiTheme.screen(), int(h * 0.11), UiTheme.CREAM_DIM, Vector2(16, h * 0.17), Vector2(w - 32, h * 0.14))
+	_label(s, "total", UiTheme.heading(), int(h * 0.27), UiTheme.YELLOW, Vector2(16, h * 0.3), Vector2(w - 32, h * 0.34), HORIZONTAL_ALIGNMENT_CENTER)
+	_label(s, "sub", UiTheme.screen(), int(h * 0.1), UiTheme.CREAM, Vector2(16, h * 0.62), Vector2(w - 32, h * 0.13), HORIZONTAL_ALIGNMENT_CENTER)
+	_label(s, "quota", UiTheme.screen(), int(h * 0.09), UiTheme.CREAM, Vector2(16, h * 0.76), Vector2(w - 32, h * 0.11))
+	var stamp := _label(s, "stamp", UiTheme.heading(), int(h * 0.11), UiTheme.GOOD, Vector2(w * 0.53, h * 0.66), Vector2(w * 0.43, h * 0.16), HORIZONTAL_ALIGNMENT_CENTER)
+	stamp.pivot_offset = stamp.size / 2.0
+	stamp.rotation = -0.12
+
+
+## De verkoop als tijdlijn: [tijd (s), wat er bij komt, de regel] per stuk, dan de bonussen.
+func _payout_steps(sale: Dictionary) -> Array:
+	var gap := Tuning.get_f("economy", "sell_gap_s", 0.35)
+	var out: Array = []
+	var t := 0.45
+	for line: Array in sale.get("items", []):
+		out.append([t, int(line[1]), "+%s  %s" % [UiTheme.euro(int(line[1])), str(line[0]).to_upper()]])
+		t += gap
+	t += 0.25
+	for st: Array in sale.get("sets", []):
+		out.append([t, int(st[1]), "+%s  COMPLETE %s" % [UiTheme.euro(int(st[1])), (str(st[3]) + " SKELETON").to_upper() if st.size() > 3 and str(st[3]) != "" else "SET"]])
+		t += 0.6
+	return out
+
+
+func _paint_payout(s: Screen) -> void:
+	var c := _company()
+	var a := c.appraisal
+	var sale := a.last_sale
+	var since := (Time.get_ticks_msec() - a.sale_at) / 1000.0
+	var stamp: Label = s.labels["stamp"]
+	_text(s, "stamp", "")
+	if not sale.is_empty() and since < 9.0:
+		s.fps = 24.0
+		var steps := _payout_steps(sale)
+		var shown := 0
+		var line := ""
+		for st: Array in steps:
+			if since >= float(st[0]):
+				shown += int(st[1])
+				line = str(st[2])
+		var end_t: float = float(steps.back()[0]) + 0.4 if not steps.is_empty() else 0.5
+		var total := int(sale.get("value", 0)) + int(sale.get("target_bonus", 0)) + int(sale.get("set_bonus", 0))
+		if since >= end_t:
+			shown = total
+			line = "%s SOLD" % UiTheme.count(int(sale.get("count", 0)), "FIND", "FINDS")
+		_text(s, "line", line)
+		_text(s, "total", UiTheme.euro_signed(shown))
+		_text(s, "sub", ("TARGET BONUS %s" % UiTheme.euro_signed(int(sale.target_bonus))) if int(sale.get("target_bonus", 0)) > 0 and since >= end_t else "")
+		var before := int(sale.get("earned_before", c.earned))
+		var after := int(sale.get("earned_after", c.earned))
+		var q := int(sale.get("quota", c.quota()))
+		var k := clampf((since - end_t) / 1.0, 0.0, 1.0)
+		var cur := int(round(lerpf(before, after, k * k * (3.0 - 2.0 * k))))
+		_text(s, "quota", "QUOTA %s / %s" % [UiTheme.euro(cur), UiTheme.euro(q)])
+		if before < q and after >= q and k >= 1.0:
+			_text(s, "stamp", "QUOTA MET")
+			stamp.add_theme_color_override("font_color", UiTheme.GOOD)
+		return
+	s.fps = 4.0
+	var ready := a.appraised_items()
+	var ready_value := 0
+	for it: FindItem in ready:
+		ready_value += a.value_of(it)
+	if ready_value > 0:
+		_text(s, "line", "%s APPRAISED" % UiTheme.count(ready.size(), "FIND", "FINDS"))
+		_text(s, "total", UiTheme.euro(ready_value))
+		_text(s, "sub", "E: SELL EVERYTHING")
+	elif c.haul_open():
+		_text(s, "line", "")
+		_text(s, "total", UiTheme.euro(0))
+		_text(s, "sub", "APPRAISE AT THE GATE FIRST")
+	else:
+		_text(s, "line", "")
+		_text(s, "total", UiTheme.euro(0))
+		_text(s, "sub", "WE BUY ANYTHING*")
+	_text(s, "quota", "QUOTA %s / %s" % [UiTheme.euro(c.earned), UiTheme.euro(c.quota())])
+
+
+func _draw_payout(c: Control) -> void:
+	var w := c.size.x
+	var h := c.size.y
+	var co := _company()
+	var a := co.appraisal
+	c.draw_rect(Rect2(0, 0, w, h), Color("#0c0a08"))
+	c.draw_rect(Rect2(0, 0, w, h * 0.15), UiTheme.YELLOW)
+	_stripes(c, Rect2(0, h * 0.15, w, 4), UiTheme.YELLOW, UiTheme.ANTHRACITE_LO, 8.0)
+	var sale := a.last_sale
+	var since := (Time.get_ticks_msec() - a.sale_at) / 1000.0
+	var q := maxf(1.0, float(co.quota()))
+	var done := clampf(co.earned / q, 0.0, 1.0)
+	if not sale.is_empty() and since < 9.0:
+		var steps := _payout_steps(sale)
+		var end_t: float = float(steps.back()[0]) + 0.4 if not steps.is_empty() else 0.5
+		var k := clampf((since - end_t) / 1.0, 0.0, 1.0)
+		var before := float(sale.get("earned_before", co.earned))
+		var after := float(sale.get("earned_after", co.earned))
+		q = maxf(1.0, float(sale.get("quota", q)))
+		done = clampf(lerpf(before, after, k * k * (3.0 - 2.0 * k)) / q, 0.0, 1.0)
+		# Een gloed rond het totaal zolang het optelt.
+		if since < end_t + 0.5:
+			c.draw_rect(Rect2(10, h * 0.3, w - 20, h * 0.32), Color(UiTheme.YELLOW, 0.06 + 0.04 * sin(_time * 18.0)))
+	var bar := Rect2(16, h * 0.88, w - 32, h * 0.07)
+	_bar(c, bar, done, UiTheme.GOOD if done >= 1.0 else UiTheme.YELLOW, _shifts())
+	var sl: Label = _screen_label(c, "stamp")
+	if sl and sl.text != "":
+		c.draw_set_transform(sl.position + sl.pivot_offset, sl.rotation, Vector2.ONE)
+		var col: Color = sl.get_theme_color("font_color")
+		var r := Rect2(-sl.size / 2.0, sl.size)
+		c.draw_rect(r, Color(0.05, 0.05, 0.04, 0.85))
+		c.draw_rect(r, col, false, 4.0)
+		c.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)

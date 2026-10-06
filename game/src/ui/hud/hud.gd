@@ -77,6 +77,8 @@ var _carry_cond_label: Label # "CONDITION", of "TIME LEFT" bij een neergegane pl
 var _carry_value_cap: Label # "ESTIMATE" of "APPRAISED" onder het bedrag (golf 3)
 ## Quota en laadruim linksboven (hub en Mol, golf 3).
 var quota: HudQuota
+## De onthulling aan de poort onder het vizier (golf 3).
+var reveal_hud: HudReveal
 var _carry_set: Label # skelet: stukken aan boord en het gewicht van de hele set (golf 3)
 var _toasts: VBoxContainer
 var _banner: PanelContainer
@@ -162,6 +164,11 @@ func _build_center() -> void:
 	crosshair = HudCrosshair.new()
 	crosshair.position = -crosshair.custom_minimum_size / 2.0
 	center.add_child(crosshair)
+	# De onthulling aan de poort voor wie het podium niet ziet (golf 3): boven het vizier (onder het
+	# vizier staat de prompt van het luik, dat naast de poort staat).
+	reveal_hud = HudReveal.new()
+	reveal_hud.position = Vector2(-HudReveal.WIDTH / 2.0, -196.0)
+	center.add_child(reveal_hud)
 
 	# De prompt staat een eind onder het vizier, zodat hij het ding waar je op mikt (een vondst op
 	# armlengte is ±150 px hoog) niet bedekt (ui-19).
@@ -1004,6 +1011,8 @@ func update(player: Player, game: Game, terrain: TerrainAPI) -> void:
 	_update_carry(player)
 	quota.blocked = _world_hidden or player.seated
 	quota.update_from(player, game)
+	reveal_hud.watch(game)
+	reveal_hud.update_from(player, _world_hidden)
 	_update_ore(player, game)
 	_update_prompt(player, game, terrain)
 	_update_pilot(player)
@@ -1476,9 +1485,10 @@ func _hub_state(player: Player, game: Game, mol: Mol) -> Dictionary:
 		Mol.Mode.DOCKED:
 			if c and c.haul_open() and not c.contract_ready() and not c.appraisal.unappraised_items().is_empty():
 				s.title = "Appraise your haul"
-				s.sub = "Carry the finds from the Mole through the appraisal gate (%d left)" % c.appraisal.unappraised_items().size()
+				# Golf 3 (ontwerp2-9): de band begint aan de voet van de klep en draagt door de poort.
+				s.sub = "Put the finds on the belt at the Mole's ramp (%d left)" % c.appraisal.unappraised_items().size()
 				s.has_target = true
-				s.target = ship.anchor_position("Appraisal_Gate") + Vector3(0, 1.2, 0)
+				s.target = ship.anchor_position("Appraisal_Gate") + Vector3(-2.6, 0.6, 0)
 				s.icon = HudCompass.TERMINAL_ICON
 			elif c and c.haul_open() and not c.contract_ready() and not c.appraisal.appraised_items().is_empty():
 				s.title = "Sell your haul"

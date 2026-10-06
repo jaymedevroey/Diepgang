@@ -68,8 +68,11 @@ func _run() -> void:
 	c.contract = o
 	c.changed.emit()
 	var term := screens.screen_text(HubScreens.TERMINAL)
-	_expect(str(o.name) in term and "MEDIUM" in term and "×" + HubScreens._num(Company.pay_factor(Company.Risk.MID)) in term,
-			"terminal: %s, risico MIDDEL, opbrengst ×%s" % [o.name, HubScreens._num(Company.pay_factor(Company.Risk.MID))])
+	# Golf 3: het label telt de planeet mee (danger), de opbrengst volgt de voorwaarden (risk).
+	var label: String = Company.RISK_NAMES[int(o.danger)]
+	var pay := HubScreens._num(Company.pay_factor(int(o.risk)))
+	_expect(str(o.name) in term and label in term and pay in term,
+			"terminal: %s, risico %s, opbrengst ×%s" % [o.name, label, pay])
 	_expect(str(o.name) in screens.screen_text(HubScreens.BOARD), "firmabord: opdracht %s" % o.name)
 
 	# 4. Taxatie en rapport na een dienst.
@@ -97,7 +100,8 @@ func _run() -> void:
 	c.haul = {"contract": {}, "ids": [it.find_id], "appraised": {}, "sold": [], "sold_value": 0, "set_bonus": 0,
 			"target_bonus": 0, "sets": {}, "sets_done": [], "target_paid": false}
 	c.changed.emit()
-	_expect("CARRY FINDS THROUGH" in screens.screen_text(HubScreens.APPRAISAL), "taxatie met open buit: draag de vondsten door de poort")
+	# Golf 3: de band draagt de vondsten door de poort (ontwerp2-9).
+	_expect("PUT FINDS ON THE BELT" in screens.screen_text(HubScreens.APPRAISAL), "taxatie met open buit: leg de vondsten op de band")
 	(c.haul.appraised as Dictionary)[str(it.find_id)] = [287, 0]
 	c.appraisal._rpc_revealed(it.find_id, 287, 0, 0.87)
 	await _wait(1.5)
