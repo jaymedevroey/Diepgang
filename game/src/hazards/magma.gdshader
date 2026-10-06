@@ -86,10 +86,14 @@ vec2 voronoi(vec2 x, float t, out vec2 cell) {
 	return vec2(edge, length(mr));
 }
 
-// Open lava (1) of dichte korst (0), in stukken van tientallen meters die traag verschuiven.
+// Open lava (1) of dichte korst (0), in stukken van tientallen meters die traag verschuiven, en
+// rivieren: lange, kronkelende stromen open lava tussen de korstvelden (golf 3: van ver geen plaat met
+// een celpatroon, maar een meer met stromen).
 float openness(vec2 xz, float t) {
 	float n = vnoise(xz * 0.05 + vec2(t * 0.004, -t * 0.003)) * 0.65 + vnoise(xz * 0.13 + vec2(7.1, 2.3)) * 0.35;
-	return smoothstep(0.45, 0.62, n);
+	vec2 q = xz * 0.028 + vec2(vnoise(xz * 0.017 + vec2(3.3, 1.1)), vnoise(xz * 0.017 + vec2(8.7, 4.2))) * 2.2 + vec2(t * 0.002, 0.0);
+	float ridge = 1.0 - abs(vnoise(q) * 2.0 - 1.0);
+	return max(smoothstep(0.45, 0.62, n), smoothstep(0.84, 0.95, ridge));
 }
 
 // Een bel per cel van 3,5 m (enkel in open lava): x = hoe ver in de bel (1 = rand), y = fase (0..1:
@@ -146,6 +150,9 @@ void fragment() {
 	}
 	float t = TIME;
 	float open = openness(wpos.xz, t);
+	// Van ver lost het celpatroon op in een gloed (anders een tegelvloer tot aan de kim, binnen-06):
+	// de barsten doven uit, de warme vlekken en de rivieren blijven.
+	float far_k = smoothstep(10.0, 38.0, distance(wpos, CAMERA_POSITION_WORLD));
 	vec2 cell;
 	vec4 pv = pattern(wpos.xz, t, cell);
 	float edge = pv.x; // 0 op de rand tussen twee platen
@@ -177,6 +184,9 @@ void fragment() {
 	// Korst: donker, met een grijzige afgekoelde rand en een bol midden.
 	float dome = smoothstep(0.0, 0.3, edge);
 	vec3 crust = mix(crust_edge, crust_color, dome) * (0.75 + 0.5 * hash2(cell).x);
+	// Afgekoelde korst: grijzige, ruwe schilfers (geen effen zwart).
+	crust = mix(crust, crust_edge * 1.4, smoothstep(0.6, 0.85, vnoise(wpos.xz * 1.7 + cell * 3.1)) * 0.5);
+	crust = mix(crust, crust_color * 0.8, far_k * 0.6);
 	vec3 alb = mix(crust, hot_color * 0.35, lava);
 	ALBEDO = alb;
 	ROUGHNESS = mix(0.92, 0.55, lava);
@@ -184,7 +194,8 @@ void fragment() {
 	SPECULAR = 0.25;
 	// Gloed: barsten en open lava fel, met strepen; schotsen enkel aan hun rand.
 	float open_glow = (1.0 - raft_here) * mix(0.12, 0.6, streak * streak);
-	float glow = crack * (0.55 + 0.6 * heat) * (1.0 - open * 0.6) + crack_core * 0.8 * (1.0 - open * 0.5) + thin * 0.35 + open_glow + bub * 0.4 + ring * 2.0;
+	float glow = (crack * (0.55 + 0.6 * heat) * (1.0 - open * 0.6) + crack_core * 0.8 * (1.0 - open * 0.5)) * (1.0 - 0.9 * far_k)
+			+ far_k * (0.06 + 0.22 * heat) * (1.0 - open) + thin * 0.35 + open_glow + bub * 0.4 + ring * 2.0;
 	vec3 deep = vec3(0.6, 0.06, 0.01); // dof rood: barsten die bijna dicht zijn
 	vec3 e = mix(deep, hot_color, clamp(bright + heat * 0.5, 0.0, 1.0));
 	e = mix(e, core_color, clamp(crack_core * 0.8 * (1.0 - open) + heat * crack * 0.4 + (1.0 - raft_here) * smoothstep(0.6, 0.9, streak) * 0.8 + ring + bub * 0.4, 0.0, 1.0));

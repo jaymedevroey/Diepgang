@@ -56,7 +56,15 @@ var _rocks: Array[PackedVector4Array] = []
 var _cave_rocks: Array[PackedVector4Array] = []
 var _cones: Array[PackedFloat32Array] = []
 var _caverns: Array[Vector4] = [] # x, y, z, horizontale straal
-var _tunnels: Array = [] # [a: Vector3, b: Vector3, straal]
+var _tunnels: Array = [] # [a: Vector3, b: Vector3, straal] (optioneel [3]: ruwheid, standaard 0,7)
+## Startgrot (golf 3, binnen-01: "de eerste 15 minuten onder de grond hebben geen plek om naartoe
+## te gaan"): een grot in de klei vlak bij de landingsplek, met een oude toegangsgang van de vorige
+## ploeg vanaf het oppervlak. CaveSetPieces zet er het kamp in. TerrainAPI zet `starter_cave` voor
+## setup (setpieces.cfg). Enkel weggenomen rots: de regel "terrein kan enkel weg" blijft.
+var starter_cave := true
+var starter := Vector4.ZERO # voxels: midden en horizontale straal (w = 0: geen)
+var starter_ramp: Array[Vector3] = [] # voxels: de as van de gang, van de monding naar de grot
+const STARTER_RAMP_R := 4.4 # voxels (2,2 m)
 
 
 func setup(planet_seed: int, size: Vector3i) -> void:
@@ -89,6 +97,8 @@ func setup(planet_seed: int, size: Vector3i) -> void:
 		if c.distance_to(shaft_center) < landing_radius + r * 0.9:
 			continue
 		_craters.append(Vector4(c.x, c.y, r, r * rng.randf_range(0.16, 0.26)))
+	# De startgrot en haar gang (een eigen rng: de rest van de wereld blijft zoals hij was).
+	_plan_starter(planet_seed)
 
 	# Rotsblokken op het oppervlak, niet op de landingsplek.
 	_boulders.clear()
@@ -127,7 +137,40 @@ func setup(planet_seed: int, size: Vector3i) -> void:
 					Vector3(size.x - wall - r - 6.0, surface_y - 24.0, size.z - wall - r - 6.0))
 			_tunnels.append([p, q, r])
 			p = q
+	# Startgrot achteraan (geen trekkingen uit rng: de andere grotten en gangen blijven gelijk).
+	if starter.w > 0.0:
+		_caverns.append(starter)
+		for i in starter_ramp.size() - 1:
+			_tunnels.append([starter_ramp[i], starter_ramp[i + 1], STARTER_RAMP_R, 0.25])
 	_make_cave_features(planet_seed)
+
+
+## De startgrot: 8-9,5 m breed, ±14 m onder het oppervlak, 55-62 m van het midden, en een gang van
+## ±30° vanaf de rand van de landingsplek (te belopen: CharacterBody3D tot 45°). In voxels.
+func _plan_starter(planet_seed: int) -> void:
+	starter = Vector4.ZERO
+	starter_ramp.clear()
+	if not starter_cave:
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = planet_seed * 97 + 41
+	var ang := rng.randf() * TAU
+	var r := rng.randf_range(16.0, 19.0)
+	var depth := rng.randf_range(26.0, 30.0)
+	var bend := rng.randf_range(-1.0, 1.0)
+	var mouth_d := landing_radius + 10.0
+	var cave_d := mouth_d + 62.0 + r
+	var dir := Vector2(cos(ang), sin(ang))
+	var c := shaft_center + dir * cave_d
+	var cy := surface_at(c.x, c.y) - depth
+	starter = Vector4(c.x, cy, c.y, r)
+	var m := shaft_center + dir * mouth_d
+	var start := Vector3(m.x, surface_at(m.x, m.y) + 1.5, m.y)
+	var floor_y := cy - r / CAVERN_SQUASH
+	var end := Vector3(c.x - dir.x * (r - 3.0), floor_y + STARTER_RAMP_R - 0.5, c.y - dir.y * (r - 3.0))
+	# Licht gebogen (een gang die met de hand gegraven is), in vier stukken.
+	var side := Vector3(-dir.y, 0.0, dir.x) * bend * 7.0
+	starter_ramp = [start, start.lerp(end, 0.3) + side * 0.8, start.lerp(end, 0.65) + side, end]
 
 
 ## Hoogte van het oppervlak (voxels) op kolom x/z, zonder rotsblokken.
@@ -256,6 +299,8 @@ func _add_rock(xz: Vector2, r: float, rng: RandomNumberGenerator) -> void:
 		return
 	if xz.x < wall + r + 6.0 or xz.y < wall + r + 6.0 or xz.x > dims.x - wall - r - 6.0 or xz.y > dims.z - wall - r - 6.0:
 		return
+	if not starter_ramp.is_empty() and xz.distance_to(Vector2(starter_ramp[0].x, starter_ramp[0].z)) < r * 2.0 + 14.0:
+		return # niet voor de monding van de oude gang
 	var sink: float = shape[1]
 	var c := Vector3(xz.x, surface_at(xz.x, xz.y) + sink, xz.y)
 	var rock := _place(shape[0], c, shape[2])
@@ -376,6 +421,7 @@ func _make_cave_features(planet_seed: int) -> void:
 	for c in _caverns:
 		var r := c.w
 		var half_h := r / CAVERN_SQUASH
+		var camp := starter.w > 0.0 and c == starter # het kamp staat op de vloer: daar geen kegels of blokken
 		# Druipsteen aan het plafond.
 		for k in clampi(int(r / 4.0), 2, 10):
 			var a := rng.randf() * TAU
@@ -386,7 +432,7 @@ func _make_cave_features(planet_seed: int) -> void:
 			var top := Vector3(c.x + cos(a) * d, ceil_y + 2.5, c.z + sin(a) * d)
 			_add_cone(top - Vector3(0.0, length + 2.5, 0.0), top, base_r)
 		# Stalagmieten op de vloer.
-		for k in clampi(int(r / 7.0), 1, 6):
+		for k in (0 if camp else clampi(int(r / 7.0), 1, 6)):
 			var a := rng.randf() * TAU
 			var d := rng.randf_range(0.15, 0.7) * r
 			var floor_y := c.y - sqrt(maxf(r * r - d * d, 0.0)) / CAVERN_SQUASH
@@ -395,7 +441,7 @@ func _make_cave_features(planet_seed: int) -> void:
 			var foot := Vector3(c.x + cos(a) * d, floor_y - 2.0, c.z + sin(a) * d)
 			_add_cone(foot + Vector3(0.0, length + 2.0, 0.0), foot, base_r)
 		# Een pilaar in de grote grotten: een stalactiet en een stalagmiet die elkaar raken.
-		if r > 28.0:
+		if r > 28.0 and not camp:
 			var a := rng.randf() * TAU
 			var d := rng.randf_range(0.3, 0.55) * r
 			var p := Vector2(c.x + cos(a) * d, c.z + sin(a) * d)
@@ -406,7 +452,7 @@ func _make_cave_features(planet_seed: int) -> void:
 			_add_cone(Vector3(p.x, mid - span * 0.6, p.y), Vector3(p.x, c.y + span + 3.0, p.y), pr * 1.3)
 			_add_cone(Vector3(p.x, mid + span * 0.6, p.y), Vector3(p.x, c.y - span - 3.0, p.y), pr * 1.5)
 		# Neergestorte blokken op de vloer.
-		if r > 11.0:
+		if r > 11.0 and not camp:
 			for k in 1 + int(r / 15.0):
 				var shape := _rock_shape(rng, rng.randf_range(2.0, minf(5.0, r * 0.18)), false)
 				var a := rng.randf() * TAU
@@ -470,7 +516,7 @@ func _sdf(p: Vector3, h: float, rocks: Array[PackedVector4Array], caverns: Array
 		if dt > -3.0:
 			if is_nan(rough):
 				rough = _rough.get_noise_3dv(p) * ROUGH_AMP
-			dt += rough * 0.7
+			dt += rough * (0.7 if t.size() < 4 else float(t[3]))
 		s = maxf(s, dt)
 	# In de grotten (na het uithollen): blokken en druipsteen.
 	for b in cave_rocks:

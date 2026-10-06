@@ -87,18 +87,18 @@ Hier staan de oude punten die 'beter, niet genoeg' of 'erger' waren en alle nieu
 | gevoel-17 | G4 | open | | |
 | gevoel2-11 | G4 | open | | |
 | gevoel2-12 | G4 | open | | |
-| binnen-01 | G5 | open | | |
-| binnen-03 | G5 | open | | |
-| binnen-04 | G5 | open | | |
-| binnen-06 | G5 | open | | |
-| binnen-08 | G5 | open | | |
-| binnen2-05 | G5 | open | | |
-| binnen2-06 | G5 | open | | |
-| binnen2-08 | G5 | open | | |
-| binnen2-09 | G5 | open | | |
-| binnen2-12 | G5 | open | | |
-| binnen2-14 | G5 | open | | |
-| binnen2-15 | G5 | open | | |
+| binnen-01 | G5 | deels (veel beter; ter goedkeuring) | Set pieces uit de seed in ±1 op 3 grotten, de 2 dichtste kleigrotten altijd (DIG-kamp, oude Mol, reuzenribbenkast, geodekamer) met goede buit; startgrot ±60 m van het midden met de oude toegangstunnel van de vorige ploeg (werklamp en bord zichtbaar van de landingsplek). Open: buitenbeeld van de Mol ondergronds nog een bruine buis; eerste 70 m nog warm | G5: na_gang_naar_startgrot.png, na_set_pieces.png |
+| binnen-03 | G5 | klaar (ter goedkeuring: koper turkoois) | Erts als donkere knol van ±0,7 m met kristalnaalden in alle richtingen en klompjes blank metaal; koper turkoois tegen rode klei; glinsters als harde facetjes | G5: vergelijk_erts |
+| binnen-04 | G5 | klaar (ter goedkeuring) | Korst als concretie per planeet en laag (ijzersteen met calcietaders, zwarte vuursteen met witte korst, obsidiaan met roze aders), gefacetteerd, barsten die de vondst tonen en groeien met schade | G5: vergelijk_korst |
+| binnen-06 | G5 | deels | Rivieren van open lava, celpatroon vervaagt met de afstand, afgekoelde schilfers. Open: geen stromend front, geen vonkenfonteinen | G5: vergelijk_magma |
+| binnen-08 | G5 | deels | Per planeet: graniet als gneisbanden (Fossielwereld) of basalt met zuilen (Kristalmaan), botbedden, zeshoekige insluitsels, eigen decor en set pieces. Open: vormen van gangen en grotten nog gelijk | G5: vergelijk_lagen, vergelijk_grotten |
+| binnen2-05 | G5 | klaar | Smelten: lava stijgt van onder in beeld (pulserend, strepen, vonken), scherm en gereedschap gloeien; onder het magma volledig lava; één melding | G5: vergelijk_smelten |
+| binnen2-06 | G5 | klaar (ter goedkeuring) | Decor per planeet en laag (paddenstoelen met gloeiende lamellen en gloeiwormdraden, parasolzwammen, beugelzwammen en zoutkorsten, roze scherven, kwartsgeodes); druipsteen in de laagkleur | G5: vergelijk_grotdecor |
+| binnen2-08 | G5 | klaar (ter goedkeuring) | Bekken herwerkt (vleugels met kam, plaat met druppelgaten, schaambeenboog); bone.gdshader met okervlekken, donkere holtes, putjes en haarscheurtjes. Reviewer: duidelijk beter, bekken leest nog wat als masker | G5: vergelijk_botten |
+| binnen2-09 | G5 | klaar | Glinsters flitsen als facetten naar de lamp; knollen met donkere korst en zeskantig kristal, geen halo | G5: vergelijk_erts |
+| binnen2-12 | G5 | deels | Barsten dunner, onregelmatig en onderbroken met lichte stofrand; druipsteen niet meer zwart. Open: op een licht plafond nog een zachter net | G5 |
+| binnen2-14 | G5 | klaar | Merklaag met golvende, zachte randen, korrel, roestvlekken en knolletjes | G5 |
+| binnen2-15 | G5 | deels | Boorkopcamera zonder mist, nachtzicht met randdetectie (feed.gdshader). Open: geen markers voor vondsten of laaggrenzen | G5: vergelijk_molscherm |
 | ui-07 | G6 | klaar | TextLint bewaakt stijlregels en woordenlijst over alle spelertekst en Blender-opschriften; ui_test kijkt ook wat op het scherm staat | ui_test --only=text; G6: interior_terminal_na |
 | ui2-07 | G6 | klaar | Echt minteken (UiTheme.signed), m/kg, € met komma, overal 'contract table', 'team funds', magmaregel herschreven, boete-tekst, PAY in procenten | ui_test; G6: f1_scanner, hud_buitenzicht |
 | ui2-08 | G6 | klaar | Laadruim leest de limiet uit economy.cfg (MAX 60 KG / EXTENDED HOLD 140 KG), rek enkel DRILL T2, prijslijst zichtbaar met enkel scanner en lamp, dozen met niet-bestaande items weg | G6: hub_r10d_laadruim_bord, hub_z12_prijslijst, hub_z13_rekbord |
