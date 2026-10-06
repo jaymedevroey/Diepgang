@@ -357,7 +357,7 @@ def portals(ctx, P, D):
     # Bord boven de poort: vóór op de bovenrand van het kader en lager dan de spanten, zodat niets van
     # het plafond voor de letters hangt, ook niet van ver (spawn, ooghoogte 1,8 m) of van dichtbij.
     box(P, (10.0, 4.45, 30.56), (3.6, 0.34, 0.12), m="Anthracite")
-    text(D, "BRIDGE  ·  CONTRACTS", 0.15, (10.0, 4.45, 30.62), (0, 0, 1), "Yellow")
+    text(D, "BRIDGE  ·  CONTRACT TABLE", 0.15, (10.0, 4.45, 30.62), (0, 0, 1), "Yellow")  # één naam (ui2-07)
     box(D, (10.0, 4.31, 30.626), (3.3, 0.012, 0.012), m="LedAmber")
     # Laadrek: lager, met afgeschuinde hoeken (0,4 m). De voorkant kijkt naar −z.
     inner = [(6.15, Y0), (6.15, 2.6), (6.55, 3.0), (13.45, 3.0), (13.85, 2.6), (13.85, Y0)]

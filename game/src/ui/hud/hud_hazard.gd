@@ -3,7 +3,7 @@ extends HudFader
 ## Onder het kompas: de gevaren (onderzoek magma-en-onrust, G; ontwerp-1, ontwerp-12).
 ## - Het magma: onder de grond (en in de Mol) altijd in beeld, want het is de enige klok (ontwerp-1:
 ##   "de klok is het grootste deel van de dienst onzichtbaar"). Ver weg klein en rustig ("MAGMA 214 m
-##   · here in 9:40"), vanaf 60 m groot en oranje, onder 30 m rood, onder 15 m knipperend. Een beving
+##   below · reaches you in 9:40"), vanaf 60 m groot en oranje, onder 30 m rood, onder 15 m knipperend. Een beving
 ##   die het magma opstuwt, toont even "+9 m".
 ## - Gerommel van de Graafworm: een seismograaf die uitslaat als hij dichtbij zwemt.
 ## - Gas: "GAS · NO DRILLING" zolang je in een gasbel staat.
@@ -26,6 +26,9 @@ var magma_m := INF
 var magma_eta := INF
 ## Onder de grond of in de Mol: het magma altijd tonen.
 var always_magma := false
+## In de stoel van de Mol (eigen camera): het magma niet, want het statusscherm toont het al en de chip
+## lag over de kop van het camerascherm (ui2-13).
+var hide_magma := false
 ## De regel van ontwerp-1 (ver weg toch tonen). Uit = de oude regel (enkel binnen 60 m), voor een
 ## voor/na-beeld (threat_film --take=hud --legacy).
 var far_rule := true
@@ -70,13 +73,15 @@ func flash_rise(metres: float) -> void:
 
 
 func _magma_shown() -> bool:
-	return magma_m < SHOW_MAGMA_M or (always_magma and far_rule and magma_m < INF)
+	return not hide_magma and (magma_m < SHOW_MAGMA_M or (always_magma and far_rule and magma_m < INF))
 
 
 ## Hoe hoog wat er nu getekend wordt (voor wat eronder komt, zoals de aftelling).
 func content_height() -> float:
 	var h := 0.0
-	if magma_m < SHOW_MAGMA_M:
+	if hide_magma:
+		pass
+	elif magma_m < SHOW_MAGMA_M:
 		h += MAGMA_H + 6.0
 	elif always_magma and far_rule and magma_m < INF:
 		h += FAR_H + 4.0
@@ -111,15 +116,17 @@ func _draw() -> void:
 	var t := Time.get_ticks_msec() / 1000.0
 	var blink := fmod(t, 0.6) < 0.38
 	var y := 0.0
-	if magma_m < SHOW_MAGMA_M:
+	if hide_magma:
+		pass
+	elif magma_m < SHOW_MAGMA_M:
 		var col := UiTheme.AMBER if magma_m > 30.0 else UiTheme.DANGER
 		if magma_m < 15.0 and not blink:
 			col = Color(col, 0.5)
 		# "MAGMA" als label in de huisstijl, de afstand in gewone cijfers met "m" (ui-07), en wanneer het hier is.
 		var word := "MAGMA"
-		var dist := "%d m" % int(maxf(0.0, magma_m))
+		var dist := "%d m below" % int(maxf(0.0, magma_m))
 		if magma_eta < 3600.0 and magma_m > 0.5:
-			dist += "  ·  here in %s" % _clock(magma_eta)
+			dist += "  ·  reaches you in %s" % _clock(magma_eta)
 		var wsz := _head.get_string_size(word, HORIZONTAL_ALIGNMENT_LEFT, -1, 20)
 		var dsz := _font.get_string_size(dist, HORIZONTAL_ALIGNMENT_LEFT, -1, 24)
 		var bw := wsz.x + dsz.x + 40.0
@@ -140,7 +147,7 @@ func _draw() -> void:
 		var word := "MAGMA"
 		var dist := "%d m below" % int(magma_m)
 		if magma_eta < 3600.0:
-			dist += "  ·  here in %s" % _clock(magma_eta)
+			dist += "  ·  reaches you in %s" % _clock(magma_eta)
 		var wsz := _head.get_string_size(word, HORIZONTAL_ALIGNMENT_LEFT, -1, 18)
 		var dsz := _font.get_string_size(dist, HORIZONTAL_ALIGNMENT_LEFT, -1, 20)
 		var bw := wsz.x + dsz.x + 34.0
@@ -175,19 +182,14 @@ func _draw() -> void:
 		draw_polyline(pts, c, 2.0)
 		y += WORM_H
 	if gas:
-		# Op een donkere plaat met een oranje rand, als een alarm (golf 3, ui2-02): in de gele mist zelf
-		# moet hij leesbaar blijven (hud-menu.md §4.9: nooit geel op licht).
+		# Op een donker HUD-plaatje met de rand van een alarm (golf 3, ui2-02; UiTheme.draw_chip): in de
+		# gele mist zelf moet hij leesbaar blijven (hud-menu.md §4.9: nooit geel op licht).
 		var word := "GAS  ·  NO DRILLING"
 		var gw := _head.get_string_size(word, HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x
-		var plate := Rect2(WIDTH / 2.0 - gw / 2.0 - 14.0, y + 1.0, gw + 28.0, GAS_H - 2.0)
-		var bg := StyleBoxFlat.new()
-		bg.bg_color = Color(0.1, 0.05, 0.02, 0.92)
-		bg.border_color = UiTheme.DANGER if blink else Color(UiTheme.DANGER, 0.6)
-		bg.set_border_width_all(2)
-		bg.set_corner_radius_all(6)
-		draw_style_box(bg, plate)
-		var gcol := Color("#F2D64A") if blink else Color("#F2D64A", 0.7)
-		draw_string(_head, Vector2(WIDTH / 2.0 - gw / 2.0, y + 24.0), word, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, gcol)
+		var crit := UiTheme.state_color(UiTheme.State.CRITICAL)
+		UiTheme.draw_chip(self, Rect2(WIDTH / 2.0 - gw / 2.0 - 16.0, y + 1.0, gw + 30.0, GAS_H - 2.0), crit)
+		draw_string(_head, Vector2(WIDTH / 2.0 - gw / 2.0, y + 24.0), word, HORIZONTAL_ALIGNMENT_LEFT, -1, 22,
+				crit if blink else crit.lerp(UiTheme.CREAM, 0.35))
 		y += GAS_H
 	if unrest >= SHOW_UNREST or quake != Unrest.Phase.CALM:
 		var label := "UNREST"

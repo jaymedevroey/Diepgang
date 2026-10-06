@@ -187,7 +187,7 @@ func _rebuild(tab: String) -> void:
 			_toggle(page, "controls/invert_y", "Invert vertical axis (Y)")
 		"toetsen":
 			var note := Label.new()
-			note.text = "Click a key, then press the new key or mouse button. Esc cancels."
+			note.text = "Click a key, then press the new key or mouse button. %s cancels." % Settings.key_of("ui_cancel")
 			note.theme_type_variation = &"Caption"
 			page.add_child(note)
 			for pair: Array in Settings.BINDABLE:
@@ -207,13 +207,13 @@ func _rebuild(tab: String) -> void:
 			page.add_child(note)
 			var modes := ["Off", "Dynamic", "Always"]
 			_option(page, "hud/crosshair", "Crosshair", modes)
-			_option(page, "hud/prompts", "Key prompts (E: pick up …)", modes)
+			_option(page, "hud/prompts", "Key prompts (%s: pick up …)" % Settings.key_of("interact"), modes)
 			_option(page, "hud/tools", "Tools", modes)
 			_option(page, "hud/depth", "Depth and direction to the Mole", modes)
 			_option(page, "hud/team", "Crew", modes)
 			_option(page, "hud/sonar", "Sonar (outside view in the Mole)", modes)
 			# Het infopaneel kent enkel uit (0) en aan (2): geen "dynamisch".
-			_option(page, "hud/stats", "Info panel (fps, network) · F3", ["Off", "On"], [Settings.HUD_OFF, Settings.HUD_ALWAYS])
+			_option(page, "hud/stats", "Info panel (fps, network) · %s" % Settings.key_of("toggle_stats"), ["Off", "On"], [Settings.HUD_OFF, Settings.HUD_ALWAYS])
 
 
 func _pad(c: Control) -> MarginContainer:

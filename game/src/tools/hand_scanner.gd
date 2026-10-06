@@ -209,14 +209,14 @@ class _ScanView extends Control:
 			if rel.length() < nearest:
 				nearest = rel.length()
 				nearest_dy = rel.y
-		draw_string(f, Vector2(10, 26), "SCAN T1 · %d M" % int(range_m), HORIZONTAL_ALIGNMENT_LEFT, -1, 26, Color(ph, 0.85))
+		draw_string(f, Vector2(10, 26), "SCAN T1 · %d m" % int(range_m), HORIZONTAL_ALIGNMENT_LEFT, -1, 26, Color(ph, 0.85))
 		var line := "NOTHING" if shown == 0 and t > pulse_s else "%d BLIP%s" % [shown, "" if shown == 1 else "S"]
 		if t < 0.0:
 			line = "READY"
 		draw_string(f, Vector2(10, h - 12), line, HORIZONTAL_ALIGNMENT_LEFT, -1, 28, ph)
 		if nearest < INF:
 			var arrow := " UP" if nearest_dy > 1.5 else (" DOWN" if nearest_dy < -1.5 else "")
-			draw_string(f, Vector2(w * 0.45, h - 12), "%d M%s" % [int(round(nearest)), arrow], HORIZONTAL_ALIGNMENT_RIGHT, w * 0.55 - 10, 28, ph)
+			draw_string(f, Vector2(w * 0.45, h - 12), "%d m%s" % [int(round(nearest)), arrow], HORIZONTAL_ALIGNMENT_RIGHT, w * 0.55 - 10, 28, ph)
 		if s._denied < 0.5 or (s.cooldown > 0.0 and t >= hold):
 			draw_string(f, Vector2(w - 120, 26), "CHARGING", HORIZONTAL_ALIGNMENT_LEFT, -1, 24, Color(1.0, 0.6, 0.3, 0.9))
 		# Beeldlijnen.

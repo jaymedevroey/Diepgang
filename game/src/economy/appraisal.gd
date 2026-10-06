@@ -162,7 +162,7 @@ func _rpc_revealed(find_id: int, value: int, bonus: int, condition: float) -> vo
 	last_reveal = info
 	if it:
 		_reveal_moment(it, value, bonus, condition)
-	var line := "Appraised: %s, %d%%: %s" % [info.name, int(round(condition * 100.0)), UiTheme.euro(value)]
+	var line := "Appraised: %s (%d%%) · %s" % [info.name, int(round(condition * 100.0)), UiTheme.euro(value)]
 	if bonus > 0:
 		line += " · target bonus %s" % UiTheme.euro_signed(bonus)
 	company.game.notice.emit(line, "find")

@@ -45,6 +45,50 @@ static func num(v: int) -> String:
 	return ("−" if v < 0 else "") + str(absi(v))
 
 
+## Een getal dat altijd zijn teken toont, met het echte minteken: +1, −1, 0 (in plaats van "%+d").
+static func signed(v: int) -> String:
+	return ("+" if v > 0 else "") + num(v)
+
+
+## Toestanden in de HUD, één kleurregel (ui2-06): gewoon crème, gevaar amber, kritiek rood.
+enum State { NORMAL, DANGER, CRITICAL }
+
+
+static func state_color(s: State) -> Color:
+	return [CREAM, AMBER, DANGER][s]
+
+
+## Het HUD-plaatje voor wat getekend wordt (draw_*), gelijk aan de HudChip-stijl van de Labels: donker
+## (80 %) met de gele rand links, het kenmerk van de firma (ui-09). `accent` kleurt de rand (een
+## toestand: amber of rood).
+static func draw_chip(ci: CanvasItem, rect: Rect2, accent := YELLOW) -> void:
+	var b := StyleBoxFlat.new()
+	b.bg_color = Color(ANTHRACITE_LO, 0.8)
+	b.set_corner_radius_all(5)
+	b.border_width_left = 4
+	b.border_color = accent
+	b.anti_aliasing = true
+	ci.draw_style_box(b, rect)
+
+
+## Een toetsblokje voor wat getekend wordt, zoals KeyCap (crème kap, donkere letter, lip onderaan).
+## Geeft de breedte terug.
+static func draw_key(ci: CanvasItem, pos: Vector2, action: String, size := 18) -> float:
+	var label := Settings.key_of(action).to_upper()
+	var f := heading()
+	var tw := f.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+	var w := maxf(size + 12.0, tw + 14.0)
+	var h := size + 9.0
+	var b := StyleBoxFlat.new()
+	b.bg_color = CREAM
+	b.set_corner_radius_all(5)
+	b.border_width_bottom = 3
+	b.border_color = Color("#8E877B")
+	ci.draw_style_box(b, Rect2(pos, Vector2(w, h)))
+	ci.draw_string(f, pos + Vector2((w - tw) * 0.5, h * 0.5 + size * 0.36), label, HORIZONTAL_ALIGNMENT_LEFT, -1, size, ANTHRACITE)
+	return w
+
+
 ## "1 shift", "3 shifts": enkelvoud of meervoud (met een eigen meervoud als het niet op -s eindigt).
 static func count(n: int, word: String, plural := "") -> String:
 	return "%d %s" % [n, word if n == 1 else (plural if plural != "" else word + "s")]

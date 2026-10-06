@@ -279,7 +279,7 @@ func _on_player_spawned(p: Player) -> void:
 	if DisplayServer.get_name() != "headless":
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED # meteen kunnen rondkijken, zonder eerst te klikken
 	if Net.mode == Net.Mode.HOST:
-		hud.toast("You're hosting. Friends join via Esc > Invite friends.", "info", 7.0)
+		hud.toast("You're hosting. Friends join via {ui_cancel} > Invite friends.", "info", 7.0)
 	_frame_since_spawn = 0
 	if CmdArgs.has("tuning-open") and CmdArgs.dev_mode():
 		_tuning_menu.toggle()

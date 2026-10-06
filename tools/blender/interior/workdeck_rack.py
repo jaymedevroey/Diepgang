@@ -38,8 +38,9 @@ def shell(ctx, S, R, ST, PN, D, RD, rng):
     blk(R, rx0, rx1, 2.82, YT, 40.0, 40.26, "Anthracite")
     ctx.col_box(rx0, rx1, 2.82, YT, 40.0, 40.26)
     blk(D, rx0 + 0.2, rx1 - 0.2, 2.84, 2.98, 40.26, 40.272, "Hazard")
-    blk(D, 8.6, 11.4, 2.85, 2.97, 40.272, 40.276, "DecalDark")
-    text(D, "MIND YOUR HEAD", 0.065, (10.0, 2.91, 40.276), (0, 0, 1), "Yellow")
+    # Kleiner dan de doelregel van de HUD vanaf de spawn (ui-09: het bord riep harder dan het doel).
+    blk(D, 8.95, 11.05, 2.86, 2.96, 40.272, 40.276, "DecalDark")
+    text(D, "MIND YOUR HEAD", 0.048, (10.0, 2.91, 40.276), (0, 0, 1), "Yellow")
     slab(S, rx0, rx1, rz0, rz1, YF)
     ctx.col_box(rx0, rx1, -0.6, YF, rz0, rz1)
     block(R, rx0, rx1, YT, YT + 0.3, 40.0, rz1 + 0.3, WALL)
