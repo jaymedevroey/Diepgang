@@ -333,7 +333,7 @@ func _make(id: int) -> RigidBody3D:
 	light.light_color = Color("#FFA04A")
 	light.omni_range = Tuning.get_f("beacon", "light_range", 18.0)
 	light.omni_attenuation = 0.8
-	light.light_energy = Tuning.get_f("beacon", "light_energy", 5.0)
+	light.light_energy = Tuning.get_f("beacon", "light_energy", 7.0)
 	light.shadow_enabled = false
 	light.position = Vector3(0, 0.22, 0)
 	b.add_child(light)
@@ -483,4 +483,4 @@ class BeaconFlicker:
 		var sputter := Tuning.get_f("beacon", "sputter_s", 8.0)
 		if left < sputter and fmod(_t * 7.3, 1.0) < 0.45 * (1.0 - left / sputter):
 			k *= 0.12
-		light.light_energy = Tuning.get_f("beacon", "light_energy", 5.0) * float(light.get_meta("level", 1.0)) * k
+		light.light_energy = Tuning.get_f("beacon", "light_energy", 7.0) * float(light.get_meta("level", 1.0)) * k
