@@ -20,8 +20,10 @@ Referenties voor de nieuwe stukken (ter goedkeuring van Jayme, F3):
   TitanSkull   ceratopsiden (Triceratops, Styracosaurus): een kraag met gaten en knobbels op de rand,
                twee hoorns boven de ogen, een korte neushoorn en een donkere snavel. Ander silhouet
                dan de raptorachtige Skull, zodat je "groot beest" leest van ver.
-  Pelvis       een bekken zoals in een museum vooraan gezien: twee vleugels (darmbeen) rond een
-               heiligbeen, heupkommen en de ringen eronder. Herkenbaar als "bekken" voor iedereen.
+  Pelvis       een bekken zoals in een museum vooraan gezien (golf 3: herwerkt, ter goedkeuring van
+               Jayme): twee schotelvormige vleugels (darmbeen) met een dikke kam rond een heiligbeen,
+               heupkommen opzij, en onderaan zit- en schaambeen als een plaat met een ovaal gat
+               (foramen obturatum) die in de schaamvoeg samenkomt. Geen ringen meer.
   TitanFemur   het dijbeen van een sauropode: zelfde vorm als Femur, maar plomp en 1,4 m lang.
   Spine        drie vergroeide wervels op een rij (een stuk ruggengraat zoals in een fossielbed).
   Tusk         slagtand van een mammoet: een gebogen kegel met groeiringen.
@@ -297,35 +299,92 @@ def build_titan_skull():
     loft([(0, -0.29, -0.55), (0, -0.3, -0.66), (0, -0.27, -0.72)], [0.055, 0.04, 0.0], "BoneDark", g, verts=10)
 
 
+def _sheet(g, grid, thick, material="Bone", subdiv=1):
+    """Een gebogen botblad uit een raster Godot-punten [rij][kolom], met dikte (solidify) en afgerond
+    (subsurf): het darmbeen van het bekken."""
+    bm = bmesh.new()
+    vs = [[bm.verts.new(G(*p)) for p in row] for row in grid]
+    for r in range(len(grid) - 1):
+        for c in range(len(grid[0]) - 1):
+            bm.faces.new([vs[r][c], vs[r][c + 1], vs[r + 1][c + 1], vs[r + 1][c]])
+    me = bpy.data.meshes.new("sheet")
+    bm.to_mesh(me)
+    bm.free()
+    o = bpy.data.objects.new("sheet", me)
+    bpy.context.collection.objects.link(o)
+    sol = o.modifiers.new("Solid", "SOLIDIFY")
+    sol.thickness = thick
+    sol.offset = 0.0
+    if subdiv:
+        sub = o.modifiers.new("Sub", "SUBSURF")
+        sub.levels = subdiv
+        sub.render_levels = subdiv
+    return kit._finish(o, material, g, 0.0)
+
+
 def build_pelvis():
-    """Bekken, vooraan gezien als een vlinder: twee schuine vleugels rond een heiligbeen, heupkommen
-    opzij en twee ringen eronder die onderaan samenkomen. ±1,2 m breed."""
+    """Bekken van een titanbeest, vooraan gezien (golf 3, binnen2-08: "twee schijven en twee rubberen
+    ringen"). Referentie: een bekken in een museum (mens, paard, sauropode): twee brede, schotelvormige
+    vleugels (darmbeen) met een dikke kam bovenaan, het heiligbeen als wig in het midden, opzij de
+    heupkommen, en onderaan het zit- en schaambeen als een plaat met een ovaal gat (het foramen
+    obturatum) die vooraan in de schaamvoeg samenkomt. Geen ringen of torussen. ±1,25 m breed."""
     g = "Pelvis"
-    S = 1.3
     for s in (-1, 1):
-        # Vleugel (darmbeen): schuin naar buiten en licht naar voor gekanteld.
-        plate(1.0, (s * 0.3 * S, 0.17 * S, 0.0), (0.27 * S, 0.33 * S, 0.05 * S), (8, s * 18, -s * 30), "Bone", g)
-        # Dikke rand bovenaan de vleugel (darmkam).
-        loft([(s * 0.1 * S, 0.42 * S, 0.02 * S), (s * 0.3 * S, 0.47 * S, 0.0), (s * 0.48 * S, 0.37 * S, -0.04 * S),
-              (s * 0.55 * S, 0.22 * S, -0.06 * S)], [0.035 * S, 0.042 * S, 0.04 * S, 0.03 * S], "Bone", g, verts=12)
-        # Heupkom: een ring met een donkere kuil.
-        torus(0.095 * S, 0.042 * S, (s * 0.36 * S, -0.1 * S, 0.0), "Bone", g, axis="x", major_seg=24, minor_seg=8)
-        cyl(0.07 * S, 0.05 * S, (s * 0.36 * S, -0.1 * S, 0.0), "BoneDark", g, axis="x", verts=20, bevel=0.0)
-        # Ring eronder (zitbeen en schaambeen rond het gat).
-        torus(0.12 * S, 0.042 * S, (s * 0.17 * S, -0.3 * S, -0.02 * S), "Bone", g, axis="z", major_seg=24, minor_seg=8)
-        # Verbinding van de heupkom naar de ring.
-        loft([(s * 0.33 * S, -0.16 * S, 0.0), (s * 0.26 * S, -0.22 * S, -0.01 * S)], [0.05 * S, 0.045 * S], "Bone", g, verts=10)
-    # Heiligbeen: drie vergroeide wervels in het midden, met doornen naar achter.
-    loft([(0, -0.08 * S, 0.06 * S), (0, 0.15 * S, 0.07 * S), (0, 0.38 * S, 0.05 * S)], [0.075 * S, 0.085 * S, 0.06 * S],
-         "Bone", g, verts=14)
-    for k in range(3):
-        y = (0.0 + k * 0.14) * S
-        sphere(0.08 * S, (0, y, 0.06 * S), "Bone", g, scale=(1.2, 0.7, 1.0), segments=14, rings=7)
-        loft([(0, y, 0.12 * S), (0, y + 0.03 * S, 0.22 * S)], [0.03 * S, 0.0], "Bone", g, verts=8)
-        for s in (-1, 1):  # zenuwgaatjes
-            sphere(0.018 * S, (s * 0.05 * S, y + 0.06 * S, -0.03 * S), "BoneDark", g, segments=8, rings=4)
-    # Schaambeenvoeg onderaan.
-    sphere(0.06 * S, (0, -0.4 * S, -0.03 * S), "Bone", g, scale=(1.3, 0.9, 1.0), segments=14, rings=7)
+        # Darmbeen: een gebogen blad van de kam (bovenaan, een boog naar buiten) naar de hals boven de
+        # heupkom. Het midden wijkt naar achter (een schotel, hol naar voren), de buitenrand komt naar voren.
+        F = Vector((s * 0.24, 0.02, 0.0))
+        J = Vector((s * 0.11, 0.02, -0.05))  # bij het heiligbeen
+        A = Vector((s * 0.33, -0.15, 0.03))  # hals boven de heupkom
+        cols, rows = 9, 6
+        grid = []
+        crest = []
+        for r in range(rows):
+            v = r / (rows - 1)
+            row = []
+            for c in range(cols):
+                u = c / (cols - 1)
+                th = math.radians(108 - 100 * u)
+                R = 0.37 + 0.05 * math.sin(math.pi * u)
+                top = F + Vector((s * math.cos(th) * R, math.sin(th) * R, 0.0))
+                bot = J.lerp(A, u ** 0.8)
+                p = top.lerp(bot, v ** 0.85)
+                p.z += -0.085 * math.sin(math.pi * u) * (1.0 - v) * math.sin(math.pi * (0.2 + 0.8 * v)) + 0.09 * u * (1.0 - v)
+                row.append(tuple(p))
+                if r == 0:
+                    crest.append(tuple(p))
+            grid.append(row)
+        _sheet(g, grid, 0.05)
+        # Darmkam: een dikke, ronde rand bovenaan.
+        loft(crest, [0.03, 0.038, 0.042, 0.042, 0.04, 0.038, 0.034, 0.03, 0.026], "Bone", g, verts=10)
+        # Heupkom: een bolle kom opzij met een donkere holte (de kop van het dijbeen paste hierin).
+        cup = Vector((s * 0.38, -0.2, 0.04))
+        sphere(0.095, tuple(cup), "Bone", g, scale=(0.8, 1.0, 1.0), segments=16, rings=8)
+        cyl(0.062, 0.03, (cup.x + s * 0.06, cup.y, cup.z), "BoneDark", g, axis="x", verts=18, bevel=0.0)
+        # Zit- en schaambeen: een plaat onder de heupkom met een ovaal gat, die naar het midden loopt.
+        O = Vector((s * 0.2, -0.36, 0.06))
+        pl = plate(1.0, tuple(O), (0.19, 0.15, 0.045), (0, 0, s * 18), "Bone", g)
+        pl.data.materials.append(kit.mat("BoneDark"))
+        cut = sphere(0.1, (O.x + s * 0.01, O.y + 0.01, O.z), "BoneDark", "_cut", scale=(0.95, 0.65, 2.5), segments=20, rings=10)
+        unregister(cut)
+        boolean(pl, cut)
+        # Zitbeenknobbel onderaan opzij, en de verbinding met de heupkom.
+        sphere(0.07, (s * 0.31, -0.47, 0.03), "Bone", g, scale=(1.0, 0.8, 0.9), segments=12, rings=6)
+        loft([(s * 0.36, -0.24, 0.04), (s * 0.31, -0.3, 0.05)], [0.06, 0.055], "Bone", g, verts=10)
+    # Schaamvoeg vooraan in het midden, waar beide platen samenkomen.
+    loft([(0.0, -0.3, 0.09), (0.0, -0.4, 0.1), (0.0, -0.49, 0.08)], [(0.07, 0.05), (0.075, 0.055), (0.06, 0.045)], "Bone", g, verts=12, up=(0, 0, 1))
+    # Heiligbeen: een wig in het midden, achter de vleugels, met dwarse richels (vergroeide wervels),
+    # donkere gaatjes en een doornkam.
+    loft([(0, 0.24, -0.08), (0, 0.1, -0.07), (0, -0.04, -0.05), (0, -0.18, -0.03)],
+         [(0.14, 0.06), (0.12, 0.055), (0.09, 0.05), (0.035, 0.035)], "Bone", g, verts=12, up=(0, 0, 1))
+    for k in range(4):
+        y = 0.2 - k * 0.11
+        w = 0.13 - k * 0.025
+        loft([(-w, y, -0.03), (0.0, y + 0.01, -0.015), (w, y, -0.03)], [0.016, 0.02, 0.016], "Bone", g, verts=8)
+        for sx in (-1, 1):
+            sphere(0.018, (sx * w * 0.55, y - 0.05, -0.02), "BoneDark", g, segments=8, rings=4)
+    loft([(0, 0.24, -0.12), (0, 0.04, -0.13), (0, -0.12, -0.09)], [0.025, 0.03, 0.015], "Bone", g, verts=8)
+    # Een barst over de linkervleugel.
+    box((0.16, 0.012, 0.01), (-0.36, 0.16, 0.06), "BoneDark", g, bevel=0.0, rot=(0, 0, 32))
 
 
 def build_titan_femur():
