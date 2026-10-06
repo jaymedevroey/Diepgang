@@ -1699,6 +1699,7 @@ func _update_visual() -> void:
 		var hold := Appraisal.hold_items(game)
 		var haul := Appraisal.estimate_haul(hold, c.appraisal.field_contract(), not bool(c.haul.get("target_paid", false))) if c else Vector2i.ZERO
 		var bar := int(round(clampf(kg / maxf(1.0, cap), 0.0, 1.0) * 8.0))
+		visual.set_hold(kg, cap) # de meter boven de klep (golf 3, ui2-12)
 		visual.set_readout("%s
 DEPTH    %4d m
 %s

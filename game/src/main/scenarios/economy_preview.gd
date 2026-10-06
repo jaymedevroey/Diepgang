@@ -92,10 +92,13 @@ func _run(p: Player) -> void:
 		mol.press(Mol.Cmd.SEAT)
 		await _wait(0.6)
 		p.camera.make_current()
-		p.head.rotation.x = deg_to_rad(-34.0)
+		p.head.rotation.x = deg_to_rad(-6.0)
 		await _shot("g3_mol_status", 0.8)
-		mol.press(Mol.Cmd.SEAT)
+		mol.leave_seat()
 		await _wait(0.6)
+		# De laadmeter boven de klep (van de kade).
+		_look(hub, Vector3(1.6, 2.0, 11.0), Vector3(0.0, 3.9, 5.3))
+		await _shot("g3_mol_klep_meter", 0.6)
 		# Golf 3: de ceremonie. De drie stukken op de band aan de voet van de klep; de band draagt ze
 		# één voor één de poort in (scanstraal, licht, podium), dan verkopen aan het luik.
 		var a := c.appraisal

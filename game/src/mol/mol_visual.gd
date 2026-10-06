@@ -254,6 +254,63 @@ const POD_POS := Vector3(3.14, -1.0, 2.0)
 
 var _head_t2 := false
 var _pods: Node3D
+## De laadmeter boven de klep (golf 3, ui2-12): buiten en binnen, "HOLD 42/60 kg" met een balk die rood
+## wordt als het te zwaar is. Zo zie je de limiet aankomen bij het inladen, niet pas aan de hendel.
+const GAUGE_POS := Vector3(0.0, 2.25, 4.38)
+var _gauges: Array = [] # [Label3D, balk (MeshInstance3D), materiaal]
+
+
+## Laadmeter bijwerken (Mol, met het statusscherm).
+func set_hold(kg: float, cap: float) -> void:
+	if _gauges.is_empty():
+		_build_gauges()
+	var k := clampf(kg / maxf(1.0, cap), 0.0, 1.0)
+	var over := kg > cap + 0.01
+	for g: Array in _gauges:
+		(g[0] as Label3D).text = "HOLD %d/%d kg" % [int(ceil(kg)), int(cap)]
+		(g[0] as Label3D).modulate = UiTheme.DANGER if over else UiTheme.YELLOW
+		var bar := g[1] as MeshInstance3D
+		bar.scale.x = maxf(0.01, k)
+		bar.position.x = -0.5 * (1.0 - bar.scale.x) * 0.9
+		var m := g[2] as StandardMaterial3D
+		m.albedo_color = UiTheme.DANGER if over else (UiTheme.AMBER if k > 0.85 else UiTheme.GOOD)
+		m.emission = m.albedo_color
+
+
+func _build_gauges() -> void:
+	for side in [1.0, -1.0]: # buiten (naar +z) en binnen (naar −z)
+		var root := Node3D.new()
+		root.name = "HoldGauge"
+		model.add_child(root)
+		root.position = GAUGE_POS + Vector3(0.0, 0.0, 0.03 if side > 0.0 else -0.2)
+		root.rotation = Vector3(0.0, 0.0 if side > 0.0 else PI, 0.0)
+		var back := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3(1.0, 0.3, 0.02)
+		back.mesh = bm
+		back.material_override = machine_material("Anthracite")
+		root.add_child(back)
+		var l := Label3D.new()
+		l.font = UiTheme.heading()
+		l.font_size = 48
+		l.pixel_size = 0.0028
+		l.outline_size = 0
+		root.add_child(l)
+		l.position = Vector3(0.0, 0.05, 0.015)
+		var bar := MeshInstance3D.new()
+		var bb := BoxMesh.new()
+		bb.size = Vector3(0.9, 0.05, 0.01)
+		bar.mesh = bb
+		var m := StandardMaterial3D.new()
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.emission_enabled = true
+		bar.material_override = m
+		root.add_child(bar)
+		bar.position = Vector3(0.0, -0.09, 0.015)
+		_gauges.append([l, bar, m])
+
+
+## Tekst op het statusscherm links van het camerascherm (amber, op dezelfde beeldbuis als de rest).
 
 
 ## De boorkop T2 en het grotere laadruim tonen (Upgrades.apply_visuals, op elke peer).
