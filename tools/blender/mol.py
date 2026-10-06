@@ -38,6 +38,18 @@ from kit import (G, PARTS, bake_wear, box, cyl, empty, export_glb, join_group, m
 ARGS = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 OUT = Path(ARGS[0]) if ARGS else Path("mol.glb")
 RENDER_DIR = Path(ARGS[ARGS.index("--render") + 1]) if "--render" in ARGS else None
+TUNING = Path(__file__).resolve().parents[2] / "game" / "data" / "tuning"
+
+
+def tuning(file, key, default):
+    """Een waarde uit game/data/tuning/<file>.cfg: een opschrift zegt wat het spel doet (ui2-08)."""
+    try:
+        for line in (TUNING / f"{file}.cfg").read_text(encoding="utf-8").splitlines():
+            if line.split("=")[0].strip() == key:
+                return float(line.split("=", 1)[1].strip())
+    except OSError:
+        pass
+    return default
 
 # --- Maten (docs/de-mol.md) -----------------------------------------------------------
 HULL_W, HULL_H, HULL_CH = 4.8, 4.2, 0.9
@@ -129,7 +141,7 @@ def build_hull():
     # Opschriften.
     for s in (-1, 1):
         rot = (0, 90 * s, 0)
-        text("DIEPGANG LTD", 0.42, (s * (HULL_W / 2 + 0.02), 0.5, 2.45), rot, "DecalDark", "Hull")
+        text("DIG", 0.6, (s * (HULL_W / 2 + 0.02), 0.5, 2.45), rot, "DecalDark", "Hull")  # de firma (woordenlijst)
         text("THE MOLE  M-01", 0.24, (s * (HULL_W / 2 + 0.02), 0.08, 2.45), rot, "DecalDark", "Hull")
         # Waarschuwingsbalk vooraan op de flank.
         box((0.02, 0.5, 0.9), (s * (HULL_W / 2 + 0.015), -0.25, -3.25), "Hazard", "Hull", bevel=0.0)
@@ -412,7 +424,7 @@ def build_ramp():
     for x in (-1.92, 1.92):
         box((0.18, 2.6, 0.02), (x, 0.0, z1 + 0.005), "Hazard", g, bevel=0.0)
     text("THE MOLE", 0.62, (0, 0.55, z1 + 0.012), (0, 0, 0), "DecalDark", g)
-    text("DIEPGANG LTD  ·  M-01", 0.16, (0, -0.1, z1 + 0.012), (0, 0, 0), "DecalDark", g)
+    text("DIG  ·  M-01", 0.16, (0, -0.1, z1 + 0.012), (0, 0, 0), "DecalDark", g)
     box((1.2, 0.08, 0.03), (0, -0.55, z1 + 0.01), "Anthracite", g, bevel=0.01)
     # Binnenkant: antislipribben (worden treden als hij open ligt).
     y = IN_Y0 + 0.3
@@ -462,6 +474,31 @@ def smoothstep_py(e0, e1, x):
     return t * t * (3 - 2 * t)
 
 
+def _edge(rng, n, octaves=((1.9, 0.55), (0.62, 0.3), (0.21, 0.15))):
+    """Een rand die golft in plaats van een zaagtand (binnen2-13): n + 1 waarden in 0..1 langs de
+    romp, als som van golven met een willekeurige fase (golflengte in m over 8 m romp, gewicht)."""
+    length = HULL_Z1 - HULL_Z0
+    waves = [(wl, w, rng.random() * math.tau, rng.uniform(0.8, 1.25)) for wl, w in octaves]
+    out = []
+    for i in range(n + 1):
+        z = length * i / n
+        v = sum(w * (0.5 + 0.5 * math.sin(z / (wl * f) * math.tau + ph)) for wl, w, ph, f in waves)
+        out.append(v / sum(w for _, w in octaves))
+    return out
+
+
+def _drips(rng, pts, count, depth):
+    """Hier en daar loopt de modder uit: een paar smalle tongen omlaag in de rand (lijst (z, y))."""
+    out = list(pts)
+    for _ in range(count):
+        i = rng.randrange(3, len(out) - 3)
+        d = depth * rng.uniform(0.5, 1.0)
+        for j, k in ((-2, 0.2), (-1, 0.6), (0, 1.0), (1, 0.6), (2, 0.2)):  # een afgeronde tong, geen piek
+            z, y = out[i + j]
+            out[i + j] = (z, y - d * k)
+    return out
+
+
 def _blob(rng, r, k=10):
     """Grillige vlek (r = straal): punten rond, met uitlopers."""
     raw = [r * (0.6 + 0.6 * rng.random()) for _ in range(k)]
@@ -504,23 +541,27 @@ def build_weathering():
         side = V((s * (HULL_W / 2 + 0.006), 0, 0))
         band = V((s * (HULL_W / 2 + 0.033), 0, 0))
         # Een korst stof op de donkere onderband: een grillige rand over de hele lengte.
-        k = 48
+        k = 200
         top = []
+        wave = _edge(rng, k)
         for i in range(k + 1):
             z = HULL_Z0 + 0.12 + (HULL_Z1 - HULL_Z0 - 0.24) * i / k
-            end = 1.0 if (z < -2.6 or z > 2.9) else 0.0
-            top.append((z, -1.14 + 0.1 + 0.16 * rng.random() + 0.2 * end * rng.random()))
+            end = max(smoothstep_py(-2.2, -3.4, z), smoothstep_py(2.5, 3.9, z))
+            top.append((z, -1.14 + 0.08 + 0.2 * wave[i] + 0.18 * end * wave[k - i]))
+        top = _drips(rng, top, 7, 0.06)
         pts = [(HULL_Z1 - 0.12, -1.16), (HULL_Z0 + 0.12, -1.16)] + top
         _wear_poly([(b, a) for a, b in pts], band, up, along, n, "Dust", "Hull")
         # Een stofrand op het geel vlak boven de onderband (hoger vooraan en achteraan), en daarboven
         # opgespatte spikkels: veel en klein onderaan, schaars naar boven. Enkele grotere spatten bij de
         # uiteinden, waar de rupsen en de boorkop het meeste opgooien.
-        k = 60
+        k = 200
         rim = []
+        wave = _edge(rng, k)
         for i in range(k + 1):
             z = HULL_Z0 + 0.12 + (HULL_Z1 - HULL_Z0 - 0.24) * i / k
             end = max(smoothstep_py(-1.8, -3.4, z), smoothstep_py(2.4, 3.9, z))
-            rim.append((z, -0.5 + 0.04 + 0.1 * rng.random() ** 2 + 0.45 * end * (0.5 + 0.5 * rng.random())))
+            rim.append((z, -0.5 + 0.03 + 0.12 * wave[i] ** 1.5 + 0.45 * end * (0.45 + 0.55 * wave[(i * 7) % k])))
+        rim = _drips(rng, rim, 9, 0.05)
         pts = [(HULL_Z1 - 0.12, -0.56), (HULL_Z0 + 0.12, -0.56)] + rim
         _wear_poly([(b, a) for a, b in pts], side, up, along, n, "Dust", "Hull")
         for _ in range(260):
@@ -544,11 +585,12 @@ def build_weathering():
         cn = V((s * 0.7071, -0.7071, 0))
         o_ch = p_top + cn * 0.008
         width = (p_bot - p_top).length
-        k = 56
+        k = 200
         edge_pts = []
+        wave = _edge(rng, k)
         for i in range(k + 1):
             z = HULL_Z0 + 0.1 + (HULL_Z1 - HULL_Z0 - 0.2) * i / k
-            edge_pts.append((z, 0.06 + 0.32 * rng.random() ** 1.5))
+            edge_pts.append((z, 0.06 + 0.3 * wave[i] ** 1.3))
         poly = [(HULL_Z1 - 0.1, width - 0.05), (HULL_Z0 + 0.1, width - 0.05)] + edge_pts
         _wear_poly(poly, o_ch, along, vdn, tuple(cn), "Dust", "Hull")
         for _ in range(40):
@@ -705,8 +747,20 @@ def desk(u, v, h=0.0):
     return (DESK_C[0] + u, DESK_C[1] + v * DESK_A[1] + h * DESK_N[1], DESK_C[2] + v * DESK_A[2] + h * DESK_N[2])
 
 
-def desk_label(body, u, v, size=0.05, material="DecalLight", g="Interior"):
-    text(body, size, desk(u, v, 0.036), DESK_TEXT, material, g, extrude=0.003)
+BUNGEE = Path(__file__).resolve().parents[2] / "game" / "assets" / "fonts" / "Bungee-Regular.ttf"
+
+
+BUNGEE_CAP = 0.294  # hoogte van een hoofdletter in Bungee bij grootte 1 (interior/hangar_kit.py CAP)
+
+
+def desk_label(body, u, v, cap=0.03, material="DecalLight", g="Interior"):
+    """Label op de console in één stijl (ui-13): Bungee op een donker plaatje (zoals labeltape), voor
+    elke knop en meter even groot (`cap` = hoogte van een hoofdletter in m). Plat op het schuine paneel
+    helden de losse letters met het perspectief en leken ze links cursief en rechts recht; op een plaatje
+    lees je de helling als die van het paneel."""
+    w = len(body) * cap * 1.12 + 0.04
+    box((w, 0.006, cap * 2.0), desk(u, v, 0.034), "DecalDark", g, bevel=0.0, rot=DESK_ROT)
+    text(body, cap / BUNGEE_CAP, desk(u, v, 0.04), DESK_TEXT, material, g, extrude=0.002, font=BUNGEE)
 
 
 def build_cockpit(g):
@@ -743,13 +797,13 @@ def build_cockpit(g):
             du, dv = -math.sin(a) * 0.094, math.cos(a) * 0.094
             cyl(0.008, 0.006, desk(u + du, v + dv, 0.079), "DecalDark" if t < 7 else "Red", g, verts=8,
                 bevel=0.0, rot=DESK_ROT)
-        desk_label(name, u, -0.11, size=0.04)
+        desk_label(name, u, -0.11)
     # Autopiloot: drie gele knoppen met de diepte eronder.
-    desk_label("AUTOPILOT", BTN_AUTO[1], 0.2, size=0.05)
+    desk_label("AUTOPILOT", BTN_AUTO[1], 0.2, material="Yellow")
     for u, d in zip(BTN_AUTO, ("CLAY", "SAND", "DEEP")):
         cyl(0.075, 0.03, desk(u, 0.02, 0.045), "Anthracite", g, verts=18, bevel=0.008, rot=DESK_ROT)
         cyl(0.06, 0.05, desk(u, 0.02, 0.07), "Yellow", g, verts=18, bevel=0.012, rot=DESK_ROT)
-        desk_label(d, u, -0.14, size=0.045)
+        desk_label(d, u, -0.14)
     # Klep (blauwe knop), lichten (tuimelschakelaars), toeter (rode paddenstoel).
     cyl(0.07, 0.03, desk(BTN_RAMP_U, 0.02, 0.045), "Anthracite", g, verts=16, bevel=0.008, rot=DESK_ROT)
     cyl(0.055, 0.05, desk(BTN_RAMP_U, 0.02, 0.07), "Blue", g, verts=16, bevel=0.012, rot=DESK_ROT)
@@ -765,7 +819,6 @@ def build_cockpit(g):
     # Vertrekhendel: geel-zwart voetplaatje; de hendel zelf is het object Lever.
     box((0.2, 0.012, 0.26), desk(LEVER_U, 0.02, 0.037), "Hazard", g, bevel=0.0, rot=DESK_ROT)
     # LAUNCH: geel op een zwart plaatje, het best leesbare label op de console (ui-13).
-    box((0.27, 0.006, 0.075), desk(LEVER_U, -0.17, 0.034), "DecalDark", g, bevel=0.0, rot=DESK_ROT)
     desk_label("LAUNCH", LEVER_U, -0.17, material="Yellow")
     # Mok koffie op de hoek (het is vroeg, het is altijd vroeg).
     cyl(0.045, 0.1, desk(-1.82, -0.18, 0.09), "Red", g, verts=16, bevel=0.005, rot=DESK_ROT)
@@ -824,7 +877,7 @@ def build_living(g):
     text("SAFETY?", 0.07, (hw - 0.025, 0.72, -1.05), (0, -90, 0), "DecalDark", g)
     text("NEVER", 0.055, (hw - 0.025, 0.6, -1.05), (0, -90, 0), "DecalDark", g)
     text("HEARD OF IT", 0.055, (hw - 0.025, 0.52, -1.05), (0, -90, 0), "DecalDark", g)
-    text("DIEPGANG LTD", 0.045, (hw - 0.025, 0.35, -1.05), (0, -90, 0), "Red", g)
+    text("DIG", 0.045, (hw - 0.025, 0.35, -1.05), (0, -90, 0), "Red", g)
 
 
 def build_cargo(g):
@@ -843,8 +896,12 @@ def build_cargo(g):
         box((sz, sz, sz), (x, y, z), "Wood", g, bevel=0.03)
         for dz in (-sz / 2 + 0.06, sz / 2 - 0.06):
             box((sz + 0.02, sz + 0.02, 0.05), (x, y, z + dz), "Anthracite", g, bevel=0.01)
-    text("CARGO HOLD", 0.16, (hw - 0.02, 0.9, 2.32), (0, -90, 0), "DecalDark", g)
-    text("MAX 400 KG  ·  DO NOT STACK", 0.06, (hw - 0.02, 0.72, 2.32), (0, -90, 0), "DecalDark", g)
+    text("CARGO HOLD", 0.16, (hw - 0.02, 1.04, 2.32), (0, -90, 0), "DecalDark", g)
+    # De echte limiet uit de tuning (economy.cfg), met de upgrade erbij: "MAX 400 KG" sprak de hendel
+    # tegen die bij 64 kg weigert (ui2-08).
+    kg, kg2 = int(tuning("economy", "cargo_kg", 60.0)), int(tuning("economy", "cargo_kg_t2", 140.0))
+    text(f"MAX {kg} KG  ·  HEAD OFFICE KNOWS", 0.06, (hw - 0.02, 0.87, 2.32), (0, -90, 0), "DecalDark", g)
+    text(f"EXTENDED HOLD: {kg2} KG", 0.05, (hw - 0.02, 0.76, 2.32), (0, -90, 0), "DecalDark", g)
     build_hopper(g)
     # Bediening laadklep bij de klep.
     box((0.08, 0.32, 0.22), (hw - 0.04, -0.25, 3.7), "Anthracite", g, bevel=0.02)
@@ -977,18 +1034,23 @@ def build_homely(g):
     torus(0.16, 0.022, (hw - 0.06, -0.35, 2.55), "Rubber", g, axis="x", major_seg=16, minor_seg=5)
     torus(0.14, 0.02, (hw - 0.08, -0.37, 2.55), "Rubber", g, axis="x", major_seg=16, minor_seg=5)
     cyl(0.04, 0.2, (-(hw - 0.2), -0.32, -1.38), "Green", g, verts=12, bevel=0.01)
-    # Vuil op de vloer: smalle sporen van laarzen en kratten die over de vloer schoven, en een paar
-    # olievlekjes (niet egaal schoon; geen grote zwarte vlekken, die lezen als gaten).
-    for (x, z, rx, rz, a) in ((0.35, 3.5, 0.55, 0.035, 12), (0.5, 3.2, 0.45, 0.03, 8), (-0.55, 2.7, 0.5, 0.03, -20),
-                              (0.2, 0.9, 0.6, 0.03, 75), (-0.35, -0.2, 0.4, 0.025, 95), (0.6, -1.1, 0.07, 0.05, 0),
-                              (-0.9, 1.6, 0.06, 0.045, 30)):
-        o = cyl(1.0, 0.004, (x, IN_Y0 + FLOOR_LIFT + 0.004, z), "Soot", g, verts=16, bevel=0.0)
-        o.scale = (rx, rz, 1.0)
-        o.rotation_euler.z = math.radians(a)
-        bpy.ops.object.select_all(action="DESELECT")
-        o.select_set(True)
-        bpy.context.view_layer.objects.active = o
-        bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+    # Vuil op de vloer: lichtere stofvlekken en donkere schuurplekken waar laarzen en kratten gaan, in
+    # grillige vormen (geen zwarte sleuven meer: die lazen als scheuren of gaten, binnen2-13).
+    import random
+    rng = random.Random(WEAR_SEED + 7)
+    y = IN_Y0 + FLOOR_LIFT + 0.004
+    up = Vector((0, 1, 0))
+    for (x, z, r, sx, a, m) in ((0.35, 3.45, 0.2, 1.5, 12, "Dust"), (-0.5, 2.75, 0.17, 1.4, -20, "Dust"),
+                                (0.55, 2.2, 0.14, 1.3, 40, "DarkSteel"), (0.15, 0.9, 0.17, 1.5, 75, "Dust"),
+                                (-0.35, -0.25, 0.2, 1.4, 95, "DarkSteel"), (0.6, -1.1, 0.07, 1.0, 0, "Soot"),
+                                (-0.9, 1.6, 0.06, 1.0, 30, "Soot"), (-0.15, 3.85, 0.22, 2.2, 5, "DarkSteel")):
+        ca, sa = math.cos(math.radians(a)), math.sin(math.radians(a))
+        u = Vector((ca, 0, sa)) * sx
+        v = Vector((-sa, 0, ca))
+        _wear_poly(_blob(rng, r, 12), Vector((x, y, z)), u, v, (0, 1, 0), m, g)
+        for _ in range(rng.randint(1, 3)):  # kleinere vlekjes errond
+            o2 = Vector((x + rng.uniform(-0.4, 0.4), y, z + rng.uniform(-0.4, 0.4)))
+            _wear_poly(_blob(rng, r * rng.uniform(0.15, 0.3), 8), o2, Vector((1, 0, 0)), Vector((0, 0, 1)), (0, 1, 0), m, g)
 
 
 # Sonar: een kast met een ronde beeldbuis, rechts naast het camerascherm en naar de piloot gedraaid.

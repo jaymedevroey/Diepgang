@@ -3,7 +3,7 @@ extends HudFader
 ## Onder het kompas: de gevaren (onderzoek magma-en-onrust, G; ontwerp-1, ontwerp-12).
 ## - Het magma: onder de grond (en in de Mol) altijd in beeld, want het is de enige klok (ontwerp-1:
 ##   "de klok is het grootste deel van de dienst onzichtbaar"). Ver weg klein en rustig ("MAGMA 214 m
-##   · here in 9:40"), vanaf 60 m groot en oranje, onder 30 m rood, onder 15 m knipperend. Een beving
+##   below · reaches you in 9:40"), vanaf 60 m groot en oranje, onder 30 m rood, onder 15 m knipperend. Een beving
 ##   die het magma opstuwt, toont even "+9 m".
 ## - Gerommel van de Graafworm: een seismograaf die uitslaat als hij dichtbij zwemt.
 ## - Gas: "GAS · NO DRILLING" zolang je in een gasbel staat.
@@ -26,6 +26,9 @@ var magma_m := INF
 var magma_eta := INF
 ## Onder de grond of in de Mol: het magma altijd tonen.
 var always_magma := false
+## In de stoel van de Mol (eigen camera): het magma niet, want het statusscherm toont het al en de chip
+## lag over de kop van het camerascherm (ui2-13).
+var hide_magma := false
 ## De regel van ontwerp-1 (ver weg toch tonen). Uit = de oude regel (enkel binnen 60 m), voor een
 ## voor/na-beeld (threat_film --take=hud --legacy).
 var far_rule := true
@@ -70,13 +73,15 @@ func flash_rise(metres: float) -> void:
 
 
 func _magma_shown() -> bool:
-	return magma_m < SHOW_MAGMA_M or (always_magma and far_rule and magma_m < INF)
+	return not hide_magma and (magma_m < SHOW_MAGMA_M or (always_magma and far_rule and magma_m < INF))
 
 
 ## Hoe hoog wat er nu getekend wordt (voor wat eronder komt, zoals de aftelling).
 func content_height() -> float:
 	var h := 0.0
-	if magma_m < SHOW_MAGMA_M:
+	if hide_magma:
+		pass
+	elif magma_m < SHOW_MAGMA_M:
 		h += MAGMA_H + 6.0
 	elif always_magma and far_rule and magma_m < INF:
 		h += FAR_H + 4.0
@@ -111,15 +116,17 @@ func _draw() -> void:
 	var t := Time.get_ticks_msec() / 1000.0
 	var blink := fmod(t, 0.6) < 0.38
 	var y := 0.0
-	if magma_m < SHOW_MAGMA_M:
+	if hide_magma:
+		pass
+	elif magma_m < SHOW_MAGMA_M:
 		var col := UiTheme.AMBER if magma_m > 30.0 else UiTheme.DANGER
 		if magma_m < 15.0 and not blink:
 			col = Color(col, 0.5)
 		# "MAGMA" als label in de huisstijl, de afstand in gewone cijfers met "m" (ui-07), en wanneer het hier is.
 		var word := "MAGMA"
-		var dist := "%d m" % int(maxf(0.0, magma_m))
+		var dist := "%d m below" % int(maxf(0.0, magma_m))
 		if magma_eta < 3600.0 and magma_m > 0.5:
-			dist += "  ·  here in %s" % _clock(magma_eta)
+			dist += "  ·  reaches you in %s" % _clock(magma_eta)
 		var wsz := _head.get_string_size(word, HORIZONTAL_ALIGNMENT_LEFT, -1, 20)
 		var dsz := _font.get_string_size(dist, HORIZONTAL_ALIGNMENT_LEFT, -1, 24)
 		var bw := wsz.x + dsz.x + 40.0
@@ -140,7 +147,7 @@ func _draw() -> void:
 		var word := "MAGMA"
 		var dist := "%d m below" % int(magma_m)
 		if magma_eta < 3600.0:
-			dist += "  ·  here in %s" % _clock(magma_eta)
+			dist += "  ·  reaches you in %s" % _clock(magma_eta)
 		var wsz := _head.get_string_size(word, HORIZONTAL_ALIGNMENT_LEFT, -1, 18)
 		var dsz := _font.get_string_size(dist, HORIZONTAL_ALIGNMENT_LEFT, -1, 20)
 		var bw := wsz.x + dsz.x + 34.0

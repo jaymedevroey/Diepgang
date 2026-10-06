@@ -10,6 +10,7 @@ Vloerdecals projecteren naar beneden (−y), wanddecals in de wand (−z van het
 Plancoördinaten (layout.py)."""
 
 import math
+import random
 
 from layout import Ctx, G
 
@@ -20,12 +21,20 @@ Y_DECK = 1.218
 Y_BRIDGE = 1.2
 # Lengte van één stuk voetspoor (vier stappen): HubLook.FEET_LENGTH, zelfde getal.
 FEET_L = 1.44
+# Varianten van het voetspoor (HubLook.FEET_VARIANTS).
+FEET_VARIANTS = 4
+# Waar geen voetsporen komen: het DIG-logo op het werkdek (zeshoek rond (10, 35)) en de vloertekst aan de
+# voet van de trap (TO THE MOLE / TO THE BRIDGE met pijlen), anders lag de stempel er middenin (binnen2-13).
+NO_FEET = [((10.0, 35.0), 2.3), ((7.75, 17.95), 0.85)]
+_rng = random.Random(613)
 
 
-def decal(ctx, kind, pos, w, l, rot_y=0.0):
-    """Vloerdecal: midden op `pos` (plan), w breed (x van het punt) en l lang (z), gedraaid om y (graden)."""
+def decal(ctx, kind, pos, w, l, rot_y=0.0, variant=None, alpha=None):
+    """Vloerdecal: midden op `pos` (plan), w breed (x van het punt) en l lang (z), gedraaid om y (graden).
+    variant/alpha: textuurvariant en dekking in % (HubLook.add_decals)."""
     i = len(ctx.shared["anchors"])
-    ctx.shared["anchors"].append((f"Decal_{kind}_w{round(w * 100)}_l{round(l * 100)}_{i}", G(*pos), (0.0, rot_y, 0.0)))
+    extra = (f"_v{variant}" if variant is not None else "") + (f"_a{round(alpha * 100)}" if alpha is not None else "")
+    ctx.shared["anchors"].append((f"Decal_{kind}_w{round(w * 100)}_l{round(l * 100)}{extra}_{i}", G(*pos), (0.0, rot_y, 0.0)))
 
 
 def wall(ctx, kind, pos, normal, w, l):
@@ -37,22 +46,32 @@ def wall(ctx, kind, pos, normal, w, l):
 
 
 def feet(ctx, pts, y, kind="feet"):
-    """Voetsporen langs een gebroken lijn [(x, z), ...]: stukken van FEET_L m, in de looprichting."""
+    """Voetsporen langs een gebroken lijn [(x, z), ...]: stukken van FEET_L m, in de looprichting. Elk stuk
+    een andere variant, een beetje opzij en gedraaid, met een eigen dekking, en hier en daar een gat (wie
+    loopt, zet niet elke keer zijn voet op dezelfde plek; binnen2-13). Niet op het logo of de vloertekst."""
     for p, q in zip(pts, pts[1:]):
         dx, dz = q[0] - p[0], q[1] - p[1]
         ln = math.hypot(dx, dz)
         n = max(1, int(ln / FEET_L))
         ang = math.degrees(math.atan2(-dx, -dz))  # −z van het punt wijst in de looprichting
+        sx, sz = -dz / ln, dx / ln  # zijwaarts
         for k in range(n):
             t = (k + 0.5) * FEET_L / ln if n * FEET_L <= ln else (k + 0.5) / n
-            decal(ctx, kind, (p[0] + dx * t, y, p[1] + dz * t), 0.45, FEET_L, ang)
+            side = _rng.uniform(-0.12, 0.12)
+            x, z = p[0] + dx * t + sx * side, p[1] + dz * t + sz * side
+            if any(math.hypot(x - c[0], z - c[1]) < r for c, r in NO_FEET):
+                continue
+            if k > 0 and _rng.random() < 0.15:
+                continue
+            decal(ctx, kind, (x, y, z), _rng.uniform(0.42, 0.5), FEET_L, ang + _rng.uniform(-6.0, 6.0),
+                  variant=_rng.randrange(FEET_VARIANTS), alpha=_rng.uniform(0.55, 1.0))
 
 
 def build(ctx: Ctx):
     # --- Hangar en kade -------------------------------------------------------------------------------
     # Olie waar de laadklep van de Mol op de kade komt en onder de klemmen (hydrauliek lekt).
     decal(ctx, "oil", (6.9, Y_HANGAR, 16.55), 1.3, 1.0, 20)
-    decal(ctx, "oil", (7.9, Y_HANGAR, 17.35), 0.4, 0.4, 70)
+    decal(ctx, "oil", (8.45, Y_HANGAR, 16.95), 0.4, 0.4, 70)  # naast de vloerpijl, niet eronder (binnen2-13: leek een schaduw)
     for (x, z) in ((1.72, 7.4), (1.72, 12.6), (12.28, 7.2), (12.28, 12.8)):
         decal(ctx, "oil", (x, Y_HANGAR, z), 0.6, 0.8, 35 * (1 if x < 7 else -1))
     decal(ctx, "oil", (10.05, Y_HANGAR, 19.55), 0.7, 0.5, 0)  # einde van de band
