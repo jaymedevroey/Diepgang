@@ -173,6 +173,14 @@ func _impact() -> bool:
 		return false
 	var pos: Vector3 = hit.position
 	var normal: Vector3 = hit.normal
+	if (hit.collider as Node).has_meta("worm"):
+		# De kop van de worm (pakket G1): een slag doet hem loslaten (de host telt).
+		((hit.collider as Node).get_meta("worm") as Worm).request_hit(pos)
+		fx.impact(pos, normal, Color(0.45, 0.3, 0.26), 4)
+		camera_fx.kick(Tuning.get_f("pickaxe", "kick_pitch_deg", 1.6) * 1.6, _rng.randf_range(-1, 1) * 0.8)
+		camera_fx.add_trauma(Tuning.get_f("pickaxe", "shake_trauma", 0.28) * 1.6)
+		_hitstop = Tuning.get_f("pickaxe", "break_hitstop_s", 0.11)
+		return true
 	if hit.collider is Rubble and (hit.collider as Rubble).blocks:
 		# Puin van een instorting wegbikken (pakket F2): de host telt de levens.
 		(hit.collider as Rubble).chip(false, pos)
@@ -226,7 +234,7 @@ func _update_aim() -> void:
 	var from := camera.global_position
 	var hit := terrain.tool_raycast(from, from - camera.global_basis.z * reach)
 	var new_aim := Aim.NONE
-	if not hit.is_empty() and (hit.collider is Crust or hit.collider is Rubble):
+	if not hit.is_empty() and (hit.collider is Crust or hit.collider is Rubble or (hit.collider as Node).has_meta("worm")):
 		new_aim = Aim.CRUST
 	elif not hit.is_empty() and hit.collider is OreCluster:
 		new_aim = Aim.ORE

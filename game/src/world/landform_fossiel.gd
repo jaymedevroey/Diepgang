@@ -742,9 +742,13 @@ func compute_props(s: PlanetSurface) -> Dictionary:
 ## een scherpe bovenrand en een vlakke kaprots. Op het raster van het verre landschap was dit een
 ## zachte bult met strepen. Per butte: [Vector3 midden, arrays]. Kleur en lagen zoals het verre
 ## landschap (hoekpuntkleur: rgb gehalveerd, a = lagen in de wand).
-const BUTTE_SEG := 64
-const BUTTE_RINGS: Array[Vector2] = [Vector2(1.0, 0.17), Vector2(0.985, 0.5), Vector2(0.955, 0.54), Vector2(0.925, 0.96),
-		Vector2(0.905, 1.0)] # (straal, hoogte) als deel van de butte, van onder naar boven
+const BUTTE_SEG := 112
+## Golf 3 (buiten2-4: "van dichtbij gelaagde taarten, macarons"): het profiel van onder naar boven,
+## (straal, hoogte, soort) als deel van de butte. Soort 0 = wand (met de lagen), 1 = puinhelling (die
+## in het zand overloopt), 2 = de schaduwband onder de kaprots, 3 = de kaprots (donker, hangt over).
+const BUTTE_PROFILE: Array[Vector3] = [Vector3(1.34, -0.03, 1.0), Vector3(1.03, 0.16, 1.0), Vector3(1.0, 0.17, 0.0),
+		Vector3(0.985, 0.5, 0.0), Vector3(0.955, 0.54, 0.0), Vector3(0.925, 0.86, 0.0), Vector3(0.905, 0.885, 2.0),
+		Vector3(0.955, 0.892, 3.0), Vector3(0.958, 0.965, 3.0), Vector3(0.93, 1.0, 3.0)]
 
 func _butte_meshes(s: PlanetSurface) -> Array:
 	var out := []
@@ -757,42 +761,55 @@ func _butte_meshes(s: PlanetSurface) -> Array:
 		var verts := PackedVector3Array()
 		var cols := PackedColorArray()
 		var idx := PackedInt32Array()
-		var wall_col := Color(0.53, 0.52, 0.5, 1.0)
-		var cap_col := Color(0.37, 0.33, 0.29, 0.0)
+		# Kleur (maal de tint van het landschap, a = hoeveel lagen) per soort: wand, puin, schaduw, kap.
+		var kind_col: Array[Color] = [Color(0.53, 0.52, 0.5, 1.0), Color(0.47, 0.45, 0.42, 0.0), Color(0.36, 0.35, 0.35, 0.55),
+				Color(0.3, 0.26, 0.23, 0.0)]
 		var rad := PackedFloat32Array()
 		var foot := PackedFloat32Array()
+		var shade := PackedFloat32Array() # per segment: de lagen wat lichter of donkerder, sterker of zwakker
 		for i in BUTTE_SEG:
 			var a := TAU * i / BUTTE_SEG
 			var rr := b.z * (1.0 + 0.12 * sin(3.0 * a + b.x) + 0.08 * sin(5.0 * a + b.y) + 0.05 * sin(9.0 * a + b.w))
-			rr *= 1.0 + 0.035 * sin(17.0 * a + b.x * 0.3) + 0.02 * sin(29.0 * a + b.y * 0.7) # geulen in de wand
+			rr *= 1.0 + 0.035 * sin(17.0 * a + b.x * 0.3) + 0.02 * sin(29.0 * a + b.y * 0.7)
+			# Verticale erosiegroeven: smalle inkepingen die de lagen breken.
+			rr *= 1.0 - 0.07 * pow(maxf(0.0, sin(19.0 * a + b.x)), 10.0) - 0.05 * pow(maxf(0.0, sin(33.0 * a + b.y)), 12.0)
 			rad.append(rr)
-			var q := c + Vector2(cos(a), sin(a)) * rr * 1.04
-			foot.append(s.far_height(q.x, q.y) - 2.0)
-		# Wand: per band eigen hoekpunten (harde richels), rond de omtrek gedeeld (zacht rond).
-		for band in BUTTE_RINGS.size():
-			var lo: Vector2 = BUTTE_RINGS[band - 1] if band > 0 else Vector2(1.04, 0.0)
-			var hi: Vector2 = BUTTE_RINGS[band]
+			var q := c + Vector2(cos(a), sin(a)) * rr * 1.36
+			foot.append(s.far_height(q.x, q.y) - 0.6)
+			shade.append(0.5 + 0.5 * sin(2.0 * a + b.w) * cos(7.0 * a + b.x))
+		# Per band eigen hoekpunten (harde richels), rond de omtrek gedeeld (zacht rond).
+		for band in BUTTE_PROFILE.size():
+			var lo: Vector3 = BUTTE_PROFILE[band - 1] if band > 0 else Vector3(1.38, 0.0, 1.0)
+			var hi: Vector3 = BUTTE_PROFILE[band]
+			if band == 0:
+				continue # de onderste rij is enkel het begin van de puinhelling
 			var first := verts.size()
+			var kc: Color = kind_col[int(hi.z)]
 			for i in BUTTE_SEG:
 				var a := TAU * i / BUTTE_SEG
 				var d := Vector2(cos(a), sin(a))
-				var y_lo := foot[i] if band == 0 else g0 + b.w * lo.y
+				var y_lo := foot[i] if band == 1 else g0 + b.w * lo.y
 				var p_lo := c + d * rad[i] * lo.x
 				var p_hi := c + d * rad[i] * hi.x
 				verts.append(Vector3(p_lo.x, y_lo, p_lo.y))
 				verts.append(Vector3(p_hi.x, g0 + b.w * hi.y, p_hi.y))
-				cols.append(wall_col)
-				cols.append(wall_col)
+				var v := 0.9 + 0.2 * shade[i]
+				var col := Color(kc.r * v, kc.g * v, kc.b * v, kc.a * (0.7 + 0.3 * shade[i]) if int(hi.z) == 0 else kc.a)
+				cols.append(col)
+				cols.append(col)
 			for i in BUTTE_SEG:
 				var j := (i + 1) % BUTTE_SEG
 				var a0 := first + i * 2
 				var a1 := first + j * 2
 				var outward := Vector3(cos(TAU * (i + 0.5) / BUTTE_SEG), 0.0, sin(TAU * (i + 0.5) / BUTTE_SEG))
+				if hi.x > lo.x + 0.01:
+					outward.y = -1.5 # de onderkant van de overhangende kaprots kijkt naar beneden
 				_tri_out(idx, verts, a0, a1, a1 + 1, outward)
 				_tri_out(idx, verts, a0, a1 + 1, a0 + 1, outward)
-		# De kaprots: een vlakke waaier vanuit het midden (bol gaf een ster van lijnen), eigen hoekpunten (scherpe bovenrand).
-		var top: Vector2 = BUTTE_RINGS[BUTTE_RINGS.size() - 1]
+		# De bovenkant van de kaprots: een vlakke waaier vanuit het midden, eigen hoekpunten (scherpe rand).
+		var top: Vector3 = BUTTE_PROFILE[BUTTE_PROFILE.size() - 1]
 		var center := verts.size()
+		var cap_col: Color = kind_col[3]
 		verts.append(Vector3(c.x, g0 + b.w * top.y, c.y))
 		cols.append(cap_col)
 		for i in BUTTE_SEG:
@@ -1235,11 +1252,13 @@ func _build_mist(s: PlanetSurface) -> Dictionary:
 			if k <= 0.0:
 				continue
 			_fields(p.x, p.y)
-			var bed := (1.0 - smoothstep(0.0, 16.0, _f_wd)) * (1.0 - smoothstep(0.0, 30.0, _f_u))
-			if (_f_amp > 1.0 and _f_u < 0.0) or bed > 0.5: # niet op het plateau
-				# Aan de voet van de klif blijft meer mist hangen (warme stofzee onder de wand).
-				var foot := smoothstep(-240.0, -130.0, _f_u) * (1.0 - smoothstep(-TALUS_W - 10.0, -TALUS_W + 20.0, _f_u))
-				lvl[j * n + i] = maxf(_f_amp * 0.42 - 0.3 + 5.0 * foot, -WASH_DEPTH + 3.8 if bed > 0.5 else -3.0) * k
+			# Golf 3 (buiten-14): niet in de kloven van de klif en niet op de puinhelling ervoor (daar
+			# stond de mist als grijze blokken met een harde bovenrand in elk dropbeeld), en geen extra
+			# mist aan de voet van de wand.
+			var off_cliff := 1.0 - smoothstep(-TALUS_W - 40.0, -TALUS_W - 5.0, _f_u)
+			var bed := (1.0 - smoothstep(0.0, 16.0, _f_wd)) * off_cliff
+			if (_f_amp > 1.0 and _f_u < -TALUS_W - 20.0) or bed > 0.5: # niet op het plateau, niet in de klif
+				lvl[j * n + i] = maxf(_f_amp * 0.42 - 0.3, -WASH_DEPTH + 3.8 if bed > 0.5 else -3.0) * k
 				live[j * n + i] = 1
 	var need := PackedByteArray()
 	need.resize(n * n)

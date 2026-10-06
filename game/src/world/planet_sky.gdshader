@@ -125,7 +125,8 @@ vec4 giant(vec3 d, vec3 s) {
 		}
 		float view = clamp(dot(N, -d), 0.0, 1.0);
 		vec3 col = albedo * (0.12 + 0.88 * max(ndl, 0.0)) * day * mix(0.6, 1.0, pow(view, 0.4));
-		col += giant_night * (1.0 - day) * 0.6; // planeetschijn
+		// Planeetschijn op de nachtkant, met de banden erin (golf 3, buiten-9: geen effen schijf).
+		col += giant_night * (1.0 - day) * 0.6 * mix(0.55, 1.45, smoothstep(0.3, 0.8, bands)) + albedo * (1.0 - day) * 0.05;
 		// Atmosfeerrand aan de zonkant: bij een sikkel (de zon achter de reus) een felle lichtrand.
 		col += mix(giant_base, giant_storm, 0.5) * pow(1.0 - view, 2.2) * smoothstep(-0.05, 0.45, ndl) * 1.1;
 		float edge = smoothstep(0.0, 0.003, h / max(rp, 1e-4)); // zachte rand

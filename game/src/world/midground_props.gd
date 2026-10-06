@@ -14,6 +14,10 @@ extends Node3D
 ##   verdwijnen ze (TerrainAPI.dug, op elke peer even goed: alles hangt enkel af van de seed en de
 ##   graafacties);
 ## - vlak buiten de rand ook een lichtmast (6-8 m): van op de landingsplek een silhouet per richting.
+## Golf 3 (buiten2-6, "te klein en te dun"): geen meetpaaltjes met vlagjes meer (dunne staafjes), wel
+## grote, leesbare stukken (containers, een brandstoftank op sleden) in minder maar sterkere groepen, en
+## een ring van vijf groepen op 40-64 m rond de landingsplek: in elke richting die je vanaf de Mol
+## ziet staat er één (niet op de gecomponeerde landingsplek, LandingSite).
 ## Posities op de werkthread (compute), meshes op de hoofdthread (commit), zoals SurfaceDressing.
 
 const CELL := 58.0
@@ -26,10 +30,14 @@ const EDGE_GAP := 5.0
 const HIDE_INSIDE_M := 260.0
 const HIDE_OUTSIDE_M := 950.0
 
-enum Kind { STAKE, TRIPOD, CRATE, CRATE_DARK, BARREL, ROCK, SLAB, BONE, VERTEBRA, PIPE, MAST, GENERATOR }
+enum Kind { STAKE, TRIPOD, CRATE, CRATE_DARK, BARREL, ROCK, SLAB, BONE, VERTEBRA, PIPE, MAST, GENERATOR, CONTAINER, CONTAINER_Y, TANK }
 ## Botsvorm (doos, m) per soort in het speelgebied; de doos staat op de grond.
 const SOLID := {Kind.CRATE: Vector3(1.2, 0.9, 0.9), Kind.CRATE_DARK: Vector3(1.2, 0.9, 0.9), Kind.BARREL: Vector3(0.64, 0.9, 0.64),
-		Kind.GENERATOR: Vector3(2.3, 1.4, 1.3), Kind.MAST: Vector3(0.3, 7.2, 0.3)}
+		Kind.GENERATOR: Vector3(2.3, 1.4, 1.3), Kind.MAST: Vector3(0.3, 7.2, 0.3), Kind.CONTAINER: Vector3(6.1, 2.6, 2.44),
+		Kind.CONTAINER_Y: Vector3(6.1, 2.6, 2.44), Kind.TANK: Vector3(4.8, 2.3, 2.1)}
+## De ring rond de landingsplek: zoveel groepen, op deze afstand (m).
+const RING_N := 5
+const RING_R := Vector2(40.0, 64.0)
 
 ## Per soort: [transforms], en voor rotsen en platen een kleur per stuk; apart binnen en buiten.
 var _inside: Dictionary = {} # Kind -> MultiMeshInstance3D (enkel die binnen het speelgebied)
@@ -48,6 +56,22 @@ static func compute(s: PlanetSurface) -> Dictionary:
 	var items := {}
 	for k in Kind.values():
 		items[k] = []
+	# De ring: één sterke groep per richting rond de landingsplek (niet op de gecomponeerde plek).
+	var ring: Array[Vector2] = []
+	var ramp := s.terrain.starter_ramp()
+	var site := LandingSite.site_xz(lf.landing, s._seed, s.planet, ramp)
+	var rrng := s._cell_rng(9999, 7, 61)
+	var a0 := rrng.randf() * TAU
+	for i in RING_N:
+		for _try in 6:
+			var a := a0 + i * TAU / RING_N + rrng.randf_range(-0.3, 0.3)
+			var c := lf.landing + Vector2.from_angle(a) * rrng.randf_range(RING_R.x, RING_R.y)
+			if c.distance_to(site) < 18.0 or s.outside(c.x, c.y) > -8.0 or not lf.clutter_ok(c) or _slope(s, c) > 0.3 \
+					or _near_ramp(c, ramp, 14.0):
+				continue
+			ring.append(c)
+			_depot(s, rrng, c, items, i)
+			break
 	var c0x := int(floor(-OUTER_MAX / CELL))
 	var c1x := int(floor((size.x + OUTER_MAX) / CELL))
 	var c0z := int(floor(-OUTER_MAX / CELL))
@@ -61,7 +85,12 @@ static func compute(s: PlanetSurface) -> Dictionary:
 			var o := s.outside(c.x, c.y)
 			if keep > (0.9 if o < 80.0 else 0.65): # dicht bij de ploeg meer, verder minder
 				continue
-			if o > OUTER_MAX or c.distance_to(lf.landing) < INNER_MIN:
+			if o > OUTER_MAX or c.distance_to(lf.landing) < INNER_MIN or c.distance_to(site) < 16.0 or _near_ramp(c, ramp, 12.0):
+				continue
+			var near_ring := false
+			for rc in ring:
+				near_ring = near_ring or c.distance_to(rc) < 26.0
+			if near_ring:
 				continue
 			var inside := o <= 0.0
 			if inside and minf(minf(c.x, c.y), minf(size.x - c.x, size.z - c.y)) < EDGE_GAP + 6.0:
@@ -71,8 +100,8 @@ static func compute(s: PlanetSurface) -> Dictionary:
 			clusters += 1
 			var r := rng.randf()
 			if inside:
-				if r < 0.34:
-					_survey(s, rng, c, items, true)
+				if r < 0.3:
+					_depot(s, rng, c, items, int(rng.randi() % 4))
 				elif r < 0.68:
 					_cache(s, rng, c, items, true)
 					if rng.randf() < 0.45: # een lichtmast bij de voorraad: een silhouet in het middenplan
@@ -88,7 +117,7 @@ static func compute(s: PlanetSurface) -> Dictionary:
 				elif r < 0.45:
 					_rocks(s, rng, c, items, rock_col)
 				elif r < 0.58:
-					_survey(s, rng, c, items, false)
+					_depot(s, rng, c, items, int(rng.randi() % 4), false)
 				elif r < 0.8:
 					_planet_bits(s, rng, c, items, rock_col)
 				else:
@@ -104,6 +133,19 @@ static func compute(s: PlanetSurface) -> Dictionary:
 		n += (items[k] as Array).size()
 	print("[surface] middenplan: %d groepjes, %d stukken, %.0f ms" % [clusters, n, (Time.get_ticks_usec() - t0) / 1000.0])
 	return {"mg": items}
+
+
+## Dicht bij de oude toegangsgang (G5): de monding en de stukken die nog ondiep zijn (daar zou een
+## stuk boven het gat zweven of de weg erin versperren).
+static func _near_ramp(c: Vector2, ramp: Array[Vector3], gap: float) -> bool:
+	for k in mini(ramp.size() - 1, 2):
+		var a := Vector2(ramp[k].x, ramp[k].z)
+		var b := Vector2(ramp[k + 1].x, ramp[k + 1].z)
+		var ab := b - a
+		var t := clampf((c - a).dot(ab) / maxf(ab.length_squared(), 1e-4), 0.0, 1.0)
+		if c.distance_to(a + ab * t) < gap:
+			return true
+	return false
 
 
 ## Helling (tan) rond een punt, uit vier hoogtes op 4 m.
@@ -141,6 +183,42 @@ static func _survey(s: PlanetSurface, rng: RandomNumberGenerator, c: Vector2, it
 		_put(s, items, Kind.TRIPOD, q, rng.randf() * TAU, Vector3.ONE, 0.05, inside)
 
 
+## Een groot depot (golf 3): een container (soms twee, één erop), een brandstoftank op sleden, een
+## generator met een lichtmast, of een groep grote rotsen, met wat kisten en vaten errond. Leesbaar van
+## 60 m: 2,5-6 m groot, geen dunne staafjes. `kind` kiest (0..3).
+static func _depot(s: PlanetSurface, rng: RandomNumberGenerator, c: Vector2, items: Dictionary, kind: int, inside := true) -> void:
+	var yaw := rng.randf() * TAU
+	var fwd := Vector2.from_angle(yaw)
+	var side := fwd.orthogonal()
+	match kind % 4:
+		0:
+			var k := Kind.CONTAINER if rng.randf() < 0.55 else Kind.CONTAINER_Y
+			_put(s, items, k, c, -yaw, Vector3.ONE, 0.1, inside)
+			if rng.randf() < 0.4: # een tweede ernaast, schuin
+				_put(s, items, Kind.CONTAINER_Y if k == Kind.CONTAINER else Kind.CONTAINER, c + side * 3.4 + fwd * 1.2,
+						-yaw + rng.randf_range(0.15, 0.4), Vector3.ONE, 0.1, inside)
+			_cache(s, rng, c - side * 3.2 + fwd * 2.0, items, inside)
+		1:
+			_put(s, items, Kind.TANK, c, -yaw, Vector3.ONE, 0.05, inside)
+			_put(s, items, Kind.GENERATOR, c + side * 2.9, -yaw + rng.randf_range(-0.3, 0.3), Vector3.ONE, 0.08, inside)
+			_put(s, items, Kind.MAST, c - side * 2.6 + fwd * 2.4, rng.randf() * TAU, Vector3.ONE * rng.randf_range(0.95, 1.15), 0.3, inside)
+		2:
+			_put(s, items, Kind.GENERATOR, c, -yaw, Vector3.ONE, 0.08, inside)
+			_put(s, items, Kind.MAST, c + fwd * 3.0, rng.randf() * TAU, Vector3.ONE * rng.randf_range(0.95, 1.15), 0.3, inside)
+			_cache(s, rng, c + side * 4.0, items, inside)
+			_put(s, items, Kind.CONTAINER_Y, c - side * 4.5 - fwd * 1.5, -yaw + 0.2, Vector3.ONE, 0.1, inside)
+		_:
+			var col: Color = PlanetType.ground(s.planet).get("g4_rock", PlanetType.ground(s.planet).rock)
+			var big := rng.randf_range(1.8, 2.8)
+			_put(s, items, Kind.ROCK, c, rng.randf() * TAU, Vector3(big * 1.3, big * 0.8, big), big * 0.25, inside, col * rng.randf_range(0.9, 1.1),
+					Vector2(rng.randf_range(-0.2, 0.2), rng.randf_range(-0.2, 0.2)))
+			for i in rng.randi_range(3, 6):
+				var p := c + Vector2.from_angle(rng.randf() * TAU) * rng.randf_range(big * 1.0, big * 2.6)
+				var sz := rng.randf_range(0.5, 1.4)
+				_put(s, items, Kind.ROCK, p, rng.randf() * TAU, Vector3(sz * 1.2, sz * 0.75, sz), sz * 0.25, inside, col * rng.randf_range(0.85, 1.1),
+						Vector2(rng.randf_range(-0.35, 0.35), rng.randf_range(-0.35, 0.35)))
+
+
 ## Kleine stenen, platen en (op Fossielwereld) botjes: wat erosie of een vorige ploeg achterliet.
 static func _debris(s: PlanetSurface, rng: RandomNumberGenerator, c: Vector2, items: Dictionary, rock_col: Color, inside: bool) -> void:
 	var fossil := s.landform is LandformFossiel
@@ -152,11 +230,11 @@ static func _debris(s: PlanetSurface, rng: RandomNumberGenerator, c: Vector2, it
 			var sz := rng.randf_range(0.5, 1.0) * (1.0 if inside else 1.8)
 			_put(s, items, Kind.BONE if k < 0.28 else Kind.VERTEBRA, p, rng.randf() * TAU, Vector3.ONE * sz, sz * 0.2, inside)
 		elif k < 0.7:
-			var sz := rng.randf_range(0.22, 0.45) * (1.0 if inside else 1.6)
+			var sz := rng.randf_range(0.35, 0.9) * (1.0 if inside else 1.6)
 			_put(s, items, Kind.ROCK, p, rng.randf() * TAU, Vector3(sz * 1.2, sz * 0.7, sz), sz * 0.2, inside, rock_col * v,
 					Vector2(rng.randf_range(-0.3, 0.3), rng.randf_range(-0.3, 0.3)))
 		else:
-			var sz := rng.randf_range(0.35, 0.7) * (1.0 if inside else 1.6)
+			var sz := rng.randf_range(0.5, 1.2) * (1.0 if inside else 1.6)
 			_put(s, items, Kind.SLAB, p, rng.randf() * TAU, Vector3(sz * 1.3, sz * 0.25, sz), sz * 0.06, inside, rock_col * v * 1.08,
 					Vector2(rng.randf_range(-0.12, 0.12), rng.randf_range(-0.12, 0.12)))
 
@@ -378,6 +456,30 @@ static func _meshes(s: PlanetSurface) -> Dictionary:
 			[_box(Vector3(0.9, 0.7, 0.04)), Transform3D(Basis(), Vector3(-0.4, 0.8, 0.66)), dark],
 			[_cyl(0.07, 0.6, 8), Transform3D(Basis(), Vector3(0.8, 1.6, -0.3)), dark],
 			[_box(Vector3(2.32, 0.12, 1.32)), Transform3D(Basis(), Vector3(0, 1.36, 0)), hazard]])
+	# Een container (6 m, met ribben en deuren) in twee kleuren, en een brandstoftank op sleden.
+	for pair in [[Kind.CONTAINER, steel], [Kind.CONTAINER_Y, yellow]]:
+		var body: Material = pair[1]
+		var parts := [[_box(Vector3(6.1, 2.6, 2.44)), Transform3D(Basis(), Vector3(0, 1.3, 0)), body]]
+		for i in 9:
+			var x := -2.7 + i * 0.675
+			for sz: float in [-1.24, 1.24]:
+				parts.append([_box(Vector3(0.12, 2.5, 0.06)), Transform3D(Basis(), Vector3(x, 1.3, sz)), body])
+		parts.append([_box(Vector3(6.16, 0.14, 2.5)), Transform3D(Basis(), Vector3(0, 2.6, 0)), dark])
+		parts.append([_box(Vector3(6.16, 0.14, 2.5)), Transform3D(Basis(), Vector3(0, 0.07, 0)), dark])
+		parts.append([_box(Vector3(0.06, 2.4, 2.3)), Transform3D(Basis(), Vector3(3.06, 1.3, 0)), dark])
+		parts.append([_box(Vector3(0.08, 2.2, 0.05)), Transform3D(Basis(), Vector3(3.1, 1.3, 0.55)), steel if body == yellow else yellow])
+		parts.append([_box(Vector3(0.08, 2.2, 0.05)), Transform3D(Basis(), Vector3(3.1, 1.3, -0.55)), steel if body == yellow else yellow])
+		parts.append([_box(Vector3(2.6, 0.5, 0.02)), Transform3D(Basis(), Vector3(-0.8, 1.9, 1.29)), hazard])
+		m[pair[0]] = _combine(parts)
+	m[Kind.TANK] = _combine([[_cyl(1.0, 4.4, 16), Transform3D(Basis(Vector3.FORWARD, PI * 0.5), Vector3(0, 1.3, 0)), yellow],
+			[_cyl(1.03, 0.12, 16), Transform3D(Basis(Vector3.FORWARD, PI * 0.5), Vector3(-1.4, 1.3, 0)), dark],
+			[_cyl(1.03, 0.12, 16), Transform3D(Basis(Vector3.FORWARD, PI * 0.5), Vector3(1.4, 1.3, 0)), dark],
+			[_box(Vector3(4.8, 0.22, 0.25)), Transform3D(Basis(), Vector3(0, 0.11, 0.8)), dark],
+			[_box(Vector3(4.8, 0.22, 0.25)), Transform3D(Basis(), Vector3(0, 0.11, -0.8)), dark],
+			[_box(Vector3(0.25, 0.5, 1.8)), Transform3D(Basis(), Vector3(-1.4, 0.4, 0)), dark],
+			[_box(Vector3(0.25, 0.5, 1.8)), Transform3D(Basis(), Vector3(1.4, 0.4, 0)), dark],
+			[_box(Vector3(2.2, 0.35, 0.02)), Transform3D(Basis(), Vector3(0, 1.3, 1.01)), hazard],
+			[_cyl(0.18, 0.4), Transform3D(Basis(), Vector3(0.6, 2.4, 0)), red]])
 	var rock_mat := StandardMaterial3D.new()
 	rock_mat.vertex_color_use_as_albedo = true
 	rock_mat.vertex_color_is_srgb = true # de kleuren per stuk zijn sRGB (anders roze-wit)

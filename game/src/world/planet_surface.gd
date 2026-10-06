@@ -148,6 +148,15 @@ func build(t: TerrainAPI, planet_seed: int, planet_id := PlanetType.Id.ROESTBOL)
 	mat.set_shader_parameter("patch_light", Vector4(pl.r, pl.g, pl.b, pl.a))
 	mat.set_shader_parameter("patch_scale", float(g.patch_scale))
 	mat.set_shader_parameter("surface_world_y", _surface_y)
+	# De open grond van dichtbij en de rotsen in het speelgebied (golf 3, buiten2-1).
+	mat.set_shader_parameter("g4_on", g.has("g4_low"))
+	for k: String in ["g4_low", "g4_high", "g4_peb_a", "g4_peb_b", "g4_rock"]:
+		var gc: Color = g.get(k, Color(0.5, 0.5, 0.5))
+		mat.set_shader_parameter(k, Vector3(gc.r, gc.g, gc.b))
+	mat.set_shader_parameter("g4_amt", g.get("g4_amt", Vector4.ZERO))
+	mat.set_shader_parameter("g4_amt2", g.get("g4_amt2", Vector4.ZERO))
+	mat.set_shader_parameter("g4_sheet", g.get("g4_sheet", Vector4(0.0, 0.0, 30.0, 6.0)))
+	mat.set_shader_parameter("g4_wind", landform.wind)
 	var sp := landform.shader_params(_surface_y)
 	for k: String in sp:
 		mat.set_shader_parameter(k, sp[k])
@@ -847,6 +856,20 @@ func _commit() -> void:
 	far.visibility_range_end = FAR_HIDE_M
 	add_child(far)
 	SurfaceDressing.commit(self, _out)
+	# Klein detail op de grond tot aan je voeten (golf 3, buiten2-1): pas gebouwd waar de camera komt.
+	var scatter := GroundScatter.new()
+	scatter.name = "GroundScatter"
+	scatter.setup(terrain, _seed, planet, landform.landing)
+	add_child(scatter)
+	# Het stof op de Mol in de grondkleur van deze planeet (golf 3, buiten2-5).
+	var game := get_parent() as Game
+	if game and game.mol and game.mol.visual:
+		game.mol.visual.tint_dust(PlanetType.ground(planet))
+	# Een gecomponeerde landingsplek: een vaste groep met een verhaal schuin vóór de Mol (golf 3).
+	var site := LandingSite.new()
+	site.name = "LandingSite"
+	add_child(site)
+	site.build(terrain, planet, landform.landing, _seed)
 	_out.clear()
 	is_built = true
 	_main_us += Time.get_ticks_usec() - commit_t0

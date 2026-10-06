@@ -68,6 +68,13 @@ func attach_terrain(terrain: TerrainAPI) -> void:
 			var d := rng.randf() * c.w * 0.55
 			var h := c.w / PlanetGenerator.CAVERN_SQUASH
 			p = Vector3(c.x + cos(a) * d, c.y - h * 0.35 + r * 0.4, c.z + sin(a) * d)
+		elif rng.randf() < Tuning.get_f("gas", "near_share", 0.35):
+			# Golf 3 (ontwerp2-2): een deel in de rots waar de ploeg werkt, niet te ver van de landingsplek.
+			var a := rng.randf() * TAU
+			var d := rng.randf_range(safe, Tuning.get_f("gas", "near_m", 70.0))
+			var x := clampf(sc.x + cos(a) * d, 14.0, size.x - 14.0)
+			var z := clampf(sc.z + sin(a) * d, 14.0, size.z - 14.0)
+			p = Vector3(x, terrain.surface_height_at(x, z) - rng.randf_range(min_d, min_d + 90.0), z)
 		else:
 			p = Vector3(rng.randf_range(14.0, size.x - 14.0), rng.randf_range(12.0, size.y), rng.randf_range(14.0, size.z - 14.0))
 		var accept := rng.randf()

@@ -13,7 +13,7 @@ uniform sampler2D depth_tex : hint_depth_texture, filter_nearest, repeat_disable
 uniform vec3 mist_color : source_color = vec3(0.914, 0.706, 0.561); // #E9B48F
 uniform vec3 mist_light : source_color = vec3(0.98, 0.86, 0.74);
 uniform float density = 0.07; // per meter kijkstraal
-uniform float max_alpha = 0.6;
+uniform float max_alpha = 0.45;
 uniform float soft_m = 7.0; // zoveel meter dikte voor de mist volop telt
 uniform float near_fade_m = 25.0; // dichtbij de camera weg (geen muur voor de lens)
 uniform float far_fade_m = 1400.0; // verder neemt de gewone mist het over
@@ -53,8 +53,12 @@ void fragment() {
 	float n = vnoise(q * 0.018 + vec2(t * 0.011, t * 0.004)) * 0.65 + vnoise(q * 0.061 - vec2(t * 0.02, -t * 0.013)) * 0.35;
 	// Van boven (de drop) dunner: daar zie je de geulen door de mist heen; van opzij dik.
 	vec3 vdir = normalize((INV_VIEW_MATRIX * vec4(VERTEX, 0.0)).xyz);
-	float dens = density * mix(0.35, 1.35, n) * mix(1.0, 0.14, smoothstep(0.35, 0.9, abs(vdir.y)));
-	float a = (1.0 - exp(-thick * dens)) * smoothstep(0.0, soft_m, thick);
+	// Golf 3 (buiten-14): de dropcamera kijkt 17-30° omlaag; daar al dun, zodat de geulen er niet als
+	// blokken in staan.
+	float dens = density * mix(0.35, 1.35, n) * mix(1.0, 0.12, smoothstep(0.12, 0.55, abs(vdir.y)));
+	// Zachte bovenrand: hoe dichter bij de rand van het vlak (dun), hoe minder; en nooit een vlakke
+	// plaat (de slierten breken de rand).
+	float a = (1.0 - exp(-thick * dens)) * smoothstep(0.0, soft_m * (0.7 + 0.8 * n), thick);
 	a *= smoothstep(near_fade_m, near_fade_m * 2.5, frag_d) * (1.0 - smoothstep(far_fade_m * 0.6, far_fade_m, frag_d));
 	a *= smoothstep(0.0, 0.9, edge_a) * mix(0.55, 1.0, n); // rand van het mistgebied, en slierten
 	ALBEDO = mix(mist_color, mist_light, smoothstep(0.55, 0.85, n) * 0.5);

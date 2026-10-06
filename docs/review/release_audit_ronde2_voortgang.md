@@ -17,16 +17,16 @@ Hier staan de oude punten die 'beter, niet genoeg' of 'erger' waren en alle nieu
 
 | ID | Pakket | Status | Wat er gedaan is | Verificatie |
 |---|---|---|---|---|
-| ontwerp-1 | G1 | open | | |
-| ontwerp-7 | G1 | open | | |
-| ontwerp2-1 | G1 | open | | |
-| ontwerp2-2 | G1 | open | | |
-| ontwerp2-3 | G1 | open | | |
-| binnen2-01 | G1 | open | | |
-| binnen2-02 | G1 | open | | |
-| gevoel2-05 | G1 | open | | |
-| gevoel2-07 | G1 | open | | |
-| ui2-05 | G1 | open | | |
+| ontwerp-1 | G1 | klaar (niet met echte invoer gespeeld) | Gevaar voor de spelers zelf midden in de dienst: grijpen, rondsluipen, doorbreken | threat_test (99), net_threat_test (29) |
+| ontwerp-7 | G1 | klaar (standhouden aan de oppervlakte niet gedaan) | Een baken in een rijdende Mol telt niet; de ram is een beet die duurt (2,5%/s per vondst, max 5 s, Mol aan 55%); de piloot schudt hem los (4× links-rechts); G gooit een baken door de achterklep; aan de oppervlakte sla je hem van de Mol | worm_balance: terugrit zonder iets −13/−38/−63%, met een ploeg die iets doet −5/−18/−23% |
+| ontwerp2-1 | G1 | klaar | Midden in de dienst duwt de worm de Mol hooguit (Mol valt stil, wie staat gaat omver, lading heel), daarna 40 s doof voor de Mol en 60 s geen duw; rijden lokt minder (0,6 → 0,3) | worm_balance: 120 s rijden voor 8× geraakt en −75% lading, na 2× en 0% |
+| ontwerp2-2 | G1 | klaar | Hij grijpt wie hij raakt; breekt na lang boorlawaai door een smalle gangwand (houweel blijft stil); sluipt onder wie 5 s binnen 9 m blijft; gas ook ondiep (22 m) en bij de landing (35% binnen 70 m); instortingen ×2,5 dicht bij een speler | worm_balance --only=gas: bellen binnen bereik 0–1 → 1–5 |
+| ontwerp2-3 | G1 | klaar | Zie ontwerp-7: één baken zet de climax niet meer uit | worm_balance |
+| binnen2-01 | G1 | klaar | De lip van de kop stopt tegen de romp op de flank (zichtbaar in het volgshot) en trekt terug de grond in | threat_test (vier kanten en beet); G1: film |
+| binnen2-02 | G1 | klaar (ter goedkeuring: model) | Nieuw model: drie flappen, vlezige muil met drie kransen tanden en tongen, gloed diep in de keel, gloeiende naden en stippen, bleke buik; uitval met 1,6 s waarschuwing (rots barst open en gloeit), kegel scherven, kop komt traag uit de rots | G1: voor_na_*.png, films |
+| gevoel2-05 | G1 | deels | Model slaat opzij en kantelt, cabinecamera helt en schokt, lichten haperen, vonken. Open: de zijwaartse ruk leest weinig in stilstaand beeld; de schok van binnen niet gefilmd | G1: voor_na_*.png |
+| gevoel2-07 | G1 | klaar | Baken als fakkel: worp met de linkerhand, 18 m licht met vonken, gloeiende ring op de vloer zo groot als de veilige zone (14 m), sputtert de laatste 8 s | G1: films |
+| ui2-05 | G1 | klaar (ter goedkeuring: naam) | Eén naam: the Gulper; rood-oranje op de sonar met eigen teken, bovenaan dichtbij ('! GULPER 4 m · ATTACKING'); HUD-rij met icoon; rode gloed rond het scherm. Open: merkteken op het kompas | G1: beelden |
 | gevoel2-01 | G2 | open | | |
 | gevoel2-02 | G2 | open | | |
 | binnen2-03 | G2 | open | | |
@@ -65,28 +65,28 @@ Hier staan de oude punten die 'beter, niet genoeg' of 'erger' waren en alle nieu
 | ontwerp-10 | G3 | open | | |
 | ui-03 | G3 | open | | |
 | ui2-14 | G3 | open | | |
-| buiten-3 | G4 | open | | |
-| buiten-4 | G4 | open | | |
-| buiten-5 | G4 | open | | |
-| buiten-6 | G4 | open | | |
-| buiten-7 | G4 | open | | |
-| buiten-8 | G4 | open | | |
-| buiten-9 | G4 | open | | |
-| buiten-10 | G4 | open | | |
-| buiten-12 | G4 | open | | |
-| buiten-14 | G4 | open | | |
-| buiten2-1 | G4 | open | | |
-| buiten2-2 | G4 | open | | |
-| buiten2-3 | G4 | open | | |
-| buiten2-4 | G4 | open | | |
-| buiten2-5 | G4 | open | | |
-| buiten2-6 | G4 | open | | |
-| buiten2-7 | G4 | open | | |
-| buiten2-8 | G4 | open | | |
-| buiten2-9 | G4 | open | | |
-| gevoel-17 | G4 | open | | |
-| gevoel2-11 | G4 | open | | |
-| gevoel2-12 | G4 | open | | |
+| buiten-3 | G4 | deels | Grijsblauwe geulbodems, lagen in de hellingen, barsten in de laagtes; drop-IQR 16,3 (was 9–14). Op ooghoogte nog bleek | G4: metingen.txt |
+| buiten-4 | G4 | deels | Rustbowl lichter (L* 22 → 36), violet basalt in laagtes, perzik op ruggen, donkere stenen; drop-IQR 17,8. Blijft één oranje tint | G4: metingen.txt |
+| buiten-5 | G4 | klaar | Buitenbeeld start bij het zakken van de grijper, lichtbundel volgt de grijper, kraanshot op de grond met de reus, laatste stuk schip boven in beeld | G4: film ophalen |
+| buiten-6 | G4 | klaar | Kristallen met cyane kern die door het glas gloeit, minder witte glans | G4: voor_na/ |
+| buiten-7 | G4 | deels | Buttes met overhangende kaprots, erosiegroeven en puinhelling. Open: lagen nog regelmatig, zaagtand kraterwand Rustbowl en richels van de klif | G4: voor_na/ |
+| buiten-8 | G4 | deels | Rotsen in het speelgebied met eigen kleur per planeet en scherpere vlakken. Open: voxelvorm (koepels op Rustbowl) in de generator | G4: voor_na/ |
+| buiten-9 | G4 | klaar | Reus van Crystal Moon met banden en brede lichte kant, verder van de zon, minder waas | G4: voor_na/ |
+| buiten-10 | G4 | deels | Roetstrepen langs de stroming, halo's rond ±136 loop- en buiklichten. Open: massa's blijven dozen | G4: voor_na/ |
+| buiten-12 | G4 | klaar (ter goedkeuring) | Containers en brandstoftank i.p.v. meetpaaltjes, ring van 5 grote groepen op 40–64 m, grotere stenen; gecomponeerde landingsplek (kamp bij de oude gang op Rustbowl, opgraving op Fossil World, neergestorte sonde op Crystal Moon) | G4: voor_na/ |
+| buiten-14 | G4 | klaar | Geen mist meer in de kloven en op de puinhelling; van boven dunner met zachtere rand | G4: voor_na/ |
+| buiten2-1 | G4 | deels | Geen veelhoekplaten, zebrastrepen of vlekkenruis meer; laagtes en ruggen met eigen kleur, zandvlakken, kiezels, gruis, brandvlek op de landingsplek; GroundScatter tot ±34 m. IQR op ooghoogte ±verdubbeld (Rustbowl 4,3 → 7,7, Fossil 6,6 → 8,9, Crystal 4,4 → 8,0), concept 22–24 | G4: metingen.txt, voor_na/ |
+| buiten2-2 | G4 | klaar | Val in plannen: hoog volgshot met de reus (±1,3 s vast beeld), stoflaag op 110–210 m, knip naar de flank bij het ontsteken, grondcamera de laatste 26 m; beeldverschil hoge fase 7,8 → 12,1 | G4: film drop |
+| buiten2-3 | G4 | klaar | Zie buiten-5 | G4: film ophalen |
+| buiten2-4 | G4 | deels | Zie buiten-7 | G4: voor_na/ |
+| buiten2-5 | G4 | klaar (ter goedkeuring) | Stof op de Mol in de grondkleur van de planeet, zachte gradiënt van onder, geen druppellijnen, half zoveel spikkels | G4: voor_na/ |
+| buiten2-6 | G4 | klaar | Zie buiten-12 | G4: voor_na/ |
+| buiten2-7 | G4 | klaar | Klap van buiten zichtbaar: stofgolf naar de camera, brokken, stoot, 0,9 s buiten (was 0,22 s) | G4: film drop |
+| buiten2-8 | G4 | klaar | Kortere vlammen met kleurverloop en schokdiamanten | G4: film drop |
+| buiten2-9 | G4 | deels | Scheuren en zaagtand niet meer gezien met het voxelterrein geladen. Open: lichte strook van buiten de rand op Fossil World | G4 |
+| gevoel-17 | G4 | klaar | Zie buiten2-7 | G4: film drop |
+| gevoel2-11 | G4 | klaar | Zie buiten2-2 | G4: film drop |
+| gevoel2-12 | G4 | klaar | Zie buiten2-7; het belletje van de overdracht wacht op de knip naar binnen | G4: film drop |
 | binnen-01 | G5 | deels (veel beter; ter goedkeuring) | Set pieces uit de seed in ±1 op 3 grotten, de 2 dichtste kleigrotten altijd (DIG-kamp, oude Mol, reuzenribbenkast, geodekamer) met goede buit; startgrot ±60 m van het midden met de oude toegangstunnel van de vorige ploeg (werklamp en bord zichtbaar van de landingsplek). Open: buitenbeeld van de Mol ondergronds nog een bruine buis; eerste 70 m nog warm | G5: na_gang_naar_startgrot.png, na_set_pieces.png |
 | binnen-03 | G5 | klaar (ter goedkeuring: koper turkoois) | Erts als donkere knol van ±0,7 m met kristalnaalden in alle richtingen en klompjes blank metaal; koper turkoois tegen rode klei; glinsters als harde facetjes | G5: vergelijk_erts |
 | binnen-04 | G5 | klaar (ter goedkeuring) | Korst als concretie per planeet en laag (ijzersteen met calcietaders, zwarte vuursteen met witte korst, obsidiaan met roze aders), gefacetteerd, barsten die de vondst tonen en groeien met schade | G5: vergelijk_korst |

@@ -249,6 +249,11 @@ func forward() -> Vector3:
 	return -body.global_basis.z
 
 
+## Het gevoel van binnen (camera die helt en schokt), voor de worm die de Mol raakt.
+func ride_feel() -> MolRideFeel:
+	return _ride_feel
+
+
 ## Diepte (m onder het oppervlak) voor knop `i` van de autopiloot, volgens de lagen hier:
 ## 0 = in de klei, 1 = net in het zandsteen (waar de botten beginnen), 2 = diep in het zandsteen,
 ## ruim boven het graniet (dat de T1-kop niet aankan). ontwerp-15: de knoppen brengen je naar een
@@ -1263,7 +1268,8 @@ func _extract(delta: float) -> void:
 	if to.length() < 0.6:
 		_path_index -= 1
 		return
-	var v := Tuning.get_f("mol", "extract_speed", 6.0)
+	# De worm bijt (climax, pakket G1): trager zolang hij bijt.
+	var v: float = Tuning.get_f("mol", "extract_speed", 6.0) * (game.worm.mol_drag() if game.worm else 1.0)
 	speed = move_toward(speed, -v, Tuning.get_f("mol", "acceleration", 1.6) * 2.0 * delta)
 	pos += to.normalized() * minf(absf(speed) * delta, to.length())
 	# De Mol rijdt achteruit terug: de neus wijst weg van de rijrichting.
@@ -1272,6 +1278,11 @@ func _extract(delta: float) -> void:
 	var want_pitch := clampf(asin(clampf(fwd.y, -1.0, 1.0)), deg_to_rad(-30.0), deg_to_rad(30.0))
 	yaw = lerp_angle(yaw, want_yaw, minf(1.0, delta * 2.0))
 	pitch = lerpf(pitch, want_pitch, minf(1.0, delta * 2.0))
+	if game.worm and game.worm.biting():
+		# De piloot schudt hem los: links-rechts sturen laat de Mol wiegen (pakket G1).
+		var steer := _input.y if Time.get_ticks_msec() / 1000.0 - _input_time < 0.5 else 0.0
+		game.worm.host_shake(steer)
+		yaw += steer * 0.9 * delta
 	drilling = false
 	blocked = false
 	_place(pos, yaw, pitch)

@@ -492,7 +492,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		game.mol.press(Mol.Cmd.HORN)
 	elif event.is_action_pressed("sonar_ping") and captured and (seated or game.mol.contains_point(global_position)):
 		game.mol.press(Mol.Cmd.PING)
-	elif event.is_action_pressed("beacon") and captured and not seated and game.beacons:
+	elif event.is_action_pressed("beacon") and captured and game.beacons and (not seated or game.beacons.launch_ready(game.mol)):
+		# In de stoel enkel door de achterklep van een rijdende Mol (pakket G1).
 		game.beacons.request_throw(self)
 	elif seated:
 		return # geen gereedschap in de stoel
@@ -519,7 +520,8 @@ func _physics_process(delta: float) -> void:
 		velocity = Vector3.ZERO
 		_air_top = global_position.y
 		var awake := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or DisplayServer.get_name() == "headless"
-		if awake and life == Rescue.Life.DOWNED and Input.is_action_just_pressed("jump"):
+		# Neer: spartelen. In de muil van de worm (G1): spartelen maakt je los.
+		if awake and (life == Rescue.Life.DOWNED or game.rescue.is_held(peer_id)) and Input.is_action_just_pressed("jump"):
 			game.rescue.request_flail()
 		return
 	if life == Rescue.Life.BROKEN:

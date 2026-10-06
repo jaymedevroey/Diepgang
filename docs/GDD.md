@@ -77,6 +77,7 @@ De Ekster (moederschip) → planeet en opdracht kiezen → drop met de Mol → b
 ### Een dienst (15–20 minuten)
 1. **Aan boord van De Ekster** kies je op de terminal een planeet: 2–3 keuzes, elk met een opdracht (en later mutators, §4).
 2. **Drop.** Iedereen stapt in de Mol, de piloot trekt aan de drophendel. De Mol valt door de atmosfeer (gloed, schokken, stuwraketten) en landt in een stofwolk. De drop is meteen ook het laadscherm: het terrein laadt terwijl je valt. In beeld: het **heldenshot** (keuze Jayme, [drop-en-ophalen](research/drop-en-ophalen.md)). Eén vaste camera achter de vallende Mol, het schip krimpt boven in beeld, en bij de landing een knip naar binnen in de stofwolk.
+   - **In plannen (golf 3, voorstel van de audit):** het volgshot kijkt de eerste seconden hoger (de reus en zijn ring in het bovenste derde), dan naar de landingsplek; je valt door een stoflaag; bij het ontsteken van de stuwraketten een knip naar de flank; de laatste meters een camera op de grond die de klap ziet (stofgolf, stoot, ±1 s), dan pas de knip naar binnen. Het blijft één camera die de Mol volgt, nooit rond hem draait.
 3. **Afdalen.** De Mol boort zich in de grond, zelf gestuurd of met de autopiloot.
 4. **Zoeken.** De sonar luistert stil (kort bereik, vaag). Een **PING** geeft een scherp beeld tot ver, maar maakt lawaai.
 5. **Graven en delven.** Erts gaat in je ertszak en geef je af aan de trechter van de Mol. Vondsten zitten in een **korst**: met het houweel bik je die weg zonder schade, maar traag; boren gaat sneller, maar verlaagt de waarde.
@@ -86,6 +87,7 @@ De Ekster (moederschip) → planeet en opdracht kiezen → drop met de Mol → b
    - Onrust stijgt alleen door lawaai: boren, de Mol, pings en explosies.
    - Bij elke drempel beeft de planeet: rotsblokken vallen in gemarkeerde zones en het magma maakt een sprong.
 8. **Extractie.** De piloot trekt aan de vertrekhendel. Na een aftelling rijdt de Mol zijn eigen spoor terug naar de oppervlakte. De Ekster laat een grijper zakken en pikt hem op.
+   - **In beeld (golf 3):** een lichtbundel uit de baai volgt de grijper naar beneden (je ziet het schip komen). Het buitenbeeld begint al bij het zakken van de grijper: een kraanshot op de grond met de reus naast de Mol, dan naast de Mol omlaag kijkend (de plek valt weg), de laatste meters het schip boven in beeld.
    - Wie niet aan boord is, blijft achter: hij komt als vervangrobot terug op het schip.
    - De firma rekent de vervanging aan, en wat hij droeg, is weg.
 9. **Taxatie aan boord.**
@@ -119,6 +121,7 @@ De Ekster (moederschip) → planeet en opdracht kiezen → drop met de Mol → b
   - Het terrein laadt rond de spelers en de Mol (streaming).
   - Graafacties worden per blok opnieuw toegepast zodra dat blok laadt, zodat elke peer hetzelfde ziet.
 - **Bovenaan een oppervlak in open lucht:** een kale buitenaardse vlakte met kraters en rotsblokken, onder een vreemde hemel met manen en ringen. De Ekster hangt hoog in de lucht.
+  - **Een gecomponeerde landingsplek (golf 3):** op ±26 m schuin vóór de Mol een vaste groep met een verhaal: Roestbol het kamp van de vorige ploeg naast de monding van hun toegangsgang, Fossielwereld een opgraving met een half vrijgelegd reuzenbot, Kristalmaan een neergestorte sonde met kristallen erdoor. Enkel decor (botst met spelers, niet met de Mol), het eerste beeld na de drop heeft zo een voorgrond. Daarrond in elke richting een groot depot (container, brandstoftank, generator met lichtmast) en tot aan je voeten losse stenen, scherven en botsplinters.
 - **Rand:** een onbreekbare buitenmuur, het concessiegebied van DIG. De Mol stopt ervoor.
 - **Grotten** op elke diepte, waarvan enkele groot genoeg voor de Mol.
   - **Grotten als bestemming (golf 3):** ±1 op 3 grotten heeft een set piece uit de seed, met goede buit in de wanden en de vloer errond: een verlaten DIG-kamp (tent, werflamp die nog hapert, kisten, "BACK IN 5 MIN"), een gestrande oude Mol met de neus in de wand, een reusachtige ribbenkast (decor, geen buit) of een geodekamer met reuzenkristallen. De twee dichtste grotten in de klei hebben er altijd een. Enkel props: het terrein verandert er niet door.
@@ -241,9 +244,9 @@ Een grote rupsvoertuig-drilboor (±10 m lang, ±6 m breed) van DIG: vooraan een 
   - Hij zwemt onzichtbaar door de aarde, zonder het terrein te veranderen.
   - Je merkt hem aan gerommel, trillingen, stof en een markering op de grond.
   - Hij komt af op lawaai en duikt enkel op in open ruimtes.
-  - Hij slokt losliggende buit op en sleurt die weg, en kan spelers omverduwen.
-  - Lichtbakens en lokaas houden hem op afstand. Er zijn geen wapens.
-  - Op de sonar van de Mol verschijnt hij als **grote stip** die nadert (playtest 2026-10-06).
+  - Hij slokt losliggende buit op en sleurt die weg. **Wie hij raakt, grijpt hij en sleurt hij 15–30 m mee; de ploeg bevrijdt je** (golf 3, playtest "een worm die je opslokt"; was: "kan spelers omverduwen").
+  - Lichtbakens en lokaas houden hem op afstand. Er zijn geen wapens: een slag met het houweel op zijn kop doet hem loslaten, niet sterven (golf 3).
+  - Op de sonar van de Mol verschijnt hij als **grote stip** die nadert (playtest 2026-10-06), in rood, met zijn naam: **the Gulper** (golf 3).
 - **Later:** een kristalspin (trekt spelers mee, via een gescripte "gesleept"-toestand op de client van het slachtoffer) en een lavaslang. Idee uit de playtest van 2026-10-06: kleine grotwezens ("googlies") in grotten met goede buit, zodat een grot verleidelijk én gevaarlijk is.
 
 ### Neergaan: je wordt zelf buit
@@ -261,8 +264,18 @@ Cijfers in `rescue.cfg`, `worm.cfg`, `beacon.cfg`, `gas.cfg` en `collapse.cfg`.
 - **Lichtbakens.** Drie per dienst voor de ploeg (G), ze branden 2 min; binnen 14 m valt de worm niet uit en ramt hij de Mol niet. Pakket F1 kan er meer verkopen.
 - **Gas.** Bellen in grotten (zichtbaar) en opgesloten in de rots (die sissen eerst 2 s als je ze openbreekt), pas vanaf 35 m diep en dieper meer, niet bij de landingsplek. De boor, de boorkop van de Mol, een andere ontploffing en het magma ontsteken ze; het houweel niet.
 - **Instortingen.** Hoe dieper, hoe meer onstabiele zones en hoe groter de kans dat een zone tussen de bevingen door vanzelf instort (vanaf 20 m, groeiend met de diepte, de onrust en het einde van de dienst). Grote rotsen blijven liggen als puin dat je tegenhoudt en wegbikt.
-- **De climax.** De spanning groeit met het magma; vertrekt de Mol, dan is ze vol: de worm is sneller, valt vaker uit en hoort verder. De motor van de vertrekkende Mol lokt hem, en op de terugweg ramt hij de Mol: elke vondst in het laadruim verliest 12% gaafheid, de Mol valt even stil en wie staat gaat omver. Een baken in de Mol houdt hem af. Een oververhitte Mol wordt nog opgehaald, maar de lading verschroeit (−40%).
+- **De climax.** De spanning groeit met het magma; vertrekt de Mol, dan is ze vol: de worm is sneller, valt vaker uit en hoort verder. De motor van de vertrekkende Mol lokt hem, en op de terugweg ramt hij de Mol: elke vondst in het laadruim verliest 12% gaafheid, de Mol valt even stil en wie staat gaat omver. Een baken in de Mol houdt hem af. Een oververhitte Mol wordt nog opgehaald, maar de lading verschroeit (−40%). *(Golf 3: de ram wordt een beet waar de ploeg iets tegen doet, en een baken in een rijdende Mol telt niet meer; zie hieronder.)*
 - **Het magma als klok** staat onder de grond altijd in de HUD, met wanneer het op jouw diepte is.
+
+### Uitwerking (golf 3, pakket G1, 2026-10-06: de worm en de climax; ter goedkeuring van Jayme)
+Cijfers in `worm.cfg` en `beacon.cfg`. Meting met `--scenario=worm_balance` (zie `tasks/lessons.md`).
+- **Eén naam: the Gulper.** Overal dezelfde (sonar, HUD, meldingen), in de kleur van gevaar (rood-oranje), nooit het groen van een vondst. Op de sonar een eigen teken (een rafelige vlek met een krans tanden), dichtbij bovenaan de kolom ("! GULPER · 7 m · ATTACKING"). In de HUD een seismograaf met zijn icoon; een zwakke rode gloed rond het scherm als hij dichtbij rommelt, fel als hij je vasthoudt of in de Mol bijt.
+- **Grijpen** (de Smoker van L4D2). Wie de uitval raakt, grijpt hij (één tegelijk, dan 50 s niet): de robot gaat als ragdoll in zijn muil, de klok van "omver" staat stil, en hij sleurt hem over de vloer, weg van de ploeg en de Mol (20 m aan 2,6 m/s, enkel waar het open is; het lijf ploegt eronder). Dat kost levens (20% bij de beet, 5%/s). Los: twee houweelslagen op zijn kop (een ploegmaat), een baken binnen 7 m, of zelf spartelen (Spatie, ±10 keer: solo blijft het eerlijk). Niemand helpt: hij bijt nog eens (35%) en spuwt je uit. Wie dan op 0% staat, ligt neer.
+- **Ook voor wie voorzichtig werkt** (ontwerp2-2). Hij sluipt soms onder een speler; wie 5 s binnen 9 m boven hem blijft staan, voelt hij, en dan komt hij. In een smalle gang breekt hij door de wand of de vloer, maar enkel als het daar lang luid was (±25 boorhappen): de boor is in een gang niet meer veilig, het houweel wel. De tekens (gerommel, de markering op de vloer, de seismograaf) zeggen het eerst.
+- **Een uitval die je ziet komen** (binnen2-02). 1,6 s waarschuwing: de rots barst open en gloeit door de spleten, steentjes springen, een stofgeiser; dan een kegel scherven en komt de kop traag naar buiten, snel door de ruimte. Het lijf gloeit tussen de platen en op de flanken (je ziet hem in het donker), de kop is een vlezige muil met drie flappen en drie kransen tanden.
+- **De Mol midden in de dienst blijft de veilige thuis** (ontwerp2-1). Hij duwt de Mol hooguit (de Mol valt stil, wie staat gaat omver, de lading blijft heel), en daarna hoort hij de Mol 40 s niet en duwt hij hem 60 s niet: dan zoekt hij de ploeg. Rijden lokt hem minder ver dan boren.
+- **De climax** (ontwerp-7, ontwerp2-3). Na de hendel jaagt hij op de Mol zelf en bijt hij zich vast in de flank (de kop stopt tegen de romp): zolang hij bijt, verliest elke vondst 2,5% per s (hooguit 5 s) en rijdt de Mol aan 55%. Wat de ploeg doet: de piloot schudt hem los (links-rechts sturen, 4 keer), wie meerijdt gooit met G een baken door de achterklep (het valt achter de Mol in de tunnel, waar hij vandaan komt, en houdt hem af), en aan de oppervlakte kan je hem van de Mol slaan. Een baken in een rijdende Mol telt niet (de motor overstemt het). Gemeten (±400 m terug): niets doen −13/−38/−63%, een ploeg die iets doet −5/−18/−23% (Roestbol/Fossielwereld/Kristalmaan).
+- **Lichtbakens als fakkel** (gevoel2-07). Een worp met de linkerhand, 18 m warm flikkerlicht met vonken, een gloeiende ring op de vloer zo groot als de veilige zone (14 m), en op het einde sputtert hij.
 - **Per planeet en per opdracht.** De factoren van pakket F3 (`planets.cfg`: `gas_mult`, `worm_mult`, `quake_mult`; Kristalmaan meer gas en een onrustigere worm) en de voorwaarden van pakket F1: "Shaky ground" geeft meer onstabiele zones en twee keer zoveel kans op een instorting, "Hot core" laat het magma sneller stijgen.
 
 ---

@@ -14,6 +14,29 @@ De keuzes waar het GDD zweeg staan in GDD §3 en §5A ("golf 3"). Cijfers zijn s
 - **`var len := …` overschaduwt een ingebouwde functie**: andere naam. En `bool(null)` bestaat niet: `get_shader_parameter` van een parameter die nooit gezet is, geeft null (`== true` vergelijken).
 - **`git checkout <bestand>` gooit ook je eigen niet-gecommitte wijzigingen weg**, niet enkel de proefregels. Debugregels in een apart, klein script, of eerst committen.
 
+## 2026-10-06 — Golf 3, pakket G1: de worm en de climax
+
+De keuzes staan in GDD §6 ("Uitwerking (golf 3, pakket G1)"). Meten: `--scenario=worm_balance` (de echte Worm- en Mol-code, ×3 versneld, per planeet: hoe vaak raakt hij de Mol midden in de dienst en in de climax, en wat kost het de lading; voor/na in `logs/review_fix3/G1/`).
+- **Een gevaar dat de veilige plek aanvalt, maakt de speler voorzichtig op de verkeerde manier.** 9 rammen in 2 min leerde "laat de Mol nooit rijden". Midden in de dienst nu een duw zonder schade en daarna 40 s doof voor de Mol: de worm gaat naar de ploeg. Gemeten: 8 → 2 keer, lading −75% → 0%.
+- **Een climax die één toets uitschakelt, is geen climax.** Een baken dat in een rijdende Mol ligt, telt niet meer, en de ram werd een beet die duurt: schade per seconde, zodat wat de ploeg doet (losschudden, een baken uit de achterklep) meetelt. Niets doen kost nu 2-3× meer dan iets doen.
+- **Het model en de spelregels delen één maat.** De oorsprong van de kop zit achteraan de schedel: de prooi hing eerst ín de schedel, het houweel mikte op de nek, en de muil van een beet stak 2 m in de Mol. Nu constanten in Worm (LIP_AHEAD, SKULL_AHEAD, MOUTH_AHEAD, BITE_NODE) die host, beeld en test gebruiken. De tests zagen het niet, de film wel: kijk naar de film.
+- **Een glTF uit Blender is dubbelzijdig, en een loft heeft deksels.** De muil was een trechter met een deksel ervoor (een zwarte schijf) achter de schedel die ook dicht was. Open buizen: de deksels (vlakken met meer dan 4 hoeken) weg na de loft (`ring_open` in worm.py).
+- **De emissie van een Decal telt de alfa niet.** Een witte textuur met de vorm in de alfa liet het hele vierkant gloeien (de grot werd egaal oranje). Voor emissie de vorm in de kleur zetten; en in headless geen `get_image()` op een textuur, de Image zelf bouwen.
+- **De scratchpad is gedeeld tussen de agents.** Een ander pakket overschreef mijn `rg.ps1` met zijn eigen worktree, en mijn film draaide 4 min in hun worktree. Een eigen submap en eigen namen (`G1_worm/g1run.ps1`).
+- **PowerShell eet `--` op** als je argumenten aan een script doorgeeft: Godot kreeg geen `--scenario` en startte het spel (met Steam). De argumenten als één string doorgeven.
+- **"Could not preload resource script" zonder regel:** `--check-only --script res://…/scenario.gd` geeft de echte parsefout met regelnummer (de fouten over autoloads die erbij staan, negeren).
+
+## 2026-10-06 — Golf 3, pakket G4: buiten en de drop
+
+- **Voor en na op dezelfde wereld:** de firma kiest bij elke start een nieuwe seed voor de opdrachten, dus twee runs van drop_sequence tonen twee verschillende werelden. `outside_shots` zet de opdracht vast (`--planet`, `--seed`); zonder dat vergelijk je appels met peren.
+- **De grond op ooghoogte is vooral de landingsplek:** de generator maakt ze 22 m vlak (met 20 m overgang), en dat vult de onderste helft van elk beeld van bij de Mol. Kiezels in de shader verzetten de waardespreiding nauwelijks; wat telt zijn grote vlakken (zandvlakken in de windrichting, scherp begrensd) en echte stenen die schaduw werpen (GroundScatter). De concepten zijn dropbeelden: een IQR van 22 op ooghoogte is op een zonnige vlakte een verkeerde lat.
+- **Ruis weghalen kan de spreiding verlagen:** zonder de facettenplaten daalde de IQR op Fossielwereld eerst (de platen wáren de variatie). Meten na elke stap, niet aannemen.
+- **Een radiaal patroon niet met `atan`:** de hoek springt achter je van −π naar π, en dat gaf een rechte naad over de grond pal in het midden van één camerarichting. Ruis op de richtingsvector (`dv / length(dv)`) heeft geen naad.
+- **Een QA-camera ver van de spelers laadt geen voxelterrein:** de rand van het speelgebied werd dan een gat met het grove raster erin. `terrain.add_viewer(camera, 110)` en wachten tot het gebied klaar is.
+- **Een `Decal` heeft geen `visibility_range_end`** (het is geen GeometryInstance3D): `distance_fade_*`.
+- **Plannen in een cinematic:** een harde knip op een moment uit het spel (ontsteken, onder 26 m, de grijper zakt) leest beter dan één camera die alles moet doen. De tests keken naar de tijd tot de eigen camera terug is (`drop_cam_land_hold_s`); het belletje van de overdracht wacht nu op de knip naar binnen.
+- **De scratchpad wordt gedeeld door alle agents van de sessie:** een ander script met dezelfde naam (`rg.ps1`) overschreef het mijne en startte Godot in een andere worktree. Een eigen submap.
+
 ## 2026-10-06 — Golf 3, pakket G5: de ondergrond
 
 - **Een plek om naartoe te gaan moet je ook vinden.** Set pieces in grotten helpen pas als de eerste ervan te zien is: daarom een startgrot met een oude gang vanaf de rand van de landingsplek (een gat met stutten en lampjes), niet enkel taferelen diep in de rots. In GDD §4 ("golf 3").
