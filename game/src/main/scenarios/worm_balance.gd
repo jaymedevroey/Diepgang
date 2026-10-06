@@ -38,6 +38,12 @@ func _on_world() -> void:
 func _run() -> void:
 	var game: Game = main.game
 	var only := str(CmdArgs.value("only", ""))
+	if only == "gas":
+		await _gas(game)
+		_flush()
+		Engine.time_scale = 1.0
+		get_tree().quit(0)
+		return
 	for planet in 3:
 		game.host_new_world(777 + planet, planet)
 		await game.world_loaded
@@ -61,6 +67,32 @@ func _run() -> void:
 	_flush()
 	Engine.time_scale = 1.0
 	get_tree().quit(0)
+
+
+## --only=gas: hoeveel gasbellen liggen binnen 50 m opzij en 145 m diep van de landingsplek (ontwerp2-2),
+## met de waarden van nu en die van ronde 2 (35 m diep, 30 m van de landingsplek), drie werelden per
+## planeet.
+func _gas(game: Game) -> void:
+	for old in [true, false]:
+		Tuning.set_value("gas", "min_depth_m", 35.0 if old else 22.0)
+		Tuning.set_value("gas", "safe_landing_m", 30.0 if old else 18.0)
+		Tuning.set_value("gas", "near_share", 0.0 if old else 0.35)
+		for planet in 3:
+			var counts := PackedStringArray()
+			for k in 3:
+				game.host_new_world(777 + planet + 10 * k, planet)
+				await game.world_loaded
+				await _wait(0.5)
+				var t: TerrainAPI = game.terrain
+				var c := t.shaft_center_world()
+				var n := 0
+				for pk: Gas.Pocket in game.gas.pockets:
+					var side := Vector2(pk.center.x - c.x, pk.center.z - c.z).length()
+					var depth := t.surface_height_at(pk.center.x, pk.center.z) - pk.center.y
+					if side < 50.0 and depth < 145.0:
+						n += 1
+				counts.append(str(n))
+			_p("gas %s, %s: %s bellen binnen 50 m opzij en 145 m diep" % ["ronde 2 (35/30)" if old else "golf 3 (22/18, 35% bij de ploeg)", PlanetType.NAMES[planet], "/".join(counts)])
 
 
 func _on_hit(_at: Vector3) -> void:
