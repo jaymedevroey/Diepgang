@@ -211,7 +211,7 @@ func _impact() -> bool:
 		if ok:
 			var pebbles := _rng.randi_range(Tuning.get_i("pickaxe", "pebbles_min", 3), Tuning.get_i("pickaxe", "pebbles_max", 5))
 			fx.impact(pos, normal, color, pebbles)
-			fx.fresh_cut(pos, normal, Tuning.get_f("pickaxe", "chip_radius", 0.75))
+			fx.fresh_cut(pos, normal, Tuning.get_f("pickaxe", "chip_radius", 0.75), color)
 			camera_fx.kick(Tuning.get_f("pickaxe", "kick_pitch_deg", 1.6), _rng.randf_range(-1, 1) * Tuning.get_f("pickaxe", "kick_yaw_deg", 0.6))
 			camera_fx.add_trauma(Tuning.get_f("pickaxe", "shake_trauma", 0.28))
 	else:

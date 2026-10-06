@@ -62,7 +62,9 @@ func impact(pos: Vector3, normal: Vector3, color: Color, pebbles: int) -> void:
 
 ## Verse snede: de binnenkant van de kuil is even donkerder en vochtiger dan de wand, en droogt in
 ## ±25 s op (binnen-09). Een decal die over de kuil valt; de oudste maakt plaats.
-func fresh_cut(pos: Vector3, normal: Vector3, radius: float) -> void:
+## `color`: de kleur van de laag. De vlek is een donkere versie van die kleur (golf 3, gevoel-19): een
+## vaste grijsbeige maakte de kuil in de oranje klei net lichter en vaal in plaats van donkerder.
+func fresh_cut(pos: Vector3, normal: Vector3, radius: float, color := Color(0, 0, 0, 0)) -> void:
 	if _cut_texture == null:
 		_cut_texture = _blotch_texture()
 	var d: Decal
@@ -85,8 +87,11 @@ func fresh_cut(pos: Vector3, normal: Vector3, radius: float) -> void:
 	var y := normal.normalized()
 	var x := y.cross(Vector3.UP if absf(y.y) < 0.9 else Vector3.RIGHT).normalized()
 	d.global_transform = Transform3D(Basis(x, y, x.cross(y)).rotated(y, _rng.randf() * TAU), pos + y * 0.25)
-	d.modulate = Color(Tuning.get_f("pickaxe", "fresh_cut_tint", 0.45), Tuning.get_f("pickaxe", "fresh_cut_tint", 0.45) * 0.9,
-			Tuning.get_f("pickaxe", "fresh_cut_tint", 0.45) * 0.85, 1.0)
+	var k := Tuning.get_f("pickaxe", "fresh_cut_tint", 0.45)
+	if color.a > 0.0:
+		d.modulate = Color(color.r * k, color.g * k * 0.92, color.b * k * 0.85, 1.0)
+	else:
+		d.modulate = Color(k, k * 0.9, k * 0.85, 1.0)
 	d.albedo_mix = Tuning.get_f("pickaxe", "fresh_cut_mix", 0.7)
 	var tw := d.create_tween()
 	tw.tween_interval(Tuning.get_f("pickaxe", "fresh_cut_s", 25.0) * 0.4)
