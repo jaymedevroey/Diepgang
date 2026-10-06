@@ -903,6 +903,32 @@ func ram_hit(local_n: Vector3, strength: float) -> void:
 	_flicker = maxf(_flicker, 0.55 * strength)
 
 
+## Golf 3 (G4, buiten2-5: "overal dezelfde bruine stofkleur"): het stof op de romp in de grondkleur van
+## de planeet (PlanetType.ground): de stofvlekken van het model ("Dust", "Rock") en een zachte gradiënt
+## van onder naar boven op de buitenkant (machine.gdshader low_color). Bij elke nieuwe wereld.
+func tint_dust(ground: Dictionary) -> void:
+	var light: Color = ground.get("light", Color(0.6, 0.45, 0.33))
+	var base: Color = ground.get("base", light)
+	var done := {}
+	for mi: MeshInstance3D in model.find_children("*", "MeshInstance3D", true, false):
+		if mi.name in ["Interior", "Lever"]:
+			continue
+		for i in mi.mesh.get_surface_count():
+			var m := mi.get_surface_override_material(i) as ShaderMaterial
+			if m == null or m.shader != MACHINE or done.has(m):
+				continue
+			done[m] = true
+			var src := mi.mesh.surface_get_material(i)
+			var mat_name := src.resource_name if src else ""
+			if mat_name == "Dust":
+				m.set_shader_parameter("albedo", base.lerp(light, 0.55))
+			elif mat_name == "Rock":
+				m.set_shader_parameter("albedo", base.darkened(0.3))
+			else:
+				m.set_shader_parameter("low_color", base.lerp(light, 0.3))
+				m.set_shader_parameter("low_amount", 1.0)
+
+
 ## PING: een groene puls door de cabine en een ping met zijn echo ([plaatshouder]: het piepje van de
 ## Mol, hoger; het echte geluid komt met M6).
 func ping_pulse() -> void:

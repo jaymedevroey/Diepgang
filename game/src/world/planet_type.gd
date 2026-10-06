@@ -16,6 +16,8 @@ const SKY_STYLE: Array[String] = ["a", "b", "c"]
 ## licht, donker, de lagen in steile wanden (licht, midden, donker), en de losse rotsblokken.
 ## relief_*: de kleur volgt de vorm (PlanetSurface.relief_at): laagtes maal relief_dark, hoogtes en
 ## randen maal relief_light, vol bij relief_m meter boven of onder het gemiddelde van de omgeving.
+## g4_*: de open grond van dichtbij (golf 3, terrain.gdshader g4_ground): kleur in laagtes en op
+## ruggen, twee tinten kiezels, de rotsen in het speelgebied, en hoeveel van elk (zie de shader).
 static func ground(id: Id) -> Dictionary:
 	match id:
 		Id.FOSSIELWERELD:
@@ -24,21 +26,37 @@ static func ground(id: Id) -> Dictionary:
 					"base": _hex("C9B48C"), "light": _hex("E2CFA8"), "dark": _hex("7C8C8E"),
 					"strata": [_hex("E2CFA8"), _hex("C9A46E"), _hex("8C9AA0")], "rock": _hex("A08E70"),
 					# Geulbodems: okerstof en grijsblauwe klei, donker (het enige donker was het skelet).
-					"relief_m": 1.1, "relief_dark": Color(0.74, 0.74, 0.78), "relief_light": Color(1.1, 1.08, 1.04)}
+					"relief_m": 1.1, "relief_dark": Color(0.74, 0.74, 0.78), "relief_light": Color(1.1, 1.08, 1.04),
+				# Golf 3: geulbodems in grijsblauwe klei met barsten, kammen in wit krijt, vuursteen en
+				# krijtscherven, lagen in de geulwanden (zoals de klif), krijtblokken wit tegen het zand.
+				"g4_low": _hex("66767C"), "g4_high": _hex("F6EEDA"), "g4_peb_a": _hex("6F767A"), "g4_peb_b": _hex("D8CCB0"),
+				"g4_rock": _hex("ECE4D4"), "g4_amt": Vector4(0.75, 0.55, 0.35, 0.3), "g4_amt2": Vector4(0.45, 0.0, 0.55, 0.0),
+				"g4_sheet": Vector4(0.85, 0.6, 10.0, 4.5)}
 		Id.KRISTALMAAN:
 			# Donker violet basalt met lange schaduwen.
 			return {"patch_dark": Color(0.7, 0.68, 0.8, 0.65), "patch_light": Color(1.35, 1.3, 1.45, 0.45), "patch_scale": 70.0,
 					"base": _hex("54446A"), "light": _hex("7C6890"), "dark": _hex("2C2240"),
 					"strata": [_hex("7A6080"), _hex("5A4466"), _hex("2E2440")], "rock": _hex("3E3248"),
 					# Kraterranden en ruggen vangen het gouden licht; kommen blijven diep violet.
-					"relief_m": 1.3, "relief_dark": Color(0.76, 0.72, 0.84), "relief_light": Color(1.42, 1.28, 1.28)}
+					"relief_m": 1.3, "relief_dark": Color(0.76, 0.72, 0.84), "relief_light": Color(1.42, 1.28, 1.28),
+				# Golf 3: diep violet in de kommen, bleke lavendelkorst op de randen (vangt het goud),
+				# basaltsplinters en kristalgruis dat gloeit en glinstert, donkere basaltblokken.
+				"g4_low": _hex("1E1830"), "g4_high": _hex("B49CC0"), "g4_peb_a": _hex("2A2238"), "g4_peb_b": _hex("8E7CC0"),
+				"g4_rock": _hex("2E2638"), "g4_amt": Vector4(0.65, 0.65, 0.4, 0.4), "g4_amt2": Vector4(0.0, 0.0, 0.0, 1.0),
+				"g4_sheet": Vector4(0.5, 0.65, 9.0, 4.0)}
 		_:
 			# Roestbol: klei (de stijlgids), lagen in de kraterwand zoals in het onderzoek.
 			return {"patch_dark": Color(0.55, 0.46, 0.46, 0.75), "patch_light": Color(1.16, 1.08, 0.97, 0.55), "patch_scale": 110.0,
-					"base": Color(0.431, 0.290, 0.208), "light": Color(0.604, 0.420, 0.298), "dark": Color(0.243, 0.165, 0.122),
+					# Golf 3 (buiten2-1): lichter (de vlakke grond op ooghoogte was L* 20-25, het concept 40-50).
+					"base": Color(0.54, 0.35, 0.235), "light": Color(0.72, 0.49, 0.33), "dark": Color(0.243, 0.165, 0.122),
 					"strata": [_hex("E0B48C"), _hex("B86A44"), _hex("7A3A2A")], "rock": _hex("6A3A2B"),
 					# Donker basaltzand in de laagtes (#3E2626), licht perzikstof op de ruggen (#D9A27E).
-					"relief_m": 1.3, "relief_dark": Color(0.5, 0.43, 0.56), "relief_light": Color(1.42, 1.27, 1.08)}
+					"relief_m": 1.3, "relief_dark": Color(0.5, 0.43, 0.56), "relief_light": Color(1.42, 1.27, 1.08),
+				# Golf 3: violet basaltzand in de laagtes, perzikstof op de ruggen (planeten.md §4.1), donker
+				# basaltgrind en lichte zandsteenscherven, ribbels enkel in de normaal, roodbruine blokken.
+				"g4_low": _hex("4B2E30"), "g4_high": _hex("C98A62"), "g4_peb_a": _hex("3A2424"), "g4_peb_b": _hex("B07A58"),
+				"g4_rock": _hex("4E2A22"), "g4_amt": Vector4(0.8, 0.65, 0.35, 0.45), "g4_amt2": Vector4(0.0, 1.0, 0.0, 0.0),
+				"g4_sheet": Vector4(0.75, 0.6, 13.0, 3.6)}
 
 
 ## Richting (eenheidsvector) uit een kompasrichting en hoogte in graden. Azimut 0 = +z, 90 = +x.
@@ -119,8 +137,11 @@ static func _roestbol(style: String) -> Dictionary:
 					"ground_lit": _hex("C8642F"), "ground_shadow": _hex("4A2F4F"),
 					"giant_base": _hex("F5E6C8"), "giant_band": _hex("C9A88A"), "giant_storm": _hex("FFF4E0"),
 					"giant_night": _hex("4A2A22"), "ring_color": _hex("CDB79A"), "ring_glow": _hex("FFD9A8"),
-					"giant_dir": dir(205.0, 24.0), "giant_radius_deg": 10.0, "ring_open_deg": 16.0, "ring_roll_deg": -18.0,
-					"sky_energy": 1.2, "dust_tau": 0.6, "giant_haze": 0.3, "aureole_mix": 0.35,
+					# Golf 3 (buiten-9: "een effen mauve schijf zonder banden en zonder belichte sikkel"): verder
+					# van de zon (±70° in plaats van 45°), zodat de sikkel breed genoeg is om de banden te tonen,
+					# hoger en met minder waas (de onderste helft vloeide weg in de lucht).
+					"giant_dir": dir(232.0, 28.0), "giant_radius_deg": 10.0, "ring_open_deg": 16.0, "ring_roll_deg": -18.0,
+					"sky_energy": 1.2, "dust_tau": 0.6, "giant_haze": 0.14, "aureole_mix": 0.35,
 				},
 				"sun_rotation_deg": Vector3(-10.0, 160.0, 0.0),
 				"sun_color": _hex("FFC890"), "sun_energy": 1.4,

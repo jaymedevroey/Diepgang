@@ -564,7 +564,8 @@ def build_weathering():
         rim = _drips(rng, rim, 9, 0.05)
         pts = [(HULL_Z1 - 0.12, -0.56), (HULL_Z0 + 0.12, -0.56)] + rim
         _wear_poly([(b, a) for a, b in pts], side, up, along, n, "Dust", "Hull")
-        for _ in range(260):
+        # Golf 3 (buiten2-5: "een decalvel over het geel"): de helft van de spikkels (was 260).
+        for _ in range(130):
             z = rng.uniform(HULL_Z0 + 0.12, HULL_Z1 - 0.12)
             end = max(smoothstep_py(-1.8, -3.4, z), smoothstep_py(2.4, 3.9, z))
             y = -0.45 + 0.4 * end + (-math.log(max(rng.random(), 1e-3))) * (0.1 + 0.12 * end)
@@ -597,15 +598,12 @@ def build_weathering():
             z = rng.uniform(HULL_Z0 + 0.1, HULL_Z1 - 0.1)
             d = rng.uniform(0.0, 0.12)
             _wear_poly(_blob(rng, rng.uniform(0.01, 0.035), 7), o_ch + along * z + vdn * d, along, vdn, tuple(cn), "Dust", "Hull")
-        # Strepen onder de bovenste nagelrij en onder de patrijspoort (roest en vuil dat uitzakt).
-        for _ in range(9):
-            z = rng.uniform(HULL_Z0 + 0.3, HULL_Z1 - 0.3)
-            if 1.3 < z < 3.75:
-                continue
-            _streak(rng, side + V((0, 1.09, z)), along, up, n, rng.uniform(0.025, 0.05), rng.uniform(0.25, 0.8), "Soot", "Hull")
-        for dz in (-0.25, 0.18):
-            _streak(rng, side + V((0, PORTHOLE_Y - 0.66, dz)), along, up, n, rng.uniform(0.04, 0.06), rng.uniform(0.35, 0.55),
-                    "RedOxide", "Hull")
+        # Eén roestveeg onder de patrijspoort. Golf 3 (buiten2-5): de dunne, kaarsrechte zwarte
+        # druppellijnen onder de nagelrij zijn weg (ze lazen als stickers, niet als slijtage); het stof
+        # onderaan is nu ook een zachte gradiënt in de grondkleur van de planeet (machine.gdshader
+        # low_color, gezet door MolVisual.tint_dust).
+        _streak(rng, side + V((0, PORTHOLE_Y - 0.66, -0.25)), along, up, n, rng.uniform(0.04, 0.06), rng.uniform(0.3, 0.45),
+                "RedOxide", "Hull")
         # Krassen vooraan (waar hij langs de tunnelwand schuurt) en afgesprongen verf langs de randen.
         for _ in range(14):
             z = rng.uniform(HULL_Z0 + 0.2, -1.6)
