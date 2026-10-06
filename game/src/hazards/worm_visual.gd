@@ -86,7 +86,7 @@ func _ready() -> void:
 	# De gloed door de barsten: enkel licht (emissie), oranjerood, en een lamp die de rots kleurt.
 	_glow_decal = Decal.new()
 	_glow_decal.name = "CrackGlow"
-	_glow_decal.texture_emission = Worm._crack_texture()
+	_glow_decal.texture_emission = Worm._crack_glow_texture()
 	_glow_decal.emission_energy = 0.0
 	_glow_decal.modulate = Color(1.0, 0.38, 0.1)
 	_glow_decal.visible = false

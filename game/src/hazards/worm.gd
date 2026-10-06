@@ -1518,11 +1518,33 @@ func _floor_above(from: Vector3) -> Vector3:
 
 ## Barsten voor de markering op de vloer: een stervormig patroon (eenmalig gebakken, gedeeld).
 static var _cracks: ImageTexture
+static var _cracks_glow: ImageTexture
+
+
+## De barsten als emissie (de vorm in de kleur, niet in de alfa: emissie telt de alfa niet, anders
+## gloeit het hele vierkant van de decal).
+static func _crack_glow_texture() -> ImageTexture:
+	if _cracks_glow:
+		return _cracks_glow
+	var img := _crack_image()
+	for y in img.get_height():
+		for x in img.get_width():
+			var a := img.get_pixel(x, y).a
+			# Enkel de barsten zelf (niet de lichte kom eronder).
+			a = clampf((a - 0.3) / 0.7, 0.0, 1.0)
+			img.set_pixel(x, y, Color(a, a, a, 1.0))
+	_cracks_glow = ImageTexture.create_from_image(img)
+	return _cracks_glow
 
 
 static func _crack_texture() -> ImageTexture:
 	if _cracks:
 		return _cracks
+	_cracks = ImageTexture.create_from_image(_crack_image())
+	return _cracks
+
+
+static func _crack_image() -> Image:
 	var n := 96
 	var img := Image.create(n, n, false, Image.FORMAT_RGBA8)
 	img.fill(Color(1, 1, 1, 0))
@@ -1555,5 +1577,4 @@ static func _crack_texture() -> ImageTexture:
 						var old := img.get_pixel(px, py)
 						img.set_pixel(px, py, Color(1, 1, 1, maxf(old.a, cov)))
 			p = q
-	_cracks = ImageTexture.create_from_image(img)
-	return _cracks
+	return img

@@ -30,6 +30,7 @@ var _stowed := {} # id -> Transform3D t.o.v. de Mol (lokaal)
 var _rings := {} # id -> Decal: de veilige zone op de vloer
 var _mesh: Mesh
 static var _ring_tex: ImageTexture
+static var _ring_glow_tex: ImageTexture
 
 
 func _ready() -> void:
@@ -351,9 +352,9 @@ func _make_ring() -> Decal:
 	d.name = "SafeZone"
 	d.top_level = true
 	var r := Tuning.get_f("worm", "repel_m", 14.0)
-	d.size = Vector3(r * 2.0, 6.0, r * 2.0)
+	d.size = Vector3(r * 2.0, 10.0, r * 2.0)
 	d.texture_albedo = _ring_texture()
-	d.texture_emission = _ring_texture()
+	d.texture_emission = _ring_texture(true)
 	d.emission_energy = 1.6
 	d.albedo_mix = 0.6
 	d.modulate = Color(1.0, 0.62, 0.25, 0.5)
@@ -363,8 +364,12 @@ func _make_ring() -> Decal:
 	return d
 
 
-static func _ring_texture() -> ImageTexture:
-	if _ring_tex:
+## De ring: wit met de vorm in de alfa (albedo), of de vorm in de kleur zelf (`glow`: emissie telt de
+## alfa niet, anders gloeit het hele vierkant).
+static func _ring_texture(glow := false) -> ImageTexture:
+	if glow and _ring_glow_tex:
+		return _ring_glow_tex
+	if not glow and _ring_tex:
 		return _ring_tex
 	var n := 256
 	var img := Image.create(n, n, false, Image.FORMAT_RGBA8)
@@ -377,9 +382,14 @@ static func _ring_texture() -> ImageTexture:
 			inner = inner * inner * 0.22 * (1.0 if r < 0.97 else 0.0)
 			var ang := atan2(y - n * 0.5, x - n * 0.5)
 			var dash := 1.0 if fmod(ang + PI, TAU / 36.0) < TAU / 36.0 * 0.6 else 0.35
-			img.set_pixel(x, y, Color(1, 1, 1, clampf(edge * dash + inner, 0.0, 1.0)))
-	_ring_tex = ImageTexture.create_from_image(img)
-	return _ring_tex
+			var a := clampf(edge * dash + inner, 0.0, 1.0)
+			img.set_pixel(x, y, Color(a, a, a, 1.0) if glow else Color(1, 1, 1, a))
+	var tex := ImageTexture.create_from_image(img)
+	if glow:
+		_ring_glow_tex = tex
+	else:
+		_ring_tex = tex
+	return tex
 
 
 ## Vonken van de fakkel (enkel beeld).

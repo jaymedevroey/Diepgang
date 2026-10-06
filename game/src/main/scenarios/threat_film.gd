@@ -431,6 +431,22 @@ func _hud() -> void:
 ## Een lichtbaken in een donkere grot (gevoel2-07): de speler gooit het over de vloer, het licht en
 ## de veilige zone; daarna nadert de worm en zwemt weg.
 func _beacon() -> void:
+	if str(CmdArgs.value("surface", "")) == "1":
+		# Aan de oppervlakte, van boven gefilmd: de ring van de veilige zone (14 m) in zijn geheel.
+		var sc := t.shaft_center_world()
+		var at := Vector3(sc.x + 40.0, 0.0, sc.z + 30.0)
+		at.y = t.surface_height_at(at.x, at.z)
+		_stand(at, at + Vector3(-6.0, 0.0, 0.0))
+		p.set_physics_process(true)
+		await _wait(1.0)
+		game.beacons._host_throw(1, at + Vector3(-1.0, 1.2, 0.0), Vector3(-5.0, 2.0, 0.0))
+		await _wait(3.0)
+		var b := game.beacons.nearest(at, true)
+		_observer(b + Vector3(10.0, 22.0, 14.0), b)
+		await _wait(1.0)
+		_snap("baken_zone_boven")
+		await _wait(1.0)
+		return
 	var r: Array = await _cave(50.0, Vector3(-30.0, 0.0, -25.0), 9.0)
 	var ground: Vector3 = r[1]
 	_stand(ground + Vector3(6.0, 0.05, 0.0), ground + Vector3(-4.0, 0.0, 0.0))
