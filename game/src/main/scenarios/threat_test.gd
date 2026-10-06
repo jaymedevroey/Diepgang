@@ -156,7 +156,7 @@ func _run(pl: Player) -> void:
 	var hb := rescue.health_of(p.peer_id)
 	await _wait(1.2)
 	var head := worm.head_world()
-	_expect(head != Vector3.INF and p.ragdoll != null and p.ragdoll.torso.global_position.distance_to(head) < 2.0,
+	_expect(head != Vector3.INF and p.ragdoll != null and p.ragdoll.torso.global_position.distance_to(head) < 2.5,
 			"de romp hangt in de muil (%.1f m van de kop)" % (p.ragdoll.torso.global_position.distance_to(head) if p.ragdoll and head != Vector3.INF else -1.0))
 	_expect(p.global_position.distance_to(at_grab) > 1.5 or float(worm._grab.len) < 2.0,
 			"hij sleurt hem mee (%.1f m in 1,2 s; pad %.0f m)" % [p.global_position.distance_to(at_grab), float(worm._grab.get("len", 0.0))])
@@ -505,10 +505,10 @@ func _run(pl: Player) -> void:
 	for side: Vector3 in [Vector3(9, -4, 0), Vector3(-9, -5, 2), Vector3(1, -6, 9), Vector3(0, -6, -9)]:
 		worm.pos = mol.body.global_position + side
 		var c: Dictionary = worm._hull_contact(mol)
-		var hpos: Vector3 = (c.position as Vector3) + (c.normal as Vector3) * 0.9
+		var hpos: Vector3 = (c.position as Vector3) + (c.normal as Vector3) * (Worm.BITE_NODE - Worm.LIP_AHEAD)
 		var to_c: Dictionary = t.raycast(hpos, mol.body.global_position, Layers.LIFT)
-		_expect(not mol.contains_point(hpos) and not to_c.is_empty() and hpos.distance_to(to_c.position) > 0.6,
-				"de kop stopt tegen de romp, niet erin (%s: %.1f m van de romp)" % [side, hpos.distance_to(to_c.position) if not to_c.is_empty() else -1.0])
+		_expect(not mol.contains_point(hpos) and not to_c.is_empty() and hpos.distance_to(to_c.position) > 0.15,
+				"de lip van de kop stopt tegen de romp, niet erin (%s: %.1f m van de romp)" % [side, hpos.distance_to(to_c.position) if not to_c.is_empty() else -1.0])
 	await _until(func() -> bool: return rescue.is_ok(p.peer_id), 4.0)
 
 	# 13. De climax (ontwerp-7, ontwerp2-3): de hendel, de worm jaagt op de Mol en bijt zich vast; de

@@ -14,6 +14,8 @@ extends Node
 ##   beacon    een lichtbaken gooien in een donkere grot: de worp, het licht, de veilige zone (G1)
 ##   climax    de hendel, de terugrit over de vlakte (buitenzicht met de sonar), de worm die achtervolgt
 ##             en ramt (--beacon=1: met een baken in de Mol; --inside=1: van binnen gefilmd) (G1)
+##   grab      in een grot: de waarschuwing onder een ploegmaat, de uitval, hij grijpt hem en sleurt
+##             hem weg; de speler loopt erheen en slaat hem los met het houweel (G1)
 ## Eindigt zelf.
 
 const TAG := "[threat_film]"
@@ -60,6 +62,8 @@ func _run(pl: Player) -> void:
 			await _beacon()
 		"climax":
 			await _climax()
+		"grab":
+			await _grab()
 	print(TAG, " klaar")
 	get_tree().quit(0)
 
@@ -526,6 +530,93 @@ func _climax() -> void:
 			shots += 1
 	print(TAG, " climax: %d keer geramd in %.0f s, lading %s" % [rams[0], _now() - t0, cargo.map(func(i: FindItem) -> String: return "%d%%" % int(i.condition * 100))])
 	await _wait(1.0)
+
+
+## Grijpen en redden (G1): de worm valt uit onder een ploegmaat, grijpt hem en sleurt hem weg; de
+## speler loopt erheen en slaat de kop twee keer met het houweel, dan laat hij los.
+func _grab() -> void:
+	var worm: Worm = game.worm
+	var r: Array = await _cave(45.0, Vector3(-35.0, 0.0, 15.0), 10.0)
+	var ground: Vector3 = r[1]
+	game._spawn(2, 1, ground + Vector3(0.0, 0.5, 0.0))
+	var mate := game.player_node(2)
+	await _wait(0.3)
+	var spot := ground + Vector3(-1.0, 0.05, 0.0)
+	var hit := t.raycast(spot + Vector3.UP * 2.0, spot + Vector3.DOWN * 4.0)
+	if not hit.is_empty():
+		spot = (hit.position as Vector3) + Vector3.UP * 0.05
+	mate.global_position = spot
+	_stand(ground + Vector3(6.0, 0.05, 1.5), spot + Vector3.UP * 0.6)
+	p.set_physics_process(true)
+	p.select_tool(0)
+	game.magma.elapsed = game.worm.wake_after() + 1.0
+	await _wait(1.5)
+	worm.mode = Worm.Mode.HUNT
+	worm.pos = spot + Vector3(-12.0, -6.0, 0.0)
+	worm._net_pos = worm.pos
+	worm._cool = 0.0
+	worm._grab_cool = 0.0
+	worm._try_lunge(spot)
+	var t0 := _now()
+	var shots := {}
+	while _now() - t0 < 6.0 and not worm.holds(2):
+		await get_tree().process_frame
+		if game.rescue.is_ok(2):
+			mate.global_position = spot
+		var dt := _now() - t0
+		if dt > 1.0 and not shots.has("w"):
+			shots["w"] = true
+			_snap("grab_waarschuwing")
+		if dt > Tuning.get_f("worm", "telegraph_s", 1.6) + 0.5 and not shots.has("u"):
+			shots["u"] = true
+			_snap("grab_uitval")
+	await _wait(0.6)
+	_snap("grab_gegrepen")
+	await _wait(1.6)
+	_snap("grab_sleuren")
+	# Erheen lopen en de kop slaan.
+	p.set_physics_process(false)
+	var t1 := _now()
+	var last := _now()
+	while _now() - t1 < 12.0 and worm.holds(2):
+		await get_tree().physics_frame
+		var dt := _now() - last
+		last = _now()
+		var head := worm.head_world()
+		var rd := game.rescue.ragdoll_of(2)
+		if head == Vector3.INF or rd == null:
+			continue
+		# Naast zijn prooi gaan staan (opzij van het spoor, aan de kant van de speler), en de kop slaan.
+		var prey := rd.torso.global_position
+		var side := (head - prey).cross(Vector3.UP)
+		side.y = 0.0
+		side = side.normalized() if side.length() > 0.05 else Vector3.RIGHT
+		if side.dot(p.global_position - prey) < 0.0:
+			side = -side
+		var goal := prey.lerp(head, 0.5) + side * 2.3
+		var to := goal - p.global_position
+		to.y = 0.0
+		if to.length() > 0.4:
+			var next := p.global_position + to.normalized() * minf(5.0 * dt, to.length())
+			var down := t.raycast(next + Vector3.UP * 1.2, next + Vector3.DOWN * 2.0, Layers.TERRAIN)
+			if not down.is_empty():
+				next.y = (down.position as Vector3).y + 0.02
+			p.global_position = next
+			p.pickaxe.auto_swing = false
+		else:
+			p.pickaxe.auto_swing = true
+		var look := head - p.camera.global_position
+		p.rotation.y = atan2(-look.x, -look.z)
+		p.head.rotation.x = atan2(look.y, Vector2(look.x, look.z).length())
+		if p.pickaxe.auto_swing and not shots.has("s"):
+			shots["s"] = true
+			_snap("grab_slaan")
+	p.pickaxe.auto_swing = false
+	p.set_physics_process(true)
+	await _wait(0.4)
+	_snap("grab_los")
+	print(TAG, " grab: los = %s" % [not worm.holds(2)])
+	await _wait(2.5)
 
 
 func _snap(name: String) -> void:

@@ -54,8 +54,16 @@ signal struggled
 const SYNC_INTERVAL := 0.125
 ## Drager-id van opgeslokte buit (geen speler heeft deze id).
 const BELLY := -7
-## Hoogte van de kop boven de vloer als hij iemand sleurt (m).
+## Hoogte van zijn prooi boven de vloer als hij iemand sleurt (m).
 const HOLD_H := 0.9
+## Het model (worm.glb): de oorsprong van de kop zit achteraan de schedel; de lip zit LIP_AHEAD ervoor,
+## het midden van de schedel SKULL_AHEAD, en wat hij vasthoudt hangt MOUTH_AHEAD ervoor, tussen de
+## flappen.
+const LIP_AHEAD := 2.2
+const SKULL_AHEAD := 1.1
+const MOUTH_AHEAD := 2.9
+## Bijten en duwen: de oorsprong van de kop zoveel m buiten de romp (de lip ±0,3 m ervan).
+const BITE_NODE := 2.5
 
 var game: Node # Game
 var mode := Mode.SLEEP
@@ -243,14 +251,17 @@ func head_world() -> Vector3:
 	if multiplayer.is_server():
 		match mode:
 			Mode.GRAB:
-				return _grab_head()
+				return _grab_skull()
 			Mode.BITE:
 				return _bite_head()
 			Mode.LUNGE:
 				if not _lunge.is_empty():
 					var u := (float(_lunge.t) - float(_lunge.tel)) / float(_lunge.burst)
 					if u >= 0.0 and u <= 1.0:
-						return WormVisual.bezier(_lunge.path, lunge_param(u))
+						var lp: Array = _lunge.path
+						var h := WormVisual.bezier(lp, lunge_param(u))
+						var tg := (WormVisual.bezier(lp, lunge_param(minf(1.0, u + 0.03))) - h).normalized()
+						return h + tg * SKULL_AHEAD
 	return visual.head_world() if visual else Vector3.INF
 
 
@@ -746,16 +757,17 @@ func _physics_process(delta: float) -> void:
 		if mol and mol.body and mol.contains_point(pl.global_position):
 			continue
 		var body := pl.global_position + Vector3.UP * 0.7
-		if body.distance_to(head) < r and u <= 1.0:
+		var mouth := head + tangent * (LIP_AHEAD - 0.2)
+		if body.distance_to(mouth) < r and u <= 1.0:
 			hit[pl.peer_id] = true
-			if _start_grab(pl, head, tangent):
+			if _start_grab(pl, mouth, tangent):
 				return
 			var push := tangent * Tuning.get_f("worm", "hit_push", 7.0) + Vector3.UP * 3.5
 			game.rescue.host_damage(pl.peer_id, Tuning.get_f("worm", "hit_damage", 0.45), push, true, "worm")
 	if int(_lunge.eaten) < Tuning.get_i("worm", "swallow_max", 3):
 		var sr := Tuning.get_f("worm", "swallow_radius", 2.2)
 		for it: FindItem in game.finds.items:
-			if not it.freed or not it.carriers.is_empty() or it.global_position.distance_to(head) > sr:
+			if not it.freed or not it.carriers.is_empty() or it.global_position.distance_to(head + tangent * (LIP_AHEAD - 0.2)) > sr:
 				continue
 			if mol and mol.body and mol.contains_point(it.global_position):
 				continue
@@ -806,7 +818,8 @@ func _start_grab(pl: Player, head: Vector3, tangent: Vector3) -> bool:
 	var t: TerrainAPI = game.terrain
 	var down := t.raycast(pl.global_position + Vector3.UP * 0.8, pl.global_position + Vector3.DOWN * 2.5)
 	var ground: Vector3 = (down.position as Vector3) if not down.is_empty() else pl.global_position
-	var path := PackedVector3Array([head])
+	# Het pad van zijn prooi: van waar hij hem greep, over de vloer weg. De kop zit MOUTH_AHEAD erachter.
+	var path := PackedVector3Array([pl.global_position + Vector3.UP * HOLD_H])
 	path.append_array(_drag_path(ground, flat, peer))
 	var length := 0.0
 	for i in range(1, path.size()):
@@ -877,6 +890,7 @@ func _drag_path(start: Vector3, dir: Vector3, victim: int) -> PackedVector3Array
 	return pts
 
 
+## Waar zijn prooi nu is (tussen de flappen), of INF.
 func _grab_head() -> Vector3:
 	if _grab.is_empty():
 		return Vector3.INF
@@ -884,6 +898,18 @@ func _grab_head() -> Vector3:
 	if float(_grab.chew) > 0.0:
 		p += Vector3(sin(_clock * 17.0), absf(sin(_clock * 9.0)) * 0.6, cos(_clock * 13.0)) * 0.25
 	return p
+
+
+## Het midden van de schedel terwijl hij iemand sleurt (daar raakt het houweel), of INF.
+func _grab_skull() -> Vector3:
+	if _grab.is_empty():
+		return Vector3.INF
+	var s := float(_grab.s) - (MOUTH_AHEAD - SKULL_AHEAD)
+	var path: PackedVector3Array = _grab.path
+	if s >= 0.0 or path.size() < 2:
+		return sample_path(path, s)
+	var d := (path[1] - path[0]).normalized()
+	return path[0] + d * s
 
 
 ## Waar de romp van wie hij vasthoudt hoort (host, Rescue._host_bodies): dwars in de muil, voor de kop,
@@ -901,7 +927,7 @@ func hold_transform(peer: int) -> Transform3D:
 	var face := side.cross(fwd).normalized()
 	# Romp: y langs de zijkant (dwars in de muil), het gezicht (-z) naar boven.
 	var b := Basis(side.cross(-face), side, -face).orthonormalized()
-	return Transform3D(b, head + fwd * 0.8 + Vector3.DOWN * 0.2)
+	return Transform3D(b, head)
 
 
 func _grab_step(dt: float) -> void:
@@ -1059,7 +1085,7 @@ func _bite_head() -> Vector3:
 	if _bite.is_empty() or mol == null or mol.body == null:
 		return Vector3.INF
 	var n := mol.body.global_basis * (_bite.normal as Vector3)
-	return mol.body.global_transform * (_bite.local as Vector3) + n * 0.9
+	return mol.body.global_transform * (_bite.local as Vector3) + n * (BITE_NODE - SKULL_AHEAD)
 
 
 func _bite_step(dt: float) -> void:

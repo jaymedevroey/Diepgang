@@ -211,11 +211,12 @@ func stop() -> void:
 	set_process(false)
 
 
-## Waar de kop nu is, als hij boven de grond in beeld is (anders Vector3.INF).
+## Waar de schedel nu is (het midden, voor het houweel), als hij boven de grond in beeld is (anders
+## Vector3.INF).
 func head_world() -> Vector3:
 	if not _root.visible or _show in [Show.NONE, Show.HOLD]:
 		return Vector3.INF
-	return _head.global_position
+	return _head.global_position - _head.global_basis.z * Worm.SKULL_AHEAD
 
 
 # --- Plannen (van Worm, op elk peer) ---------------------------------------------------------------
@@ -253,14 +254,16 @@ func play_lunge(path: Array, emerge: Vector3, normal: Vector3, exit: Vector3, te
 	_geyser.emitting = true
 
 
-## Grijpen: vanaf waar de kop nu is, het pad over de vloer af aan `speed` m/s.
+## Grijpen: het pad van zijn prooi over de vloer (`path`), aan `speed` m/s. De kop zit MOUTH_AHEAD
+## achter de prooi op hetzelfde spoor.
 func play_grab(path: PackedVector3Array, speed: float) -> void:
 	# Het spoor: wat het lijf al aflegde (tot de kop), dan het sleeppad.
 	var keep := PackedVector3Array()
 	if _show in [Show.LUNGE, Show.GRAB] and _poly.size() > 1:
 		for i in _poly.size():
-			if _cum[i] < _hs - 0.3:
+			if _cum[i] < _hs - 0.1:
 				keep.append(_poly[i])
+		keep.append(_sample(_hs))
 	else:
 		# Geen uitval gezien (late joiner): het lijf komt recht uit de vloer onder het begin.
 		for i in 6:
@@ -286,13 +289,14 @@ func end_grab(at: Vector3) -> void:
 	if _show != Show.GRAB or _poly.size() < 2:
 		stop()
 		return
-	var fwd := _sample(_hs) - _sample(_hs - 0.8)
+	var ns := _hs - Worm.MOUTH_AHEAD
+	var fwd := _sample(ns + 0.4) - _sample(ns - 0.4)
 	fwd.y = 0.0
 	fwd = fwd.normalized() if fwd.length() > 0.05 else Vector3(1, 0, 0)
-	var head := _sample(_hs)
+	var head := _sample(ns)
 	var pts := PackedVector3Array()
 	for i in _poly.size():
-		if _cum[i] < _hs - 0.05:
+		if _cum[i] < ns - 0.05:
 			pts.append(_poly[i])
 	pts.append(head)
 	pts.append(head + fwd * 1.0 + Vector3.DOWN * 0.6)
@@ -318,7 +322,7 @@ func play_ram(at: Vector3, normal: Vector3) -> void:
 	var n := normal.normalized()
 	var flat := Vector3(n.x, 0.0, n.z)
 	flat = flat.normalized() if flat.length() > 0.1 else Vector3(1, 0, 0)
-	var stop_at := at + n * 0.9
+	var stop_at := at + n * Worm.BITE_NODE
 	var pts := PackedVector3Array()
 	pts.append(stop_at + flat * 3.6 + Vector3.DOWN * (3.0 + BODY_LEN))
 	pts.append(stop_at + flat * 3.6 + Vector3.DOWN * 3.0)
@@ -447,7 +451,7 @@ func _rebuild_bite() -> void:
 	var n := (mol.body.global_basis * _bite_normal).normalized()
 	var flat := Vector3(n.x, 0.0, n.z)
 	flat = flat.normalized() if flat.length() > 0.1 else Vector3(1, 0, 0)
-	var head := at + n * 0.9
+	var head := at + n * Worm.BITE_NODE
 	var pts := PackedVector3Array()
 	pts.append(head + flat * 3.4 + Vector3.DOWN * (3.5 + BODY_LEN))
 	pts.append(head + flat * 3.4 + Vector3.DOWN * 3.5)
@@ -539,7 +543,7 @@ func _process(delta: float) -> void:
 			_lunge_step(delta)
 		Show.GRAB:
 			_hs = minf(_end_s, _hs + _speed * delta)
-			_place_chain(_hs)
+			_place_chain(_hs - Worm.MOUTH_AHEAD)
 			_chomp += delta
 			_open_jaws(0.28 + 0.12 * sin(_chomp * 9.0))
 			_light.light_energy = 1.5 + 2.0 * _flash
@@ -547,7 +551,7 @@ func _process(delta: float) -> void:
 			_furrow_t -= delta
 			if _furrow_t <= 0.0 and worm and worm.game:
 				_furrow_t = 0.22
-				var behind := _sample(_hs - 1.6) + Vector3.DOWN * HOLD_OFFSET
+				var behind := _sample(_hs - Worm.MOUTH_AHEAD - 1.6) + Vector3.DOWN * HOLD_OFFSET
 				var col: Color = Strata.DEBRIS_COLORS[worm.game.terrain.layer_at(behind + Vector3.DOWN * 0.3)]
 				worm.game.fx.grit_puff(behind, Vector3.UP, col)
 				hop_pebble(behind + Vector3(randf_range(-0.6, 0.6), 0.1, randf_range(-0.6, 0.6)), col, 2.4)
