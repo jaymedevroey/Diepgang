@@ -2,6 +2,18 @@
 
 Wat we onderweg leerden en wat het GDD bijstuurt. Nieuwste bovenaan.
 
+## 2026-10-06 — Golf 3, pakket G1: de worm en de climax
+
+De keuzes staan in GDD §6 ("Uitwerking (golf 3, pakket G1)"). Meten: `--scenario=worm_balance` (de echte Worm- en Mol-code, ×3 versneld, per planeet: hoe vaak raakt hij de Mol midden in de dienst en in de climax, en wat kost het de lading; voor/na in `logs/review_fix3/G1/`).
+- **Een gevaar dat de veilige plek aanvalt, maakt de speler voorzichtig op de verkeerde manier.** 9 rammen in 2 min leerde "laat de Mol nooit rijden". Midden in de dienst nu een duw zonder schade en daarna 40 s doof voor de Mol: de worm gaat naar de ploeg. Gemeten: 8 → 2 keer, lading −75% → 0%.
+- **Een climax die één toets uitschakelt, is geen climax.** Een baken dat in een rijdende Mol ligt, telt niet meer, en de ram werd een beet die duurt: schade per seconde, zodat wat de ploeg doet (losschudden, een baken uit de achterklep) meetelt. Niets doen kost nu 2-3× meer dan iets doen.
+- **Het model en de spelregels delen één maat.** De oorsprong van de kop zit achteraan de schedel: de prooi hing eerst ín de schedel, het houweel mikte op de nek, en de muil van een beet stak 2 m in de Mol. Nu constanten in Worm (LIP_AHEAD, SKULL_AHEAD, MOUTH_AHEAD, BITE_NODE) die host, beeld en test gebruiken. De tests zagen het niet, de film wel: kijk naar de film.
+- **Een glTF uit Blender is dubbelzijdig, en een loft heeft deksels.** De muil was een trechter met een deksel ervoor (een zwarte schijf) achter de schedel die ook dicht was. Open buizen: de deksels (vlakken met meer dan 4 hoeken) weg na de loft (`ring_open` in worm.py).
+- **De emissie van een Decal telt de alfa niet.** Een witte textuur met de vorm in de alfa liet het hele vierkant gloeien (de grot werd egaal oranje). Voor emissie de vorm in de kleur zetten; en in headless geen `get_image()` op een textuur, de Image zelf bouwen.
+- **De scratchpad is gedeeld tussen de agents.** Een ander pakket overschreef mijn `rg.ps1` met zijn eigen worktree, en mijn film draaide 4 min in hun worktree. Een eigen submap en eigen namen (`G1_worm/g1run.ps1`).
+- **PowerShell eet `--` op** als je argumenten aan een script doorgeeft: Godot kreeg geen `--scenario` en startte het spel (met Steam). De argumenten als één string doorgeven.
+- **"Could not preload resource script" zonder regel:** `--check-only --script res://…/scenario.gd` geeft de echte parsefout met regelnummer (de fouten over autoloads die erbij staan, negeren).
+
 ## 2026-10-06 — Golf 3, pakket G5: de ondergrond
 
 - **Een plek om naartoe te gaan moet je ook vinden.** Set pieces in grotten helpen pas als de eerste ervan te zien is: daarom een startgrot met een oude gang vanaf de rand van de landingsplek (een gat met stutten en lampjes), niet enkel taferelen diep in de rots. In GDD §4 ("golf 3").
