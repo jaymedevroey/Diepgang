@@ -157,8 +157,10 @@ void fragment() {
 	// Roet: rond het motorblok (achteraan, meer op de achterkant) en onder de buik bij de hefstralen.
 	float eng = smoothstep(engine_z.x, engine_z.y, spos.z) * (0.55 + 0.45 * smoothstep(0.3, 0.9, n.z));
 	float belly = smoothstep(-0.3, -0.9, n.y) * 0.45;
-	float sn = vnoise(spos * 0.3) * 0.6 + vnoise(spos * 1.4) * 0.4;
-	float sootk = clamp((eng + belly) * smoothstep(0.3, 0.75, sn), 0.0, 1.0) * soot;
+	// Golf 3 (buiten-10: "ronde, wazige vlekken, waterkringen"): roet in strepen langs de stroming (de
+	// lengte van het schip), met een scherpere rand, geen ronde vlekken.
+	float sn = vnoise(vec3(spos.x * 1.1, spos.y * 1.1, spos.z * 0.045)) * 0.65 + vnoise(vec3(spos.x * 3.2, spos.y * 3.2, spos.z * 0.12)) * 0.35;
+	float sootk = clamp((eng + belly) * smoothstep(0.42, 0.62, sn), 0.0, 1.0) * soot;
 	col = mix(col, grime_color * 0.55, sootk * 0.6);
 	rough = mix(rough, 0.9, sootk * 0.5);
 	met = mix(met, 0.1, sootk * 0.5);

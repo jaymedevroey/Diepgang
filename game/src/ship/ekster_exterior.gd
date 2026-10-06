@@ -35,6 +35,9 @@ var _strobe_halo: ShaderMaterial
 var _time := 0.0
 var _hull_mats: Array[ShaderMaterial] = []
 var _hull_xf := Transform3D()
+var _beam: MeshInstance3D # lichtbundel uit de baai naar de grijper (golf 3)
+var _beam_mat: ShaderMaterial
+var _run_halo: ShaderMaterial
 
 
 func _ready() -> void:
@@ -57,6 +60,8 @@ func _ready() -> void:
 	_build_grapple()
 	_build_lights()
 	_build_glows()
+	_build_beam()
+	_build_light_halos()
 	_sync_hull_space()
 
 
@@ -111,6 +116,14 @@ func update_grapple() -> void:
 	_cable.position = rest + Vector3(0.0, 0.5, 0.0)
 	_cable.scale = Vector3(1.0, maxf(0.05, grapple_depth + 0.5), 1.0)
 	_cable.visible = grapple_depth > 0.5
+	# De lichtbundel volgt de grijper naar beneden (van de grond zie je het schip zo al komen).
+	var k := smoothstep(2.0, 12.0, grapple_depth)
+	_beam.visible = k > 0.01
+	if _beam.visible:
+		var length := grapple_depth + 2.0
+		_beam.position = rest + Vector3(0.0, 1.5 - length * 0.5, 0.0)
+		_beam.scale = Vector3(1.0 + length * 0.012, length, 1.0 + length * 0.012)
+		_beam_mat.set_shader_parameter("amount", k)
 
 
 ## Rustplek van de grijper (wereld): net boven het dak van een Mol in de baai.
@@ -193,12 +206,13 @@ func _build_glows() -> void:
 			var p := _arm_point(lx, 0.0, s)
 			nozzles.append(Vector4(p.x, p.y, 89.4, 2.5))
 	for nz in nozzles:
-		var length := nz.w * 5.0
-		_glow_cone(glow, Vector3(nz.x, nz.y, nz.z + length * 0.5), nz.w * 0.8, nz.w * 0.15, length,
-				Vector3(-PI / 2.0, 0.0, 0.0), Color(0.55, 0.75, 1.0), 2.4, k)
+		# Golf 3 (buiten2-8): korter, smaller aan de straalpijp en minder fel buiten de kern.
+		var length := nz.w * 4.2
+		_glow_cone(glow, Vector3(nz.x, nz.y, nz.z + length * 0.5), nz.w * 0.7, nz.w * 0.12, length,
+				Vector3(-PI / 2.0, 0.0, 0.0), Color(0.55, 0.75, 1.0), 1.8, k)
 		k += 1
 	for j in LIFT_JETS:
-		_glow_cone(glow, j - Vector3(0.0, 4.5, 0.0), 1.9, 0.7, 9.0, Vector3.ZERO, Color(0.5, 0.7, 1.0), 0.8, k)
+		_glow_cone(glow, j - Vector3(0.0, 4.0, 0.0), 1.7, 0.6, 8.0, Vector3.ZERO, Color(0.5, 0.7, 1.0), 0.7, k)
 		k += 1
 	# Navigatielichten (rood bakboord, groen stuurboord) op de boeg en de uiteinden van de armen.
 	for nav: Array in [[Vector3(-15.8, 6.0, -78.0), Color(1.0, 0.12, 0.08)], [Vector3(15.8, 6.0, -78.0), Color(0.2, 1.0, 0.4)],
@@ -261,6 +275,84 @@ func _halo(shader: Shader, pos: Vector3, col: Color, energy: float, size_m: floa
 	mi.position = pos
 	add_child(mi)
 	return mat
+
+
+## De lichtbundel uit de baai (golf 3, buiten2-3): zichtbaar zodra de grijper zakt.
+func _build_beam() -> void:
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = 3.2
+	mesh.bottom_radius = 5.5
+	mesh.height = 1.0
+	mesh.radial_segments = 20
+	mesh.rings = 1
+	mesh.cap_top = false
+	mesh.cap_bottom = false
+	_beam_mat = ShaderMaterial.new()
+	_beam_mat.shader = preload("res://src/ship/ship_beam.gdshader")
+	_beam = MeshInstance3D.new()
+	_beam.name = "GrappleBeam"
+	_beam.mesh = mesh
+	_beam.material_override = _beam_mat
+	_beam.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_beam.extra_cull_margin = 400.0
+	_beam.visible = false
+	_beam.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	add_child(_beam)
+
+
+## Halo's rond de looplichten en buiklichten (buiten-10: "kleine vierkantjes zonder halo"): uit het
+## model gehaald (de lichtjes van één materiaal, per groepje hoekpunten één halo), in één MultiMesh per
+## soort, met de halo-shader (die blijft van ver een paar pixels groot).
+func _build_light_halos() -> void:
+	var halo := preload("res://src/ship/ship_halo.gdshader")
+	for pair in [["RunLight", Color(0.6, 0.82, 1.0), 1.6, 1.4], ["BellyLight", Color(1.0, 0.74, 0.45), 1.8, 1.8]]:
+		var centers := _light_centers(str(pair[0]))
+		if centers.is_empty():
+			continue
+		var q := QuadMesh.new()
+		q.size = Vector2.ONE
+		var mat := ShaderMaterial.new()
+		mat.shader = halo
+		mat.set_shader_parameter("color", pair[1])
+		mat.set_shader_parameter("energy", pair[2])
+		mat.set_shader_parameter("size_m", pair[3])
+		mat.set_shader_parameter("min_angle", 0.0035)
+		q.material = mat
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = q
+		mm.instance_count = centers.size()
+		for i in centers.size():
+			mm.set_instance_transform(i, Transform3D(Basis(), centers[i]))
+		var mmi := MultiMeshInstance3D.new()
+		mmi.name = "Halos" + str(pair[0])
+		mmi.multimesh = mm
+		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mmi.extra_cull_margin = 64.0
+		add_child(mmi)
+
+
+## Middelpunten (in de ruimte van dit schip) van de lichtjes met materiaal `mat_name`: de hoekpunten
+## van dat materiaal, gegroepeerd per cel van 1,5 m (de lichtjes staan om de 3 m).
+func _light_centers(mat_name: String) -> Array[Vector3]:
+	var sums := {}
+	var counts := {}
+	for mi: MeshInstance3D in model.find_children("*", "MeshInstance3D", true, false):
+		var xf := global_transform.affine_inverse() * mi.global_transform
+		for i in mi.mesh.get_surface_count():
+			var src := mi.mesh.surface_get_material(i)
+			if src == null or src.resource_name != mat_name:
+				continue
+			var verts: PackedVector3Array = mi.mesh.surface_get_arrays(i)[Mesh.ARRAY_VERTEX]
+			for v in verts:
+				var p := xf * v
+				var key := Vector3i(int(floor(p.x / 1.5)), int(floor(p.y / 1.5)), int(floor(p.z / 1.5)))
+				sums[key] = sums.get(key, Vector3.ZERO) + p
+				counts[key] = int(counts.get(key, 0)) + 1
+	var out: Array[Vector3] = []
+	for key: Vector3i in sums:
+		out.append(sums[key] / float(counts[key]))
+	return out
 
 
 func _build_lights() -> void:
