@@ -55,6 +55,9 @@ func _run(p: Player) -> void:
 	while not game.world_ready():
 		await get_tree().process_frame
 	await _wait(0.5)
+	# De QA-camera laadt ook voxelterrein rond zich (zoals een speler daar): anders is de rand van ver
+	# een gat met het grove raster erin, en dat ziet geen speler.
+	game.terrain.add_viewer(_cam, 110.0)
 	# Droppen, overslaan zodra het mag.
 	p.global_position = mol.to_world_mol(Vector3(0.0, -1.45, 0.5))
 	await _wait(0.6)
@@ -238,7 +241,9 @@ func _look_shot(name: String, from: Vector3, at: Vector3) -> void:
 	# Wachten tot het terrein rond het doel geladen is (enkel in het speelgebied).
 	var t: TerrainAPI = main.game.terrain
 	var w := 0
-	while w < 300 and main.game.surface.outside(from.x, from.z) <= 0.0 and not t.is_area_ready(from, 30.0):
+	var q := Vector3(clampf(from.x, 0.0, t.world_size().x), 0.0, clampf(from.z, 0.0, t.world_size().z))
+	q.y = t.surface_height_at(q.x, q.z)
+	while w < 400 and from.y - q.y < 60.0 and not t.is_area_ready(q, 30.0):
 		await get_tree().process_frame
 		w += 1
 	await _wait(0.5)
