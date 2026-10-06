@@ -560,6 +560,7 @@ func _update_plans(m: Vector3, back: Vector3, delta: float) -> bool:
 		plan = Plan.GROUND
 		_plan_t = 0.0
 		_place_ground_cam(m, back, ground)
+		_clouds.visible = false # van op de grond leek de stoflaag op wolkjes in een heldere lucht
 	var side := back.cross(Vector3.UP).normalized()
 	var shake_k := Settings.get_f("interface/camera_shake")
 	var trauma := clampf(mol.thrust * 0.55 + _ignite * 0.6, 0.0, 1.0)
