@@ -192,7 +192,40 @@ static func model_for(id: String) -> Node3D:
 			return mol_head_t2()
 		Upgrades.CARGO:
 			return cargo_pod()
+		Upgrades.BEACONS:
+			return beacon_pack()
 	return Node3D.new()
+
+
+## Twee lichtbakens (de automaat): gele staafjes met een amberen kop, met tape samen.
+static func beacon_pack() -> Node3D:
+	var root := Node3D.new()
+	root.name = "BeaconPack"
+	for s in [-1.0, 1.0]:
+		var stick := MeshInstance3D.new()
+		var cyl := CylinderMesh.new()
+		cyl.top_radius = 0.025
+		cyl.bottom_radius = 0.025
+		cyl.height = 0.28
+		stick.mesh = cyl
+		stick.material_override = MolVisual.machine_material("Yellow", false, 6.0)
+		root.add_child(stick)
+		stick.position = Vector3(s * 0.03, 0.0, 0.0)
+		var cap := MeshInstance3D.new()
+		var sph := SphereMesh.new()
+		sph.radius = 0.032
+		sph.height = 0.05
+		cap.mesh = sph
+		var m := StandardMaterial3D.new()
+		m.albedo_color = Color(1.0, 0.55, 0.15)
+		m.emission_enabled = true
+		m.emission = Color(1.0, 0.5, 0.1)
+		m.emission_energy_multiplier = 2.5
+		cap.material_override = m
+		root.add_child(cap)
+		cap.position = Vector3(s * 0.03, 0.15, 0.0)
+	_box(root, Vector3(0.0, -0.02, 0.0), Vector3(0.12, 0.05, 0.055), "DuctTape")
+	return root
 
 
 ## De boorkop T2: de kop uit het model van de Mol, met de materialen van T2 (carbide).

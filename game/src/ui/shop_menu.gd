@@ -208,7 +208,7 @@ func _on_denied(_id: String, reason: String) -> void:
 ## Ids van de upgrades aan deze toonbank, in de volgorde van de winkel.
 func items() -> Array[String]:
 	var out: Array[String] = []
-	for id: String in Upgrades.ORDER:
+	for id: String in Upgrades.ORDER + Upgrades.SUPPLIES:
 		if str(Upgrades.info(id).counter) == counter:
 			out.append(id)
 	return out
@@ -248,6 +248,12 @@ func _refresh() -> void:
 			if k != counter:
 				others.append(str(Upgrades.COUNTER_IN_TEXT[k]))
 		_note.text = "Upgrades are for the whole crew and you keep them, even after a missed quota. More at the %s." % " and the ".join(others)
+		if counter == Upgrades.VENDING:
+			_note.text = "Supplies for the next shift, shared by the crew. Gone once used. No refunds."
+	elif Upgrades.consumable(_pending):
+		_note.text = "Purchased: %s. %s." % [str(Upgrades.info(_pending).name), Settings.fill_keys(Upgrades.does(_pending, company))]
+		_note.add_theme_color_override("font_color", UiTheme.GOOD)
+		_pending = ""
 	elif company.has_upgrade(_pending):
 		_note.text = "Purchased: %s. %s." % [str(Upgrades.info(_pending).name), Settings.fill_keys(Upgrades.does(_pending, company))]
 		_note.add_theme_color_override("font_color", UiTheme.GOOD)
@@ -298,7 +304,7 @@ func _card(id: String) -> Control:
 		b.text = "OWNED"
 		b.disabled = true
 	elif why != "" and why != "Not enough funds":
-		b.text = "FROZEN" if company.in_debt() else "LOCKED"
+		b.text = "FROZEN" if company.in_debt() else ("FULL" if Upgrades.consumable(id) else "LOCKED")
 		b.disabled = true
 	else:
 		b.text = "BUY  %s" % UiTheme.euro(price)
@@ -351,6 +357,8 @@ func _card(id: String) -> Control:
 		var crew := company.team_size()
 		status.text = ("%s · solo price" % UiTheme.euro(price)) if crew <= 1 else ("%s · price for a crew of %d" % [UiTheme.euro(price), crew])
 		status.add_theme_color_override("font_color", Color("#C9C1B2"))
+	if Upgrades.consumable(id) and company.beacon_stock > 0:
+		status.text = "Next shift: +%s · %s" % [UiTheme.count(company.beacon_stock, "beacon"), status.text]
 	info.add_child(status)
 	var bpad := MarginContainer.new()
 	bpad.add_theme_constant_override("margin_left", 18)

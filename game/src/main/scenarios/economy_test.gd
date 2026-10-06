@@ -282,6 +282,22 @@ func _run(p: Player) -> void:
 	var lamp := p.find_child("HelmetLamp", true, false) as SpotLight3D
 	_expect(lamp != null and is_equal_approx(lamp.spot_range, Tuning.get_f("economy", "lamp2_range", 42.0)), "helmlamp T2: bundel tot %d m" % int(lamp.spot_range if lamp else 0.0))
 
+	# 9b. Golf 3 (ontwerp2-10): de automaat verkoopt lichtbakens, telkens opnieuw; ze komen bij de landing.
+	p.global_position = ship.anchor_position("Vending") + Vector3(0, 0.1, 0)
+	await _wait(0.2)
+	var cash_v := c.cash
+	var bprice := Upgrades.price(Upgrades.BEACONS, 1)
+	c.buy(Upgrades.BEACONS, Upgrades.VENDING)
+	c.buy(Upgrades.BEACONS, Upgrades.VENDING)
+	await _wait(0.2)
+	_expect(c.beacon_stock == 4 and c.cash == cash_v - 2 * bprice and not c.has_upgrade(Upgrades.BEACONS),
+			"automaat: 2× een pak lichtbakens (−€%d), 4 klaar voor de volgende dienst" % (2 * bprice))
+	var left0: int = game.beacons.left
+	c.host_landed()
+	await get_tree().process_frame
+	await _wait(0.1)
+	_expect(game.beacons.left == left0 + 4 and c.beacon_stock == 0, "bij de landing: %d lichtbakens (was %d)" % [game.beacons.left, left0])
+
 	# 10. De handscanner: blips binnen 10 m, nooit alles.
 	var scanner := p.camera.find_child("HandScanner", true, false) as HandScanner
 	var target: FindItem = null

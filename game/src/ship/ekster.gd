@@ -46,14 +46,13 @@ const PREVIEW_ONLY := ["Sign_", "Cam_", "Look_"]
 ## binnen-13). Wat echt iets doet (verkopen, upgrades: pakket F1), staat in BUTTONS.
 const HINTS := {
 	"Appraisal_Gate": ["Appraisal gate", "Put finds on the belt: the gate appraises them one by one"],
-	"Vending": ["DIG vending machine · sold out", "No refunds, no restock date"],
 	"Locker": ["Paint booth · closed for fumes", "Your color is assigned by head office"],
 	"Niche_Free_A": ["Human resources · closed", "No humans left to resource"],
 	"Niche_Free_B": ["Break room · management only", "Your break is scheduled for quarter 7"],
 }
 ## E-knoppen van de economie (F1): het verkoopluik en de drie toonbanken met upgrades. De tekst
 ## volgt de toestand van de firma (_update_economy_hints).
-const BUTTONS := ["Sell_Hatch", "Niche_Tools", "Niche_Supply", "Mol_Werf"]
+const BUTTONS := ["Sell_Hatch", "Niche_Tools", "Niche_Supply", "Mol_Werf", "Vending"]
 ## Volgorde van de laadcapsules bij het spawnen: de eerste speler in capsule 02 (midden, zicht door
 ## de boog naar BRUG · OPDRACHTEN), dan 03 ("DEFECT"), 01, 04.
 const SPAWN_ORDER := [1, 2, 0, 3]
@@ -500,6 +499,10 @@ func _update_economy_hints() -> void:
 				left += 1
 		if c.in_debt():
 			b.sub = "Account frozen while in debt (%s)" % UiTheme.euro(c.cash)
+		elif n == Upgrades.VENDING:
+			# Golf 3: de automaat verkoopt lichtbakens voor de volgende dienst (opnieuw en opnieuw).
+			b.sub = ("Light beacons · %d ready for the next shift" % c.beacon_stock) if c.beacon_stock > 0 \
+					else "Light beacons · funds %s" % UiTheme.euro(c.cash)
 		elif left == 0:
 			b.sub = "Everything here is yours"
 		else:

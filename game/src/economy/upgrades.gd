@@ -26,14 +26,20 @@ const CARGO := "cargo"
 const TOOL_RACK := "Niche_Tools"
 const SUPPLY_DESK := "Niche_Supply"
 const MOLE_YARD := "Mol_Werf"
-const COUNTERS := [TOOL_RACK, SUPPLY_DESK, MOLE_YARD]
+## Golf 3 (ontwerp2-10): de automaat verkoopt verbruiksgoed, telkens opnieuw (een bodem voor het geld
+## als de upgrades gekocht zijn): lichtbakens voor de volgende dienst.
+const VENDING := "Vending"
+const COUNTERS := [TOOL_RACK, SUPPLY_DESK, MOLE_YARD, VENDING]
 ## Naam van de toonbank (kop van het menu en de knop in de hub).
-const COUNTER_NAMES := {TOOL_RACK: "Tool rack", SUPPLY_DESK: "Supply desk", MOLE_YARD: "Mole yard"}
+const COUNTER_NAMES := {TOOL_RACK: "Tool rack", SUPPLY_DESK: "Supply desk", MOLE_YARD: "Mole yard", VENDING: "Vending machine"}
 ## Midden in een zin ("the Mole" blijft met een hoofdletter, zie de stijlregels in lessons.md).
-const COUNTER_IN_TEXT := {TOOL_RACK: "tool rack", SUPPLY_DESK: "supply desk", MOLE_YARD: "Mole yard"}
+const COUNTER_IN_TEXT := {TOOL_RACK: "tool rack", SUPPLY_DESK: "supply desk", MOLE_YARD: "Mole yard", VENDING: "vending machine"}
 
 ## Volgorde in de winkel.
 const ORDER: Array[String] = [DRILL_T2, SCANNER, LAMP, MOL_HEAD_T2, CARGO]
+## Verbruiksgoed (golf 3): je koopt het opnieuw, het komt bij de volgende landing.
+const BEACONS := "beacons"
+const SUPPLIES: Array[String] = [BEACONS]
 
 ## id -> {counter, name, does (wat je ermee kan, één regel), detail, requires}
 const CATALOG := {
@@ -52,6 +58,10 @@ const CATALOG := {
 	CARGO: {"counter": MOLE_YARD, "name": "Extended cargo hold",
 		"does": "The grapple lifts {t2} kg instead of {t1} kg",
 		"detail": "Bring the whole skeleton home. Reinforced floor, same old ramp.", "requires": ""},
+	BEACONS: {"counter": VENDING, "name": "Light beacon pack",
+		"does": "+2 light beacons for your next shift ({beacon} throws one)",
+		"detail": "Keeps the worm at a distance. Batteries sold separately (they're included).", "requires": "",
+		"consumable": true, "amount": 2},
 }
 
 
@@ -76,6 +86,11 @@ static func price(id: String, players: int) -> int:
 	return int(round(Tuning.get_f("economy", "price_" + id, 5000.0) * share / 10.0)) * 10
 
 
+## Verbruiksgoed (opnieuw te koop, geen upgrade)?
+static func consumable(id: String) -> bool:
+	return bool(info(id).get("consumable", false))
+
+
 static func owned(c: Company, id: String) -> bool:
 	return c != null and c.upgrades.has(id)
 
@@ -85,7 +100,10 @@ static func owned(c: Company, id: String) -> bool:
 static func blocker(c: Company, id: String) -> String:
 	if not exists(id):
 		return "Unknown item"
-	if owned(c, id):
+	if consumable(id):
+		if c.beacon_stock >= Tuning.get_i("economy", "beacon_stock_max", 6):
+			return "Crate full: use these first"
+	elif owned(c, id):
 		return "Owned"
 	var req: String = info(id).get("requires", "")
 	if req != "" and not owned(c, req):

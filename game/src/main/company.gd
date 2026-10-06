@@ -63,6 +63,8 @@ var contract: Dictionary = {}
 var world_mods: Array = []
 ## Gekochte upgrades (Upgrades.ORDER).
 var upgrades: Array = []
+## Lichtbakens gekocht aan de automaat, voor de volgende landing (golf 3, Upgrades.BEACONS).
+var beacon_stock := 0
 ## De buit van de laatste dienst, tot hij afgesloten is (Appraisal). Leeg = niets open.
 ## {"contract", "ids": [find_id], "appraised": {id: [waarde, bonus]}, "sold": [[naam, waarde, %]],
 ##  "sold_value", "set_bonus", "target_bonus", "sets": {set_id: [verkocht, grootte, waarde]},
@@ -258,7 +260,7 @@ func _make_options() -> void:
 func state() -> Dictionary:
 	return {"cash": cash, "reputation": reputation, "quarter": quarter, "shift": shift, "earned": earned,
 			"shifts_total": shifts_total, "options": options, "contract": contract, "company_seed": _company_seed,
-			"upgrades": upgrades, "world_mods": world_mods, "haul": haul, "last_haul": last_haul}
+			"upgrades": upgrades, "world_mods": world_mods, "haul": haul, "last_haul": last_haul, "beacon_stock": beacon_stock}
 
 
 func _apply(s: Dictionary) -> void:
@@ -275,6 +277,7 @@ func _apply(s: Dictionary) -> void:
 	world_mods = s.get("world_mods", [])
 	haul = s.get("haul", {})
 	last_haul = s.get("last_haul", {})
+	beacon_stock = int(s.get("beacon_stock", 0))
 
 
 func _broadcast() -> void:
@@ -307,6 +310,19 @@ func _process(delta: float) -> void:
 func host_landed() -> void:
 	if contract_ready() and game.mol:
 		game.mol.fuel = minf(game.mol.fuel, Contracts.fuel(mods()))
+	# Gekochte lichtbakens: na de gewone voorraad van de dienst (die wordt bij dezelfde landing gezet).
+	if beacon_stock > 0:
+		_land_beacons.call_deferred()
+
+
+func _land_beacons() -> void:
+	if beacon_stock <= 0 or game.beacons == null:
+		return
+	game.beacons.add(beacon_stock)
+	game.notice_all("+%s from the vending machine." % UiTheme.count(beacon_stock, "light beacon"), "info")
+	beacon_stock = 0
+	_broadcast()
+	_save()
 
 
 # --- Opdracht kiezen -----------------------------------------------------------------------------
@@ -377,7 +393,10 @@ func _host_buy(sender: int, id: String, counter: String) -> void:
 		return
 	var price := Upgrades.price(id, team_size())
 	cash -= price
-	upgrades.append(id)
+	if Upgrades.consumable(id):
+		beacon_stock += int(Upgrades.info(id).get("amount", 1))
+	else:
+		upgrades.append(id)
 	_broadcast()
 	game.notice_all("Bought: %s (%s). %s." % [str(Upgrades.info(id).name), UiTheme.euro_signed(-price), Settings.fill_keys(Upgrades.does(id, self))], "contract")
 	_save()
