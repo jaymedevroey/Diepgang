@@ -75,7 +75,7 @@ func _ready() -> void:
 	_light.light_energy = 0.0
 	_light.shadow_enabled = false
 	_head.add_child(_light)
-	_light.position = Vector3(0.0, 0.0, -1.8)
+	_light.position = Vector3(0.0, 0.35, -2.9) # voor de muil: lip en tanden, de keel gloeit zelf
 	_cracks = Decal.new()
 	_cracks.name = "Cracks"
 	_cracks.texture_albedo = Worm._crack_texture()
@@ -398,7 +398,7 @@ func hold_pose(path: Array, u: float, open := 0.6) -> void:
 	_hs = _s0 + (_s3 - _s0) * u
 	_place_chain(_hs)
 	_open_jaws(open)
-	_light.light_energy = 2.2
+	_light.light_energy = 1.4
 
 
 # --- Spoor ----------------------------------------------------------------------------------------
@@ -542,7 +542,7 @@ func _process(delta: float) -> void:
 			_place_chain(_hs)
 			_chomp += delta
 			_open_jaws(0.28 + 0.12 * sin(_chomp * 9.0))
-			_light.light_energy = 2.4 + 2.0 * _flash
+			_light.light_energy = 1.5 + 2.0 * _flash
 			# Het lijf ploegt door de vloer: stof en steentjes achter de kop.
 			_furrow_t -= delta
 			if _furrow_t <= 0.0 and worm and worm.game:
@@ -566,7 +566,7 @@ func _process(delta: float) -> void:
 			_place_chain(_hs)
 			_chomp += delta
 			_open_jaws(0.15 + 0.5 * absf(sin(_chomp * 5.5)))
-			_light.light_energy = 2.4 + 2.0 * _flash
+			_light.light_energy = 1.5 + 2.0 * _flash
 			_local_rumble(_head.global_position, 0.7)
 		Show.RAM:
 			if _hs < _end_s:
@@ -580,7 +580,7 @@ func _process(delta: float) -> void:
 					_speed = -8.0
 					_end_s = -1.0
 			_place_chain(_hs)
-			_light.light_energy = 2.4
+			_light.light_energy = 1.5
 
 
 func _lunge_step(delta: float) -> void:
@@ -623,7 +623,7 @@ func _lunge_step(delta: float) -> void:
 	if u < 1.0:
 		open = smoothstep(0.0, 0.25, u) * (1.0 - 0.6 * smoothstep(0.75, 1.0, u))
 	_open_jaws(open)
-	_light.light_energy = 2.6 * (smoothstep(0.0, 0.15, u) * (1.0 - smoothstep(1.0, 1.3, u))) + 2.0 * _flash
+	_light.light_energy = 1.8 * (smoothstep(0.0, 0.15, u) * (1.0 - smoothstep(1.0, 1.3, u))) + 2.0 * _flash
 	_glow.light_energy = maxf(0.0, _glow.light_energy - delta * 5.0)
 	_glow_decal.emission_energy = maxf(0.0, _glow_decal.emission_energy - delta * 6.0)
 	_local_rumble(_sample(s), 1.0)

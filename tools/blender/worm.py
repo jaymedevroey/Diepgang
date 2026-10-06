@@ -33,6 +33,7 @@ import math
 import sys
 from pathlib import Path
 
+import bmesh
 import bpy
 
 sys.path.append(str(Path(__file__).parent))
@@ -72,6 +73,19 @@ def ring_z(points_z, radii, x, material, group, verts=20, bevel=0.03):
     return loft([(x, 0.0, z) for z in points_z], radii, material, group, verts=verts, up=(0, 1, 0), bevel=bevel)
 
 
+def ring_open(points_z, radii, x, material, group, verts=24, bevel=0.0):
+    """Zoals ring_z, maar zonder deksels: een open buis (de muil is een trechter waar je in kijkt; de
+    materialen zijn dubbelzijdig)."""
+    o = ring_z(points_z, radii, x, material, group, verts=verts, bevel=bevel)
+    bm = bmesh.new()
+    bm.from_mesh(o.data)
+    caps = [f for f in bm.faces if len(f.verts) > 4]
+    bmesh.ops.delete(bm, geom=caps, context="FACES_ONLY")
+    bm.to_mesh(o.data)
+    bm.free()
+    return o
+
+
 def photophores(x, z, r, group, count=2, size=0.075):
     """Lichtstippen op de flanken (links en rechts), een beetje onder het midden."""
     for side in (-1.0, 1.0):
@@ -85,7 +99,7 @@ def build_head():
     g = "Worm_Head"
     x = HEAD_X
     # Schedel: van de nek (z 0) tot de lip (z −2,0), iets dikker in het midden.
-    ring_z([0.05, -0.4, -1.0, -1.6, -2.0], [1.0, 1.1, 1.17, 1.14, 1.04], x, "WormPlateDark", g, verts=24)
+    ring_open([0.05, -0.4, -1.0, -1.6, -2.0], [1.0, 1.1, 1.17, 1.14, 1.04], x, "WormPlateDark", g, verts=24)
     # Twee overlappende pantserringen (dakpannen), met een gloeiende naad ertussen.
     for z0, r in ((-0.15, 1.17), (-0.85, 1.24)):
         ring_z([z0 - 0.62, z0 - 0.5, z0 - 0.1, z0], [r * 0.96, r, r * 1.03, r * 0.99], x, "WormPlate", g, verts=24, bevel=0.05)
@@ -102,8 +116,11 @@ def build_head():
     # De muil: een dikke, natte lip, een vlezige schijf die naar binnen zakt, drie kransen tanden die
     # naar de keel wijzen (lamprei, Dune), en de gloed klein en diep in de keel.
     torus(0.86, 0.22, (x, 0.0, -2.12), "WormLip", g, axis="z", major_seg=40, minor_seg=12)
-    ring_z([-2.18, -1.95, -1.7, -1.45], [0.86, 0.66, 0.42, 0.2], x, "WormMaw", g, verts=24, bevel=0.0)
-    for ring, (rr, zz, n, ln) in enumerate(((0.74, -2.2, 18, 0.34), (0.54, -1.94, 14, 0.29), (0.34, -1.68, 10, 0.23))):
+    # Een trechter van vlees die naar de keel zakt (open: je kijkt erin), met een donkere bodem achter
+    # de gloed van de keel.
+    ring_open([-2.2, -1.95, -1.7, -1.4, -1.2], [0.86, 0.68, 0.48, 0.26, 0.2], x, "WormMaw", g, verts=24)
+    cyl(0.22, 0.04, (x, 0.0, -1.22), "WormFlesh", g, axis="z", verts=16, bevel=0.0)
+    for ring, (rr, zz, n, ln) in enumerate(((0.78, -2.2, 18, 0.34), (0.64, -1.94, 14, 0.29), (0.45, -1.68, 10, 0.23))):
         for i in range(n):
             a = (i + 0.5 * ring) / n * math.tau
             p = (x + math.cos(a) * rr, math.sin(a) * rr, zz)
@@ -111,7 +128,7 @@ def build_head():
             # naar voren kantelen (naar de prooi).
             cyl(0.085 if ring == 0 else 0.07, ln, p, "WormTooth", g, verts=6, bevel=0.0, r2=0.0,
                 rot=(-25.0, 0.0, math.degrees(a) + 90.0))
-    sphere(0.17, (x, 0.0, -1.42), "WormThroat", g, segments=12, rings=6)
+    sphere(0.15, (x, 0.0, -1.5), "WormThroat", g, segments=12, rings=6)
     # Drie tongen met een haak (Tremors), die uit de keel naar buiten krullen.
     for k in range(3):
         a = math.radians(90.0 + 120.0 * k + 15.0)
