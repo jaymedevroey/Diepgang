@@ -30,7 +30,7 @@ static func ground(id: Id) -> Dictionary:
 				# Golf 3: geulbodems in grijsblauwe klei met barsten, kammen in wit krijt, vuursteen en
 				# krijtscherven, lagen in de geulwanden (zoals de klif), krijtblokken wit tegen het zand.
 				"g4_low": _hex("66767C"), "g4_high": _hex("F6EEDA"), "g4_peb_a": _hex("6F767A"), "g4_peb_b": _hex("D8CCB0"),
-				"g4_rock": _hex("ECE4D4"), "g4_amt": Vector4(0.75, 0.55, 0.35, 0.3), "g4_amt2": Vector4(0.8, 0.0, 0.55, 0.0),
+				"g4_rock": _hex("ECE4D4"), "g4_amt": Vector4(0.75, 0.55, 0.35, 0.3), "g4_amt2": Vector4(0.45, 0.0, 0.55, 0.0),
 				"g4_sheet": Vector4(0.85, 0.6, 10.0, 4.5)}
 		Id.KRISTALMAAN:
 			# Donker violet basalt met lange schaduwen.

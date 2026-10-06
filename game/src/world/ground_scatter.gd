@@ -33,6 +33,7 @@ var _density := 0.3
 var _built: Dictionary = {} # Vector2i -> Array (per soort: [MultiMeshInstance3D, PackedVector3Array])
 var _digs: Array[Vector4] = [] # graafacties aan de oppervlakte: x, y, z, straal
 var _check := 0.0
+var _ramp: Array[Vector3] = [] # de oude toegangsgang (G5): niets boven zijn monding
 
 
 func setup(t: TerrainAPI, planet_seed: int, planet_id: PlanetType.Id, landing: Vector2) -> void:
@@ -43,6 +44,7 @@ func setup(t: TerrainAPI, planet_seed: int, planet_id: PlanetType.Id, landing: V
 	_landing = landing
 	_kinds = _families(planet_id)
 	_density = [0.42, 0.34, 0.32][clampi(int(planet_id), 0, 2)]
+	_ramp = t.starter_ramp()
 	t.dug.connect(_on_dug)
 
 
@@ -102,7 +104,7 @@ func _build_chunk(k: Vector2i) -> void:
 			p = Vector2((k.x + rng.randf()) * CHUNK, (k.y + rng.randf()) * CHUNK)
 		if p.x < 0.5 or p.y < 0.5 or p.x > _size.x - 0.5 or p.y > _size.z - 0.5:
 			continue
-		if p.distance_to(_landing) < PAD_CLEAR:
+		if p.distance_to(_landing) < PAD_CLEAR or MidgroundProps._near_ramp(p, _ramp, 4.5):
 			continue
 		var kind := _pick_kind(rng)
 		var kd: Dictionary = _kinds[kind]

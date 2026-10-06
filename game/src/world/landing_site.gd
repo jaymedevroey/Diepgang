@@ -36,17 +36,48 @@ var _rng := RandomNumberGenerator.new()
 
 
 ## Plek van de groep (wereld x/z) voor deze seed (ook voor MidgroundProps: daar niets anders).
-static func site_xz(landing: Vector2, planet_seed: int) -> Vector2:
+## `ramp` = de oude toegangsgang naar de startgrot (TerrainAPI.starter_ramp, pakket G5), met zijn
+## monding ±27 m van de landingsplek, een werflamp en een bord. Op Roestbol staat het kamp van de
+## vorige ploeg ernaast (zij groeven die gang): één plek, één verhaal. Elders blijft de groep minstens
+## MOUTH_GAP van de monding en zijn eerste meters (de weg erin blijft vrij).
+const MOUTH_GAP := 15.0
+
+static func site_xz(landing: Vector2, planet_seed: int, planet_id := PlanetType.Id.ROESTBOL, ramp: Array[Vector3] = []) -> Vector2:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = planet_seed * 31 + 1201
-	var side := (1.0 if rng.randf() < 0.5 else -1.0) * deg_to_rad(rng.randf_range(SIDE_DEG.x, SIDE_DEG.y))
-	return landing + Vector2(0.0, -1.0).rotated(side) * DIST
+	var sgn := 1.0 if rng.randf() < 0.5 else -1.0
+	var side := sgn * deg_to_rad(rng.randf_range(SIDE_DEG.x, SIDE_DEG.y))
+	var c := landing + Vector2(0.0, -1.0).rotated(side) * DIST
+	if ramp.size() < 2:
+		return c
+	var m := Vector2(ramp[0].x, ramp[0].z)
+	var into := (Vector2(ramp[1].x, ramp[1].z) - m).normalized()
+	if planet_id == PlanetType.Id.ROESTBOL:
+		# Naast de monding, aan de kant die het dichtst bij −z ligt (in beeld van de dropcamera), iets
+		# naar de Mol toe.
+		var perp := into.orthogonal()
+		if perp.dot(Vector2(0.0, -1.0)) < 0.0:
+			perp = -perp
+		return m + perp * 10.0 - into * 3.0
+	# Weg van de monding: de andere kant op als hij te dichtbij staat.
+	for k in 4:
+		if _mouth_d(c, m, into) >= MOUTH_GAP:
+			break
+		side = -side if k == 0 else side + sgn * deg_to_rad(40.0)
+		c = landing + Vector2(0.0, -1.0).rotated(side) * DIST
+	return c
+
+
+## Afstand van p tot de monding en de eerste 12 m van de gang (x/z).
+static func _mouth_d(p: Vector2, m: Vector2, into: Vector2) -> float:
+	var t := clampf((p - m).dot(into), 0.0, 12.0)
+	return p.distance_to(m + into * t)
 
 
 func build(t: TerrainAPI, planet_id: PlanetType.Id, landing: Vector2, planet_seed: int) -> void:
 	terrain = t
 	_rng.seed = planet_seed * 17 + 77
-	var c := site_xz(landing, planet_seed)
+	var c := site_xz(landing, planet_seed, planet_id, t.starter_ramp())
 	position = Vector3(c.x, t.surface_height_at(c.x, c.y), c.y)
 	# De groep kijkt naar de landingsplek (+z lokaal = naar de Mol), iets schuin.
 	var to := Vector2(landing.x - c.x, landing.y - c.y).normalized().rotated(_rng.randf_range(-0.3, 0.3))

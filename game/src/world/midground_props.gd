@@ -58,14 +58,16 @@ static func compute(s: PlanetSurface) -> Dictionary:
 		items[k] = []
 	# De ring: één sterke groep per richting rond de landingsplek (niet op de gecomponeerde plek).
 	var ring: Array[Vector2] = []
-	var site := LandingSite.site_xz(lf.landing, s._seed)
+	var ramp := s.terrain.starter_ramp()
+	var site := LandingSite.site_xz(lf.landing, s._seed, s.planet, ramp)
 	var rrng := s._cell_rng(9999, 7, 61)
 	var a0 := rrng.randf() * TAU
 	for i in RING_N:
 		for _try in 6:
 			var a := a0 + i * TAU / RING_N + rrng.randf_range(-0.3, 0.3)
 			var c := lf.landing + Vector2.from_angle(a) * rrng.randf_range(RING_R.x, RING_R.y)
-			if c.distance_to(site) < 18.0 or s.outside(c.x, c.y) > -8.0 or not lf.clutter_ok(c) or _slope(s, c) > 0.3:
+			if c.distance_to(site) < 18.0 or s.outside(c.x, c.y) > -8.0 or not lf.clutter_ok(c) or _slope(s, c) > 0.3 \
+					or _near_ramp(c, ramp, 14.0):
 				continue
 			ring.append(c)
 			_depot(s, rrng, c, items, i)
@@ -83,7 +85,7 @@ static func compute(s: PlanetSurface) -> Dictionary:
 			var o := s.outside(c.x, c.y)
 			if keep > (0.9 if o < 80.0 else 0.65): # dicht bij de ploeg meer, verder minder
 				continue
-			if o > OUTER_MAX or c.distance_to(lf.landing) < INNER_MIN or c.distance_to(site) < 16.0:
+			if o > OUTER_MAX or c.distance_to(lf.landing) < INNER_MIN or c.distance_to(site) < 16.0 or _near_ramp(c, ramp, 12.0):
 				continue
 			var near_ring := false
 			for rc in ring:
@@ -131,6 +133,19 @@ static func compute(s: PlanetSurface) -> Dictionary:
 		n += (items[k] as Array).size()
 	print("[surface] middenplan: %d groepjes, %d stukken, %.0f ms" % [clusters, n, (Time.get_ticks_usec() - t0) / 1000.0])
 	return {"mg": items}
+
+
+## Dicht bij de oude toegangsgang (G5): de monding en de stukken die nog ondiep zijn (daar zou een
+## stuk boven het gat zweven of de weg erin versperren).
+static func _near_ramp(c: Vector2, ramp: Array[Vector3], gap: float) -> bool:
+	for k in mini(ramp.size() - 1, 2):
+		var a := Vector2(ramp[k].x, ramp[k].z)
+		var b := Vector2(ramp[k + 1].x, ramp[k + 1].z)
+		var ab := b - a
+		var t := clampf((c - a).dot(ab) / maxf(ab.length_squared(), 1e-4), 0.0, 1.0)
+		if c.distance_to(a + ab * t) < gap:
+			return true
+	return false
 
 
 ## Helling (tan) rond een punt, uit vier hoogtes op 4 m.
