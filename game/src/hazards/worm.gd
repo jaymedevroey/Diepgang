@@ -1019,6 +1019,11 @@ func _hull_contact(mol: Mol) -> Dictionary:
 	if flat.length() < 0.5:
 		flat = mol.body.global_basis.x
 	flat = flat.normalized()
+	# Op de flank aan zijn kant (niet de neus of de klep: daar zie je hem niet vanuit het volgshot).
+	var mx := mol.body.global_basis.x
+	mx.y = 0.0
+	mx = mx.normalized()
+	flat = (mx * signf(flat.dot(mx) + 0.001) + flat * 0.35).normalized()
 	var from := dir.normalized() if dir.length() > 0.5 else -flat
 	var d := (flat + Vector3.UP * clampf(from.y, -0.35, 0.15)).normalized()
 	var aim := mp + Vector3.DOWN * 0.6
@@ -1291,7 +1296,7 @@ func _rpc_grab(peer: int, path: PackedVector3Array, speed: float) -> void:
 	if me and me.peer_id == peer:
 		game.notice.emit("The %s has you! Mash %s to break free." % [NAME, Settings.key_of("jump")], "alarm")
 	elif me and me.global_position.distance_to(path[0]) < 45.0:
-		game.notice.emit("The %s grabbed %s! Hit it with your pickaxe, or throw a beacon at it!" % [NAME, game.rescue._name_of(peer)], "alarm")
+		game.notice.emit("The %s grabbed %s! Pickaxe it or throw a beacon" % [NAME, game.rescue._name_of(peer)], "alarm")
 
 
 @rpc("authority", "call_local", "reliable")
@@ -1320,9 +1325,9 @@ func _rpc_bite(local: Vector3, normal: Vector3) -> void:
 		bite_started.emit(mol.body.global_transform * local)
 	var me: Player = game.local_player
 	if me and mol and mol.body and (me.seated or mol.contains_point(me.global_position)):
-		var how := ("Rock the Mole (%s / %s)" % [Settings.key_of("move_left"), Settings.key_of("move_right")]) if me.seated \
-				else ("%s in the hold: beacon out the back" % Settings.key_of("beacon"))
-		game.notice.emit("The %s bit the Mole! %s to shake it off!" % [NAME, how], "alarm")
+		var how := ("%s / %s: rock it off" % [Settings.key_of("move_left"), Settings.key_of("move_right")]) if me.seated \
+				else ("%s: beacon out the back" % Settings.key_of("beacon"))
+		game.notice.emit("The %s bit the Mole! %s" % [NAME, how], "alarm")
 
 
 ## De Mol vertrekt en de worm is wakker: hij hoort de motor (ontwerp2-3: wat de ploeg dan kan doen).
@@ -1333,7 +1338,7 @@ func _rpc_climax_warn() -> void:
 	if me == null or mol == null or mol.body == null or not is_awake():
 		return
 	if me.seated or mol.contains_point(me.global_position):
-		game.notice.emit("The %s hears the engine! %s: beacon out the back hatch." % [NAME, Settings.key_of("beacon")], "warn")
+		game.notice.emit("The %s hears the engine! %s: beacon out the back" % [NAME, Settings.key_of("beacon")], "warn")
 
 
 @rpc("authority", "call_local", "reliable")
@@ -1363,7 +1368,7 @@ func _rpc_ram(at: Vector3, normal: Vector3, bite: bool) -> void:
 		p.camera_fx.hold_rumble(6.0 * k)
 	rammed.emit(at)
 	if not bite and p and mol and mol.body and (p.seated or mol.contains_point(p.global_position)):
-		game.notice.emit("The %s shoved the Mole! It's after the crew now." % NAME, "warn")
+		game.notice.emit("The %s shoved the Mole!" % NAME, "warn")
 
 
 @rpc("authority", "call_local", "reliable")
