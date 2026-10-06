@@ -416,7 +416,11 @@ def build_parasol():
     g = "Decor_Parasol"
     loft([(0.0, 0.0, 0.0), (0.06, 0.5, 0.02), (0.14, 1.0, 0.03), (0.16, 1.45, 0.02)], [0.06, 0.045, 0.04, 0.045], "FungusStem", g, verts=8)
     loft([(0.16, 1.4, 0.02), (0.16, 1.45, 0.02), (0.16, 1.53, 0.02), (0.16, 1.58, 0.02)], [0.5, 0.52, 0.32, 0.0], "FungusCap", g, verts=16)
-    cyl(0.48, 0.015, (0.16, 1.405, 0.02), "FungusGlow", g, verts=16, bevel=0.0)
+    cyl(0.48, 0.015, (0.16, 1.405, 0.02), "FungusCap", g, verts=16, bevel=0.0)
+    for k in range(10):  # gloeiende lamellen onder de hoed (geen gloeiende schijf: die las als een lamp)
+        a = k * math.tau / 10
+        box((0.34, 0.03, 0.012), (0.16 + math.cos(a) * 0.26, 1.395, 0.02 + math.sin(a) * 0.26), "FungusGlow", g, bevel=0.0,
+            rot=(0, -math.degrees(a), 0))
     for k in range(5):
         a = k * math.tau / 5 + 0.3
         sphere(0.05, (0.16 + math.cos(a) * 0.26, 1.54, 0.02 + math.sin(a) * 0.26), "FungusGlow", g, scale=(1.0, 0.4, 1.0), segments=8, rings=4)

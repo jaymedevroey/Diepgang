@@ -91,6 +91,7 @@ func setup(t: TerrainAPI) -> void:
 	terrain = t
 	_make_plan()
 	t.dug.connect(_on_dug)
+	_mesh("CampTent") # het model inlezen nu (bij het laden), niet bij het eerste kamp
 
 
 ## Alle set pieces van deze wereld: [{kind, cave (wereld), anchor (vloer), front (richting naar de
@@ -362,7 +363,7 @@ func _step_build() -> void:
 ## Een stuk uit setpieces.glb op de vloer bij `world_xz` (de hoogte uit de seed), met zijn botsvorm.
 func _place(i: int, root: Node3D, body: StaticBody3D, name: String, world: Vector3, yaw: float, from_y: float,
 		scale := 1.0) -> MeshInstance3D:
-	var fp := _floor_below(Vector3(world.x, from_y, world.z), 6.0)
+	var fp := _floor_below(Vector3(world.x, from_y, world.z), 12.0)
 	if not fp.is_finite():
 		return null
 	var mi := _mesh_instance(name)

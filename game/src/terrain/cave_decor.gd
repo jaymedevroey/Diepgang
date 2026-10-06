@@ -46,8 +46,10 @@ var _caverns: Array[Vector4] = [] # wereld: midden, horizontale straal
 var _built := {} # index -> Node3D
 var _items := {} # index -> Array[[kind, instance, anchor, normal, light, multimesh]]
 var _timer := 0.0
-var _meshes := {}
-var _mats := {}
+## Meshes en materialen, gedeeld over werelden (sleutel met planeet en laag): een grot bouwen kost dan
+## enkel nog het plaatsen.
+static var _meshes := {}
+static var _mats := {}
 static var _glb := {}
 
 
@@ -55,6 +57,7 @@ func setup(t: TerrainAPI) -> void:
 	terrain = t
 	_caverns = t.caverns()
 	t.dug.connect(_on_dug)
+	_glb_mesh(MESH_NAMES[Kind.FUNGUS]) # het model inlezen nu (bij het laden), niet bij de eerste grot
 
 
 func _process(delta: float) -> void:
@@ -364,7 +367,7 @@ func _on_dug(world_center: Vector3, radius_m: float) -> void:
 ## De mesh per soort; die uit setpieces.glb krijgen hun materialen per oppervlak (per laag: de
 ## schil van een geode in de donkere kleur van de laag).
 func _mesh(kind: Kind, layer: int) -> Mesh:
-	var key := "%d/%d" % [kind, layer]
+	var key := "%d/%d/%d" % [kind, layer, terrain.planet]
 	if _meshes.has(key):
 		return _meshes[key]
 	var m: Mesh
@@ -395,7 +398,7 @@ static func _glb_mesh(name: String) -> Mesh:
 
 ## Materiaal per oppervlak van het decor uit setpieces.glb (cave_decor_mesh.gdshader).
 func _surface_material(name: String, layer: int) -> Material:
-	var key := "s/%s/%d" % [name, layer]
+	var key := "s/%s/%d/%d" % [name, layer, terrain.planet]
 	if _mats.has(key):
 		return _mats[key]
 	var m := ShaderMaterial.new()
@@ -438,7 +441,7 @@ func _surface_material(name: String, layer: int) -> Material:
 
 
 func _material(kind: Kind, layer: int) -> Material:
-	var key := "%d/%d" % [kind, layer]
+	var key := "%d/%d/%d" % [kind, layer, terrain.planet]
 	if _mats.has(key):
 		return _mats[key]
 	var m: Material
