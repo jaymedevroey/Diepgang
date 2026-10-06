@@ -361,6 +361,125 @@ def build_crystal_cluster():
         _prism(g, base, d, L, r, "Crystal", twist=rng.uniform(0, 1))
 
 
+# --- Grotdecor (golf 3, binnen2-06: per laag en per planeet een eigen set) ----------------------------
+# Eenheidsgrootte, de voet op de oorsprong en "omhoog" (+y) weg van de wand: CaveDecor schaalt en richt
+# ze langs de normaal. Eigen materialen (in Godot: cave_decor_mesh.gdshader, de gloed in de kleur van
+# de planeet): FungusCap (hoed, mat en donker gekleurd), FungusGlow (lamellen en stippen, gloeien),
+# FungusStem (bleke steel), Quartz (kristalpunten), GeodeRind (donkere schil), Salt (witte korst).
+
+kit.PALETTE.update({
+    "FungusCap": ((0.5, 0.5, 0.5), 0.0, 0.7, None),
+    "FungusGlow": ((0.8, 0.8, 0.8), 0.0, 0.5, ((0.8, 0.8, 0.8), 2.0)),
+    "FungusStem": ((0.78, 0.74, 0.66), 0.0, 0.8, None),
+    "Quartz": ((0.92, 0.9, 0.86), 0.0, 0.2, None),
+    "GeodeRind": ((0.25, 0.22, 0.2), 0.0, 0.9, None),
+    "Salt": ((0.94, 0.93, 0.9), 0.0, 0.6, None),
+})
+
+
+def _plate(radius, pos, scale, material, group, segments=20, rings=10):
+    """Afgeplatte ellipsoïde (zoals finds.plate), zonder draaiing."""
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=radius, segments=segments, ring_count=rings, location=kit.G(*pos))
+    o = bpy.context.active_object
+    o.scale = kit.GS(*scale)
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+    return kit._finish(o, material, group, 0.0)
+
+
+def build_mushroom():
+    """Paddenstoel (1 hoog): een licht gebogen steel met een ring, een bolle hoed met een omgekrulde
+    rand, gloeiende lamellen eronder en gloeiende stippen erop. Een zwam, geen edelsteen."""
+    g = "Decor_Mushroom"
+    loft([(0.0, 0.0, 0.0), (0.02, 0.25, 0.0), (0.05, 0.5, 0.01), (0.05, 0.7, 0.0)], [0.09, 0.075, 0.07, 0.075], "FungusStem", g, verts=10)
+    loft([(0.04, 0.42, 0.0), (0.045, 0.46, 0.0)], [0.1, 0.085], "FungusStem", g, verts=10)
+    # Hoed: een koepel langs y, de rand omgekruld.
+    loft([(0.05, 0.68, 0.0), (0.05, 0.73, 0.0), (0.05, 0.84, 0.0), (0.05, 0.93, 0.0), (0.05, 0.99, 0.0), (0.05, 1.03, 0.0)],
+         [0.46, 0.5, 0.45, 0.35, 0.2, 0.0], "FungusCap", g, verts=16)
+    # Lamellen: een schijf met gloeiende ribben onder de hoed.
+    cyl(0.43, 0.02, (0.05, 0.69, 0.0), "FungusGlow", g, verts=16, bevel=0.0)
+    for k in range(12):
+        a = k * math.tau / 12
+        box((0.34, 0.05, 0.012), (0.05 + math.cos(a) * 0.22, 0.695, math.sin(a) * 0.22), "FungusGlow", g, bevel=0.0,
+            rot=(0, -math.degrees(a), 0))
+    # Stippen op de hoed.
+    rng = random.Random(5)
+    for k in range(9):
+        a = rng.uniform(0, math.tau)
+        rr = rng.uniform(0.12, 0.38)
+        y = 1.0 - rr * rr * 1.5
+        sphere(0.04 + rng.uniform(0, 0.025), (0.05 + math.cos(a) * rr, y + 0.02, math.sin(a) * rr), "FungusGlow", g,
+               scale=(1.0, 0.45, 1.0), segments=8, rings=4)
+
+
+def build_parasol():
+    """Parasolzwam (1,6 hoog): een lange, dunne, gebogen steel met een platte, brede hoed."""
+    g = "Decor_Parasol"
+    loft([(0.0, 0.0, 0.0), (0.06, 0.5, 0.02), (0.14, 1.0, 0.03), (0.16, 1.45, 0.02)], [0.06, 0.045, 0.04, 0.045], "FungusStem", g, verts=8)
+    loft([(0.16, 1.4, 0.02), (0.16, 1.45, 0.02), (0.16, 1.53, 0.02), (0.16, 1.58, 0.02)], [0.5, 0.52, 0.32, 0.0], "FungusCap", g, verts=16)
+    cyl(0.48, 0.015, (0.16, 1.405, 0.02), "FungusGlow", g, verts=16, bevel=0.0)
+    for k in range(5):
+        a = k * math.tau / 5 + 0.3
+        sphere(0.05, (0.16 + math.cos(a) * 0.26, 1.54, 0.02 + math.sin(a) * 0.26), "FungusGlow", g, scale=(1.0, 0.4, 1.0), segments=8, rings=4)
+
+
+def build_bracket():
+    """Konzoolzwammen (1 breed): drie halve schijven boven elkaar tegen de wand (de wand is het vlak
+    y = 0, ze steken uit naar +y; "boven" is +z), met een gloeiende onderkant."""
+    g = "Decor_Bracket"
+    for (h, r, x) in ((0.0, 0.5, 0.0), (0.38, 0.36, 0.2), (-0.32, 0.3, -0.22)):
+        _plate(1.0, (x, r * 0.4, h), (r, r * 0.42, 0.065), "FungusCap", g)
+        _plate(1.0, (x, r * 0.4, h - 0.05), (r * 0.9, r * 0.38, 0.025), "FungusGlow", g)
+
+
+def build_threads():
+    """Gloeidraden (1 lang): zes draden die van het plafond hangen (langs +y, weg van de wand), met
+    kleine gloeiende druppels eraan, zoals gloeiwormen in een grot."""
+    g = "Decor_Threads"
+    rng = random.Random(9)
+    for k in range(6):
+        x, z = rng.uniform(-0.25, 0.25), rng.uniform(-0.25, 0.25)
+        L = rng.uniform(0.45, 1.0)
+        tube([(x, 0.0, z), (x + rng.uniform(-0.03, 0.03), L, z + rng.uniform(-0.03, 0.03))], 0.005, "FungusStem", g, verts=4)
+        n = max(2, int(L / 0.12))
+        for j in range(1, n + 1):
+            y = j * L / n
+            sphere(0.014 + 0.012 * (j / n), (x, y, z), "FungusGlow", g, segments=6, rings=3)
+
+
+def build_geode_wall():
+    """Halve geode in de wand (1 breed): een donkere, gehakte schil rond een holte vol witte
+    kwartspunten die naar buiten en naar het midden wijzen. +y = uit de wand."""
+    g = "Decor_Geode"
+    rng = random.Random(13)
+    for k in range(14):
+        a = k * math.tau / 14
+        r = 0.42 + rng.uniform(-0.04, 0.04)
+        sphere(0.13 + rng.uniform(0, 0.04), (math.cos(a) * r, 0.04, math.sin(a) * r), "GeodeRind", g, scale=(1.0, 0.7, 1.0), segments=8, rings=4)
+    cyl(0.4, 0.06, (0.0, -0.04, 0.0), "GeodeRind", g, verts=14, bevel=0.0)
+    for k in range(22):
+        a = rng.uniform(0, math.tau)
+        rr = rng.uniform(0.05, 0.36)
+        base = Vector((math.cos(a) * rr, 0.0, math.sin(a) * rr))
+        d = (-base * 0.8 + Vector((0, 1.0, 0))).normalized()
+        _prism(g, tuple(base), tuple(d), rng.uniform(0.1, 0.22), rng.uniform(0.025, 0.045), "Quartz", twist=rng.uniform(0, 1))
+
+
+def build_salt():
+    """Zoutkorst (1 breed): een groepje witte, platte kristalbladen (seleniet) en blokjes tegen de wand."""
+    g = "Decor_Salt"
+    rng = random.Random(17)
+    for k in range(9):
+        a = rng.uniform(0, math.tau)
+        rr = rng.uniform(0.0, 0.4)
+        box((rng.uniform(0.06, 0.12), rng.uniform(0.12, 0.3), 0.02), (math.cos(a) * rr, 0.06, math.sin(a) * rr), "Salt", g, bevel=0.005,
+            rot=(rng.uniform(-25, 25), rng.uniform(0, 180), rng.uniform(-25, 25)))
+    for k in range(6):
+        a = rng.uniform(0, math.tau)
+        rr = rng.uniform(0.0, 0.45)
+        sz = rng.uniform(0.05, 0.1)
+        box((sz, sz, sz), (math.cos(a) * rr, sz * 0.3, math.sin(a) * rr), "Salt", g, bevel=0.008, rot=(rng.uniform(0, 40), rng.uniform(0, 90), 0))
+
+
 # --- Uitvoer ------------------------------------------------------------------------------------
 
 def main():
@@ -370,6 +489,8 @@ def main():
         "CampBarrel": build_barrel, "CampTable": build_table, "CampChair": build_chair, "CampSign": build_sign,
         "CampGenerator": build_generator, "MineFrame": build_mine_frame, "Ribcage": build_ribcage,
         "CrystalCluster": build_crystal_cluster,
+        "Decor_Mushroom": build_mushroom, "Decor_Parasol": build_parasol, "Decor_Bracket": build_bracket,
+        "Decor_Threads": build_threads, "Decor_Geode": build_geode_wall, "Decor_Salt": build_salt,
     }
     for fn in builders.values():
         fn()
@@ -381,7 +502,8 @@ def main():
         if o is None:
             print(f"[setpieces] LEEG: {name}")
             continue
-        bake_wear(o, strength=8.0 if name == "Ribcage" else 6.0, seed=sum(map(ord, name)) % 997)
+        if not name.startswith("Decor_"):
+            bake_wear(o, strength=8.0 if name == "Ribcage" else 6.0, seed=sum(map(ord, name)) % 997)
         parent_to(o, root)
         n = tri_count(o)
         total += n

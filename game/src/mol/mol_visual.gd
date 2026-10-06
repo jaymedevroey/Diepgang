@@ -184,9 +184,13 @@ var _feed_label: Label
 var _feed_rec: ColorRect
 ## Tekst onderaan het camerascherm (diepte, laag).
 var feed_text := ""
+## True als de kopcamera onder de grond zit (Mol zet het): dan de nachtcamera.
+var feed_underground := false
 var _snd: Dictionary = {}
 var _feed_viewport: SubViewport
 var _feed_camera: Camera3D
+var _feed_env: Environment
+var _feed_mat: ShaderMaterial
 var _rng := RandomNumberGenerator.new()
 ## De schermen in de cabine spreken één taal (ui-13): dezelfde beeldbuis (feed.gdshader), hetzelfde
 ## schermlettertype, een kop linksboven in dezelfde vorm. Amber is de Mol zelf (status, camera),
@@ -1048,6 +1052,14 @@ func _build_feed() -> void:
 	_feed_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	add_child(_feed_viewport)
 	_feed_viewport.world_3d = get_viewport().world_3d
+	# Onder de grond kijkt de kopcamera zonder de mist van de wereld (die gaf een bruine waas, golf 3
+	# binnen2-15); de randen haalt feed.gdshader eruit.
+	var world_env: Environment = get_viewport().world_3d.environment if get_viewport().world_3d else null
+	if world_env:
+		_feed_env = world_env.duplicate() as Environment
+		_feed_env.fog_enabled = false
+		_feed_env.volumetric_fog_enabled = false
+		_feed_env.glow_enabled = false
 	_feed_camera = Camera3D.new()
 	_feed_camera.fov = 78.0
 	_feed_camera.near = 0.1
@@ -1056,6 +1068,7 @@ func _build_feed() -> void:
 	var screen: MeshInstance3D = anchors["Monitor"]
 	var m := ShaderMaterial.new()
 	m.shader = FEED_SHADER
+	_feed_mat = m
 	m.set_shader_parameter("feed", _feed_viewport.get_texture())
 	screen.material_override = m
 	# Beeld licht warm (niet groengrijs), zodat het naast het amberen statusscherm hoort.
@@ -1222,6 +1235,11 @@ func _process(delta: float) -> void:
 			_feed_camera.near = 0.1
 			_feed_camera.far = 60.0
 			_feed_top.text = "CAM 1  ·  DRILL HEAD"
+		# Onder de grond: de nachtcamera (randen, geen mist). Boven de grond: het gewone beeld.
+		var below := feed_cam == Feed.HEAD and feed_underground
+		_feed_camera.environment = _feed_env if below else null
+		if _feed_mat:
+			_feed_mat.set_shader_parameter("edges", 1.0 if below else 0.0)
 		_feed_label.text = feed_text
 		_feed_rec.visible = fmod(Time.get_ticks_msec() / 1000.0, 1.2) < 0.7
 

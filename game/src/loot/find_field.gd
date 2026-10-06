@@ -282,7 +282,7 @@ func _place(rng: RandomNumberGenerator, where: Callable, attempts := 40) -> Find
 		var crust := Crust.new()
 		crust.name = "Crust%d" % item.find_id
 		crust.setup(item.find_id, item.half_extents, crust_hp_of(item), float(item.find_id) * 3.7,
-				t.layer_at(pos), FindKinds.FAMILIES[kind])
+				t.layer_at(pos), FindKinds.FAMILIES[kind], int(game.planet_type))
 		add_child(crust)
 		crust.global_transform = item.global_transform
 		crusts[item.find_id] = crust
