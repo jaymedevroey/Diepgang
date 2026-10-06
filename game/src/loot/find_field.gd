@@ -836,11 +836,10 @@ func _rpc_condition(find_id: int, cond: float) -> void:
 	it.condition = cond
 	it.update_glow()
 	if hard and was_whole and it.is_shattered():
-		# Gebroken (breekbaar kristal na een harde klap): scherven in zijn kleur, het licht gaat uit.
+		# Gebroken (breekbaar kristal na een harde klap): een ramp die je ziet (golf 3, gevoel2-08).
 		var col: Color = FindKinds.GLOW.get(it.kind, Color(0.75, 0.6, 0.95))
 		game.fx.crust_break(it.global_position, it.half_extents.length(), col.darkened(0.2), col, 0.8)
-		game.fx.float_text(it.global_position + Vector3(0, it.half_extents.length() + 0.2, 0), "SHATTERED",
-				Color(1.0, 0.32, 0.22), 1.0, 2.0)
+		_shatter_fx(it, col, before_cond - cond)
 		shattered.emit(it)
 	elif hard:
 		# De gaafheid die verloren ging, niet het bedrag: de waarde is pas aan boord bekend (F1).
@@ -851,6 +850,80 @@ func _rpc_condition(find_id: int, cond: float) -> void:
 		game.fx.crust_hit(it.global_position, Vector3.UP, false)
 		game.fx.play("tok", it.global_position, 0.0)
 	condition_changed.emit(it, hard)
+
+
+## Een kristal spat uiteen (op elk peer): glazen scherven in zijn kleur die wegspatten en blijven
+## liggen tot ze uitdoven, een felle lichtflits die dooft, "SHATTERED" en "−92%" groot, en een schok
+## voor wie dichtbij staat (meer voor wie hem droeg of gooide). Enkel beeld; het signaal `shattered`
+## is de haak voor het geluid (M6).
+func _shatter_fx(it: FindItem, col: Color, lost: float) -> void:
+	var at := it.global_position
+	var r := it.half_extents.length()
+	var flash := OmniLight3D.new()
+	flash.light_color = col
+	flash.omni_range = Tuning.get_f("finds", "shatter_flash_m", 5.0)
+	flash.light_energy = Tuning.get_f("finds", "shatter_flash_energy", 7.0)
+	flash.shadow_enabled = false
+	add_child(flash)
+	flash.global_position = at
+	var tw := flash.create_tween()
+	tw.tween_property(flash, "light_energy", 0.0, 0.45).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	tw.tween_callback(flash.queue_free)
+	var glass := StandardMaterial3D.new()
+	glass.albedo_color = Color(col.lightened(0.3), 0.75)
+	glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	glass.roughness = 0.05
+	glass.emission_enabled = true
+	glass.emission = col
+	glass.emission_energy_multiplier = 2.2
+	glass.rim_enabled = true
+	glass.rim = 0.8
+	var n := Tuning.get_i("finds", "shatter_shards", 14)
+	for i in n:
+		var shard := RigidBody3D.new()
+		shard.collision_layer = Layers.DEBRIS
+		shard.collision_mask = Layers.TERRAIN | Layers.LIFT
+		shard.mass = 0.05
+		var mi := MeshInstance3D.new()
+		var prism := PrismMesh.new()
+		var s := randf_range(0.03, 0.08) * maxf(1.0, r * 3.0)
+		prism.size = Vector3(s * 0.6, s * randf_range(1.5, 3.0), s * 0.4)
+		mi.mesh = prism
+		mi.material_override = glass
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		shard.add_child(mi)
+		var cs := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = prism.size
+		cs.shape = box
+		shard.add_child(cs)
+		shard.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_ON
+		add_child(shard)
+		var dir := Vector3(randf_range(-1, 1), randf_range(0.2, 1.2), randf_range(-1, 1)).normalized()
+		shard.global_position = at + dir * r * 0.4
+		shard.rotation = Vector3(randf() * TAU, randf() * TAU, randf() * TAU)
+		shard.reset_physics_interpolation()
+		shard.linear_velocity = dir * randf_range(2.0, 4.5)
+		shard.angular_velocity = Vector3(randf_range(-12, 12), randf_range(-12, 12), randf_range(-12, 12))
+		var life := shard.create_tween()
+		life.tween_interval(randf_range(3.0, 5.0))
+		life.tween_property(mi, "scale", Vector3.ZERO, 0.5)
+		life.tween_callback(shard.queue_free)
+	var top := at + Vector3(0, r + 0.25, 0)
+	game.fx.float_text(top, "SHATTERED", Color(1.0, 0.32, 0.22), 1.5, 2.4)
+	if lost > 0.0:
+		game.fx.float_text(top - Vector3(0, 0.22, 0), "−%d%%" % int(round(lost * 100.0)), Color(1.0, 0.32, 0.22), 1.25, 2.4)
+	var me: Player = game.local_player
+	if me and me.camera_fx:
+		var mine := it.last_carriers.has(me.peer_id) or it.carriers.has(me.peer_id)
+		var k := 1.0 - smoothstep(2.0, 8.0, me.global_position.distance_to(at))
+		if mine:
+			k = maxf(k, 0.6)
+		if k > 0.0:
+			me.camera_fx.add_trauma(0.32 * k)
+			me.camera_fx.kick(-2.5 * k, randf_range(-1.5, 1.5) * k)
+			if me.impact_fx:
+				me.impact_fx.punch(0.3 * k, col, "shatter")
 
 
 # --- Late joiners ------------------------------------------------------------

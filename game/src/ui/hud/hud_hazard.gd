@@ -175,10 +175,18 @@ func _draw() -> void:
 		draw_polyline(pts, c, 2.0)
 		y += WORM_H
 	if gas:
+		# Op een donkere plaat met een oranje rand, als een alarm (golf 3, ui2-02): in de gele mist zelf
+		# moet hij leesbaar blijven (hud-menu.md §4.9: nooit geel op licht).
 		var word := "GAS  ·  NO DRILLING"
 		var gw := _head.get_string_size(word, HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x
-		var gcol := Color("#E3D24A") if blink else Color("#E3D24A", 0.55)
-		draw_string_outline(_head, Vector2(WIDTH / 2.0 - gw / 2.0, y + 24.0), word, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, 7, Color(0.1, 0.08, 0.0, 0.9))
+		var plate := Rect2(WIDTH / 2.0 - gw / 2.0 - 14.0, y + 1.0, gw + 28.0, GAS_H - 2.0)
+		var bg := StyleBoxFlat.new()
+		bg.bg_color = Color(0.1, 0.05, 0.02, 0.92)
+		bg.border_color = UiTheme.DANGER if blink else Color(UiTheme.DANGER, 0.6)
+		bg.set_border_width_all(2)
+		bg.set_corner_radius_all(6)
+		draw_style_box(bg, plate)
+		var gcol := Color("#F2D64A") if blink else Color("#F2D64A", 0.7)
 		draw_string(_head, Vector2(WIDTH / 2.0 - gw / 2.0, y + 24.0), word, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, gcol)
 		y += GAS_H
 	if unrest >= SHOW_UNREST or quake != Unrest.Phase.CALM:

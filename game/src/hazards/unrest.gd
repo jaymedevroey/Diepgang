@@ -37,8 +37,11 @@ signal local_hit(size: float)
 signal local_knockdown(size: float)
 ## Een rots kwam neer (op elke peer, voor geluid en effecten).
 signal rock_landed(pos: Vector3, size: float)
+## Puin werd geraakt (`broke`: viel uiteen), op elke peer: haak voor het geluid (M6: tik, krak).
+signal rubble_chipped(pos: Vector3, broke: bool)
 
 const SYNC_INTERVAL := 0.25
+const CRUST_SHADER := preload("res://src/loot/crust.gdshader")
 const ZONE_UPDATE := 0.5
 
 var game: Node # Game
@@ -74,6 +77,9 @@ var _peak_seen := -1 # welke piek van de hoofdschok al flikkerde
 var _pebbles_done := false
 var _flicker_t := 0.0
 var _flicker_lamps: Array = [] # [lamp, energie] van de lokale helmlamp tijdens het flikkeren
+var _warn_flicker := 0.0 # aankondiging: seconden tot de lamp weer hapert
+var _warn_trickle := 0.0 # aankondiging: seconden tot het volgende straaltje gruis
+var _rock_sphere: SphereMesh # vorm van elke rots (de korst-shader maakt er een gehakte brok van)
 
 
 func _ready() -> void:
@@ -84,6 +90,12 @@ func _ready() -> void:
 		var m := _chunk_mesh(911 + i * 37)
 		_rock_mesh.append(m)
 		_rock_shape.append(m.create_convex_shape(true, true))
+	# Rotsen en puin: een grove bol die de korst-shader tot een gehakte brok vervormt (golf 3).
+	_rock_sphere = SphereMesh.new()
+	_rock_sphere.radius = 1.0
+	_rock_sphere.height = 2.0
+	_rock_sphere.radial_segments = 14
+	_rock_sphere.rings = 7
 
 
 ## Nieuwe wereld: zones uit het zaad, alles terug op nul.
@@ -241,6 +253,16 @@ func _advance(delta: float) -> void:
 		if k > 0.5 and not _pebbles_done:
 			_pebbles_done = true
 			_pebbles_near_camera(Tuning.get_i("unrest", "pebbles", 10) / 3)
+		# De opbouw die je ziet zonder geluid (golf 3, gevoel2-01, gevoel-08): de helmlamp hapert steeds
+		# vaker en langer, en uit het plafond rond je sijpelen steeds meer straaltjes gruis.
+		_warn_flicker -= delta
+		if _warn_flicker <= 0.0:
+			_warn_flicker = lerpf(Tuning.get_f("unrest", "warn_flicker_from_s", 1.3), Tuning.get_f("unrest", "warn_flicker_to_s", 0.35), k) * _rng.randf_range(0.7, 1.3)
+			_start_flicker(lerpf(0.08, 0.28, k))
+		_warn_trickle -= delta
+		if _warn_trickle <= 0.0:
+			_warn_trickle = lerpf(Tuning.get_f("unrest", "warn_trickle_from_s", 0.9), Tuning.get_f("unrest", "warn_trickle_to_s", 0.22), k)
+			_trickle_near_camera(lerpf(1.2, 2.4, k))
 		_run_plan(phase_t - warn) # de eerste stofstralen al voor T0
 		if phase_t >= warn:
 			phase = Phase.QUAKE
@@ -249,6 +271,7 @@ func _advance(delta: float) -> void:
 			_start_flicker()
 			_dust_cloud()
 			_pebbles_near_camera(Tuning.get_i("unrest", "pebbles", 10))
+			_rocks_in_view(Tuning.get_i("unrest", "rocks_in_view", 3))
 			quake_started.emit(stage)
 			if multiplayer.is_server():
 				game.magma.host_quake()
@@ -304,6 +327,8 @@ func _shake(amount: float, rumble_deg := 0.0) -> void:
 func _rpc_pretremor() -> void:
 	_shake(Tuning.get_f("unrest", "trauma_pre", 0.3))
 	_dust_near_camera(0.6)
+	_start_flicker(0.12) # de lamp hapert even: er komt iets
+	_trickle_near_camera(1.5)
 	pretremor.emit()
 
 
@@ -333,6 +358,8 @@ func _rpc_quake(index: int, plan: Array) -> void:
 	_plan = plan
 	_plan_done.clear()
 	_pebbles_done = false
+	_warn_flicker = 0.0
+	_warn_trickle = 0.0
 	_dust_near_camera(1.0)
 	quake_warning.emit(index)
 
@@ -438,15 +465,16 @@ func spawn_rock(e: Array) -> void:
 	cs.shape = _rock_shape[variant]
 	cs.scale = Vector3.ONE * size * 0.5 # botsvormen enkel gelijkmatig schalen
 	rb.add_child(cs)
+	# Echte rots (golf 3, binnen2-04, gevoel2-09): de korst-shader (gehakte facetten, ruis, spikkels en
+	# barsten die met de schade groeien) in de kleur van de laag, geen gladde bleke twintigvlakken.
 	var mi := MeshInstance3D.new()
-	mi.mesh = _rock_mesh[variant]
+	mi.name = "Rock"
+	mi.mesh = _rock_sphere
 	mi.scale = squash * size * 0.5
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Strata.DEBRIS_COLORS[game.terrain.layer_at(pos)].darkened(_rng.randf_range(0.15, 0.3))
-	mat.vertex_color_use_as_albedo = true
-	mat.roughness = 0.95
-	mi.material_override = mat
+	var layer: int = game.terrain.layer_at(pos)
+	mi.material_override = _rock_material(layer, float(rock_id if rock_id >= 0 else _rng.randi() % 1000) * 3.7)
 	rb.add_child(mi)
+	rb.set_meta("rock_scale", mi.scale)
 	# Een sliert stof achter de rots zolang hij valt.
 	var trail := _make_dust(Vector3(0.15, 0.15, 0.15) * size, 18, Vector2(0.18, 0.18) * (0.6 + size), 1.4)
 	trail.local_coords = false
@@ -511,23 +539,54 @@ func _host_chip(sender: int, rock_id: int, drill: bool, at: Vector3) -> void:
 		return
 	_chip_seen[sender] = now
 	var hp := r.hp - (Tuning.get_f("collapse", "drill_damage", 0.5) if drill else 1.0)
-	_rpc_rubble.rpc(rock_id, hp)
+	_rpc_rubble.rpc(rock_id, hp, at)
 
 
+## Puin geraakt (op elk peer). Zoals de korst (golf 3, gevoel2-09): elke slag laat barsten groeien, de
+## rots licht even op, krimpt en schudt, en er springen schilfers af waar je raakte. De laatste slag
+## laat hem uiteenvallen in brokken die nog even blijven liggen.
 @rpc("authority", "call_local", "reliable")
-func _rpc_rubble(rock_id: int, hp: float) -> void:
+func _rpc_rubble(rock_id: int, hp: float, at := Vector3.INF) -> void:
 	var r := rock(rock_id)
 	if r == null:
 		return
 	r.hp = hp
-	var col: Color = Strata.DEBRIS_COLORS[game.terrain.layer_at(r.global_position)]
+	var layer: int = game.terrain.layer_at(r.global_position)
+	var col: Color = Strata.DEBRIS_COLORS[layer]
+	var hit := at if at != Vector3.INF else r.global_position + Vector3.UP * r.size * 0.4
+	var out := (hit - r.global_position)
+	out = out.normalized() if out.length() > 0.05 else Vector3.UP
+	var mi := r.get_node_or_null("Rock") as MeshInstance3D
 	if hp > 0.0:
-		game.fx.impact(r.global_position + Vector3.UP * r.size * 0.4, Vector3.UP, col, 2)
+		game.fx.impact(hit, out, col, 3)
+		var dmg := 1.0 - clampf(hp / maxf(r.max_hp, 0.01), 0.0, 1.0)
+		if mi:
+			var m := mi.material_override as ShaderMaterial
+			if m:
+				m.set_shader_parameter("damage", dmg)
+				m.set_shader_parameter("glint", 1.0)
+				var tw := mi.create_tween()
+				tw.tween_method(func(v: float) -> void: m.set_shader_parameter("glint", v), 1.0, 0.0, 0.25)
+			# Krimpen (beeld en botsvorm samen) en een schokje.
+			var base: Vector3 = r.get_meta("rock_scale", mi.scale)
+			var k := 1.0 - Tuning.get_f("collapse", "rubble_shrink", 0.3) * dmg
+			mi.scale = base * k
+			for cs in r.get_children():
+				if cs is CollisionShape3D:
+					(cs as CollisionShape3D).scale = Vector3.ONE * r.size * 0.5 * k
+			var jolt := mi.create_tween()
+			jolt.tween_property(mi, "position", -out * 0.05, 0.04)
+			jolt.tween_property(mi, "position", Vector3.ZERO, 0.12)
+		for i in 2:
+			_spawn_pebble(hit + out * 0.08, r.size * _rng.randf_range(0.1, 0.16), out * _rng.randf_range(1.5, 3.0) + Vector3.UP * 1.5)
+		rubble_chipped.emit(hit, false)
 		return
-	# Kapot: in brokjes uiteen, en weg.
+	# Kapot: in brokken uiteen (ze blijven even liggen), en weg.
 	game.fx.crust_break(r.global_position, r.size * 0.6, col)
-	for i in 4:
-		_spawn_pebble(r.global_position + Vector3(randf_range(-0.3, 0.3), 0.2, randf_range(-0.3, 0.3)), r.size * 0.25)
+	for i in 6:
+		var dir := Vector3(_rng.randf_range(-1, 1), _rng.randf_range(0.3, 1.0), _rng.randf_range(-1, 1)).normalized()
+		_spawn_pebble(r.global_position + dir * r.size * 0.25, r.size * _rng.randf_range(0.22, 0.32), dir * _rng.randf_range(1.0, 2.5), layer)
+	rubble_chipped.emit(r.global_position, true)
 	_by_id.erase(rock_id)
 	_rocks.erase(r)
 	r.queue_free()
@@ -553,7 +612,8 @@ func _on_rock_landed(rb: RigidBody3D) -> void:
 	pm.gravity = Vector3(0, -0.3, 0)
 	pm.damping_min = 1.5
 	pm.damping_max = 2.5
-	_tint_dust(puff, col, 0.5)
+	# In de kleur van de laag en minder dicht: je ziet de rots vallen, geen witte wattenwolk (binnen2-04).
+	_tint_dust(puff, col.darkened(0.12), 0.36)
 	add_child(puff)
 	puff.global_position = pos
 	puff.one_shot = true
@@ -594,9 +654,11 @@ func _physics_process(_delta: float) -> void:
 
 # --- Stof en markering -------------------------------------------------------------------------
 
-## Fijne stofstraal van het plafond: hier valt zo meteen een rots.
-func _dust_stream(pos: Vector3, seconds: float) -> void:
+## Fijne stofstraal van het plafond: hier valt zo meteen een rots. `col`: in de kleur van de laag.
+func _dust_stream(pos: Vector3, seconds: float, col := Color(0, 0, 0, 0)) -> void:
 	var d := _make_dust(Vector3(0.25, 0.05, 0.25), 60, Vector2(0.06, 0.06), 3.5)
+	if col.a > 0.0:
+		_tint_dust(d, col.lightened(0.08), 0.6)
 	add_child(d)
 	d.global_position = pos
 	d.emitting = true
@@ -674,7 +736,9 @@ func _pebbles_near_camera(count: int) -> void:
 				_spawn_pebble(at, size))
 
 
-func _spawn_pebble(pos: Vector3, size: float) -> void:
+## Een steentje of brok (enkel beeld, lokaal), met een beginsnelheid. Grote brokken (van puin dat
+## uiteenvalt) in het materiaal van de rotsen.
+func _spawn_pebble(pos: Vector3, size: float, velocity := Vector3.ZERO, layer := -1) -> void:
 	var rb := RigidBody3D.new()
 	rb.collision_layer = Layers.DEBRIS
 	rb.collision_mask = Layers.TERRAIN
@@ -685,34 +749,116 @@ func _spawn_pebble(pos: Vector3, size: float) -> void:
 	cs.scale = Vector3.ONE * size * 0.5
 	rb.add_child(cs)
 	var mi := MeshInstance3D.new()
-	mi.mesh = _rock_mesh[variant]
 	mi.scale = Vector3.ONE * size * 0.5
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Strata.DEBRIS_COLORS[game.terrain.layer_at(pos)].darkened(0.2)
-	mat.vertex_color_use_as_albedo = true
-	mi.material_override = mat
+	if layer >= 0:
+		mi.mesh = _rock_sphere
+		mi.material_override = _rock_material(layer, _rng.randf() * 100.0)
+	else:
+		mi.mesh = _rock_mesh[variant]
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = Strata.DEBRIS_COLORS[game.terrain.layer_at(pos)].darkened(0.2)
+		mat.vertex_color_use_as_albedo = true
+		mi.material_override = mat
 	rb.add_child(mi)
 	rb.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_ON
 	add_child(rb)
 	rb.global_position = pos
 	rb.reset_physics_interpolation()
+	rb.linear_velocity = velocity
 	rb.angular_velocity = Vector3(_rng.randf_range(-6, 6), _rng.randf_range(-6, 6), _rng.randf_range(-6, 6))
 	var tw := rb.create_tween()
-	tw.tween_interval(6.0)
+	tw.tween_interval(6.0 if layer < 0 else 10.0)
 	tw.tween_property(mi, "scale", Vector3.ZERO, 0.4)
 	tw.tween_callback(rb.queue_free)
 
 
-## De helmlamp van de lokale speler flikkert even (bij T0 en in elke piek van de hoofdschok).
-func _start_flicker() -> void:
+## Materiaal van een vallende rots of een brok puin: de korst-shader in de kleur van de laag (iets
+## donkerder dan het stof), zonder hint, met barsten die groeien met `damage`.
+func _rock_material(layer: int, seed_value: float) -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = CRUST_SHADER
+	var col := Strata.DEBRIS_COLORS[clampi(layer, 0, 3)].darkened(_rng.randf_range(0.28, 0.4))
+	m.set_shader_parameter("base_color", col)
+	m.set_shader_parameter("hint_color", col)
+	m.set_shader_parameter("hint_glint", 0.0)
+	m.set_shader_parameter("speckle", 1.0 if layer == Strata.Layer.GRANIET else 0.5)
+	m.set_shader_parameter("seed", seed_value)
+	return m
+
+
+## Aankondiging: een straaltje gruis uit het plafond, vlak bij en vóór de camera (zo zie je het ook
+## als je niet omhoog kijkt), in de kleur van de laag.
+func _trickle_near_camera(seconds: float) -> void:
+	var cam := get_viewport().get_camera_3d()
+	if cam == null or game.terrain == null:
+		return
+	var p := cam.global_position
+	if game.terrain.surface_height_at(p.x, p.z) - p.y < 2.0:
+		return
+	var fwd := -cam.global_basis.z
+	fwd.y = 0.0
+	fwd = fwd.normalized() if fwd.length() > 0.01 else Vector3.FORWARD
+	var dir := fwd.rotated(Vector3.UP, _rng.randf_range(-1.1, 1.1))
+	var o := p + dir * _rng.randf_range(1.5, 4.5)
+	var hit: Dictionary = game.terrain.raycast(o, o + Vector3.UP * 7.0)
+	if hit.is_empty():
+		return
+	# Dikker dan de stofstraal van een rots: zichtbaar op een paar meter, ook in het donker.
+	var d := _make_dust(Vector3(0.12, 0.03, 0.12), 90, Vector2(0.1, 0.1), 2.2)
+	_tint_dust(d, Strata.DEBRIS_COLORS[game.terrain.layer_at(p)].lightened(0.12), 0.75)
+	add_child(d)
+	d.global_position = (hit.position as Vector3) - Vector3(0.0, 0.05, 0.0)
+	d.emitting = true
+	get_tree().create_timer(seconds).timeout.connect(func() -> void:
+		if is_instance_valid(d):
+			d.emitting = false
+			get_tree().create_timer(3.0).timeout.connect(d.queue_free))
+
+
+## Hoofdschok: een paar rotsen (enkel beeld, lokaal) die vóór je uit het plafond vallen, zodat je ze
+## ziet vallen, waar je ook staat (binnen-05). Ze raken niemand: de echte rotsen komen van de host.
+func _rocks_in_view(count: int) -> void:
+	var cam := get_viewport().get_camera_3d()
+	if cam == null or game.terrain == null or count <= 0:
+		return
+	var p := cam.global_position
+	if game.terrain.surface_height_at(p.x, p.z) - p.y < 2.0:
+		return
+	var fwd := -cam.global_basis.z
+	fwd.y = 0.0
+	fwd = fwd.normalized() if fwd.length() > 0.01 else Vector3.FORWARD
+	for i in count:
+		var o := p + fwd.rotated(Vector3.UP, _rng.randf_range(-0.6, 0.6)) * _rng.randf_range(2.8, 6.0)
+		var hit: Dictionary = game.terrain.raycast(o, o + Vector3.UP * 7.0)
+		if hit.is_empty():
+			continue
+		var size := _rng.randf_range(0.3, 0.55)
+		var at: Vector3 = (hit.position as Vector3) - Vector3(0.0, size * 0.6 + 0.1, 0.0)
+		var e := [at, size, 0.0, -1, Vector3(_rng.randf() * TAU, _rng.randf() * TAU, 0.0),
+				Vector3(_rng.randf_range(-2, 2), _rng.randf_range(-2, 2), _rng.randf_range(-2, 2))]
+		get_tree().create_timer(_rng.randf_range(0.2, 2.2)).timeout.connect(func() -> void:
+			if is_inside_tree():
+				_dust_stream(e[0], 0.8, Strata.DEBRIS_COLORS[game.terrain.layer_at(e[0])])
+				spawn_rock(e)
+				var rb: RigidBody3D = _rocks.back() if not _rocks.is_empty() else null
+				if rb:
+					rb.set_meta("hit", true)) # enkel beeld: raakt niemand
+
+
+## De helmlamp van de lokale speler hapert even (bij T0, in elke piek van de hoofdschok, en steeds vaker
+## in de aankondiging). De lamp hangt bij de lokale speler aan de CamRig (niet aan het hoofd).
+func _start_flicker(seconds := -1.0) -> void:
 	var p: Player = game.local_player
-	if p == null or p.head == null:
+	if p == null:
+		return
+	var holder: Node = p.cam_rig if p.cam_rig else p.head
+	if holder == null:
 		return
 	if _flicker_lamps.is_empty():
-		for n in p.head.get_children():
+		for n in holder.get_children():
 			if n is SpotLight3D:
 				_flicker_lamps.append([n, (n as SpotLight3D).light_energy])
-	_flicker_t = Tuning.get_f("unrest", "flicker_s", 0.6)
+	_flicker_t = maxf(_flicker_t, seconds if seconds > 0.0 else Tuning.get_f("unrest", "flicker_s", 0.6))
 
 
 func _end_flicker() -> void:
@@ -825,6 +971,11 @@ func _make_dust(extents: Vector3, amount: int, size: Vector2, lifetime: float) -
 	qm.vertex_color_use_as_albedo = true
 	qm.albedo_texture = _soft_dot() # rond en zacht: grote vlokken zijn anders vierkanten
 	qm.roughness = 1.0
+	# Vlak voor de camera uitdoven (golf 3, gevoel2-15): geen felle witte schijf die een stuk van het
+	# beeld vult, en geen egale waas als je midden in de stofwolk staat (binnen-05).
+	qm.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_PIXEL_ALPHA
+	qm.distance_fade_min_distance = Tuning.get_f("unrest", "dust_fade_min_m", 0.35) + size.x * 0.3
+	qm.distance_fade_max_distance = Tuning.get_f("unrest", "dust_fade_max_m", 1.3) + size.x * 0.6
 	q.material = qm
 	d.draw_pass_1 = q
 	return d
