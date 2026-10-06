@@ -30,6 +30,7 @@ var _cam: Camera3D
 var _mate: Player
 var _mate_goal := Vector3.INF
 var _mate_speed := 1.5
+var _body: RobotRig # lijf van de eigen robot voor beelden van opzij
 var _gt := 0.0
 
 
@@ -203,6 +204,15 @@ func _observer(from: Vector3, target: Vector3) -> void:
 	_cam.global_position = from
 	_cam.look_at(target)
 	_cam.make_current()
+	if _body:
+		_body.visible = true
+
+
+## Terug naar de eigen ogen (het filmlijf weer weg).
+func _own_view() -> void:
+	p.camera.make_current()
+	if _body:
+		_body.visible = false
 
 
 func _free_loose(it: FindItem, at: Vector3) -> void:
@@ -450,6 +460,14 @@ func _heavy() -> void:
 	_free_loose(big, at + Vector3(0.0, 0.6, -2.2))
 	await _wait(1.5)
 	_stand(at, big.global_position)
+	# Van opzij: de eigen robot is lokaal onzichtbaar (eerste persoon), dus voor de film een lijf erbij
+	# (zoals threat_film); het volgt de speler, met de armen in de draagstand.
+	_body = RobotRig.new()
+	_body.name = "FilmRig"
+	p.add_child(_body)
+	_body.setup(p.color)
+	_body.set_carrying(true)
+	_body.visible = false
 	await _wait(0.3)
 	# Alleen slepen.
 	finds.request_grab(big.find_id)
@@ -465,13 +483,15 @@ func _heavy() -> void:
 	_observer(mid0 + p.global_basis.x * 4.0 + Vector3.UP * 1.8 - fwd * 1.5, mid0 + fwd * 1.0 + Vector3.UP * 0.4)
 	await _wait(0.2)
 	await _snap("slepen_opzij")
-	p.camera.make_current()
+	_own_view()
 	# Een maat pakt de andere kant.
 	var far_end := big.global_position + fwd * 1.6
 	_mate = await _spawn_mate(far_end)
 	_mate.rotation.y = atan2(-(big.global_position - _mate.global_position).x, -(big.global_position - _mate.global_position).z)
 	await _wait(0.4)
 	finds._grab(2, big.find_id)
+	if _mate.rig:
+		_mate.rig.set_carrying(true) # (in het spel komt dat met CARRY_ON van de maat)
 	await _wait(1.2)
 	_log("dragers %s, gesleept=%s" % [big.carriers, big.dragged()])
 	for gap in [2.0, 3.2, 4.6]:
@@ -484,14 +504,14 @@ func _heavy() -> void:
 		await _wait(1.2)
 		_log("uit elkaar %.1f m: schedel %.2f m van mijn oog, %.2f m van de maat" % [gap,
 				big.global_position.distance_to(p.camera.global_position), big.global_position.distance_to(_mate.global_position + Vector3.UP * 1.2)])
-		p.camera.make_current()
+		_own_view()
 		await _snap("samen_%d_eigen" % int(gap * 10))
 		var mid := (p.global_position + _mate.global_position) * 0.5
 		var side := fwd.cross(Vector3.UP).normalized()
 		_observer(mid + side * 5.5 + Vector3.UP * 2.0, mid + Vector3(0.0, 0.8, 0.0))
 		await _wait(0.1)
 		await _snap("samen_%d_opzij" % int(gap * 10))
-		p.camera.make_current()
+		_own_view()
 	# Samen zijwaarts lopen: de schedel tussen de twee (van opzij gefilmd).
 	var side2 := fwd.cross(Vector3.UP).normalized()
 	_mate.global_position = p.global_position + fwd * 3.0
@@ -503,7 +523,7 @@ func _heavy() -> void:
 	await _walk(p.global_position - side2 * 4.0, _mate_speed, -14.0, false)
 	await _wait(1.0)
 	await _snap("samen_lopen_opzij")
-	p.camera.make_current()
+	_own_view()
 	await _wait(0.5)
 
 
