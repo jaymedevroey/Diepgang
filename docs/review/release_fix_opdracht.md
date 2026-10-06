@@ -62,3 +62,22 @@ Jayme wil dat **alle bevindingen** van de release-audit aangepakt worden. Morgen
   - een les voor `tasks/lessons.md`, als je er een had.
 - **Wees eerlijk.** "Deels" met een reden is beter dan "klaar" dat niet klopt. Morgen kijkt een nieuwe audit met dezelfde strengheid.
 - **Wees zuinig.** Grondig werken, maar geen herhaalde volledige runs als één gerichte run volstaat.
+
+
+## Golf 3 (na ronde 2, 2026-10-06)
+
+- **Bevindingen in detail:** `logs/review2/<rol>/rapport.md`. Daar staat ook het bewijs, onder `logs/review2/<rol>/`.
+- **Samenvatting:** [release_audit_ronde2.md](release_audit_ronde2.md).
+- **Verdeling per pakket:** [release_audit_ronde2_voortgang.md](release_audit_ronde2_voortgang.md).
+- **Beelden voor en na:** in `C:\Dev\Diepgang\logseview_fix3\<pakket>\`.
+- **Voorstellen:** die van de reviewers (deel 3 van hun rapporten) die bij je punten horen, mag je meenemen. Waar ze het GDD veranderen, schrijf je dat op in `docs/GDD.md`, met "(golf 3)".
+- **Geluid:** Jayme wil geen geluid dat met code gemaakt is ("da trekt op niks"). Maak dus geen synthetische klanken. Voorzie wel haken (signalen) op elke plek waar een geluid hoort. De echte opnames komen apart.
+- **Nettests:** draai ze op je eigen poort:
+  - G1: 25000
+  - G2: 25010
+  - G3: 25020
+  - G4: 25030
+  - G5: 25040
+  - G6: 25050
+- **Processen:** stop een Godot-proces nooit op procesnaam, enkel op PID. De andere pakketten draaien tegelijk.
+- **Tests:** de volledige lijst staat in CLAUDE.md. Daar zitten nu ook `economy_test`, `threat_test`, `net_economy_test` en `net_threat_test` in.
