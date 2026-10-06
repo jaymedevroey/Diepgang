@@ -1037,6 +1037,13 @@ func _update_alarm(player: Player, game: Game, mol: Mol) -> void:
 		hz = 1.6
 	if not _in_hub and not _world_hidden and hazard.magma_m < 15.0:
 		lvl = maxf(lvl, 0.3)
+	# In een gasbel: een gloed in de kleur van gas, al vóór er een vonk is (G2, gevoel2-01, ui2-02).
+	var tint := UiTheme.DANGER
+	if not _in_hub and not _world_hidden and hazard.gas and lvl < 0.35:
+		lvl = 0.35
+		hz = 1.4
+		tint = Color("#F2B020")
+	alarm.tint = tint
 	alarm.level = lvl
 	alarm.pulse_hz = hz
 
@@ -1199,6 +1206,10 @@ func _update_prompt(player: Player, game: Game, terrain: TerrainAPI) -> void:
 		action = "interact"
 		text = "Drive the Mole"
 		state = HudCrosshair.State.USE
+	elif player.crouch_blocked:
+		# Gehurkt vast onder een overhang (G2, gevoel2-13): zeggen waarom je niet rechtkomt.
+		text = "Too low to stand up"
+		sub = "Move out from under the overhang"
 	else:
 		var cam := player.camera
 		var hit := terrain.raycast(cam.global_position, cam.global_position - cam.global_basis.z * 3.5,

@@ -84,6 +84,14 @@ var _phys_last := Vector3.ZERO # plek na de vorige tick (een sprong van buitenaf
 var _shape: CollisionShape3D
 var _capsule: CapsuleShape3D
 var _look_yaw := 0.0
+## Kleur waarin de flits van een klap uitdooft, per bron (Rescue.damaged): een rots of val warm wit,
+## gas oranje, de worm rood.
+const IMPACT_TINTS := {"rock": Color(1.0, 0.86, 0.7), "fall": Color(1.0, 0.92, 0.82), "gas": Color(1.0, 0.55, 0.15),
+		"worm": Color(0.95, 0.18, 0.1), "": Color(1.0, 0.9, 0.85)}
+## Vaste camerapunten in de Mol (Mol-ruimte) voor wie er neerligt of binnengedragen wordt: hoog in
+## de hoeken van cabine en laadruim en in het midden, zodat de camera nooit in een lijf of wand zit.
+const CABIN_CAMS: Array[Vector3] = [Vector3(1.5, 1.05, -2.8), Vector3(-1.5, 1.05, -2.8), Vector3(1.5, 1.05, 3.6),
+		Vector3(-1.5, 1.05, 3.6), Vector3(0.0, 1.3, 0.4)]
 const SEAT_FEET := Vector3(0.0, -1.12, -1.82)
 const STAND_HEIGHT := 1.4
 const EYE_STAND := 1.2
@@ -100,6 +108,23 @@ var _bob_amount := 0.0
 var _tilt := 0.0
 var _last_pos := Vector3.ZERO
 var _was_attached := false
+
+## Het klapmoment (golf 3, gevoel2-02): flits en FOV-stoot. Lokaal.
+var impact_fx: ImpactFx
+## Gehurkt en geen plaats om recht te staan (gevoel2-13): de HUD legt het uit.
+var crouch_blocked := false
+var _fov_base := 80.0
+var _sprint_fov := 0.0
+var _turn_roll := 0.0
+var _last_yaw := 0.0
+# Hit-stop en overgang naar de volgcamera: het beeld blijft even staan, dan glijdt het naar achter de pop.
+var _impact_hold := 0.0
+var _view_from := Transform3D()
+var _view_blend := 1.0
+var _orbit_pos := Vector3.INF # de volgcamera, afgevlakt
+var _cabin_pick := -1 # vast camerapunt in de Mol (index in CABIN_CAMS)
+var _unstick := Vector3.ZERO # gehurkt vast: richting naar een plek waar je recht kan staan
+var _unstick_t := 0.0
 
 var _send_timer := 0.0
 # Interpolatie (kopie): [lokale ontvangsttijd in ms, positie, yaw, pitch]
@@ -185,10 +210,12 @@ func _ready() -> void:
 
 func _setup_local() -> void:
 	camera = Camera3D.new()
-	camera.fov = Settings.get_f("video/fov")
+	_fov_base = Settings.get_f("video/fov")
+	camera.fov = _fov_base
 	Settings.changed.connect(func(key: String) -> void:
 		if key == "video/fov":
-			camera.fov = Settings.get_f("video/fov"))
+			_fov_base = Settings.get_f("video/fov")
+			camera.fov = _fov_base)
 	camera.near = 0.05
 	cam_rig.add_child(camera)
 	camera.make_current()
@@ -196,6 +223,9 @@ func _setup_local() -> void:
 	camera_fx = CameraFx.new()
 	camera_fx.camera = camera
 	add_child(camera_fx)
+	impact_fx = ImpactFx.new()
+	impact_fx.name = "ImpactFx"
+	add_child(impact_fx)
 
 	pickaxe = Pickaxe.new()
 	pickaxe.terrain = game.terrain
@@ -316,6 +346,8 @@ func stun(seconds: float, knock: bool) -> void:
 	_stun = maxf(_stun, seconds)
 	camera_fx.add_trauma(0.6 if knock else 0.35)
 	camera_fx.kick(-14.0 if knock else -5.0, randf_range(-6.0, 6.0))
+	if impact_fx:
+		impact_fx.punch(0.85 if knock else 0.35, IMPACT_TINTS["rock"], "rock")
 	if knock and carry and carry.item:
 		carry.drop(false)
 
@@ -584,6 +616,17 @@ func _physics_process(delta: float) -> void:
 		speed *= Tuning.get_f("rescue", "limp_speed", 0.45) * (0.75 + 0.25 * absf(sin(Time.get_ticks_msec() / 1000.0 * 3.1)))
 	var dir := (global_basis * Vector3(input.x, 0.0, input.y)).normalized()
 	var target := Vector3(dir.x, 0.0, dir.z) * speed
+	# Gehurkt vast onder een overhang (gevoel2-13): zachtjes naar een plek waar je recht kan staan.
+	if crouch_blocked and input.length() < 0.1 and on_floor:
+		_unstick_t -= delta
+		if _unstick_t <= 0.0:
+			_unstick_t = 0.25
+			_unstick = _find_unstick()
+		if _unstick != Vector3.ZERO:
+			target = _unstick.normalized() * Tuning.get_f("player", "unstick_speed", 1.2)
+	else:
+		_unstick = Vector3.ZERO
+		_unstick_t = 0.0
 	var hv := Vector3(velocity.x, 0.0, velocity.z)
 	var accel: float
 	if not on_floor:
@@ -625,16 +668,35 @@ func _physics_process(delta: float) -> void:
 ## Hurken: lagere botsvorm en een lager oog. Opstaan kan enkel als er boven je ruimte is.
 func _set_crouch(want: bool) -> void:
 	if want == crouching:
+		crouch_blocked = false
 		return
 	var low := Tuning.get_f("player", "crouch_height", 0.95)
 	if not want:
-		# Past de hele capsule weer? (anders blijf je gehurkt, bv. onder een overhang in je tunnel)
+		# Past de hele capsule weer? (anders blijf je gehurkt, bv. onder een overhang in je tunnel). Dan
+		# zegt de HUD waarom, en schuif je vanzelf naar een plek waar het wel kan (_find_unstick).
 		if test_move(global_transform, Vector3(0.0, STAND_HEIGHT - low, 0.0)):
+			crouch_blocked = true
 			return
+	crouch_blocked = false
 	crouching = want
 	var h := low if crouching else STAND_HEIGHT
 	_capsule.height = h
 	_shape.position.y = h * 0.5
+
+
+## Gehurkt vast: de dichtstbijzijnde plek (tot 0,5 m opzij, zonder muur ertussen) waar de hele capsule
+## weer past, als verschuiving; ZERO als er geen is.
+func _find_unstick() -> Vector3:
+	var up := Vector3(0.0, STAND_HEIGHT - Tuning.get_f("player", "crouch_height", 0.95), 0.0)
+	for r: float in [0.2, 0.35, 0.5]:
+		for i in 8:
+			var a := TAU * i / 8.0
+			var off := Vector3(cos(a), 0.0, sin(a)) * r
+			if test_move(global_transform, off):
+				continue
+			if not test_move(global_transform.translated(off), up):
+				return off
+	return Vector3.ZERO
 
 
 ## Geland met `speed` m/s naar beneden: het oog zakt even door (meer bij een hogere val), een
@@ -788,8 +850,9 @@ func _process(delta: float) -> void:
 func _update_rig(delta: float) -> void:
 	var mol: Mol = game.mol
 	_check_jump()
+	_update_fov(delta)
 	if ragdoll != null and is_instance_valid(ragdoll):
-		_orbit_ragdoll()
+		_orbit_ragdoll(delta)
 		return
 	var frac := Engine.get_physics_interpolation_fraction()
 	var anchor: Transform3D
@@ -813,38 +876,190 @@ func _update_rig(delta: float) -> void:
 		_dip_vel += (-_dip * Tuning.get_f("player", "land_dip_stiffness", 160.0) - _dip_vel * Tuning.get_f("player", "land_dip_damping", 15.0)) * h
 		_dip += _dip_vel * h
 		left -= h
-	# Loopbeweging en zijwaartse kanteling (uit te zetten in de instellingen).
+	# Loopbeweging en zijwaartse kanteling (uit te zetten in de instellingen). Sprinten (gevoel2-16):
+	# hogere, langere passen met een zwaai van links naar rechts, en kantelen in een bocht.
 	var hv := Vector3(velocity.x, 0.0, velocity.z)
 	var speed := hv.length()
 	var grounded := is_on_floor() and not seated and _attached == null and not flying
-	var bob_on := Settings.get_b("interface/head_bob") if Settings.DEFAULTS.has("interface/head_bob") else true
-	var want_bob := clampf(speed / Tuning.get_f("player", "move_speed", 4.5), 0.0, 1.6) if grounded and bob_on else 0.0
+	var bob_on := _head_bob_on()
+	var walk := Tuning.get_f("player", "move_speed", 4.5)
+	var run := clampf((speed - walk) / maxf(Tuning.get_f("player", "sprint_speed", 6.8) - walk, 0.1), 0.0, 1.0) if sprinting else 0.0
+	var want_bob := clampf(speed / walk, 0.0, 1.6) if grounded and bob_on else 0.0
 	_bob_amount = move_toward(_bob_amount, want_bob, delta * 4.0)
 	if grounded:
-		_bob_phase += delta * speed / maxf(Tuning.get_f("player", "step_length", 1.6), 0.1) * PI
-	var amp := Tuning.get_f("player", "bob_height", 0.022) * _bob_amount
-	var bob := Vector3(cos(_bob_phase) * amp * 0.55, -absf(sin(_bob_phase)) * amp, 0.0)
+		var stride := lerpf(Tuning.get_f("player", "step_length", 1.6), Tuning.get_f("player", "sprint_step_length", 2.1), run)
+		_bob_phase += delta * speed / maxf(stride, 0.1) * PI
+	var amp := Tuning.get_f("player", "bob_height", 0.022) * _bob_amount * lerpf(1.0, Tuning.get_f("player", "sprint_bob", 1.7), run)
+	var bob := Vector3(cos(_bob_phase) * amp * lerpf(0.55, 0.9, run), -absf(sin(_bob_phase)) * amp, 0.0)
 	var side := (anchor.basis.inverse() * hv).x
-	var want_tilt := -side / maxf(Tuning.get_f("player", "move_speed", 4.5), 0.1) * deg_to_rad(Tuning.get_f("player", "strafe_tilt_deg", 1.2)) if bob_on and grounded else 0.0
+	var want_tilt := -side / maxf(walk, 0.1) * deg_to_rad(Tuning.get_f("player", "strafe_tilt_deg", 1.2)) if bob_on and grounded else 0.0
 	_tilt = lerpf(_tilt, want_tilt, minf(1.0, delta * 8.0))
-	camera_fx.roll = _tilt
+	# Kantelen in een bocht (met de muis draaien terwijl je loopt; sprintend het sterkst) en de zwaai van de pas.
+	var yaw_rate := wrapf(rotation.y - _last_yaw, -PI, PI) / maxf(delta, 0.001)
+	_last_yaw = rotation.y
+	var lean := 0.0
+	if bob_on and grounded and speed > 0.5:
+		lean = clampf(-yaw_rate * Tuning.get_f("player", "turn_tilt", 0.012), -1.0, 1.0) \
+				* deg_to_rad(Tuning.get_f("player", "turn_tilt_max_deg", 2.5)) * lerpf(0.4, 1.0, run)
+	_turn_roll = lerpf(_turn_roll, lean, minf(1.0, delta * 6.0))
+	var sway := sin(_bob_phase) * deg_to_rad(Tuning.get_f("player", "sprint_sway_deg", 0.7)) * run * _bob_amount
+	camera_fx.roll = _tilt + _turn_roll + sway
 	var eye := head.position + bob + Vector3(0.0, -_dip, 0.0)
 	cam_rig.global_transform = Transform3D(anchor.basis * Basis(Vector3.RIGHT, head.rotation.x), anchor * eye)
 
 
-## Omver of neer: het oog hangt achter en boven de pop en kijkt ernaar (rondkijken met de muis), en
-## schuift naar voren als er rots tussen zit (R.E.P.O.: je ziet je eigen robot vallen).
-func _orbit_ragdoll() -> void:
-	var c := ragdoll.torso.get_global_transform_interpolated().origin + Vector3.UP * 0.35
-	var pitch := clampf(head.rotation.x - 0.35, -1.25, 0.6)
-	var b := Basis(Vector3.UP, rotation.y) * Basis(Vector3.RIGHT, pitch)
-	var back := b * Vector3(0.0, 0.0, 1.0)
-	var dist := 3.2
-	var hit: Dictionary = game.terrain.raycast(c, c + back * (dist + 0.3), Layers.TERRAIN | Layers.LIFT)
-	if not hit.is_empty():
-		dist = maxf(0.5, c.distance_to(hit.position) - 0.3)
+func _head_bob_on() -> bool:
+	return Settings.get_b("interface/head_bob") if Settings.DEFAULTS.has("interface/head_bob") else true
+
+
+## FOV: de eigen instelling, plus sprinten (een paar graden breder, gevoel2-16; uit met "head bob") en
+## de stoot van een klap (ImpactFx).
+func _update_fov(delta: float) -> void:
+	var want := 0.0
+	if sprinting and _head_bob_on() and ragdoll == null \
+			and Vector2(velocity.x, velocity.z).length() > Tuning.get_f("player", "move_speed", 4.5) + 0.3:
+		want = Tuning.get_f("player", "sprint_fov_deg", 7.0)
+	_sprint_fov = move_toward(_sprint_fov, want, delta * Tuning.get_f("player", "sprint_fov_speed", 28.0))
+	camera.fov = clampf(_fov_base + _sprint_fov + (impact_fx.fov_kick if impact_fx else 0.0), 30.0, 130.0)
+
+
+## Het klapmoment (gevoel2-02): het beeld blijft impact_hold_s staan waar het was (hit-stop, met flits
+## en schok), dan glijdt het in impact_blend_s naar de volgcamera. Bij elke nieuwe ragdoll.
+func _impact_begin() -> void:
+	_view_from = cam_rig.global_transform
+	_impact_hold = Tuning.get_f("camera", "impact_hold_s", 0.14)
+	_view_blend = 0.0
+	_orbit_pos = Vector3.INF
+	_cabin_pick = -1
+
+
+## Omver of neer: de volgcamera hangt achter en boven de pop en kijkt ernaar (rondkijken met de muis;
+## R.E.P.O.: je ziet je eigen robot vallen). Ze komt nooit in je eigen robot, een ploegmaat of de Mol:
+## een bol die de rots, de Mol, spelers en andere poppen voelt, minstens follow_min ver, en anders
+## eerst hoger en dan opzij. Gedragen draait ze mee met je drager (je ziet waar je heen gaat). In de
+## Mol een vast camerapunt in de cabine. Eerst het klapmoment (_impact_begin).
+func _orbit_ragdoll(delta: float) -> void:
+	var target := _follow_cam(delta)
 	camera_fx.roll = 0.0
-	cam_rig.global_transform = Transform3D(b, c + back * dist)
+	if _impact_hold > 0.0:
+		_impact_hold -= delta
+		cam_rig.global_transform = _view_from
+	elif _view_blend < 1.0:
+		_view_blend = minf(1.0, _view_blend + delta / maxf(0.05, Tuning.get_f("camera", "impact_blend_s", 0.32)))
+		cam_rig.global_transform = _view_from.interpolate_with(target, smoothstep(0.0, 1.0, _view_blend))
+	else:
+		cam_rig.global_transform = target
+	# Zit de camera (nog) in of vlak bij je eigen robot (het klapmoment, een nauwe gang): niet tonen.
+	var torso := ragdoll.torso.get_global_transform_interpolated().origin + Vector3.UP * 0.35
+	ragdoll.visible = cam_rig.global_position.distance_to(torso) > Tuning.get_f("camera", "follow_hide_self", 0.7)
+
+
+func _follow_cam(delta: float) -> Transform3D:
+	var focus := ragdoll.torso.get_global_transform_interpolated().origin + Vector3.UP * 0.35
+	var mol: Mol = game.mol
+	var carriers: PackedInt32Array = game.rescue.carriers_of(peer_id) if game.rescue else PackedInt32Array()
+	var carrier: Player = game.player_node(carriers[0]) if not carriers.is_empty() else null
+	if carrier:
+		# Gedragen: de camera draait met de drager mee (de muis kan er nog bij).
+		rotation.y = lerp_angle(rotation.y, carrier.rotation.y, 1.0 - exp(-delta * Tuning.get_f("camera", "follow_carried_turn", 2.5)))
+	if mol and mol.body and mol.contains_point(focus):
+		return _cabin_cam(mol, focus, delta)
+	_cabin_pick = -1
+	var want := Tuning.get_f("camera", "follow_dist", 3.2)
+	var pitch := clampf(head.rotation.x - 0.35, -1.25, 0.6)
+	var yaw0 := rotation.y
+	if carrier:
+		# Schuin van achter en opzij, van boven: je ziet jezelf in de armen van je drager, en de weg.
+		pitch = minf(pitch, -0.6)
+		yaw0 += Tuning.get_f("camera", "follow_carried_side", 0.8)
+	var best_dir := Vector3.BACK
+	var best_d := -1.0
+	# Achter de kijkrichting, dan hoger, dan opzij: de eerste die de hele afstand vrij heeft.
+	for c: Vector2 in [Vector2(0.0, 0.0), Vector2(0.0, -0.35), Vector2(0.0, -0.7), Vector2(0.7, -0.35), Vector2(-0.7, -0.35),
+			Vector2(1.4, -0.5), Vector2(-1.4, -0.5), Vector2(0.0, -1.15)]:
+		var b := Basis(Vector3.UP, yaw0 + c.x) * Basis(Vector3.RIGHT, clampf(pitch + c.y, -1.35, 0.6))
+		var dir := b * Vector3.BACK
+		var d := _clear_dist(focus, dir, want)
+		if d >= want - 0.05:
+			best_dir = dir
+			best_d = d
+			break
+		if d > best_d + 0.1:
+			best_dir = dir
+			best_d = d
+	var pos := focus + best_dir * maxf(best_d, 0.3)
+	# Afvlakken: naar buiten traag, naar binnen (een wand) meteen.
+	if _orbit_pos == Vector3.INF or _orbit_pos.distance_to(pos) > 4.0:
+		_orbit_pos = pos
+	else:
+		var smoothed := _orbit_pos.lerp(pos, 1.0 - exp(-delta * 8.0))
+		var sd := focus.distance_to(smoothed)
+		if sd > 0.05 and _clear_dist(focus, (smoothed - focus) / sd, sd) < sd - 0.05:
+			smoothed = pos
+		_orbit_pos = smoothed
+	var look := focus
+	if carrier:
+		var fwd := -carrier.global_basis.z
+		fwd.y = 0.0
+		look = focus + fwd.normalized() * 1.2
+	return Transform3D(_look_basis(look - _orbit_pos), _orbit_pos)
+
+
+## In de Mol: het vaste camerapunt (CABIN_CAMS) dat de pop het best ziet, minstens follow_min ver en
+## zonder iets ertussen. Je houdt hetzelfde punt zolang het goed blijft (geen gespring).
+func _cabin_cam(mol: Mol, focus: Vector3, delta: float) -> Transform3D:
+	var xf := mol.body.get_global_transform_interpolated()
+	if _cabin_pick < 0 or not _cabin_ok(xf * CABIN_CAMS[_cabin_pick], focus):
+		var best := -1
+		var best_d := -1.0
+		for i in CABIN_CAMS.size():
+			var d := (xf * CABIN_CAMS[i]).distance_to(focus)
+			if _cabin_ok(xf * CABIN_CAMS[i], focus) and d > best_d:
+				best = i
+				best_d = d
+		_cabin_pick = best if best >= 0 else CABIN_CAMS.size() - 1
+	var pos: Vector3 = xf * CABIN_CAMS[_cabin_pick]
+	if _orbit_pos == Vector3.INF or _orbit_pos.distance_to(pos) > 12.0:
+		_orbit_pos = pos
+	else:
+		_orbit_pos = _orbit_pos.lerp(pos, 1.0 - exp(-delta * 5.0))
+	return Transform3D(_look_basis(focus - _orbit_pos), _orbit_pos)
+
+
+func _cabin_ok(at: Vector3, focus: Vector3) -> bool:
+	if at.distance_to(focus) < Tuning.get_f("camera", "follow_min", 1.2):
+		return false
+	var hit: Dictionary = game.terrain.raycast(at, focus, Layers.LIFT | Layers.PLAYERS)
+	return hit.is_empty() or (hit.position as Vector3).distance_to(focus) < 0.6
+
+
+## Hoe ver de camera vanaf `from` langs `dir` kan (hooguit `want`), als bol van follow_radius: rots, de
+## Mol, spelers en poppen (behalve de eigen pop) houden haar tegen.
+func _clear_dist(from: Vector3, dir: Vector3, want: float) -> float:
+	var q := PhysicsShapeQueryParameters3D.new()
+	var sphere := SphereShape3D.new()
+	sphere.radius = Tuning.get_f("camera", "follow_radius", 0.22)
+	q.shape = sphere
+	q.transform = Transform3D(Basis(), from)
+	q.motion = dir * want
+	q.collision_mask = Layers.TERRAIN | Layers.LIFT | Layers.PLAYERS | Layers.LOOT | Layers.RUBBLE
+	var ex: Array[RID] = [get_rid()]
+	for rb: RigidBody3D in ragdoll.all_bodies():
+		ex.append(rb.get_rid())
+	q.exclude = ex
+	var res := get_world_3d().direct_space_state.cast_motion(q)
+	if res.is_empty() or (float(res[0]) <= 0.0 and float(res[1]) <= 0.0):
+		# De bol begint al in iets (de romp ligt tegen een wand): dan een gewone straal.
+		var hit: Dictionary = game.terrain.raycast(from, from + dir * want, Layers.TERRAIN | Layers.LIFT)
+		return want if hit.is_empty() else maxf(0.0, from.distance_to(hit.position) - 0.25)
+	return want * float(res[0])
+
+
+static func _look_basis(dir: Vector3) -> Basis:
+	if dir.length() < 0.01:
+		return Basis()
+	var up := Vector3.UP if absf(dir.normalized().y) < 0.98 else Vector3.BACK
+	return Basis.looking_at(dir, up)
 
 
 ## Grote sprong van het lijf zonder reset (een scenario, een test, de host die je verzet): niet
@@ -1019,6 +1234,7 @@ func on_ragdoll(rd: RobotRagdoll, new_life: int) -> void:
 		_attached = null
 		if active_tool:
 			active_tool.set_active(false)
+		_impact_begin()
 	else:
 		_snapshots.clear()
 		if rig:
@@ -1026,15 +1242,25 @@ func on_ragdoll(rd: RobotRagdoll, new_life: int) -> void:
 	_update_drone()
 
 
-## Weer recht (na omver, na reparatie, of strompelend): op `feet`, met kijkrichting `yaw`.
+## Weer recht (na omver, na reparatie, of strompelend): op `feet`, met kijkrichting `yaw`. Wie zelf
+## opstaat, kijkt verder waar de volgcamera keek, en het beeld glijdt terug in de ogen (gevoel2-02).
 func on_stand(feet: Vector3, yaw: float, new_life: int) -> void:
+	var was_down := ragdoll != null
 	ragdoll = null
 	life = new_life
 	if is_local:
+		var cam_was := camera.global_position if camera else global_position
+		var look := -cam_rig.global_basis.z if cam_rig else Vector3.ZERO
 		_shape.disabled = false
 		collision_mask = MASK
 		_teleport(feet)
 		rotation.y = yaw
+		_impact_hold = 0.0
+		_view_blend = 1.0
+		if was_down and look.length() > 0.5 and Vector2(look.x, look.z).length() > 0.05:
+			rotation.y = atan2(-look.x, -look.z)
+			head.rotation.x = clampf(asin(clampf(look.y, -1.0, 1.0)), -0.6, 0.5)
+			ViewGlide.start(self, camera, cam_was, Tuning.get_f("camera", "stand_glide_s", 0.35), 0.0)
 		if active_tool and not seated and (carry == null or (carry.item == null and carry.body_peer < 0)) and not _holstered:
 			active_tool.set_active(_tools_allowed())
 	else:
@@ -1053,11 +1279,15 @@ func on_broken(at: Vector3) -> void:
 	if is_local:
 		if carry and (carry.item or carry.body_peer >= 0):
 			carry.drop(false)
+		var cam_was := camera.global_position if camera else global_position
 		_shape.disabled = false
 		collision_mask = Layers.TERRAIN | Layers.BOUNDS
 		flying = false
 		_attached = null
 		_teleport(at)
+		_impact_hold = 0.0
+		_view_blend = 1.0
+		ViewGlide.start(self, camera, cam_was, 0.5, 0.0) # van de volgcamera naar de drone, geen knip
 		if active_tool:
 			active_tool.set_active(false)
 	else:
