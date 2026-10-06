@@ -223,7 +223,7 @@ static func cargo_pod() -> Node3D:
 		_box(root, Vector3(0.0, 0.0, z), Vector3(0.45, 1.03, 0.07), "Yellow")
 	_box(root, Vector3(0.215, -0.32, 0.0), Vector3(0.012, 0.16, 1.2), "Hazard")
 	var plate := Label3D.new()
-	plate.text = "+80 KG"
+	plate.text = "+80 kg"
 	plate.font = UiTheme.heading()
 	plate.font_size = 64
 	plate.pixel_size = 0.002
