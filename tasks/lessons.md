@@ -2,6 +2,17 @@
 
 Wat we onderweg leerden en wat het GDD bijstuurt. Nieuwste bovenaan.
 
+## 2026-10-06 — Release-audit golf 3, pakket G2: neergaan, klap, kleinere gevaren, dragen
+
+De keuzes staan in GDD §4 (Buit) en §6 ("Golf 3").
+- **Eerst de filmscenario's committen, dan pas code veranderen.** `impact_film` (een take per moment, vaste plek en seed) stond in de eerste commit; de films "voor" zijn daarmee gemaakt, de films "na" met precies dezelfde takes. Tijdens het filmen geen code aanraken: elke take start een nieuw Godot-proces dat de bestanden van dat moment laadt (en een parse-fout breekt alle volgende takes).
+- **De helmlamp van de lokale speler hangt aan de CamRig, niet aan het hoofd.** De flikkering bij een beving zocht hem onder `head` en vond niets: de lamp flikkerde enkel bij de anderen. Na een verhuis van een node: zoeken wie hem op naam of plek vindt.
+- **Een vaste "donkere" kleur is niet altijd donker.** De vlek van de verse kuil (grijsbeige × 0,5) maakte de oranje klei lichter en vaal. Donkerder = de eigen kleur × factor.
+- **Een doel dat van de kijkrichting afhangt, gaat door de vloer.** Een gedragen robot hing op `hold_point` (oog + kijkrichting); na opstaan in de kijkrichting van de volgcamera (omlaag) zat hij onder de vloer van de Mol en werd hij niet gerepareerd. Dragen nu op een vlakke voorwaartse richting.
+- **Een terugval die zichzelf aanroept:** `carry_xform` viel terug op `carry_target`, en die weer op `carry_xform` als de drager geen speler is (de worm draagt ook). Stack overflow, enkel in de test met de worm. Een terugval rekent zelf, hij roept de ingang niet opnieuw aan.
+- **Stof en mist doven uit vlak voor de camera** (`distance_fade_mode = PIXEL_ALPHA`): geen witte schijven meer, en in een gasbel zie je de grot en de HUD in plaats van een egale gele muur. Goedkoper en sterker dan de HUD tegen de mist op te boksen.
+- **Twee handgrepen:** de stand van een vondst tussen twee dragers is een draaiing die twee vectorparen op elkaar legt (de lange as op de lijn tussen de grepen, de bovenkant zo dicht mogelijk bij boven): `FindField.basis_from`. Op elk peer dezelfde regel, de volgorde van de dragers (wie welke greep) gaat mee in het bericht van de host.
+
 ## 2026-10-06 — Release-audit golf 3, pakket G6: tekst, toetsen, HUD-stijl
 
 **De stijlregels hebben nu een test** (ui2-07): `TextLint` (`game/src/ui/text_lint.gd`) loopt elke
