@@ -777,7 +777,7 @@ func _spawn_pebble(pos: Vector3, size: float, velocity := Vector3.ZERO, layer :=
 func _rock_material(layer: int, seed_value: float) -> ShaderMaterial:
 	var m := ShaderMaterial.new()
 	m.shader = CRUST_SHADER
-	var col := Strata.DEBRIS_COLORS[clampi(layer, 0, 3)].darkened(_rng.randf_range(0.28, 0.4))
+	var col := Strata.DEBRIS_COLORS[clampi(layer, 0, 3)].darkened(_rng.randf_range(0.36, 0.48))
 	m.set_shader_parameter("base_color", col)
 	m.set_shader_parameter("hint_color", col)
 	m.set_shader_parameter("hint_glint", 0.0)

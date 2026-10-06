@@ -48,6 +48,9 @@ func _ready() -> void:
 
 func _physics_process(delta: float) -> void:
 	_gt += delta
+	# Het filmlijf van de eigen robot reikt naar zijn greep, zoals de robots van de anderen (RobotRig.reach).
+	if _body and _body.visible and p and p.carry and p.carry.item and game.finds.has_method("grip_world"):
+		_body.reach = game.finds.call("grip_world", p.carry.item, p.peer_id)
 	if _mate and _mate_goal != Vector3.INF:
 		var d := _mate_goal - _mate.global_position
 		d.y = 0.0

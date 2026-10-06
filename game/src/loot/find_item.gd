@@ -170,6 +170,45 @@ func dragged() -> bool:
 	return carriers.size() == 1 and not FindKinds.liftable_alone(mass)
 
 
+## Twee handgrepen (golf 3, gevoel2-03): de uiteinden langs de lange as van het model (lokaal), een
+## stukje naar binnen. Alleen pak je het dichtste uiteinde; met twee heeft elk een greep (FindField).
+func grips() -> Array[Vector3]:
+	var aabb := _mesh.mesh.get_aabb()
+	var ax := aabb.get_longest_axis_index()
+	var half := aabb.size[ax] * 0.5
+	var e := Vector3.ZERO
+	e[ax] = maxf(0.05, half - minf(half * 0.3, Tuning.get_f("carry", "grip_inset", 0.15)))
+	var c := aabb.get_center()
+	return [c - e, c + e]
+
+
+## Halve dikte van het model dwars op de lange as (de handen liggen aan weerszijden van een greep).
+func grip_half_width() -> float:
+	var s := _mesh.mesh.get_aabb().size
+	var ax := s.max_axis_index()
+	return minf(s[(ax + 1) % 3], s[(ax + 2) % 3]) * 0.5
+
+
+## De lokale as die bovenaan blijft als hij gedragen of gesleept wordt: bij het oppakken de as (niet
+## de lange) die het meest naar boven wijst. Zo blijft hij liggen zoals hij lag, enkel gedraaid.
+var carry_up := Vector3.UP
+
+
+func pick_carry_up() -> void:
+	var ax := _mesh.mesh.get_aabb().get_longest_axis_index()
+	var best := -2.0
+	for i in 3:
+		if i == ax:
+			continue
+		for s: float in [-1.0, 1.0]:
+			var l := Vector3.ZERO
+			l[i] = s
+			var d := (global_basis * l).normalized().dot(Vector3.UP)
+			if d > best:
+				best = d
+				carry_up = l
+
+
 ## Laagste punt van het model onder de oorsprong, in deze draaiing (om hem op de grond te leggen).
 func bottom_offset(b: Basis) -> float:
 	var aabb := _mesh.mesh.get_aabb()

@@ -1162,6 +1162,8 @@ func _snap_yaw(s: Array) -> float:
 
 
 func _interpolate() -> void:
+	if rig:
+		rig.reach = _carry_reach()
 	if ragdoll != null and is_instance_valid(ragdoll):
 		global_position = ragdoll.torso.global_position # omver of neer: op de plek van de romp
 		return
@@ -1184,6 +1186,18 @@ func _interpolate() -> void:
 		rig.velocity = rig.velocity.lerp(v, minf(1.0, dt * 12.0))
 		rig.on_floor = absf(rig.velocity.y) < 0.8
 		rig.look_pitch = head.rotation.x
+
+
+## Waar de armen van deze (andere) robot naartoe reiken: zijn greep op een zwaar stuk of op een robot
+## die hij draagt (golf 3, gevoel2-03), of INF.
+func _carry_reach() -> Vector3:
+	if game.finds:
+		var it: FindItem = game.finds.carried_by(peer_id)
+		if it:
+			return game.finds.grip_world(it, peer_id)
+	if game.rescue:
+		return game.rescue.grip_of_carrier(peer_id)
+	return Vector3.INF
 
 
 func _send_action(action: Action) -> void:

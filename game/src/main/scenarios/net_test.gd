@@ -200,8 +200,8 @@ func _team_carry(p: Player) -> void:
 	p.global_position += away.normalized() * 4.0
 	await get_tree().physics_frame
 	await get_tree().physics_frame
-	var hold := Tuning.get_f("carry", "hold_near", 0.62) + it.half_extents.length() * Tuning.get_f("carry", "hold_per_radius", 1.1)
-	var limit := 2.0 * hold + Tuning.get_f("carry", "team_span", 1.0)
+	# Golf 3 (gevoel2-03): het touw is de afstand tussen de twee handgrepen plus de armen (Carry.team_limit).
+	var limit := Carry.team_limit(it)
 	var span := Vector2(p.global_position.x - host_p.global_position.x, p.global_position.z - host_p.global_position.z).length()
 	_rpc_leash_report.rpc_id(1, span, limit)
 	await get_tree().create_timer(1.0).timeout # de host laat los

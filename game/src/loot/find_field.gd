@@ -39,6 +39,7 @@ var _drag_last := {} # host: find_id -> plek bij de vorige tick (slepen schuurt)
 var _drag_worn := {} # host: find_id -> geschuurde gaafheid die nog niet gemeld is
 var _freed_at := {} # host: find_id -> tijd (ms) van het vrijkomen (zie _check_impact)
 var _by_id := {} # find_id -> FindItem (items blijft niet op volgorde: het magma haalt er weg)
+var _carried_by := {} # peer -> FindItem die hij draagt (voor zijn armen bij de anderen)
 var _next_id := 0
 
 
@@ -216,6 +217,7 @@ func clear() -> void:
 	crusts.clear()
 	_gone.clear()
 	_by_id.clear()
+	_carried_by.clear()
 	_next_id = 0
 	_stowed.clear()
 	_parked.clear()
@@ -561,6 +563,18 @@ func _grab(sender: int, find_id: int) -> void:
 			_release(sender, other.find_id, other.global_transform, Vector3.ZERO)
 	var carriers := it.carriers.duplicate()
 	carriers.append(sender)
+	if carriers.size() == 2:
+		# Twee handgrepen (golf 3): carriers[0] houdt greep 0, carriers[1] greep 1. Wie het dichtst bij
+		# een uiteinde staat, krijgt dat uiteinde (de volgorde gaat mee in het bericht: elk peer gelijk).
+		var g := it.grips()
+		var a: Player = game.player_node(carriers[0])
+		if a:
+			var ga := it.global_transform * g[0]
+			var gb := it.global_transform * g[1]
+			var keep := a.global_position.distance_to(ga) + player.global_position.distance_to(gb)
+			var swap := a.global_position.distance_to(gb) + player.global_position.distance_to(ga)
+			if swap < keep:
+				carriers = PackedInt32Array([sender, carriers[0]])
 	it.freeze = true
 	_rpc_carriers.rpc(find_id, carriers)
 
@@ -590,18 +604,29 @@ func _rpc_carriers(find_id: int, carriers: PackedInt32Array) -> void:
 		return
 	if not it.carriers.is_empty():
 		it.last_carriers = it.carriers
+	elif not carriers.is_empty():
+		it.pick_carry_up() # opgepakt: zijn bovenkant blijft boven
+	for peer in it.carriers:
+		if _carried_by.get(peer) == it:
+			_carried_by.erase(peer)
 	it.carriers = carriers
+	for peer in carriers:
+		_carried_by[peer] = it
 	it.update_interpolation()
 	carriers_changed.emit(it)
 
 
 ## Waar een gedragen vondst hoort: tussen de handen van zijn dragers, niet door een muur. Te zwaar om
-## alleen te tillen (ontwerp-8): dan sleept de enige drager hem over de grond (drag_point).
+## alleen te tillen (ontwerp-8): dan sleept de enige drager hem over de grond. Enkel de plek; de hele
+## stand (met twee, of gesleept) geeft carry_xform.
 func carry_target(it: FindItem) -> Vector3:
-	if it.dragged():
-		var dragger: Player = game.player_node(it.carriers[0])
-		if dragger:
-			return drag_point(dragger, it)
+	if it.dragged() or it.carriers.size() >= 2:
+		return carry_xform(it).origin
+	return _hold_mid(it)
+
+
+## Het gemiddelde houdpunt van de dragers die spelers zijn (de worm draagt ook: zonder speler blijft hij).
+func _hold_mid(it: FindItem) -> Vector3:
 	var sum := Vector3.ZERO
 	var n := 0
 	for peer in it.carriers:
@@ -612,17 +637,107 @@ func carry_target(it: FindItem) -> Vector3:
 	return sum / n if n > 0 else it.global_position
 
 
-## Waar een gesleepte vondst ligt: vlak voor de voeten van wie sleept, met zijn onderkant op de grond
-## (de rots, of de vloer van de Mol en de hub). Op elk peer dezelfde regel (host, drager, kijkers).
-func drag_point(p: Player, it: FindItem) -> Vector3:
+## De hele stand van een gedragen vondst (golf 3, gevoel2-03: twee handgrepen, geen telekinese). Op elk
+## peer dezelfde regel (host, dragers, kijkers):
+## - met twee: elk houdt zijn greep (carriers[0] greep 0, carriers[1] greep 1) voor zich op borsthoogte,
+##   naar zijn maat toe; de vondst spant tussen de twee grepen, zijn bovenkant blijft boven;
+## - gesleept (alleen, te zwaar): het dichtste uiteinde vlak voor je voeten, de rest ligt achter dat
+##   uiteinde op de grond, in de richting waarin je kijkt;
+## - anders: waar hij nu staat, op het houdpunt.
+func carry_xform(it: FindItem) -> Transform3D:
+	var g := it.grips()
+	if it.carriers.size() >= 2:
+		var a: Player = game.player_node(it.carriers[0])
+		var b: Player = game.player_node(it.carriers[1])
+		if a and b:
+			var ta := team_hold(a, b.global_position)
+			var tb := team_hold(b, a.global_position)
+			var axis_w := tb - ta
+			if axis_w.length() < 0.05:
+				axis_w = -a.global_basis.z
+			var basis := basis_from((g[1] - g[0]).normalized(), it.carry_up, axis_w.normalized(), Vector3.UP)
+			return Transform3D(basis, (ta + tb) * 0.5 - basis * ((g[0] + g[1]) * 0.5))
+	if it.dragged():
+		var p: Player = game.player_node(it.carriers[0])
+		if p:
+			return _drag_xform(p, it, g)
+	var hold := it.global_transform
+	if not it.carriers.is_empty():
+		hold.origin = _hold_mid(it)
+	return hold
+
+
+## Waar een drager bij samen dragen zijn greep houdt: voor zich op borsthoogte, hooguit
+## carry.team_turn_deg weg van de richting naar zijn maat (draai je weg, dan zwaait de vondst mee
+## maar gaat hij nooit door je heen).
+func team_hold(p: Player, mate: Vector3) -> Vector3:
+	var to := mate - p.global_position
+	to.y = 0.0
+	var fwd := -p.global_basis.z
+	fwd.y = 0.0
+	if to.length() < 0.05:
+		to = fwd
+	to = to.normalized()
+	fwd = fwd.normalized() if fwd.length() > 0.01 else to
+	var ang := clampf(to.signed_angle_to(fwd, Vector3.UP), -deg_to_rad(Tuning.get_f("carry", "team_turn_deg", 55.0)),
+			deg_to_rad(Tuning.get_f("carry", "team_turn_deg", 55.0)))
+	var dir := to.rotated(Vector3.UP, ang)
+	return p.global_position + Vector3.UP * (Player.EYE_STAND - Tuning.get_f("carry", "team_drop", 0.5)) \
+			+ dir * Tuning.get_f("carry", "team_hold", 0.55)
+
+
+func _drag_xform(p: Player, it: FindItem, g: Array[Vector3]) -> Transform3D:
 	var fwd := -p.global_basis.z
 	fwd.y = 0.0
 	fwd = fwd.normalized() if fwd.length() > 0.01 else Vector3.FORWARD
-	var at := p.global_position + fwd * (Tuning.get_f("carry", "drag_near", 0.45) + it.half_extents.length())
-	var hit: Dictionary = game.terrain.raycast(at + Vector3(0, 1.2, 0), at - Vector3(0, 2.0, 0), Layers.TERRAIN | Layers.LIFT)
+	var near_i := 0 if (it.global_transform * g[0]).distance_to(p.global_position) <= (it.global_transform * g[1]).distance_to(p.global_position) else 1
+	var basis := basis_from((g[1 - near_i] - g[near_i]).normalized(), it.carry_up, fwd, Vector3.UP)
+	var grip_w := p.global_position + fwd * Tuning.get_f("carry", "drag_near", 0.45)
+	var at := grip_w - basis * g[near_i]
+	var mid := at + basis * ((g[0] + g[1]) * 0.5)
+	var hit: Dictionary = game.terrain.raycast(mid + Vector3(0, 1.2, 0), mid - Vector3(0, 2.0, 0), Layers.TERRAIN | Layers.LIFT)
 	var ground: float = hit.position.y if not hit.is_empty() else p.global_position.y
-	at.y = ground + it.bottom_offset(it.global_basis) + 0.03
-	return at
+	at.y = ground + it.bottom_offset(basis) + 0.03
+	return Transform3D(basis, at)
+
+
+## Een draaiing die lokale as `a_l` op wereldas `a_w` legt, met lokaal `up_l` zo dicht mogelijk bij `up_w`.
+static func basis_from(a_l: Vector3, up_l: Vector3, a_w: Vector3, up_w: Vector3) -> Basis:
+	var ul := (up_l - a_l * up_l.dot(a_l))
+	ul = ul.normalized() if ul.length() > 0.01 else a_l.cross(Vector3.RIGHT).normalized()
+	var uw := (up_w - a_w * up_w.dot(a_w))
+	uw = uw.normalized() if uw.length() > 0.01 else a_w.cross(Vector3.RIGHT).normalized()
+	var l := Basis(a_l, ul, a_l.cross(ul))
+	var w := Basis(a_w, uw, a_w.cross(uw))
+	return (w * l.transposed()).orthonormalized()
+
+
+## De greep van deze drager in de wereld (waar zijn handen horen), of INF. Met twee: zijn eigen greep;
+## alleen: het dichtste uiteinde (zware stukken) of INF (lichte: gewoon tussen de handen).
+func grip_world(it: FindItem, peer: int) -> Vector3:
+	var idx := grip_index(it, peer)
+	return it.global_transform * it.grips()[idx] if idx >= 0 else Vector3.INF
+
+
+func grip_index(it: FindItem, peer: int) -> int:
+	var i := it.carriers.find(peer)
+	if i < 0:
+		return -1
+	if it.carriers.size() >= 2:
+		return mini(i, 1)
+	if FindKinds.liftable_alone(it.mass):
+		return -1
+	var p: Player = game.player_node(peer)
+	if p == null:
+		return 0
+	var g := it.grips()
+	return 0 if (it.global_transform * g[0]).distance_to(p.global_position) <= (it.global_transform * g[1]).distance_to(p.global_position) else 1
+
+
+## Wat deze speler draagt (voor zijn armen bij de anderen), of null.
+func carried_by(peer: int) -> FindItem:
+	var it: Variant = _carried_by.get(peer)
+	return it if is_instance_valid(it) and (it as FindItem).carriers.has(peer) else null
 
 
 ## Host: slepen schuurt (ontwerp-8: alleen kan, maar het kost). Per meter carry.drag_wear gaafheid,
@@ -662,9 +777,13 @@ func _physics_process(delta: float) -> void:
 			continue
 		if it.carriers.size() > 0:
 			_stowed.erase(it.find_id)
-			# Draagt de host hem zelf, dan zet zijn Carry hem (met naslepen en wiegen).
+			# Draagt de host hem zelf, dan zet zijn Carry hem (met naslepen en wiegen). Met twee of gesleept
+			# de hele stand (de grepen bij de handen), anders enkel de plek.
 			if not it.carriers.has(multiplayer.get_unique_id()):
-				it.global_position = carry_target(it)
+				if it.carriers.size() >= 2 or it.dragged():
+					it.global_transform = carry_xform(it)
+				else:
+					it.global_position = carry_target(it)
 			if it.dragged():
 				_drag_wear(it)
 			else:

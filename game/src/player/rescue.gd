@@ -122,7 +122,7 @@ func aimed_body(p: Player) -> int:
 ## - Met twee (golf 3, gevoel2-06): liggend tussen de twee dragers, op de rug, het hoofd bij de eerste
 ##   drager; elk houdt een kant vast (schouders en knieën).
 ## - Alleen (te zwaar om te tillen, zoals zware buit): je houdt hem onder de oksels vóór je, rechtop
-##   en wat achterover, zijn gezicht naar jou; de benen slepen over de grond. Zo zie je wie je draagt.
+##   en wat van je weg gekanteld, zijn gezicht naar jou; de benen slepen over de grond (stof). Zo zie je wie je draagt.
 func carry_target(peer: int) -> Transform3D:
 	var rd := ragdoll_of(peer)
 	var cs: Array[Player] = []
@@ -156,6 +156,18 @@ func carry_target(peer: int) -> Transform3D:
 	var up := (Vector3.UP - fwd * Tuning.get_f("rescue", "carry_alone_lean", 0.45)).normalized()
 	var z := (fwd - up * fwd.dot(up)).normalized() # het gezicht (−Z) naar de drager
 	return Transform3D(Basis(up.cross(z), up, z), at)
+
+
+## Waar de handen van drager `peer` een robot vasthouden (wereld): de schouders, of met twee de heupen
+## voor de tweede drager. INF als hij niemand draagt. Voor zijn armen bij de anderen (RobotRig.reach).
+func grip_of_carrier(peer: int) -> Vector3:
+	for p: int in ragdolls.keys():
+		var c := info(p).carriers
+		var i := c.find(peer)
+		var rd := ragdoll_of(p)
+		if i >= 0 and rd:
+			return rd.torso.global_transform * (Vector3(0.0, -0.05, 0.0) if c.size() >= 2 and i == 1 else Vector3(0.0, 0.3, 0.0))
+	return Vector3.INF
 
 
 ## Waar een drager zijn kant van een robot vasthoudt: voor zich op borsthoogte, naar zijn maat toe.
@@ -500,6 +512,7 @@ func _rpc_carriers(peer: int, carriers: PackedInt32Array) -> void:
 func _physics_process(delta: float) -> void:
 	if game == null or game.terrain == null:
 		return
+	_drag_dust()
 	if multiplayer.is_server():
 		_host_tick(delta)
 	else:
@@ -511,6 +524,31 @@ func _physics_process(delta: float) -> void:
 			if info(peer).carriers.has(me):
 				continue # zelf drager: Carry zet de romp (voorspelling)
 			rd.follow_snapshots(game.mol)
+
+
+## Een robot die alleen gesleept wordt, schuurt over de grond (golf 3, gevoel2-06): om de halve meter een
+## stofwolkje onder zijn benen, op elk peer (enkel beeld; het geluid komt later hier, M6).
+var _drag_from := {} # peer -> plek van de romp bij het vorige wolkje
+
+
+func _drag_dust() -> void:
+	for peer: int in ragdolls.keys():
+		var rd := ragdoll_of(peer)
+		if rd == null or info(peer).carriers.size() != 1:
+			_drag_from.erase(peer)
+			continue
+		var at := rd.torso.global_position
+		var last: Variant = _drag_from.get(peer)
+		if last == null or at.distance_to(last as Vector3) > 3.0:
+			_drag_from[peer] = at
+			continue
+		if Vector2(at.x - (last as Vector3).x, at.z - (last as Vector3).z).length() < 0.5:
+			continue
+		_drag_from[peer] = at
+		var hit: Dictionary = game.terrain.raycast(at, at + Vector3.DOWN * 1.5, Layers.TERRAIN | Layers.LIFT)
+		if not hit.is_empty():
+			var floor_p: Vector3 = hit.position
+			game.fx.grit_puff(floor_p, Vector3.UP, Strata.DEBRIS_COLORS[game.terrain.layer_at(floor_p)])
 
 
 func _host_tick(delta: float) -> void:
