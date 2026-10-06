@@ -86,6 +86,7 @@ func _run(pl: Player) -> void:
 		"scanner": await _scanner()
 		"sprint": await _sprint()
 		"crouch": await _crouch()
+		"heavy_kinds": await _heavy_kinds()
 		_: _log("onbekende take")
 	_log("klaar")
 	get_tree().quit(0)
@@ -646,6 +647,59 @@ func _sprint() -> void:
 	_log("weer lopen: fov %.1f" % p.camera.fov)
 	Input.action_release("move_forward")
 	await _wait(0.6)
+
+
+## De nieuwe zware stukken van golf 3 (ontwerp-8) naast een robot en een titanschedel: de loonzak
+## (Roestbol) en de reuzengeode (Kristalmaan), en samen gedragen.
+func _heavy_kinds() -> void:
+	var finds: FindField = game.finds
+	var at := t.spawn_point() + Vector3(0.0, 0.0, 12.0)
+	at.y = t.surface_height_at(at.x, at.z) + 0.1
+	p.global_position = at
+	await _ready_area(at)
+	await _wait(1.0)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 9
+	var kinds := [FindKinds.Kind.PAYROLL, FindKinds.Kind.GIANT_GEODE, FindKinds.Kind.TITAN_SKULL]
+	var placed: Array[FindItem] = []
+	for i in kinds.size():
+		var k: int = kinds[i]
+		var it := finds._place(rng, func() -> Array: return [at + Vector3(rng.randf_range(-3, 3), -8.0 - i * 3.0, 0.0), k], 12)
+		if it:
+			_free_loose(it, at + Vector3(-2.4 + i * 2.4, 0.8, -3.0))
+			placed.append(it)
+	await _wait(2.0)
+	_mate = await _spawn_mate(at + Vector3(4.6, 0.0, -3.0))
+	await _wait(0.3)
+	_observer(at + Vector3(0.0, 1.8, 2.5), at + Vector3(0.0, 0.3, -3.0))
+	await _wait(0.3)
+	await _snap("naast_elkaar")
+	for it in placed:
+		_log("%s: %.0f kg, %s, breekbaar %.1f" % [it.display_name(), it.mass, "te zwaar alleen" if not FindKinds.liftable_alone(it.mass) else "alleen te tillen", it.fragility])
+	# Samen de loonzak dragen.
+	var sack := placed[0]
+	_stand(sack.global_position + Vector3(0.0, 0.0, 1.6), sack.global_position)
+	_body = RobotRig.new()
+	p.add_child(_body)
+	_body.setup(p.color)
+	_body.set_carrying(true)
+	_body.visible = false
+	await _wait(0.3)
+	finds.request_grab(sack.find_id)
+	_mate.global_position = sack.global_position + Vector3(0.0, -0.6, -1.6)
+	_mate.rotation.y = 0.0
+	await _wait(0.3)
+	finds._grab(2, sack.find_id)
+	if _mate.rig:
+		_mate.rig.set_carrying(true)
+	await _wait(1.5)
+	var mid := (p.global_position + _mate.global_position) * 0.5
+	_observer(mid + Vector3(4.5, 1.8, 0.0), mid + Vector3(0.0, 0.8, 0.0))
+	await _wait(0.2)
+	await _snap("loonzak_samen")
+	_own_view()
+	await _wait(0.2)
+	await _snap("loonzak_eigen")
 
 
 ## Gehurkt de spleet van feel_bench in (oppervlakte, 30 m W, 25 m Z van de schacht), loslaten.

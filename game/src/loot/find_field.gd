@@ -181,6 +181,12 @@ func _place_heap(rng: RandomNumberGenerator, center: Vector3, pool: Array, radiu
 		var a := float(i) / n * TAU + rng.randf_range(-0.3, 0.3)
 		_place(rng, func() -> Array:
 			return [center + Vector3(cos(a) * radius, rng.randf_range(-0.6, 0.6), sin(a) * radius), k], 10)
+	# Golf 3 (ontwerp-8): in een deel van de kampen ligt de loonzak van een vorige ploeg (te zwaar
+	# voor één: samen dragen, ook op Roestbol). Enkel waar de planeet er heeft (planets.cfg).
+	var share := PlanetLoot.value(int(game.planet_type), "heavy_camp_share", 0.0)
+	if share > 0.0 and rng.randf() < share:
+		_place(rng, func() -> Array:
+			return [center + Vector3(rng.randf_range(-0.5, 0.5), rng.randf_range(-0.4, 0.2), rng.randf_range(-0.5, 0.5)), FindKinds.Kind.PAYROLL], 10)
 
 
 ## Kristalgrot: 3-5 kristallen net achter de wand van grot `cv`, samen in een boog van ±70°.
@@ -194,6 +200,14 @@ func _place_pocket(rng: RandomNumberGenerator, cv: Vector4, a0: float) -> void:
 			var r := cv.w + rng.randf_range(0.7, 1.8)
 			return [Vector3(cv.x + cos(a) * r, cv.y + rng.randf_range(-0.5, 0.3) * cv.w / PlanetGenerator.CAVERN_SQUASH,
 					cv.z + sin(a) * r), k], 12)
+	# Golf 3 (ontwerp-8): in een deel van de kristalgrotten een reuzengeode (breekbaar en te zwaar voor
+	# één: samen voorzichtig dragen, ook op de Kristalmaan).
+	var share := PlanetLoot.value(int(game.planet_type), "heavy_pocket_share", 0.0)
+	if share > 0.0 and rng.randf() < share:
+		_place(rng, func() -> Array:
+			var a := a0 + rng.randf_range(-0.4, 0.4)
+			var r := cv.w + rng.randf_range(1.4, 2.4)
+			return [Vector3(cv.x + cos(a) * r, cv.y - 0.3 * cv.w / PlanetGenerator.CAVERN_SQUASH, cv.z + sin(a) * r), FindKinds.Kind.GIANT_GEODE], 12)
 
 
 ## Skeletten in deze wereld: set_id -> [stukken]. Voor tests, schermen en de taxatie (F1).

@@ -171,8 +171,11 @@ func _planets(p: Player) -> void:
 		_expect(st.set_ok, "%s: elk skelet heeft 3-8 stukken met een schedel, allemaal botten, met set_size = aantal stukken" % PlanetType.NAMES[i])
 		_expect(st.together, "%s: de stukken van een skelet liggen samen in één bed" % PlanetType.NAMES[i])
 		_expect(st.clustered > st.n * 0.5, "%s: buit geconcentreerd (%d%% met 2+ buren binnen 7 m)" % [PlanetType.NAMES[i], 100 * st.clustered / st.n])
-	_expect(rb.heavy == 0 and rb.sets >= 8 and rb.fam[3] > fw.fam[3] * 2 and rb.fam[3] > km.fam[3],
-			"Roestbol: rommel (%d tegen %d/%d) en kleine skeletten (%d), niets te zwaar" % [rb.fam[3], fw.fam[3], km.fam[3], rb.sets])
+	# Golf 3 (ontwerp-8): ook op Roestbol en de Kristalmaan een paar stukken om samen te dragen (een
+	# loonzak in de kampen, een reuzengeode in de kristalgrotten), maar veel minder dan op Fossielwereld.
+	_expect(rb.heavy >= 1 and rb.heavy <= 10 and rb.sets >= 8 and rb.fam[3] > fw.fam[3] * 2 and rb.fam[3] > km.fam[3],
+			"Roestbol: rommel (%d tegen %d/%d), kleine skeletten (%d), een paar zware stukken (%d)" % [rb.fam[3], fw.fam[3], km.fam[3], rb.sets, rb.heavy])
+	_expect(km.heavy >= 1 and km.heavy < fw.heavy / 3, "Kristalmaan: een paar zware stukken om samen te dragen (%d)" % km.heavy)
 	_expect(fw.titans >= 12 and fw.heavy >= 30 and fw.fam[0] > fw.n * 0.6,
 			"Fossielwereld: grote skeletten (%d Titan, %d stukken te zwaar voor één, %d%% botten)" % [fw.titans, fw.heavy, 100 * fw.fam[0] / fw.n])
 	_expect(fw.reach_sets >= 12, "Fossielwereld: de meeste skeletten bereikbaar met de boor T1 (%d)" % fw.reach_sets)
