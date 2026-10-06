@@ -17,6 +17,10 @@ const STRIP_RANGE := 20.0
 const TEXT_X := 618.0
 const MAX_BLIPS := 24
 const PHOSPHOR := Color(0.42, 1.0, 0.52)
+## De worm (ui2-05): rood-oranje, de kleur van gevaar in de HUD (UiTheme.DANGER), niet het groen van
+## een vondst. Dichterbij dan THREAT_TOP_M staat hij bovenaan de kolom, voor het doel.
+const THREAT := Color(1.0, 0.33, 0.1)
+const THREAT_TOP_M := 40.0
 
 ## Rendert enkel als iemand kijkt (de lokale speler in de Mol).
 var active := true:
@@ -54,6 +58,7 @@ func setup(screen: MeshInstance3D, lamp: MeshInstance3D, ping_button: MeshInstan
 	_scope.set_shader_parameter("strip", Vector4(STRIP.position.x, STRIP.position.y, STRIP.end.x, STRIP.end.y))
 	_scope.set_shader_parameter("strip_range", STRIP_RANGE)
 	_scope.set_shader_parameter("phosphor", PHOSPHOR)
+	_scope.set_shader_parameter("threat_col", THREAT)
 	rect.material = _scope
 	_viewport.add_child(rect)
 	# Dieptestrook: meters naast de streepjes.
@@ -139,6 +144,7 @@ func display(sonar: Sonar, origin: Transform3D, delta: float) -> void:
 		if wflat.length() > 0.93:
 			wflat = wflat.normalized() * 0.93
 		_scope.set_shader_parameter("threat", Vector4(wflat.x, wflat.y, float(sonar.threat.strength), wrel.y))
+		_scope.set_shader_parameter("threat_hot", 1.0 if sonar.threat.get("attacking", false) else 0.0)
 	else:
 		_scope.set_shader_parameter("threat", Vector4(0.0, 0.0, 0.0, 0.0))
 
@@ -169,7 +175,25 @@ func display(sonar: Sonar, origin: Transform3D, delta: float) -> void:
 		return
 	_text_timer = 0.1
 	var blink := fmod(Time.get_ticks_msec() / 1000.0, 0.8) < 0.5
-	if target == null:
+	var worm_d := float(sonar.threat.get("dist", INF)) if worm_on else INF
+	var worm_top := worm_d < THREAT_TOP_M
+	for key: String in ["head", "dist", "clock", "height", "size"]:
+		_tint(key, THREAT if worm_top else PHOSPHOR)
+	_tint("warn", THREAT if worm_on else PHOSPHOR)
+	if worm_top:
+		# De worm dichtbij: bovenaan de kolom, in zijn kleur, knipperend.
+		var wrel2: Vector3 = (sonar.threat.pos as Vector3) - origin.origin
+		var level2 := Tuning.get_f("mol", "sonar_level", 2.5)
+		_text("head", "! %s" % Worm.NAME.to_upper())
+		_text("dist", "%d m" % int(round(worm_d)))
+		_text("clock", "%d O'CLOCK" % Sonar.clock(Sonar.bearing(origin, sonar.threat.pos)))
+		_text("height", "LEVEL" if absf(wrel2.y) <= level2 else "%d m %s" % [int(round(absf(wrel2.y))), "ABOVE" if wrel2.y > 0.0 else "BELOW"])
+		_text("size", "ATTACKING" if sonar.threat.get("attacking", false) else "CLOSING")
+		_text("warn", "")
+		var hot := fmod(Time.get_ticks_msec() / 1000.0, 0.5) < 0.3
+		(_labels["head"] as Label).modulate.a = 1.0 if hot else 0.35
+		(_labels["size"] as Label).modulate.a = 1.0 if hot else 0.5
+	elif target == null:
 		_text("head", "")
 		_text("dist", "")
 		_text("clock", "NO")
@@ -188,9 +212,12 @@ func display(sonar: Sonar, origin: Transform3D, delta: float) -> void:
 		var close := dist < Tuning.get_f("mol", "sonar_warn", 8.0)
 		_text("warn", "! CLOSE\nSTOP HERE" if close else "")
 		(_labels["warn"] as Label).modulate.a = 1.0 if blink else 0.35
-	if worm_on:
-		# Iets groots komt eraan: dat gaat voor op het doel.
-		_text("warn", "! BIG CONTACT\n%d m" % int(round(float(sonar.threat.dist))))
+	if not worm_top:
+		(_labels["head"] as Label).modulate.a = 1.0
+		(_labels["size"] as Label).modulate.a = 1.0
+	if worm_on and not worm_top:
+		# De worm verder weg: onder het doel, in zijn kleur.
+		_text("warn", "! %s\n%d m" % [Worm.NAME.to_upper(), int(round(worm_d))])
 		(_labels["warn"] as Label).modulate.a = 1.0 if fmod(Time.get_ticks_msec() / 1000.0, 0.5) < 0.3 else 0.3
 	# PING: hoeveel er deze dienst nog over zijn, en of hij opgeladen is. Te vroeg gedrukt: het getal
 	# licht op en knippert (gevoel-13: een toets zonder antwoord voelt kapot).
@@ -221,9 +248,19 @@ func _label(key: String, text: String, pos: Vector2, size: int, alpha: float) ->
 	l.add_theme_font_override("font", UiTheme.screen())
 	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_color_override("font_color", Color(PHOSPHOR, alpha))
+	l.set_meta("alpha", alpha)
 	l.add_theme_constant_override("line_spacing", -8)
 	_viewport.add_child(l)
 	_labels[key] = l
+
+
+## De kleur van een regel (fosfor, of de kleur van de worm), met zijn eigen helderheid.
+func _tint(key: String, col: Color) -> void:
+	var l: Label = _labels[key]
+	if l.get_meta("tint", PHOSPHOR) == col:
+		return
+	l.set_meta("tint", col)
+	l.add_theme_color_override("font_color", Color(col, float(l.get_meta("alpha", 1.0))))
 
 
 func _text(key: String, text: String) -> void:

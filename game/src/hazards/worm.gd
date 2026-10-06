@@ -425,6 +425,7 @@ func _feed_mol(dt: float) -> void:
 	if mol.mode != _last_mode_mol:
 		if mol.mode == Mol.Mode.COUNTDOWN:
 			hear(mol.placed.origin, Tuning.get_f("worm", "loud_depart", 6.0) * _mult())
+			_rpc_climax_warn.rpc()
 		_last_mode_mol = mol.mode
 	_mol_noise_t += dt
 	if _mol_noise_t < 0.5:
@@ -1296,6 +1297,17 @@ func _rpc_bite(local: Vector3, normal: Vector3) -> void:
 		var how := ("Rock the Mole (%s / %s)" % [Settings.key_of("move_left"), Settings.key_of("move_right")]) if me.seated \
 				else ("%s in the hold: beacon out the back" % Settings.key_of("beacon"))
 		game.notice.emit("The %s bit the Mole! %s to shake it off!" % [NAME, how], "alarm")
+
+
+## De Mol vertrekt en de worm is wakker: hij hoort de motor (ontwerp2-3: wat de ploeg dan kan doen).
+@rpc("authority", "call_local", "reliable")
+func _rpc_climax_warn() -> void:
+	var me: Player = game.local_player
+	var mol: Mol = game.mol
+	if me == null or mol == null or mol.body == null or not is_awake():
+		return
+	if me.seated or mol.contains_point(me.global_position):
+		game.notice.emit("The %s hears the engine! %s: beacon out the back hatch." % [NAME, Settings.key_of("beacon")], "warn")
 
 
 @rpc("authority", "call_local", "reliable")

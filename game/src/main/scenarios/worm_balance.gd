@@ -166,6 +166,8 @@ func _climax(game: Game, how: String) -> void:
 	var dropped := 0
 	var freed := 0
 	var drop_cd := 0.0
+	var shake_t := 0.0
+	var shake_sign := 1.0
 	mol.host_emergency(10.0, "test")
 	var tt := 0.0
 	var travelled := 0.0
@@ -177,23 +179,27 @@ func _climax(game: Game, how: String) -> void:
 		drop_cd -= dt
 		travelled += mol.body.global_position.distance_to(last)
 		last = mol.body.global_position
-		if crew and mol.mode == Mol.Mode.EXTRACTING:
-			# De ploeg kijkt naar de sonar: is de worm achter de Mol binnen 22 m, dan gaat er een baken
-			# uit de achterklep (hooguit om de 12 s, zolang er bakens zijn).
-			if beacons.left > 0 and drop_cd <= 0.0 and worm.pos.distance_to(mol.body.global_position) < 22.0 \
-					and beacons.has_method("host_launch"):
-				if beacons.host_launch(1):
-					dropped += 1
-					drop_cd = 12.0
-			# Bijt hij, dan slaat de ploeg hem los (twee slagen, ±1,5 s na de beet).
-			if worm.has_method("biting") and worm.biting() and worm.has_method("host_hit"):
-				if float(worm.get("_bite_t")) > 1.5:
-					worm.host_hit(1, worm.pos)
+		if crew and mol.mode == Mol.Mode.EXTRACTING and beacons.has_method("launch_point"):
+			# De ploeg kijkt naar de sonar: is de worm binnen 20 m, dan gaat er een baken uit de
+			# achterklep (hooguit om de 12 s, zolang er bakens zijn; zoals Beacons.host_launch).
+			if beacons.left > 0 and drop_cd <= 0.0 and worm.pos.distance_to(mol.body.global_position) < 20.0 and not worm.biting():
+				beacons._rpc_left.rpc(beacons.left - 1)
+				beacons._rpc_spawn.rpc(800 + dropped, beacons.launch_point(mol), Vector3.ZERO)
+				dropped += 1
+				drop_cd = 12.0
+			# Bijt hij, dan schudt de piloot hem los: na ±1,2 s reageren, om de 0,25 s links-rechts.
+			if worm.biting():
+				shake_t += dt
+				if shake_t > 1.2 and fmod(shake_t, 0.25) < dt:
+					shake_sign = -shake_sign
+					worm.host_shake(shake_sign)
 					freed += 1
+			else:
+				shake_t = 0.0
 	if worm.has_method("bites_done"):
 		_bites = worm.bites_done()
 	_p("climax (%s): %d keer geraakt in %.0f s over %.0f m%s → lading −%d%%" % [how, _hits, tt, travelled,
-			(", %d bakens uit de klep, %d slagen" % [dropped, freed]) if crew else "", _loss(cargo)])
+			(", %d bakens uit de klep, %d keer geschud" % [dropped, freed]) if crew else "", _loss(cargo)])
 	if mol.mode != Mol.Mode.PARKED:
 		mol._rpc_mode(Mol.Mode.PARKED, 0, 0.0)
 	for b: RigidBody3D in beacons._items.values():
@@ -201,6 +207,10 @@ func _climax(game: Game, how: String) -> void:
 			b.queue_free()
 	beacons._items.clear()
 	beacons._stowed.clear()
+	for r: Decal in beacons._rings.values():
+		if is_instance_valid(r):
+			r.queue_free()
+	beacons._rings.clear()
 
 
 func _wait(s: float) -> void:

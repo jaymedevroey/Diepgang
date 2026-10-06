@@ -102,6 +102,20 @@ func _process(delta: float) -> void:
 		queue_redraw()
 
 
+## Het teken van de worm (16 px): een open muil (een ring met tanden) en drie segmenten erachter.
+func _worm_icon(c: Vector2, col: Color) -> void:
+	var dark := Color(0, 0, 0, 0.75)
+	for i in 3:
+		var p := c + Vector2(-5.0 - i * 4.5, 3.0 + i * 1.5)
+		draw_circle(p, 3.6 - i * 0.6, dark)
+		draw_circle(p, 2.6 - i * 0.6, col)
+	draw_circle(c, 7.0, dark)
+	draw_arc(c, 5.0, 0.0, TAU, 20, col, 2.6)
+	for k in 6:
+		var a := TAU * k / 6.0 + 0.3
+		draw_line(c + Vector2(cos(a), sin(a)) * 4.6, c + Vector2(cos(a), sin(a)) * 1.6, col, 1.6)
+
+
 static func _clock(s: float) -> String:
 	var n := maxi(0, int(s))
 	return "%d:%02d" % [n / 60, n % 60]
@@ -161,12 +175,15 @@ func _draw() -> void:
 		draw_string_outline(_head, Vector2(WIDTH - 6.0, y - 8.0), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, 6, Color(0, 0, 0, 0.8 * a))
 		draw_string(_head, Vector2(WIDTH - 6.0, y - 8.0), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(UiTheme.DANGER, a))
 	if worm > 0.05:
-		# Gerommel: een seismograaf die uitslaat.
-		var label := "TREMOR"
-		var lw := _head.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x
-		var c := UiTheme.CREAM.lerp(UiTheme.DANGER, smoothstep(0.3, 0.8, worm))
-		draw_string_outline(_head, Vector2(0.0, y + 20.0), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, 5, Color(0, 0, 0, 0.75))
-		draw_string(_head, Vector2(0.0, y + 20.0), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, c)
+		# Gerommel: een seismograaf die uitslaat, met de naam van de worm en zijn teken (een muil met
+		# een lijf erachter), in de kleur van gevaar (ui2-05: één naam overal, niet "TREMOR").
+		var label := Worm.NAME.to_upper()
+		var c := UiTheme.AMBER.lerp(UiTheme.DANGER, smoothstep(0.3, 0.7, worm))
+		_worm_icon(Vector2(17.0, y + 12.0), c)
+		var lx := 29.0
+		var lw := lx + _head.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x
+		draw_string_outline(_head, Vector2(lx, y + 20.0), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, 5, Color(0, 0, 0, 0.75))
+		draw_string(_head, Vector2(lx, y + 20.0), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, c)
 		var box := Rect2(lw + 12.0, y + 2.0, WIDTH - lw - 12.0, 22.0)
 		draw_rect(box, Color(0, 0, 0, 0.5))
 		var pts := PackedVector2Array()

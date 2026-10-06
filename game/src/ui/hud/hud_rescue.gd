@@ -138,6 +138,12 @@ func _draw() -> void:
 		Rescue.Life.KNOCKED:
 			title = "KNOCKED DOWN"
 			col2 = UiTheme.AMBER
+			if rescue.is_held(me):
+				# In de muil van de worm (pakket G1).
+				title = "GRABBED BY THE %s" % Worm.NAME.to_upper()
+				col2 = UiTheme.DANGER
+				sub1 = "Mash %s to break free" % Settings.key_of("jump")
+				sub2 = "Your crew can hit it with a pickaxe or throw a beacon"
 		Rescue.Life.DOWNED:
 			title = "ROBOT DOWN"
 			var carried := not rescue.carriers_of(me).is_empty()

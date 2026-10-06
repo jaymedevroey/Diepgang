@@ -492,7 +492,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		game.mol.press(Mol.Cmd.HORN)
 	elif event.is_action_pressed("sonar_ping") and captured and (seated or game.mol.contains_point(global_position)):
 		game.mol.press(Mol.Cmd.PING)
-	elif event.is_action_pressed("beacon") and captured and not seated and game.beacons:
+	elif event.is_action_pressed("beacon") and captured and game.beacons and (not seated or game.beacons.launch_ready(game.mol)):
+		# In de stoel enkel door de achterklep van een rijdende Mol (pakket G1).
 		game.beacons.request_throw(self)
 	elif seated:
 		return # geen gereedschap in de stoel

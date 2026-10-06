@@ -124,21 +124,33 @@ func host_launch(sender: int) -> bool:
 		return false
 	if not (p.seated or mol.contains_point(p.global_position)) or not launch_ready(mol):
 		return false
-	var travel := mol.forward()
-	if absf(mol.speed) > 0.1:
-		travel *= signf(mol.speed)
-	elif mol.mode in [Mol.Mode.COUNTDOWN, Mol.Mode.EXTRACTING]:
-		travel = -travel # de terugrit is achteruit
-	var at := mol.body.global_position - travel * Tuning.get_f("beacon", "launch_back_m", 8.5)
-	var down: Dictionary = game.terrain.raycast(at + Vector3.UP * 2.0, at + Vector3.DOWN * 6.0)
-	if not down.is_empty():
-		at = (down.position as Vector3) + Vector3.UP * 0.4
+	var travel := _travel(mol)
+	var at := launch_point(mol)
 	var id := _next_id
 	_next_id += 1
 	_rpc_left.rpc(left - 1)
 	_rpc_spawn.rpc(id, at, -travel * 3.0 + Vector3.UP * 1.5)
 	_rpc_launched.rpc(at)
 	return true
+
+
+## De rijrichting van de Mol (de terugrit is achteruit).
+func _travel(mol: Mol) -> Vector3:
+	var travel := mol.forward()
+	if absf(mol.speed) > 0.1:
+		travel *= signf(mol.speed)
+	elif mol.mode in [Mol.Mode.COUNTDOWN, Mol.Mode.EXTRACTING]:
+		travel = -travel
+	return travel
+
+
+## Waar een baken uit de achterklep valt: achter de Mol in de rijrichting, op de vloer.
+func launch_point(mol: Mol) -> Vector3:
+	var at := mol.body.global_position - _travel(mol) * Tuning.get_f("beacon", "launch_back_m", 8.5)
+	var down: Dictionary = game.terrain.raycast(at + Vector3.UP * 2.0, at + Vector3.DOWN * 6.0)
+	if not down.is_empty():
+		at = (down.position as Vector3) + Vector3.UP * 0.4
+	return at
 
 
 @rpc("authority", "call_local", "reliable")
