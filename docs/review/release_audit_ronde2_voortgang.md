@@ -27,28 +27,28 @@ Hier staan de oude punten die 'beter, niet genoeg' of 'erger' waren en alle nieu
 | gevoel2-05 | G1 | deels | Model slaat opzij en kantelt, cabinecamera helt en schokt, lichten haperen, vonken. Open: de zijwaartse ruk leest weinig in stilstaand beeld; de schok van binnen niet gefilmd | G1: voor_na_*.png |
 | gevoel2-07 | G1 | klaar | Baken als fakkel: worp met de linkerhand, 18 m licht met vonken, gloeiende ring op de vloer zo groot als de veilige zone (14 m), sputtert de laatste 8 s | G1: films |
 | ui2-05 | G1 | klaar (ter goedkeuring: naam) | Eén naam: the Gulper; rood-oranje op de sonar met eigen teken, bovenaan dichtbij ('! GULPER 4 m · ATTACKING'); HUD-rij met icoon; rode gloed rond het scherm. Open: merkteken op het kompas | G1: beelden |
-| gevoel2-01 | G2 | open | | |
-| gevoel2-02 | G2 | open | | |
-| binnen2-03 | G2 | open | | |
-| gevoel2-03 | G2 | open | | |
-| gevoel2-06 | G2 | open | | |
-| binnen2-07 | G2 | open | | |
-| binnen-10 | G2 | open | | |
-| gevoel2-08 | G2 | open | | |
-| gevoel2-09 | G2 | open | | |
-| binnen2-04 | G2 | open | | |
-| gevoel2-10 | G2 | open | | |
-| ui2-02 | G2 | open | | |
-| ui2-03 | G2 | open | | |
-| ui2-15 | G2 | open | | |
-| gevoel-08 | G2 | open | | |
-| gevoel-19 | G2 | open | | |
-| binnen-05 | G2 | open | | |
-| gevoel2-13 | G2 | open | | |
-| gevoel2-14 | G2 | open | | |
-| gevoel2-15 | G2 | open | | |
-| gevoel2-16 | G2 | open | | |
-| ontwerp-8 | G2 | open | | |
+| gevoel2-01 | G2 | klaar (beeld; geluid apart) | Beving: haperende helmlamp (bug: de lamp van de lokale speler werd niet gevonden), gruis vóór je, rotsen in beeld; instorting 2,2 s aanzwellende waarschuwing; gas: gele schermrand in de bel, lont 0,9 s met vonken en gloed; geluidshaken fuse_lit, rubble_chipped, ImpactFx.hit (de worm: G1) | G2: voor_na/*.png (impact_film) |
+| gevoel2-02 | G2 | klaar | Klapmoment: 0,14 s stilstand, flits in de kleur van de bron, FOV-stoot, dan glijden naar een volgcamera die nooit in je robot, een maat of de wand zit; vast punt in de Mol; gedragen schuin opzij; opstaan in de kijkrichting | G2: voor_na/*.png |
+| binnen2-03 | G2 | klaar | Zie gevoel2-02; gegrepen door de worm staat de camera vóór de muil. Open: ±0,1 s door het lijf van de worm (geen botsvorm) | G2: take grabbed, lunge voor/na |
+| gevoel2-03 | G2 | klaar | Twee handgrepen, de vondst spant tussen de dragers; touw = afstand tussen de grepen plus armen (3,0 m i.p.v. 4,9) | net_test (Carry.team_limit) |
+| gevoel2-06 | G2 | klaar (ter goedkeuring: draagstand) | Alleen hou je je maat vóór je met zijn gezicht naar jou, benen slepen met stof; met twee ligt hij tussen jullie | G2: voor_na |
+| binnen2-07 | G2 | klaar | Handen op de greep, armen van de maat reiken ernaar (RobotRig.reach); scanner 7 cm hoger met hand zichtbaar | G2: voor_na |
+| binnen-10 | G2 | klaar | Een vondst in je handen houdt een rand van licht | G2: voor_na |
+| gevoel2-08 | G2 | klaar | Glazen scherven, lichtflits, 'SHATTERED' en '−58%' groot, schok | G2: voor_na |
+| gevoel2-09 | G2 | deels | Puin met de korst-shader in de laagkleur: barst, krimpt, schudt per slag, valt in brokken. Open: zandsteenpuin onder de helmlamp blijft licht | G2: voor_na |
+| binnen2-04 | G2 | deels | Zie gevoel2-09 | G2: voor_na |
+| gevoel2-10 | G2 | klaar | Ontploffing eerst uit eigen ogen (flits), grotere vuurbal, rook die blijft hangen, stofgolf | G2: voor_na |
+| ui2-02 | G2 | klaar | Mist en stof doven uit voor de camera; GAS op een HUD-plaatje van G6; gele schermrand | G2: voor_na |
+| ui2-03 | G2 | klaar | ROBOT BROKEN 4 s, daarna een zoeker met REC, de ploeg en toetsen uit de bindings (ZQSD op AZERTY); geen dubbele melding | G2: voor_na |
+| ui2-15 | G2 | klaar | Solo: 'Nobody to carry you · rebooting' | G2 |
+| gevoel-08 | G2 | klaar | Zie gevoel2-01; geen beige waas meer | G2: voor_na |
+| gevoel-19 | G2 | deels | Verse kuil in een donkere versie van de laagkleur. Open: bleke klei uit de terreinshader | G2 |
+| binnen-05 | G2 | klaar | Zie gevoel2-01 | G2: voor_na |
+| gevoel2-13 | G2 | klaar | 'Too low to stand up' en je schuift vanzelf naar een plek met ruimte | headless: recht na het loslaten |
+| gevoel2-14 | G2 | klaar | Onderste regel van de scanner in beeld op 1080p | G2 |
+| gevoel2-15 | G2 | klaar | Geen witte schijven meer voor de camera | G2 |
+| gevoel2-16 | G2 | klaar | Sprint: FOV +7° (80 → 87), langere en hogere passen, kantelen in de bocht; uit met Head bob | G2: feel_bench |
+| ontwerp-8 | G2 | deels (ter goedkeuring: loonzak, reuzengeode) | F3: zware stukken met twee, zijscan. G2: zware stukken op elke planeet (loonzak in kampen op Roestbol, reuzengeode op Kristalmaan); een maat dragen en redden (F2/G2). Open: zijscan enkel als de Mol rijdt | find_test |
 | ui2-01 | G3 | klaar | Geen zwevende tekst meer; groot podiumscherm boven de poort (soort, gaafheid als stempel, oplopende teller, doelbonus/skelet 3/5, quotabalk); scherm op het luik telt per stuk op; één verkoopmelding | G3: vergelijk_poort, vergelijk_luik, g3_ceremonie.mp4 |
 | gevoel2-04 | G3 | klaar | Wie zelf draagt krijgt de onthulling boven het vizier (HudReveal); aan het luik gaan de stukken één voor één het luik in, teller op ooghoogte, quotabalk vult, stempel QUOTA MET; geluidshaken via Appraisal.cue | G3: g3_ceremonie.mp4 |
 | binnen2-10 | G3 | klaar | De poort doet zelf iets: lopende band, scanstraal over het stuk, lichtstroken wit/goud/fel goud per waardeklasse, regenboog bij een compleet skelet, lamp kleurt het stuk | G3: vergelijk_poort |
