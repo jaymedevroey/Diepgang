@@ -13,6 +13,16 @@ De keuzes staan in GDD §4 (Buit) en §6 ("Golf 3").
 - **Stof en mist doven uit vlak voor de camera** (`distance_fade_mode = PIXEL_ALPHA`): geen witte schijven meer, en in een gasbel zie je de grot en de HUD in plaats van een egale gele muur. Goedkoper en sterker dan de HUD tegen de mist op te boksen.
 - **Twee handgrepen:** de stand van een vondst tussen twee dragers is een draaiing die twee vectorparen op elkaar legt (de lange as op de lijn tussen de grepen, de bovenkant zo dicht mogelijk bij boven): `FindField.basis_from`. Op elk peer dezelfde regel, de volgorde van de dragers (wie welke greep) gaat mee in het bericht van de host.
 
+## 2026-10-06 — Golf 3, pakket G5: de ondergrond
+
+- **Een plek om naartoe te gaan moet je ook vinden.** Set pieces in grotten helpen pas als de eerste ervan te zien is: daarom een startgrot met een oude gang vanaf de rand van de landingsplek (een gat met stutten en lampjes), niet enkel taferelen diep in de rots. In GDD §4 ("golf 3").
+- **Wat uit de seed komt, plan je één keer en deel je:** CaveSetPieces maakt een lijst (soort, grot, vloerpunt) uit de SDF van de generator; FindField leest dezelfde lijst voor de buit. Achteraan in FindField.generate, zodat alle vondsten ervoor op dezelfde plek blijven.
+- **`sin()` van grote getallen als hash gaf rechthoekige blokken** in een schermshader met TIME erin (dezelfde fout als de rechte naden in het magma). Altijd de hash zonder sin (Hoskins).
+- **Een icosaëder uit een tabel heeft de "OpenGL"-draairichting:** in Godot is met de klok mee de voorkant, dus a, c, b; anders tekent cull_back de binnenkant en wijst generate_normals naar binnen.
+- **Een bestand dat PowerShell met Set-Content schrijft, krijgt een BOM.** Een tuningbestand even aanpassen voor een proef: achteraf uit versiebeheer terugzetten, niet terugschrijven.
+- **De scratchpad wordt gedeeld door parallelle agents:** eigen submap en eigen scriptnamen, anders overschrijft een ander je hulpscript (en draait het in zijn worktree).
+- **Een glinster is een facet, geen bol:** een hard ruitje met korte stralen dat oplicht als zijn eigen (gekantelde) normaal naar de lamp op je hoofd kijkt. Zachte schijfjes met bloom lezen als bokeh.
+
 ## 2026-10-06 — Release-audit golf 3, pakket G6: tekst, toetsen, HUD-stijl
 
 **De stijlregels hebben nu een test** (ui2-07): `TextLint` (`game/src/ui/text_lint.gd`) loopt elke

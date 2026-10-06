@@ -117,6 +117,8 @@ De Ekster (moederschip) → planeet en opdracht kiezen → drop met de Mol → b
 - **Bovenaan een oppervlak in open lucht:** een kale buitenaardse vlakte met kraters en rotsblokken, onder een vreemde hemel met manen en ringen. De Ekster hangt hoog in de lucht.
 - **Rand:** een onbreekbare buitenmuur, het concessiegebied van DIG. De Mol stopt ervoor.
 - **Grotten** op elke diepte, waarvan enkele groot genoeg voor de Mol.
+  - **Grotten als bestemming (golf 3):** ±1 op 3 grotten heeft een set piece uit de seed, met goede buit in de wanden en de vloer errond: een verlaten DIG-kamp (tent, werflamp die nog hapert, kisten, "BACK IN 5 MIN"), een gestrande oude Mol met de neus in de wand, een reusachtige ribbenkast (decor, geen buit) of een geodekamer met reuzenkristallen. De twee dichtste grotten in de klei hebben er altijd een. Enkel props: het terrein verandert er niet door.
+  - **De startgrot (golf 3):** op elke planeet een grot in de klei bij de landingsplek (±60 m van het midden, ±14 m diep), met een oude toegangsgang van de vorige ploeg vanaf de rand van de landingsplek (±30°, te belopen, met houten stutten en lampjes). Daarin het kamp van de vorige ploeg, en per planeet iets eigens (Roestbol: hun oude Mol, Fossielwereld: een ribbenkast, Kristalmaan: kristallen). Zo heeft de eerste dienst meteen een plek om naartoe te gaan. Uit te zetten in `setpieces.cfg`.
 - **Terrein kan je enkel wegnemen, nooit toevoegen.** Daardoor maakt de volgorde van graafacties niet uit en blijft de synchronisatie eenvoudig.
 
 ### Lagen

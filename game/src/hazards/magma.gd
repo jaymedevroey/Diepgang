@@ -61,6 +61,7 @@ var _smoke: GPUParticles3D
 var _screen: ColorRect
 var _screen_mat: ShaderMaterial
 var _danger_warned := false
+var _warn_t := 0.0 # hoe lang al in de hittezone zonder waarschuwing
 var _melt_t := -1.0 # lokaal: seconden sinds het smelten begon (-1 = niet)
 var _after_t := -1.0 # lokaal: seconden sinds de vervanger er staat (het beeld gaat weer open)
 var _light: OmniLight3D
@@ -357,18 +358,24 @@ func _update_heat(delta: float) -> void:
 			danger = 0.0 # onder het magma (door de rots heen): niet hier
 		if danger > 0.0 and _melt_t < 0.0:
 			p.camera_fx.hold_trauma(0.18 + 0.3 * danger)
+			# De waarschuwing pas na een korte tel: wie er meteen in valt, krijgt enkel de melding van
+			# het smelten (golf 3, binnen2-05: één alarm in plaats van drie onder elkaar).
 			if not _danger_warned:
-				_danger_warned = true
-				game.notice.emit("Too hot! Get away from the magma before your robot melts.", "alarm")
+				_warn_t += delta
+				if _warn_t > Tuning.get_f("magma", "warn_delay_s", 0.45):
+					_danger_warned = true
+					game.notice.emit("Too hot! Get away from the magma before your robot melts.", "alarm")
 		elif danger <= 0.0 and feet > heat_m + 2.0:
 			_danger_warned = false
+			_warn_t = 0.0
 	var melt := 0.0
 	var black := 0.0
 	if _melt_t >= 0.0:
 		_melt_t += delta
 		var ms := Tuning.get_f("magma", "melt_s", 1.5)
-		melt = smoothstep(0.0, ms * 0.45, _melt_t)
-		black = smoothstep(ms * 0.45, ms, _melt_t)
+		# Eerst stijgt de lava het beeld in (60 % van de tijd), dan wordt het zwart.
+		melt = smoothstep(0.0, ms * 0.6, _melt_t)
+		black = smoothstep(ms * 0.7, ms, _melt_t)
 		if _melt_t > ms + 3.0:
 			_melt_t = -1.0 # geen vervanger gekomen (verbinding weg): niet zwart blijven
 	elif _after_t >= 0.0:
@@ -377,12 +384,18 @@ func _update_heat(delta: float) -> void:
 		if _after_t > 0.9:
 			_after_t = -1.0
 	var shimmer_k := shimmer * 0.6
-	_screen.visible = shimmer_k > 0.02 or danger > 0.0 or melt > 0.0 or black > 0.0
+	# De camera onder het oppervlak (wie smelt, een preview): het hele beeld is lava, geen waas van de
+	# mist die het magma van onderen aanlicht. Niet meer zodra het zwart wordt.
+	var under := 0.0
+	if cam and visible:
+		under = clampf((level - cam.global_position.y + 0.05) / 0.35, 0.0, 1.0) * (1.0 - black)
+	_screen.visible = shimmer_k > 0.02 or danger > 0.0 or melt > 0.0 or black > 0.0 or under > 0.0
 	if _screen.visible:
 		_screen_mat.set_shader_parameter("shimmer", shimmer_k)
 		_screen_mat.set_shader_parameter("danger", danger)
 		_screen_mat.set_shader_parameter("melt", melt * (1.0 - black))
 		_screen_mat.set_shader_parameter("black", black)
+		_screen_mat.set_shader_parameter("under", under)
 
 
 func _build_screen() -> void:
@@ -596,7 +609,8 @@ func _rpc_melted(peer_id: int) -> void:
 	if p and p.is_local:
 		_melt_t = -1.0
 		_after_t = 0.0
-		game.notice.emit("Your robot melted. Everything it carried is gone.", "alarm")
+		# De enige melding bij het smelten (Rescue zwijgt dan): wat er gebeurde, en wat nu.
+		game.notice.emit("Your robot melted, and everything it carried. You're a ghost drone now.", "alarm")
 	elif p:
 		game.notice.emit("A robot melted in the magma.", "warn")
 

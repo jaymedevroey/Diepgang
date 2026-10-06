@@ -192,6 +192,55 @@ vec4 nodule(vec3 p, float size, float chance, float rmin, float rmax, float salt
 	return vec4(d, hash1(ci + vec3(salt + 3.1)), step(1.0 - chance, h), border);
 }
 
+// Zoals nodule(), maar ook de plek in de knol: `off` = (p - midden) / straal (lengte = x).
+vec4 nodule_at(vec3 p, float size, float chance, float rmin, float rmax, float salt, out vec3 off) {
+	vec3 q = p / size;
+	vec3 ci = floor(q);
+	vec3 f = fract(q);
+	float h = hash1(ci + vec3(salt));
+	float r = mix(rmin, rmax, hash1(ci + vec3(salt + 7.3)));
+	vec3 c = vec3(0.5) + (hash33(ci + vec3(salt + 1.7)) - 0.5) * (1.0 - 2.0 * r) * 0.6;
+	off = (f - c) / r;
+	float d = length(off);
+	vec3 e = abs(f - 0.5);
+	float border = 1.0 - smoothstep(0.34, 0.49, max(max(e.x, e.y), e.z));
+	return vec4(d, hash1(ci + vec3(salt + 3.1)), step(1.0 - chance, h), border);
+}
+
+// Twee raakrichtingen bij normaal n (voor patronen op de wand zelf: facetten, sterretjes).
+void tangents(vec3 n, out vec3 t1, out vec3 t2) {
+	t1 = normalize(cross(n, abs(n.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0)));
+	t2 = cross(n, t1);
+}
+
+// Een glinster (golf 3, binnen2-09: geen zachte bolletjes meer, die lazen als bokeh): een klein,
+// hard facet met een sterretje, in een kubuscel van `gs` m met kans `chance`. Hij licht fel op als
+// zijn facet (een eigen normaal, wat gekanteld t.o.v. de wand) naar de camera kijkt: de lamp zit op je
+// hoofd, dus dat is de spiegeling. x = vorm (0..1), y = flits (0..1), z = hash.
+vec3 glint(vec3 wp, vec3 n, vec3 view, float gs, float chance, float salt) {
+	vec3 cp = wp / gs + vec3(salt);
+	vec3 ci = floor(cp);
+	float h = hash1(ci);
+	if (h < 1.0 - chance) {
+		return vec3(0.0);
+	}
+	vec3 t1;
+	vec3 t2;
+	tangents(n, t1, t2);
+	vec3 lq = fract(cp) - 0.5;
+	float a = hash1(ci + vec3(5.1)) * 3.14159;
+	vec2 q = vec2(dot(lq, t1), dot(lq, t2)) * 2.0;
+	q = vec2(q.x * cos(a) - q.y * sin(a), q.x * sin(a) + q.y * cos(a));
+	vec2 aq = abs(q);
+	// Een ruitje als kern met vier dunne stralen: hard, met een rand van één pixel.
+	float core = 1.0 - smoothstep(0.13, 0.18, aq.x + aq.y);
+	float rays = max(1.0 - smoothstep(0.0, 0.05, aq.y) , 0.0) * (1.0 - smoothstep(0.12, 0.45, aq.x))
+			+ max(1.0 - smoothstep(0.0, 0.05, aq.x), 0.0) * (1.0 - smoothstep(0.12, 0.45, aq.y));
+	vec3 fn = normalize(n + (hash33(ci + vec3(salt)) - 0.5) * 1.1);
+	float spec = pow(clamp(dot(fn, view), 0.0, 1.0), 18.0);
+	return vec3(max(core, rays * spec), spec, h);
+}
+
 // Afstand van p tot een staafje (kristal of bot) in een kubuscel: x = afstand tot de as / straal,
 // y = positie langs de as (-1..1), z = 1 als de cel er een heeft. w = hash.
 vec4 rod(vec3 p, float size, float chance, float rad, float half_len, float salt) {
@@ -395,15 +444,19 @@ void fragment() {
 			col *= mix(vec3(1.0), mix(vec3(0.88, 0.92, 1.0), vec3(1.1, 1.05, 0.98), hu), under_k); // elke eenheid een eigen tint
 			float mt = 1.5 + 2.0 * hash1(vec3(uid, seed_s, 9.7));
 			float mpos = 1.0 + (unit_h - mt - 2.0) * hash1(vec3(uid, seed_s, 2.3));
-			float bw = max(fwidth(uf), 1e-3) + 0.06;
-			float in_m = smoothstep(mpos - bw, mpos + bw, uf) * (1.0 - smoothstep(mpos + mt - bw, mpos + mt + bw, uf)) * under_k;
+			// Golvende randen (±25 cm) en een zachte overgang van ±20 cm: geen verfstreep (binnen2-14).
+			float wob = (vnoise(wpos * vec3(0.9, 0.3, 0.9) + vec3(uid * 1.7)) - 0.5) * 0.5;
+			float bw = max(fwidth(uf), 1e-3) + 0.2;
+			float in_m = smoothstep(mpos - bw + wob, mpos + bw + wob, uf) * (1.0 - smoothstep(mpos + mt - bw - wob, mpos + mt + bw - wob, uf)) * under_k;
+			// Korrel: de band is niet egaal, eerder een verzameling klonten.
+			in_m *= 0.72 + 0.28 * smoothstep(0.25, 0.7, vnoise(wpos * 2.4 + vec3(uid)));
 			float dz = clamp(depth / 70.0, 0.0, 1.0);
 			// Gewichten: bleek, donker, koel, grind, accent.
 			float w0 = 1.3 * (1.0 - dz) + 0.15;
 			float w1 = 1.4 * dz;
 			float w2 = 0.8;
 			float w3 = 0.7;
-			float w4 = 0.25 + 0.6 * dz;
+			float w4 = (planet_id == 1 ? 0.8 : 0.25) + 0.6 * dz; // Fossielwereld: meer botbedden
 			float r = hash1(vec3(uid, seed_s, 7.7)) * (w0 + w1 + w2 + w3 + w4);
 			int kind = r < w0 ? 0 : (r < w0 + w1 ? 1 : (r < w0 + w1 + w2 ? 2 : (r < w0 + w1 + w2 + w3 ? 3 : 4)));
 			vec3 nod_p = wpos + vec3(seed_s * 3.3, 0.0, seed_s * 1.9);
@@ -425,8 +478,14 @@ void fragment() {
 					float g = hash1(floor(wpos * 22.0) + vec3(seed_s));
 					rough = mix(rough, 0.12, step(0.96, g) * in_m * det_k);
 				} else if (kind == 2) {
-					// Koel (gley, mergel, blauwviolet) met fijne horizontale laagjes.
-					col = mix(col, lin(ug_band[2]) * (0.94 + 0.12 * vnoise(wpos * 1.1)), 0.82 * in_m);
+					// Koel (gley, mergel, blauwviolet) met fijne horizontale laagjes, roestvlekken
+					// en donkere knolletjes (echte gley is gevlekt, geen effen band).
+					col = mix(col, lin(ug_band[2]) * (0.86 + 0.28 * vnoise(wpos * 1.1)), 0.8 * in_m);
+					float rust = smoothstep(0.62, 0.74, vnoise(wpos * 1.8 + vec3(4.0)));
+					col = mix(col, base * 1.05, rust * 0.45 * in_m);
+					vec4 gnd = nodule(nod_p, 0.4, 0.3, 0.1, 0.24, 29.0);
+					float gk = (1.0 - smoothstep(0.8, 1.0, gnd.x + (vnoise(wpos * 10.0) - 0.5) * 0.4)) * gnd.z * in_m * det_k;
+					col = mix(col, lin(ug_band[2]) * 0.55, gk * 0.7);
 					float lam = sin(uy * 34.0 + 2.0 * vnoise(wpos * 0.9));
 					col *= 1.0 - 0.12 * smoothstep(0.6, 0.95, lam) * in_m * steep_k * (1.0 - smoothstep(0.02, 0.05, px));
 				} else if (kind == 3) {
@@ -441,22 +500,27 @@ void fragment() {
 					// Het accent van de planeet.
 					if (planet_id == 1) {
 						// Botbed: ivoren botstukken in grijze mergel.
-						col = mix(col, lin(ug_band[2]) * 0.9, 0.8 * in_m);
-						vec4 b = rod(wpos + vec3(seed_s), 0.7, 0.55, 0.07, 0.3, 31.0);
-						float knob = smoothstep(0.75, 1.0, abs(b.y)) * 0.35; // knobbelige uiteinden
-						float k = (1.0 - smoothstep(0.85 + knob, 1.0 + knob, b.x)) * b.z * in_m * det_k;
-						col = mix(col, lin(vec3(0.91, 0.86, 0.75)) * (0.85 + 0.2 * b.w), k);
+						col = mix(col, lin(ug_band[2]) * 0.75, 0.85 * in_m);
+						// Botten van ±1 m in een donkere mergel: van een paar meter ver te zien.
+						vec4 b = rod(wpos + vec3(seed_s), 1.3, 0.6, 0.12, 0.6, 31.0);
+						float knob = smoothstep(0.7, 1.0, abs(b.y)) * 0.6; // knobbelige uiteinden
+						float k = (1.0 - smoothstep(0.82 + knob, 1.0 + knob, b.x)) * b.z * in_m * near;
+						float bedge = (1.0 - smoothstep(1.0 + knob, 1.25 + knob, b.x)) * b.z * in_m * near * (1.0 - k);
+						col = mix(col, dark * 0.45, bedge * 0.6); // donkere rand: het bot ligt in de rots
+						col = mix(col, lin(vec3(0.88, 0.8, 0.64)) * (0.8 + 0.25 * b.w) * (0.85 + 0.2 * vnoise(wpos * 6.0)), k);
 						rough = mix(rough, 0.65, k);
 					} else if (planet_id == 2) {
 						// Obsidiaan met roze kristalinsluitsels die gloeien.
 						col = mix(col, lin(ug_band[1]) * 1.2, 0.85 * in_m);
 						rough = mix(rough, 0.25, in_m);
-						vec4 c = rod(wpos + vec3(seed_s), 0.6, 0.5, 0.05, 0.16, 37.0);
-						float k = (1.0 - smoothstep(0.8, 1.0, c.x)) * c.z * in_m;
+						// Zeskantige kristallen (de doorsnede is hoekig), elk zijvlak een eigen helderheid.
+						vec4 c = crystal(wpos + vec3(seed_s), 0.7, 0.5, 0.09, 0.3, 37.0);
+						float k = (1.0 - smoothstep(0.85, 1.0, c.x)) * c.z * in_m;
+						float facet = 0.3 + 0.7 * hash1(vec3(floor(c.y), 2.9, 7.1));
 						vec3 gc = lin(ug_accent[3]);
-						col = mix(col, gc * 0.5, k);
-						emit += gc * k * (1.2 + 1.2 * (1.0 - c.x));
-						rough = mix(rough, 0.08, k);
+						col = mix(col, gc * (0.25 + 0.35 * facet), k);
+						emit += gc * k * (0.25 + 0.9 * facet);
+						rough = mix(rough, 0.06, k);
 					} else {
 						// Roestbol: een laag vol geodes die koel gloeien, in donkere klei.
 						col = mix(col, dark * 0.95, 0.6 * in_m);
@@ -469,24 +533,36 @@ void fragment() {
 				float pocket = smoothstep(0.58, 0.72, vnoise(wpos * 0.07 + vec3(seed_s, 3.0, 1.0)));
 				float chance = mix(0.015, 0.4, pocket) * mix(0.6, 1.4, dz);
 				chance = mix(chance, 0.55, (kind == 4 ? in_m : 0.0));
-				vec4 nd = nodule(nod_p + vec3(0.7), 1.4, chance, 0.08, 0.16, 47.0);
-				if (nd.z > 0.0 && nd.x < 3.2) {
+				vec3 noff;
+				vec4 nd = nodule_at(nod_p + vec3(0.7), 1.4, chance, 0.08, 0.16, 47.0, noff);
+				if (nd.z > 0.0 && nd.x < 1.6) {
+					// Een geode: een donkere, ruwe schil (in de rots) rond een kristal waarvan je de
+					// zes zijvlakken ziet, elk een andere helderheid. Geen zachte gloed eromheen: hij
+					// zit in de wand, hij zweeft niet (binnen2-09).
 					vec3 gc = lin(ug_accent[3]);
-					float core = 1.0 - smoothstep(0.75, 1.0, nd.x);
-					float rim = (1.0 - smoothstep(1.0, 1.25, nd.x)) * (1.0 - core);
-					float halo = (1.0 - smoothstep(1.0, 3.2, nd.x)) * nd.w;
-					float pulse = 0.82 + 0.18 * sin(TIME * (0.6 + nd.y) + nd.y * 40.0);
-					col = mix(col, dark * 0.5, rim * 0.8 * under_k);
-					col = mix(col, gc * 0.6, core * under_k);
-					emit += gc * under_k * (core * (2.2 + 1.5 * nd.y) * pulse + halo * halo * 0.07);
-					rough = mix(rough, 0.1, core);
+					vec3 nt1;
+					vec3 nt2;
+					tangents(n, nt1, nt2);
+					vec2 nq = vec2(dot(noff, nt1), dot(noff, nt2));
+					float hexd = max(abs(nq.x) * 0.866 + abs(nq.y) * 0.5, abs(nq.y));
+					float ragged = (vnoise(wpos * 14.0) - 0.5) * 0.25;
+					float core = 1.0 - smoothstep(0.62, 0.7, hexd);
+					float rim = (1.0 - smoothstep(0.95 + ragged, 1.1 + ragged, nd.x)) * (1.0 - core);
+					float side = floor((atan(nq.y, nq.x) + 3.14159265) / 1.0471976);
+					float facet = 0.25 + 0.75 * hash1(vec3(side, nd.y * 31.0, 4.4));
+					float pulse = 0.85 + 0.15 * sin(TIME * (0.6 + nd.y) + nd.y * 40.0);
+					col = mix(col, dark * 0.3, rim * 0.92 * under_k);
+					col = mix(col, gc * (0.2 + 0.4 * facet), core * under_k);
+					emit += gc * under_k * core * (0.5 + 1.6 * facet) * pulse;
+					emit += vec3(1.0) * under_k * core * (1.0 - smoothstep(0.0, 0.08, abs(hexd - 0.6))) * 0.6; // heldere rand van het kristal
+					rough = mix(rough, 0.06, core);
 				}
 			}
 			if (planet_id == 1 && kind != 4) {
 				// Fossielwereld: hier en daar een losse botsplinter in het krijt.
-				vec4 b = rod(wpos + vec3(seed_s * 2.0), 1.6, 0.18, 0.05, 0.22, 53.0);
+				vec4 b = rod(wpos + vec3(seed_s * 2.0), 1.3, 0.24, 0.07, 0.3, 53.0);
 				float k = (1.0 - smoothstep(0.85, 1.0, b.x)) * b.z * under_k * det_k;
-				col = mix(col, lin(vec3(0.93, 0.88, 0.78)), k);
+				col = mix(col, lin(vec3(0.9, 0.83, 0.7)), k);
 			}
 			// Gruis op de vloer: fijne, ongelijke korrels (geen platen).
 			float gr = vnoise(wpos * 6.5 + vec3(seed_s));
@@ -521,12 +597,32 @@ void fragment() {
 	} else if (layer == 1) {
 		// Graniet: koel, in blokken gebroken (drie stelsels breukvlakken), met grote zwarte, witte en
 		// roze spikkels en een witte kwartsader hier en daar.
+		if (planet_id == 1) {
+			// Fossielwereld: gneis, golvende donkere en lichte banden (foliatie) door het blok.
+			float fol = wpos.y * 1.6 + 1.2 * sin(wpos.x * 0.35 + wpos.z * 0.22) + 0.8 * vnoise(wpos * 0.5);
+			float fb = sin(fol * 2.2) * 0.5 + 0.5;
+			col = mix(col, dark * 0.9, smoothstep(0.55, 0.85, fb) * 0.55);
+			col = mix(col, light * 1.08, (1.0 - smoothstep(0.08, 0.3, fb)) * 0.35);
+		} else if (planet_id == 2) {
+			// Kristalmaan: basalt in zeskantige zuilen (barsten in een zeshoekig rooster, rechtop).
+			vec2 hp = wpos.xz / 1.1;
+			vec2 hr = vec2(1.0, 1.7320508);
+			vec2 ha = mod(hp, hr) - hr * 0.5;
+			vec2 hb = mod(hp + hr * 0.5, hr) - hr * 0.5;
+			vec2 hg = dot(ha, ha) < dot(hb, hb) ? ha : hb;
+			vec2 hgabs = abs(hg);
+			float hd = 0.5 - max(dot(hgabs, normalize(vec2(1.0, 1.7320508))), hgabs.x);
+			float hw = max(fwidth(hd), 1e-3);
+			float col_line = (1.0 - smoothstep(0.015, 0.015 + hw * 1.5, hd)) * (1.0 - smoothstep(0.6, 0.9, abs(n.y))) * (1.0 - smoothstep(0.04, 0.12, px));
+			col *= 1.0 - col_line * 0.6;
+			col = mix(col, light, (1.0 - smoothstep(0.0, 0.06, hd - 0.02)) * (1.0 - col_line) * 0.15);
+		}
 		vec3 jw = wpos + 0.35 * vec3(vnoise(wpos * 0.4), vnoise(wpos * 0.4 + 7.0), vnoise(wpos * 0.4 + 13.0));
 		vec3 sp = vec3(2.3, 1.7, 2.9);
 		vec3 jd = abs(fract(vec3(jw.x * 0.8 + jw.z * 0.6, jw.y, jw.z * 0.8 - jw.x * 0.6) / sp) - 0.5) * 2.0;
 		vec3 jm = vec3(1.0) - jd; // 0 op het breukvlak
 		jm *= sp * 0.5; // in meter
-		float jmask = smoothstep(0.35, 0.6, vnoise(wpos * 0.25 + vec3(5.0)));
+		float jmask = smoothstep(0.35, 0.6, vnoise(wpos * 0.25 + vec3(5.0))) * (planet_id == 0 ? 1.0 : 0.45);
 		vec3 jwid = max(fwidth(jm), vec3(1e-3));
 		vec3 jl = vec3(1.0) - smoothstep(vec3(0.02), vec3(0.02) + jwid * 1.5, jm);
 		float jline = max(max(jl.x, jl.y), jl.z);
@@ -537,6 +633,8 @@ void fragment() {
 			col = mix(col, lin(ug_dark[1]) * 0.3, smoothstep(0.83, 0.86, vnoise(wpos * 21.0 + vec3(3.1))) * 0.55 * kd);
 			col = mix(col, lin(ug_accent[1]), smoothstep(0.85, 0.88, vnoise(wpos * 24.0 + vec3(17.0))) * 0.45 * kd);
 			col = mix(col, lin(PINK), smoothstep(0.86, 0.89, vnoise(wpos * 17.0 + vec3(41.0))) * 0.4 * kd * (planet_id == 0 ? 1.0 : 0.0));
+			// Kristalmaan: violette fonkels in het basalt.
+			emit += lin(ug_accent[1]) * step(0.997, hash1(floor(wpos * 30.0) + vec3(seed_s * 1.3))) * kd * (planet_id == 2 ? 0.35 : 0.0);
 			float mica = step(0.975, hash1(floor(wpos * 30.0) + vec3(seed_s)));
 			rough = mix(rough, 0.15, mica * kd);
 		}
@@ -581,12 +679,9 @@ void fragment() {
 			emit += cc * (in_c * (0.5 + 1.4 * facet) + edge_l * 1.5) * pulse + vcol * halo * halo * 0.1;
 			rough = mix(rough, 0.04, in_c);
 		}
-		// Glinsters: klein en rond, enkel van dichtbij.
-		vec3 gp = wpos * 9.0 + vec3(seed_s);
-		float g = hash1(floor(gp));
-		float gd = 1.0 - smoothstep(0.12, 0.2, length(fract(gp) - 0.5));
-		float twinkle = pow(max(0.0, sin(TIME * 2.1 + g * 97.0)), 12.0);
-		emit += mix(vcol, vec3(1.0), 0.5) * step(0.99, g) * gd * twinkle * 1.4 * det_k;
+		// Glinsters: kleine facetjes die flitsen als ze naar de lamp kijken, enkel van dichtbij.
+		vec3 cgl = glint(wpos, n, normalize(CAMERA_POSITION_WORLD - wpos), 0.11, 0.012, seed_s);
+		emit += mix(vcol, vec3(1.0), 0.5) * cgl.x * (0.3 + 2.5 * cgl.y) * det_k;
 	}
 
 	// 3. De korst aan het oppervlak: een eigen patroon per planeet (buiten-12), enkel in de bovenste
@@ -707,18 +802,15 @@ void fragment() {
 		float sn = vnoise(wpos * vec3(1.6, 5.0, 1.6) + vec3(seed_s)) * 0.7 + vnoise(wpos * 3.3) * 0.3;
 		float sk = smoothstep(0.35, 0.85, ore_k) * smoothstep(0.42, 0.62, sn + ore_k * 0.25);
 		col = mix(col, ore_s.rgb, sk * ore_s.a);
-		float gs = max(0.16, px * 5.0); // cel (m) van de glinsters
-		vec3 cp = wpos / gs + vec3(seed_s * 3.1);
-		vec3 ci = floor(cp);
-		float h = hash1(ci);
-		float r = 0.2 + 0.12 * hash1(ci + vec3(7.3));
-		float speck = step(1.0 - 0.3 * ore_k, h) * (1.0 - smoothstep(r * 0.5, r, length(fract(cp) - 0.5)));
-		// Kattenoog: het felst als je er recht naar kijkt (de lamp zit op je hoofd).
-		float facing = clamp(dot(n, normalize(CAMERA_POSITION_WORLD - wpos)), 0.0, 1.0);
-		float twinkle = 0.55 + 0.45 * sin(TIME * 2.4 + h * 60.0);
-		col = mix(col, ore_c, speck * 0.85);
-		emit += ore_c * (speck * twinkle * (0.8 + 2.6 * ore_k) * (0.35 + 0.65 * facing * facing) + sk * 0.025);
-		rough = mix(rough, 0.2, speck);
+		// Glinsters: harde facetjes met een sterretje, die oplichten als ze naar de lamp kijken (de lamp
+		// zit op je hoofd). Nooit kleiner dan een paar pixels: een ader zie je ook van 15-20 m.
+		vec3 view = normalize(CAMERA_POSITION_WORLD - wpos);
+		float gs = max(0.14, px * 7.0);
+		vec3 gl = glint(wpos, n, view, gs, 0.14 * ore_k, seed_s * 3.1);
+		vec3 gcol = mix(ore_c, vec3(1.0), 0.35);
+		col = mix(col, gcol * 0.8, gl.x * 0.9);
+		emit += gcol * gl.x * (0.25 + 0.7 * ore_k + 3.0 * gl.y) + ore_c * sk * 0.025;
+		rough = mix(rough, 0.15, gl.x);
 	}
 
 	// Vlekken in de bovenste laag (binnen en buiten het speelgebied, zodat de rand wegvalt).
@@ -802,10 +894,17 @@ void fragment() {
 				d2 = d;
 			}
 		}
-		float zcrack = 1.0 - smoothstep(0.0, 0.11, d2 - d1);
-		float ceiling = clamp(-n.y, 0.0, 1.0);
-		col = mix(col, col * 1.3 + vec3(0.07, 0.06, 0.045), zone_k * 0.4); // fijn stof
-		col = mix(col, vec3(0.015, 0.012, 0.01), zcrack * zone_k * (0.7 + 0.3 * ceiling));
+		// Barsten: dun en onregelmatig (de breedte wisselt, een deel van de randen is dicht), met een
+		// lichte stofrand ernaast. Geen zwart honingraatnet (glas-in-lood) op een licht plafond.
+		float edge_d = (d2 - d1) / 1.3; // m
+		float cw = mix(0.0015, 0.012, smoothstep(0.4, 0.85, vnoise(wpos * 1.7 + vec3(3.0))));
+		float open_k = smoothstep(0.45, 0.62, vnoise(wpos * 0.9 + vec3(seed_s, 8.0, 1.0)));
+		float cfw = max(fwidth(edge_d), 1e-4);
+		float zcrack = (1.0 - smoothstep(cw, cw + cfw, edge_d)) * open_k;
+		float zdust = (1.0 - smoothstep(cw, cw + 0.07, edge_d)) * (1.0 - zcrack) * open_k;
+		col = mix(col, col * 1.2 + vec3(0.05, 0.045, 0.035), zone_k * 0.3); // fijn stof
+		col = mix(col, light * 1.2, zdust * zone_k * 0.55);
+		col = mix(col, col * 0.35, zcrack * zone_k);
 	}
 
 	// Magma eronder: de rots warmt op naar donkerrood, vooral vlakken die naar beneden kijken, met

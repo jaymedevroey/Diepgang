@@ -875,7 +875,8 @@ func _rpc_broken(peer: int, at: Vector3, melted: bool) -> void:
 	var pl: Player = game.player_node(peer)
 	if pl:
 		pl.on_broken(at)
-		# Wie zelf kapot is, ziet het groot in beeld (HudRescue): geen tweede melding (golf 3, ui2-03).
+		# Wie zelf kapot is, ziet het groot in beeld (HudRescue, golf 3, ui2-03), en gesmolten gaf Magma al
+		# de enige melding (binnen2-05): voor jezelf geen melding meer, enkel voor de anderen.
 		if not pl.is_local:
 			game.notice.emit("%s's robot is broken." % _name_of(peer), "warn")
 	life_changed.emit(peer, Life.BROKEN)
