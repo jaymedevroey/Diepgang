@@ -81,14 +81,20 @@ func generate(pit_seed: int) -> void:
 		var center := _bed_center(rng, caves, lo, maxf(hi, lo + 4.0), near_cave)
 		_place_set(rng, center, "titan" if titan else "strider", "%d-%d" % [pit_seed, b])
 	# 3. Kampen van vorige bezoekers (rommel in de klei) en kristalgrotten (kristallen rond een grot).
+	var camps: Array[Vector3] = []
+	var pockets: Array[Vector4] = []
+	var pocket_arcs: Array[float] = []
 	for i in PlanetLoot.count(planet, "camps", 0):
 		var c := Vector3(rng.randf_range(14.0, size.x - 14.0), 0.0, rng.randf_range(14.0, size.z - 14.0))
 		c.y = t.surface_height_at(c.x, c.z) - rng.randf_range(5.0, 38.0)
 		_place_heap(rng, c, PlanetLoot.CAMP_POOL, 2.4)
+		camps.append(c)
 	for i in PlanetLoot.count(planet, "pockets", 0):
 		var cv := _cave_between(rng, caves, Strata.TOPS_M[1] + 4.0, surface_y - 12.0)
 		var a0 := rng.randf() * TAU
 		_place_pocket(rng, cv, a0)
+		pockets.append(cv)
+		pocket_arcs.append(a0)
 	# 4. Rond grotten: een handvol rijke grotten, elk met een groepje vondsten net achter één stuk wand
 	# (te vinden van in de grot; GDD §4: rijke zakken rond grotten, niet uniform).
 	var rich: Array[Vector4] = []
@@ -113,6 +119,25 @@ func generate(pit_seed: int) -> void:
 	# errond. Achteraan, zodat alles hierboven op dezelfde plek blijft.
 	for sp: Dictionary in t.set_pieces():
 		_place_setpiece_loot(rng, sp)
+	# 7. Samen dragen op elke planeet (golf 3, ontwerp-8): een loonzak in een deel van de kampen, een
+	# reuzengeode in een deel van de kristalgrotten. Met een eigen rng en helemaal achteraan, zodat alle
+	# andere vondsten van een wereld op dezelfde plek blijven.
+	var heavy_rng := RandomNumberGenerator.new()
+	heavy_rng.seed = pit_seed * 7919 + 97
+	var camp_share := PlanetLoot.value(planet, "heavy_camp_share", 0.0)
+	for c in camps:
+		if camp_share > 0.0 and heavy_rng.randf() < camp_share:
+			_place(heavy_rng, func() -> Array:
+				return [c + Vector3(heavy_rng.randf_range(-0.5, 0.5), heavy_rng.randf_range(-0.4, 0.2), heavy_rng.randf_range(-0.5, 0.5)), FindKinds.Kind.PAYROLL], 10)
+	var pocket_share := PlanetLoot.value(planet, "heavy_pocket_share", 0.0)
+	for i in pockets.size():
+		var cv := pockets[i]
+		var a0 := pocket_arcs[i]
+		if cv.w > 0.0 and pocket_share > 0.0 and heavy_rng.randf() < pocket_share:
+			_place(heavy_rng, func() -> Array:
+				var a := a0 + heavy_rng.randf_range(-0.4, 0.4)
+				var r := cv.w + heavy_rng.randf_range(1.4, 2.4)
+				return [Vector3(cv.x + cos(a) * r, cv.y - 0.3 * cv.w / PlanetGenerator.CAVERN_SQUASH, cv.z + sin(a) * r), FindKinds.Kind.GIANT_GEODE], 12)
 	print("[finds] %d vondsten geplaatst op %s (seed %d, %d skeletten) in %d ms" % [items.size(),
 			PlanetType.NAMES[clampi(planet, 0, 2)], pit_seed, sets().size(), Time.get_ticks_msec() - t_start])
 
@@ -185,12 +210,6 @@ func _place_heap(rng: RandomNumberGenerator, center: Vector3, pool: Array, radiu
 		var a := float(i) / n * TAU + rng.randf_range(-0.3, 0.3)
 		_place(rng, func() -> Array:
 			return [center + Vector3(cos(a) * radius, rng.randf_range(-0.6, 0.6), sin(a) * radius), k], 10)
-	# Golf 3 (ontwerp-8): in een deel van de kampen ligt de loonzak van een vorige ploeg (te zwaar
-	# voor één: samen dragen, ook op Roestbol). Enkel waar de planeet er heeft (planets.cfg).
-	var share := PlanetLoot.value(int(game.planet_type), "heavy_camp_share", 0.0)
-	if share > 0.0 and rng.randf() < share:
-		_place(rng, func() -> Array:
-			return [center + Vector3(rng.randf_range(-0.5, 0.5), rng.randf_range(-0.4, 0.2), rng.randf_range(-0.5, 0.5)), FindKinds.Kind.PAYROLL], 10)
 
 
 ## Buit bij een set piece (CaveSetPieces.plan_list): loot_min..loot_max vondsten uit de pot van die
@@ -229,14 +248,6 @@ func _place_pocket(rng: RandomNumberGenerator, cv: Vector4, a0: float) -> void:
 			var r := cv.w + rng.randf_range(0.7, 1.8)
 			return [Vector3(cv.x + cos(a) * r, cv.y + rng.randf_range(-0.5, 0.3) * cv.w / PlanetGenerator.CAVERN_SQUASH,
 					cv.z + sin(a) * r), k], 12)
-	# Golf 3 (ontwerp-8): in een deel van de kristalgrotten een reuzengeode (breekbaar en te zwaar voor
-	# één: samen voorzichtig dragen, ook op de Kristalmaan).
-	var share := PlanetLoot.value(int(game.planet_type), "heavy_pocket_share", 0.0)
-	if share > 0.0 and rng.randf() < share:
-		_place(rng, func() -> Array:
-			var a := a0 + rng.randf_range(-0.4, 0.4)
-			var r := cv.w + rng.randf_range(1.4, 2.4)
-			return [Vector3(cv.x + cos(a) * r, cv.y - 0.3 * cv.w / PlanetGenerator.CAVERN_SQUASH, cv.z + sin(a) * r), FindKinds.Kind.GIANT_GEODE], 12)
 
 
 ## Skeletten in deze wereld: set_id -> [stukken]. Voor tests, schermen en de taxatie (F1).
