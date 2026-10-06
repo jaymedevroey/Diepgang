@@ -2,6 +2,17 @@
 
 Wat we onderweg leerden en wat het GDD bijstuurt. Nieuwste bovenaan.
 
+## 2026-10-06 — Golf 3, pakket G4: buiten en de drop
+
+- **Voor en na op dezelfde wereld:** de firma kiest bij elke start een nieuwe seed voor de opdrachten, dus twee runs van drop_sequence tonen twee verschillende werelden. `outside_shots` zet de opdracht vast (`--planet`, `--seed`); zonder dat vergelijk je appels met peren.
+- **De grond op ooghoogte is vooral de landingsplek:** de generator maakt ze 22 m vlak (met 20 m overgang), en dat vult de onderste helft van elk beeld van bij de Mol. Kiezels in de shader verzetten de waardespreiding nauwelijks; wat telt zijn grote vlakken (zandvlakken in de windrichting, scherp begrensd) en echte stenen die schaduw werpen (GroundScatter). De concepten zijn dropbeelden: een IQR van 22 op ooghoogte is op een zonnige vlakte een verkeerde lat.
+- **Ruis weghalen kan de spreiding verlagen:** zonder de facettenplaten daalde de IQR op Fossielwereld eerst (de platen wáren de variatie). Meten na elke stap, niet aannemen.
+- **Een radiaal patroon niet met `atan`:** de hoek springt achter je van −π naar π, en dat gaf een rechte naad over de grond pal in het midden van één camerarichting. Ruis op de richtingsvector (`dv / length(dv)`) heeft geen naad.
+- **Een QA-camera ver van de spelers laadt geen voxelterrein:** de rand van het speelgebied werd dan een gat met het grove raster erin. `terrain.add_viewer(camera, 110)` en wachten tot het gebied klaar is.
+- **Een `Decal` heeft geen `visibility_range_end`** (het is geen GeometryInstance3D): `distance_fade_*`.
+- **Plannen in een cinematic:** een harde knip op een moment uit het spel (ontsteken, onder 26 m, de grijper zakt) leest beter dan één camera die alles moet doen. De tests keken naar de tijd tot de eigen camera terug is (`drop_cam_land_hold_s`); het belletje van de overdracht wacht nu op de knip naar binnen.
+- **De scratchpad wordt gedeeld door alle agents van de sessie:** een ander script met dezelfde naam (`rg.ps1`) overschreef het mijne en startte Godot in een andere worktree. Een eigen submap.
+
 ## 2026-10-06 — Golf 3, pakket G5: de ondergrond
 
 - **Een plek om naartoe te gaan moet je ook vinden.** Set pieces in grotten helpen pas als de eerste ervan te zien is: daarom een startgrot met een oude gang vanaf de rand van de landingsplek (een gat met stutten en lampjes), niet enkel taferelen diep in de rots. In GDD §4 ("golf 3").

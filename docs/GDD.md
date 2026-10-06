@@ -77,6 +77,7 @@ De Ekster (moederschip) → planeet en opdracht kiezen → drop met de Mol → b
 ### Een dienst (15–20 minuten)
 1. **Aan boord van De Ekster** kies je op de terminal een planeet: 2–3 keuzes, elk met een opdracht (en later mutators, §4).
 2. **Drop.** Iedereen stapt in de Mol, de piloot trekt aan de drophendel. De Mol valt door de atmosfeer (gloed, schokken, stuwraketten) en landt in een stofwolk. De drop is meteen ook het laadscherm: het terrein laadt terwijl je valt. In beeld: het **heldenshot** (keuze Jayme, [drop-en-ophalen](research/drop-en-ophalen.md)). Eén vaste camera achter de vallende Mol, het schip krimpt boven in beeld, en bij de landing een knip naar binnen in de stofwolk.
+   - **In plannen (golf 3, voorstel van de audit):** het volgshot kijkt de eerste seconden hoger (de reus en zijn ring in het bovenste derde), dan naar de landingsplek; je valt door een stoflaag; bij het ontsteken van de stuwraketten een knip naar de flank; de laatste meters een camera op de grond die de klap ziet (stofgolf, stoot, ±1 s), dan pas de knip naar binnen. Het blijft één camera die de Mol volgt, nooit rond hem draait.
 3. **Afdalen.** De Mol boort zich in de grond, zelf gestuurd of met de autopiloot.
 4. **Zoeken.** De sonar luistert stil (kort bereik, vaag). Een **PING** geeft een scherp beeld tot ver, maar maakt lawaai.
 5. **Graven en delven.** Erts gaat in je ertszak en geef je af aan de trechter van de Mol. Vondsten zitten in een **korst**: met het houweel bik je die weg zonder schade, maar traag; boren gaat sneller, maar verlaagt de waarde.
@@ -86,6 +87,7 @@ De Ekster (moederschip) → planeet en opdracht kiezen → drop met de Mol → b
    - Onrust stijgt alleen door lawaai: boren, de Mol, pings en explosies.
    - Bij elke drempel beeft de planeet: rotsblokken vallen in gemarkeerde zones en het magma maakt een sprong.
 8. **Extractie.** De piloot trekt aan de vertrekhendel. Na een aftelling rijdt de Mol zijn eigen spoor terug naar de oppervlakte. De Ekster laat een grijper zakken en pikt hem op.
+   - **In beeld (golf 3):** een lichtbundel uit de baai volgt de grijper naar beneden (je ziet het schip komen). Het buitenbeeld begint al bij het zakken van de grijper: een kraanshot op de grond met de reus naast de Mol, dan naast de Mol omlaag kijkend (de plek valt weg), de laatste meters het schip boven in beeld.
    - Wie niet aan boord is, blijft achter: hij komt als vervangrobot terug op het schip.
    - De firma rekent de vervanging aan, en wat hij droeg, is weg.
 9. **Taxatie aan boord.**
@@ -115,6 +117,7 @@ De Ekster (moederschip) → planeet en opdracht kiezen → drop met de Mol → b
   - Het terrein laadt rond de spelers en de Mol (streaming).
   - Graafacties worden per blok opnieuw toegepast zodra dat blok laadt, zodat elke peer hetzelfde ziet.
 - **Bovenaan een oppervlak in open lucht:** een kale buitenaardse vlakte met kraters en rotsblokken, onder een vreemde hemel met manen en ringen. De Ekster hangt hoog in de lucht.
+  - **Een gecomponeerde landingsplek (golf 3):** op ±26 m schuin vóór de Mol een vaste groep met een verhaal: Roestbol het kamp van de vorige ploeg naast de monding van hun toegangsgang, Fossielwereld een opgraving met een half vrijgelegd reuzenbot, Kristalmaan een neergestorte sonde met kristallen erdoor. Enkel decor (botst met spelers, niet met de Mol), het eerste beeld na de drop heeft zo een voorgrond. Daarrond in elke richting een groot depot (container, brandstoftank, generator met lichtmast) en tot aan je voeten losse stenen, scherven en botsplinters.
 - **Rand:** een onbreekbare buitenmuur, het concessiegebied van DIG. De Mol stopt ervoor.
 - **Grotten** op elke diepte, waarvan enkele groot genoeg voor de Mol.
   - **Grotten als bestemming (golf 3):** ±1 op 3 grotten heeft een set piece uit de seed, met goede buit in de wanden en de vloer errond: een verlaten DIG-kamp (tent, werflamp die nog hapert, kisten, "BACK IN 5 MIN"), een gestrande oude Mol met de neus in de wand, een reusachtige ribbenkast (decor, geen buit) of een geodekamer met reuzenkristallen. De twee dichtste grotten in de klei hebben er altijd een. Enkel props: het terrein verandert er niet door.
