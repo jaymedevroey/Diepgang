@@ -2,6 +2,12 @@
 
 Wat we onderweg leerden en wat het GDD bijstuurt. Nieuwste bovenaan.
 
+## 2026-10-06 — Golf 3 samengevoegd: vertragingstests
+
+- **Een nettest met vertraging meet pas als beide kanten stilstaan.** Wat je van je maat ziet, loopt 60+ ms achter en schuift nog na. "Twee physics-frames na de teleport" gaf bij 60 ms soms 3,3 m op een touw van 3,0 m, terwijl het spel klopte. Wacht een halve seconde, of wacht in een lus met een deadline.
+- **Betrouwbaar betekent op volgorde, niet tegelijk.** Twee reliable RPC's na elkaar ("laadruim", dan "zak leeg") kunnen bij 1% verlies apart aankomen; het tweede wordt dan opnieuw verstuurd. Een test die na 0,5 s beide verwacht, faalt dan af en toe. Wacht tot beide er zijn, met een deadline van 2 s.
+- Draai de vertragingstests **meermaals** (4× parallel, eigen poorten): één groene run zegt weinig over timing.
+
 ## 2026-10-06 — Golf 3, pakket G3: het geldmoment en de economie
 
 De keuzes waar het GDD zweeg staan in GDD §3 en §5A ("golf 3"). Cijfers zijn schattingen (niet gespeeld): band 0,6 m/s, scan 0,9 s, teller 1,8 s, quota-basis €6.000, upgrades ×1,5, laadruim +20 kg per robot, lichtbakens €150 solo.

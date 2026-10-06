@@ -123,7 +123,11 @@ func _run_client(p: Player) -> void:
 	p.global_position = mol_ore.chute_position() + mol_ore.body.global_basis.x * 1.0
 	await get_tree().create_timer(0.6).timeout # de host moet ons eerst bij de trechter zien
 	ores.deposit()
+	# Met pakketverlies kan "zak leeg" na "laadruim" opnieuw verstuurd moeten worden: tot 2 s wachten.
+	var deposit_deadline := Time.get_ticks_msec() + 2000
 	await get_tree().create_timer(0.5).timeout
+	while (OreField.units(ores.bag_of(p.peer_id)) != 0 or OreField.units(ores.hold) != 2) and Time.get_ticks_msec() < deposit_deadline:
+		await get_tree().create_timer(0.1).timeout
 	_rpc_ore_report.rpc_id(1, bag_after, OreField.units(ores.bag_of(p.peer_id)), OreField.units(ores.hold), oc.hp)
 	p.global_position = back
 	p.set_physics_process(true)
@@ -200,6 +204,9 @@ func _team_carry(p: Player) -> void:
 	p.global_position += away.normalized() * 4.0
 	await get_tree().physics_frame
 	await get_tree().physics_frame
+	# Met vertraging schuift de host op ons scherm nog na (zijn eigen touw trekt hem naar ons toe, en
+	# dat zien we pas 60+ ms later); pas meten als beide kanten stilstaan. Was 2 frames: 3,3 m bij 60 ms.
+	await get_tree().create_timer(0.5).timeout
 	# Golf 3 (gevoel2-03): het touw is de afstand tussen de twee handgrepen plus de armen (Carry.team_limit).
 	var limit := Carry.team_limit(it)
 	var span := Vector2(p.global_position.x - host_p.global_position.x, p.global_position.z - host_p.global_position.z).length()

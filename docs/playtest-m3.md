@@ -1,4 +1,4 @@
-# Diepgang — playtest (versie 0.10.0)
+# Diepgang — playtest (versie 0.11.0)
 
 **Vraag: voelt een volledige dienst als een spel?** Een opdracht kiezen, droppen, graven, overleven tot je terug bent, en wat je vond verkopen.
 
@@ -29,6 +29,40 @@
 3. **Firewall.** Laat Diepgang toe, zoals hierboven.
 4. **Adres doorgeven.** Je vrienden typen je publieke IP in. Dat vind je op `whatismyip.com`.
 5. **Werkt het niet?** Deelt je provider één adres over veel klanten (CGNAT), dan werkt port forwarding niet. Gebruik dan Tailscale.
+
+## Nieuw in 0.11
+
+Nog altijd zonder geluid: dat komt er met echte opnames, niet met nagemaakte piepjes.
+
+- **De worm heet nu the Gulper** en heeft een nieuw model.
+  - Hij **grijpt wie hij raakt** en sleurt je mee.
+  - Loskomen kan op drie manieren: een maat slaat hem 2× met het houweel, iemand gooit een baken, of je spartelt zelf (spatie).
+  - Op de sonar en de HUD is hij rood-oranje, met de afstand erbij.
+  - Midden in de dienst duwt hij de Mol enkel; de grote aanval komt bij het vertrek.
+  - Wie aan het stuur zit, schudt hem los door links-rechts te sturen.
+- **Lichtbakens (G)** gooi je nu als een fakkel. De gloeiende ring op de vloer is de veilige zone.
+- **Klappen voel je:**
+  - Wie omvergaat, ziet het beeld even stilvallen, met een flits.
+  - Daarna glijdt de camera naar buiten, zonder in je robot of de Mol te zitten.
+  - Een beving en een instorting kondigen zich langer aan.
+  - Gas waarschuwt met een gele schermrand.
+- **Samen dragen:**
+  - Zware stukken hebben twee handgrepen, en je staat dichter bij elkaar.
+  - Op elke planeet ligt er nu iets zwaars: een loonzak op Rustbowl, een reuzengeode op Crystal Moon.
+- **Verkopen:**
+  - Een band brengt je vondsten van de Mol door de taxatiepoort.
+  - Elk stuk krijgt een groot scherm met de prijs.
+  - Al in het veld zie je een schatting ('€460–800 ESTIMATE').
+  - Gekochte upgrades zie je op de Mol en op je gereedschap.
+  - Het laadruim groeit met de ploeg: 60 kg alleen, tot 120 kg met vier.
+- **Opdrachten:** het risico hangt af van de planeet (Rustbowl veilig, Crystal Moon gevaarlijk). Upgrades kosten meer en het kwartaaldoel is wat hoger (alleen: €2.400 in het eerste kwartaal).
+- **Beeld:**
+  - De planeten hebben meer kleur en reliëf.
+  - De landingsplek heeft containers en een eigen verhaal per planeet.
+  - De drop is gefilmd als een film.
+  - Grotten hebben decor per planeet, en erts en korst zien er nieuw uit.
+  - De Mol boort sneller als de neus omlaag staat.
+- **Uitnodigen:** de adressenlijst toont geen adressen van virtuele machines meer.
 
 ## Nieuw in 0.10
 
@@ -92,17 +126,18 @@ Een kwartaal telt 3 diensten. Haal je het doel niet, dan krijg je een boete (sch
 | Linkermuis (vasthouden) | graven met het actieve gereedschap |
 | 1 / 2 / wieltje | houweel / boor |
 | Q | handscanner (als je hem gekocht hebt) |
-| G | lichtbaken plaatsen (tegen de worm) |
+| G | lichtbaken gooien (tegen de worm) |
+| Spatie (gegrepen) | spartelen om los te komen |
 | E | gebruiken: knop, terminal, oppakken, neerzetten, mee dragen, erts storten, verkopen |
 | Linkermuis (terwijl je draagt) | gooien |
 | F | sonar-PING in de Mol (4 per dienst, luid) |
-| In de stoel | ZQSD gas en draaien, spatie/Ctrl neus, C buitenzicht, H toeter, E uitstappen |
+| In de stoel | ZQSD gas en draaien, spatie/Ctrl neus, C buitenzicht, H toeter, E uitstappen; links-rechts schudt de worm los |
 | Esc | pauze, instellingen, adressen om uit te nodigen |
 
 ## Laat na het spelen weten
 
 1. **Gevaar:** is er nu genoeg? Te veel? Wanneer was het het spannendst?
-2. **De worm:** zag je hem komen? Was het eerlijk?
+2. **De worm:** zag je hem komen? Was het eerlijk? Kwam je los toen hij je greep?
 3. **Geld:** wilde je iets kopen? Haalde je het doel?
 4. **Samen:** moest je samenwerken, bijvoorbeeld bij zware stukken of iemand redden?
 5. **Gevoel:** lopen, graven, de Mol, de drop. Wat voelde goed, wat niet?

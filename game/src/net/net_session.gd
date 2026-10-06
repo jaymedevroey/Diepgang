@@ -16,7 +16,7 @@ const DEFAULT_PORT := 24565
 const MAX_PLAYERS := 4
 ## Versie van het spel. Host en client moeten exact dezelfde hebben: bij elke build die je uitdeelt
 ## ophogen (de versiecontrole bij het binnenkomen vergelijkt deze tekst).
-const GAME_VERSION := "0.10.0"
+const GAME_VERSION := "0.11.0"
 ## Zolang wacht je op het antwoord van de versiecontrole (een oudere host antwoordt nooit).
 const HELLO_TIMEOUT_S := 10.0
 
