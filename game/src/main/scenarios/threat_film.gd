@@ -536,8 +536,22 @@ func _climax() -> void:
 ## speler loopt erheen en slaat de kop twee keer met het houweel, dan laat hij los.
 func _grab() -> void:
 	var worm: Worm = game.worm
-	var r: Array = await _cave(45.0, Vector3(-35.0, 0.0, 15.0), 10.0)
-	var ground: Vector3 = r[1]
+	var ground := Vector3.ZERO
+	var sc := t.starter_cave()
+	if str(CmdArgs.value("starter", "")) == "1" and sc.w > 0.0:
+		# In de startgrot van G5 (het kamp, de oude toegangsgang): niets graven, de vloer opzoeken.
+		var c := Vector3(sc.x, sc.y, sc.z)
+		p.set_physics_process(false)
+		p.global_position = c
+		while not t.is_area_ready(c, sc.w + 6.0):
+			await _wait(0.2)
+		await _wait(1.0)
+		var fl := t.raycast(c, c + Vector3.DOWN * (sc.w + 4.0))
+		ground = (fl.position as Vector3) if not fl.is_empty() else c + Vector3.DOWN * sc.w / PlanetGenerator.CAVERN_SQUASH
+		print(TAG, " startgrot op %s (straal %.0f m), vloer %s" % [c, sc.w, ground])
+	else:
+		var r: Array = await _cave(45.0, Vector3(-35.0, 0.0, 15.0), 10.0)
+		ground = r[1]
 	game._spawn(2, 1, ground + Vector3(0.0, 0.5, 0.0))
 	var mate := game.player_node(2)
 	await _wait(0.3)
