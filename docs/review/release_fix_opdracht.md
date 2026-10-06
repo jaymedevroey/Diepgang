@@ -70,7 +70,6 @@ Jayme wil dat **alle bevindingen** van de release-audit aangepakt worden. Morgen
 - **Samenvatting:** [release_audit_ronde2.md](release_audit_ronde2.md).
 - **Verdeling per pakket:** [release_audit_ronde2_voortgang.md](release_audit_ronde2_voortgang.md).
 - **Beelden voor en na:** in `C:\Dev\Diepgang\logs\review_fix3\<pakket>\`.
-eview_fix3\<pakket>\`.
 - **Voorstellen:** die van de reviewers (deel 3 van hun rapporten) die bij je punten horen, mag je meenemen. Waar ze het GDD veranderen, schrijf je dat op in `docs/GDD.md`, met "(golf 3)".
 - **Geluid:** Jayme wil geen geluid dat met code gemaakt is ("da trekt op niks"). Maak dus geen synthetische klanken. Voorzie wel haken (signalen) op elke plek waar een geluid hoort. De echte opnames komen apart.
 - **Nettests:** draai ze op je eigen poort:
