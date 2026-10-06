@@ -408,8 +408,10 @@ void g4_ground(inout vec3 col, inout vec3 n, inout float rough, inout vec3 emit,
 		float shw = max(fwidth(sh), 1e-4) + 0.012;
 		float dk = smoothstep(0.565 - shw, 0.565 + shw, sh);
 		float lt = 1.0 - smoothstep(0.415 - shw, 0.415 + shw, sh);
-		col = mix(col, low, dk * g4_sheet.x * open * (1.0 - highk));
-		col = mix(col, high, lt * g4_sheet.y * open * (1.0 - lowk));
+		// Van ver (de drop) zwakker: daar lazen ze als camouflagevlekken; de vorm draagt het daar.
+		float sk = open * (1.0 - 0.75 * smoothstep(35.0, 130.0, dist));
+		col = mix(col, low, dk * g4_sheet.x * sk * (1.0 - highk));
+		col = mix(col, high, lt * g4_sheet.y * sk * (1.0 - lowk));
 	}
 	// Een smalle donkere zone aan de voet van een rug (grind dat blijft liggen) breekt de middentoon.
 	float foot = smoothstep(0.02, 0.25, -r) * (1.0 - smoothstep(0.25, 0.6, -r));
