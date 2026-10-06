@@ -224,7 +224,9 @@ func bottom_offset(b: Basis) -> float:
 ## voor je, daar brandt de helmlamp niets uit, en als gereedschap belicht waren ze een donkere vlek.
 func set_held(on: bool) -> void:
 	if freed:
-		_glint.set_shader_parameter("rim", FindKinds.CLASS_RIM[value_class] * (0.25 if on else 1.0))
+		# Een rand van licht blijft (golf 3, binnen-10): de bruine muntzak verdween tegen de bruine klei.
+		_glint.set_shader_parameter("rim", maxf(FindKinds.CLASS_RIM[value_class] * (0.25 if on else 1.0),
+				Tuning.get_f("finds", "held_rim_min", 0.22) if on else 0.0))
 	_mesh.layers = PickaxeModel.VIEWMODEL_LAYER if on and FindKinds.liftable_alone(mass) else 1
 
 
