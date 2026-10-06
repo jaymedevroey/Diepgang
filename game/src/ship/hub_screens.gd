@@ -1293,7 +1293,7 @@ func _paint_appraisal(s: Screen) -> void:
 		_marquee_x = clip.size.x
 	marquee.position.x = roundf(_marquee_x)
 	var sold := (r.get("sold", []) as Array).size()
-	_text(s, "detail", "%d %s  ·  DAMAGE %s" % [sold, "FIND" if sold == 1 else "FINDS", UiTheme.euro(int(r.get("damage", 0)))])
+	_text(s, "detail", "%d %s  ·  DAMAGE %s" % [sold, "FIND" if sold == 1 else "FINDS", UiTheme.euro_signed(-int(r.get("damage", 0)))]) # een verlies: met minteken (ui2-07)
 	var gross := int(r.get("finds_value", 0)) + int(r.get("ore_value", 0)) + int(r.get("bonus", 0))
 	_text(s, "total", UiTheme.euro(gross))
 	var costs := int(r.get("costs", 0))

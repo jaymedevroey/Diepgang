@@ -68,8 +68,9 @@ func _run() -> void:
 	c.contract = o
 	c.changed.emit()
 	var term := screens.screen_text(HubScreens.TERMINAL)
-	_expect(str(o.name) in term and "MEDIUM" in term and "×" + HubScreens._num(Company.pay_factor(Company.Risk.MID)) in term,
-			"terminal: %s, risico MIDDEL, opbrengst ×%s" % [o.name, HubScreens._num(Company.pay_factor(Company.Risk.MID))])
+	# De opbrengst in procenten (in VT323 las ×1.15 als X1.15, ui2-07).
+	_expect(str(o.name) in term and "MEDIUM" in term and "PAY " + HubScreens._pct(Company.pay_factor(Company.Risk.MID)) in term,
+			"terminal: %s, risico MIDDEL, opbrengst %s" % [o.name, HubScreens._pct(Company.pay_factor(Company.Risk.MID))])
 	_expect(str(o.name) in screens.screen_text(HubScreens.BOARD), "firmabord: opdracht %s" % o.name)
 
 	# 4. Taxatie en rapport na een dienst.

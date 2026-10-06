@@ -125,6 +125,23 @@ func _run() -> void:
 	_expect(Settings.device == Settings.DEVICE_KEYBOARD, "terug op het toetsenbord")
 	_expect(Settings.event_label(pad) == "A", "controllerknop heet A")
 
+	# ui2-10: de uitnodiging toont geen adres van een virtuele netwerkkaart (VirtualBox heet hier "Ethernet 3").
+	var cases := {["192.168.56.1", "Ethernet 3"]: true, ["192.168.56.101", ""]: true, ["192.168.137.1", "Ethernet 2"]: true,
+			["192.168.17.1", "Ethernet 4"]: true, ["172.20.48.1", ""]: true, ["10.0.0.1", ""]: true,
+			["192.168.1.23", "Ethernet"]: false, ["192.168.0.104", "Wi-Fi"]: false, ["10.0.0.15", ""]: false,
+			["100.101.2.3", "Tailscale"]: false, ["192.168.1.40", "VirtualBox Host-Only Network"]: true}
+	var wrong := PackedStringArray()
+	for c: Array in cases:
+		if StartMenu.is_host_only(c[0], c[1]) != bool(cases[c]):
+			wrong.append("%s (%s)" % [c[0], c[1]])
+	var on_this_pc := PackedStringArray()
+	for itf: Dictionary in IP.get_local_interfaces():
+		for adr: String in itf.get("addresses", []):
+			if not adr.contains(":"):
+				on_this_pc.append("%s=%s%s" % [str(itf.get("friendly", "")), adr, " (weg)" if StartMenu.is_host_only(adr, str(itf.get("friendly", ""))) else ""])
+	print("[ui_test] netwerkkaarten op deze pc: ", ", ".join(on_this_pc), " → uitnodiging: ", StartMenu.join_addresses())
+	_expect(wrong.is_empty(), "uitnodiging: virtuele netwerkkaarten eruit, het thuisnet erin%s" % ("" if wrong.is_empty() else " (fout: %s)" % ", ".join(wrong)))
+
 	# ui2-07: wat de speler ziet (labels, knoppen, Label3D) volgt de stijlregels, met het lettertype erbij.
 	await _sweep_shown_text(p)
 	# ui2-04: de pilootstrook en de sonar overlappen nooit, ook niet met een grotere interface.
@@ -148,7 +165,7 @@ func _finish() -> void:
 
 
 func _text_lint() -> void:
-	var found := TextLint.scan_sources()
+	var found := TextLint.scan_sources(str(CmdArgs.value("lint-root", "res://")))
 	for line in TextLint.report(found):
 		print("[tekst] ", line)
 	_expect(found.is_empty(), "tekstlint: alle spelertekst volgt de stijlregels en de woordenlijst (%d fouten%s)" % [

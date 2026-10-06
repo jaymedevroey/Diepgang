@@ -56,6 +56,12 @@ const PER_SENTENCE := ["two_colons"]
 const SIGN_RULES := ["minus", "plural", "keys_wasd", "keys_press", "keys_bracket", "funds", "terminal", "hub", "company", "currency", "british", "dev"]
 
 static var _compiled: Dictionary = {}
+static var _root := "res://"
+
+
+## Een pad onder de gescande game-map als res://-pad (voor SKIP_PATHS en het verslag).
+static func _res(path: String) -> String:
+	return "res://" + path.substr(_root.length()) if path.begins_with(_root) else path
 
 
 static func _re(id: String) -> RegEx:
@@ -130,12 +136,16 @@ static func check_shown(text: String, bungee: bool) -> Array:
 
 
 ## Alle tekst-literals in de bron: [{file, line, text, rule, hint}].
-static func scan_sources() -> Array:
+## `root`: een andere game-map (absoluut pad), bv. de worktree van een ander pakket vóór het samenvoegen:
+## ui_test --only=text --lint-root=C:/pad/naar/game.
+static func scan_sources(root := "res://") -> Array:
 	var found := []
+	_root = root if root.ends_with("/") else root + "/"
 	for dir: String in SRC_DIRS:
-		for path: String in _files(dir, ".gd"):
+		for path: String in _files(dir.replace("res://", _root), ".gd"):
 			_scan_gd(path, found)
-	var blender := ProjectSettings.globalize_path("res://").path_join("../tools/blender").simplify_path()
+	var game_dir := ProjectSettings.globalize_path("res://") if _root == "res://" else _root
+	var blender := game_dir.path_join("../tools/blender").simplify_path()
 	for sub: String in BLENDER_FILES:
 		var p := blender.path_join(sub)
 		if sub.ends_with("/"):
@@ -149,14 +159,14 @@ static func scan_sources() -> Array:
 static func _files(dir: String, ext: String) -> PackedStringArray:
 	var out := PackedStringArray()
 	for skip: String in SKIP_PATHS:
-		if (dir + "/").begins_with(skip):
+		if (_res(dir) + "/").begins_with(skip):
 			return out
 	var d := DirAccess.open(dir)
 	if d == null:
 		return out
 	for f in d.get_files():
 		var p := dir.path_join(f)
-		if f.ends_with(ext) and p not in SKIP_PATHS:
+		if f.ends_with(ext) and _res(p) not in SKIP_PATHS:
 			out.append(p)
 	for sub in d.get_directories():
 		if not sub.begins_with("."):
@@ -221,7 +231,7 @@ static func _scan_gd(path: String, found: Array) -> void:
 				continue
 			rules = ["signed"]
 		for hit: Array in check(s, rules):
-			found.append({"file": path.replace("res://", "game/"), "line": int(lit[1]) + 1, "text": s, "rule": hit[0], "hint": hit[1]})
+			found.append({"file": _res(path).replace("res://", "game/"), "line": int(lit[1]) + 1, "text": s, "rule": hit[0], "hint": hit[1]})
 
 
 ## Opschriften in Blender: de literals op regels die tekst maken (text(…), *_label(…), sign(…)).

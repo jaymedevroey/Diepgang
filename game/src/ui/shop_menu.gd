@@ -347,7 +347,8 @@ func _card(id: String) -> Control:
 		status.text = "%s · %s" % [why, UiTheme.euro(price)] if why == "Not enough funds" else why
 		status.add_theme_color_override("font_color", UiTheme.DANGER)
 	else:
-		status.text = "%s for a crew of %d" % [UiTheme.euro(price), company.team_size()]
+		var crew := company.team_size()
+		status.text = ("%s · solo price" % UiTheme.euro(price)) if crew <= 1 else ("%s · price for a crew of %d" % [UiTheme.euro(price), crew])
 		status.add_theme_color_override("font_color", Color("#C9C1B2"))
 	info.add_child(status)
 	var bpad := MarginContainer.new()

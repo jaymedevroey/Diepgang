@@ -2,6 +2,40 @@
 
 Wat we onderweg leerden en wat het GDD bijstuurt. Nieuwste bovenaan.
 
+## 2026-10-06 — Release-audit golf 3, pakket G6: tekst, toetsen, HUD-stijl
+
+**De stijlregels hebben nu een test** (ui2-07): `TextLint` (`game/src/ui/text_lint.gd`) loopt elke
+tekst-literal in `game/src` en `game/data` af (niet de logregels, de tests of het tuningpaneel) en de
+opschriften in `tools/blender/interior` en `mol.py`. Snel, zonder wereld:
+`tools\godot.cmd --headless --path game -- --scenario=ui_test --only=text --no-steam`. Elke fout staat als
+`pad:regel [regel] "tekst" → wat het moet zijn`; het pad zegt van welk pakket ze is. De volle `ui_test`
+kijkt ook alles na wat op het scherm staat (labels, knoppen, Label3D, met het lettertype). Een echte
+uitzondering: `# text-lint: ok` achteraan de regel, met een reden.
+- **Toetsen nooit in de tekst gieten** (ui2-09): `Settings.key_of(actie)` in een zin, of `{actie}` in de
+  tekst en `Settings.fill_keys()` bij het tonen (`Hud.toast` doet dat zelf, ook voor meldingen van de host).
+  `{move}` = de vier looptoetsen (`Settings.move_keys()`: WASD, op AZERTY ZQSD). Met een controller in de
+  hand kiest `key_of` de knop van de actie (als ze er een heeft): de tekst hoeft niets te weten.
+- **Een teken altijd via `UiTheme.signed()`** (+1, −1), nooit `%+d` of `str(-1)`: beide geven een koppelteken.
+  `str(m)` op de sonarstrook vond enkel de test op het scherm, niet de lint op de bron.
+- **Woordenlijst, aangevuld:** de plek waar je een contract kiest heet overal *contract table* (het
+  venster mag CONTRACT DESK heten); geen "terminal", geen "hub" voor de speler; *team funds*; de firma is
+  *DIG* (*Diepgang Interplanetary Groundworks*, GDD), niet "Diepgang Ltd"; "Choose a contract" (niet "pick");
+  het magma "reaches you in 4:59"; een boete "Fine: quota missed (…)"; een factor in VT323 als procent
+  ("PAY +35%"): de × leest daar als de letter X.
+- **Eén kleurregel voor toestanden in de HUD** (ui2-06): `UiTheme.state_color()`: crème gewoon, amber
+  gevaar, rood kritiek. Wat getekend wordt (`draw_*`) krijgt het HUD-plaatje via `UiTheme.draw_chip()` en
+  een toetsblokje via `UiTheme.draw_key()`, zoals de Labels met HudChip en KeyCap.
+- **Twee HUD-onderdelen in dezelfde hoek botsen pas als ze samen in beeld zijn:** de pilootstrook en de
+  sonar. `Hud.layout_rects()` geeft hun rechthoeken, `ui_test` controleert ze bij 100, 125 en 150 % interface.
+- **Bungee in Blender:** een hoofdletter is bij grootte 1 maar 0,294 hoog (`hangar_kit.CAP`); met de
+  standaardletter van Blender is dat ±0,7. Wie van lettertype wisselt, rekent de grootte om.
+- **Labels plat op een schuin paneel helden met het perspectief** (links leek het cursief, in het midden
+  recht). Ze per label draaien zodat ze vanuit de stoel rechtop staan, werkt maar voor één oogpunt; een
+  donker plaatje onder elk label laat de helling lezen als die van het paneel.
+- **Eén vlek onder een vloerpijl leest als zijn schaduw:** decals niet op vloertekst of pijlen leggen.
+- **Een opschrift dat een spelregel noemt, leest de regel uit de tuning** (`mol.py` haalt het laadruim
+  uit `economy.cfg`): "MAX 400 KG" sprak de hendel tegen die bij 64 kg weigert.
+
 ## 2026-10-05 — Release-audit, pakket F2: dreiging en climax
 
 De keuzes waar het GDD zweeg staan in GDD §6 ("Uitwerking (pakket F2)").
@@ -76,7 +110,7 @@ De keuzes waar het GDD zweeg staan in GDD §6 ("Uitwerking (pakket F2)").
 - **Minteken:** het echte "−" voor negatieve getallen en bedragen (`UiTheme.euro`, `UiTheme.num`), nooit een koppelteken. Een bedrag dat iets bijtelt of aftrekt krijgt altijd een teken (`UiTheme.euro_signed`: +€266, −€240).
 - **Munt:** € overal (geen "CR" of "cents"; de bordjes in het hubmodel moeten nog volgen).
 - **Meervoud** via `UiTheme.count(n, "shift")`, nooit "shift(s)".
-- **Spelling:** Amerikaans (color, refueled, liter); "Diepgang Ltd" blijft een naam.
+- **Spelling:** Amerikaans (color, refueled, liter). De firma heet DIG (Diepgang Interplanetary Groundworks), niet "Diepgang Ltd" (golf 3).
 - **Geen ontwikkelaarstaal** die een speler ziet: geen "later", "coming soon", "M4", "Playtest", geen belofte van iets dat er niet is. Een ding zonder functie krijgt een DIG-grap over zichzelf ("Closed for budget reasons").
 
 **Wat ik leerde:**
