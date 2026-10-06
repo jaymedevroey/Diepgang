@@ -20,8 +20,12 @@ uniform int count = 0;
 uniform vec4 blips[24]; // xy: -1..1 (x rechts, y vooruit), z: helderheid, w: grootte 0..2 (+3 = scherp, van een PING)
 uniform float heights[24]; // meter t.o.v. de Mol (+ = boven)
 uniform int target = -1;
-// De Graafworm: xy in de scoop (-1..1), z = sterkte (0 = niet te zien), w = hoogte t.o.v. de Mol (m).
+// De Graafworm ("the Gulper"): xy in de scoop (-1..1), z = sterkte (0 = niet te zien), w = hoogte t.o.v.
+// de Mol (m). In zijn eigen kleur (rood-oranje: gevaar, niet het groen van een vondst; ui2-05), en
+// `threat_hot` = 1 als hij aanvalt (sneller kloppen).
 uniform vec4 threat = vec4(0.0);
+uniform float threat_hot = 0.0;
+uniform vec3 threat_col : source_color = vec3(1.0, 0.3, 0.1);
 uniform float level = 2.5; // binnen ±level meter: "gelijk", geen pijltje
 uniform vec3 phosphor : source_color = vec3(0.42, 1.0, 0.52);
 
@@ -56,6 +60,7 @@ bool blip_sharp(int i) {
 void fragment() {
 	vec2 p = UV * size;
 	float g = 0.0; // fosforhelderheid
+	float w = 0.0; // de worm (eigen kleur)
 
 	// --- Scoop ---------------------------------------------------------------------------------
 	vec2 d = p - scope_c;
@@ -129,27 +134,34 @@ void fragment() {
 			g += 0.9 * line_aa(abs(length(q) - rr), 2.2) * arc * max(b, 0.35);
 		}
 	}
-	// De worm: een grote vlek met een rafelige rand die klopt, en ringen die uitlopen (iets groots).
+	// De worm: een grote rode vlek met een rafelige rand die klopt (iets groots), een krans tanden
+	// die naar binnen wijzen (een muil: zijn eigen teken), en ringen die uitlopen.
 	if (threat.z > 0.0) {
 		vec2 tc = scope_c + vec2(threat.x, -threat.y) * scope_r;
 		vec2 q = p - tc;
 		float dq = length(q);
 		float ang = atan(q.y, q.x);
-		float beat = 0.5 + 0.5 * sin(TIME * 5.5);
+		float hz = mix(5.5, 11.0, threat_hot);
+		float beat = 0.5 + 0.5 * sin(TIME * hz);
 		float rad = 26.0 + 10.0 * beat + 5.0 * sin(ang * 5.0 + TIME * 3.0) + 3.0 * sin(ang * 9.0 - TIME * 4.0);
-		g += threat.z * (1.6 * (1.0 - smoothstep(rad - 6.0, rad + 2.0, dq)) * (0.55 + 0.45 * beat));
-		g += threat.z * 0.6 * exp(-max(dq - rad, 0.0) / 18.0);
+		float fill = 1.0 - smoothstep(rad - 6.0, rad + 2.0, dq);
+		// De muil: een donkere kern met acht tanden die naar het midden wijzen.
+		float teeth = smoothstep(0.55, 0.95, abs(sin(ang * 4.0 + TIME * 0.8))) * smoothstep(rad * 0.25, rad * 0.75, dq);
+		float hole = 1.0 - smoothstep(rad * 0.3, rad * 0.55, dq);
+		w += threat.z * 1.6 * fill * (0.55 + 0.45 * beat) * (1.0 - 0.8 * hole) * (1.0 - 0.55 * teeth);
+		w += threat.z * 0.6 * exp(-max(dq - rad, 0.0) / 18.0);
 		for (int k = 0; k < 2; k++) {
 			float rr = mod(TIME * 38.0 + float(k) * 40.0, 80.0) + rad;
-			g += threat.z * 0.7 * (1.0 - (rr - rad) / 80.0) * line_aa(abs(dq - rr), 2.5);
+			w += threat.z * 0.7 * (1.0 - (rr - rad) / 80.0) * line_aa(abs(dq - rr), 2.5);
 		}
 		if (threat.w > level) {
-			g += threat.z * 1.2 * tri(q + vec2(0.0, rad + 16.0), 11.0, 1.0);
+			w += threat.z * 1.2 * tri(q + vec2(0.0, rad + 16.0), 11.0, 1.0);
 		} else if (threat.w < -level) {
-			g += threat.z * 1.2 * tri(q - vec2(0.0, rad + 16.0), 11.0, -1.0);
+			w += threat.z * 1.2 * tri(q - vec2(0.0, rad + 16.0), 11.0, -1.0);
 		}
 	}
 	g *= max(in_scope, step(scope_r + 6.0, r)); // blips buiten de scoop vallen weg
+	w *= max(in_scope, step(scope_r + 6.0, r));
 
 	// --- Dieptestrook ------------------------------------------------------------------------
 	if (p.x > strip.x - 6.0 && p.x < strip.z + 6.0 && p.y > strip.y - 6.0 && p.y < strip.w + 6.0) {
@@ -169,13 +181,20 @@ void fragment() {
 		for (int i = 0; i < count; i++) {
 			float h = clamp(heights[i], -strip_range * 0.97, strip_range * 0.97);
 			float y = yc - h * px_m;
-			float w = (i == target) ? 3.5 : 2.2;
-			g += blips[i].z * 1.1 * line_aa(abs(p.y - y), w) * in_strip;
+			float lw = (i == target) ? 3.5 : 2.2;
+			g += blips[i].z * 1.1 * line_aa(abs(p.y - y), lw) * in_strip;
+		}
+		// De worm in de dieptestrook: een dikke rode streep.
+		if (threat.z > 0.0) {
+			float th = clamp(threat.w, -strip_range * 0.97, strip_range * 0.97);
+			w += threat.z * 1.4 * line_aa(abs(p.y - (yc - th * px_m)), 5.0) * in_strip;
 		}
 	}
 
 	vec3 col = vec3(0.01, 0.028, 0.016) + phosphor * g;
 	// Overbelicht naar wit, zoals fosfor.
 	col += vec3(max(g - 0.9, 0.0) * 0.5);
+	// De worm over het groen: rood-oranje, dat het groen eronder wegdrukt.
+	col = mix(col, threat_col * (0.35 + w) + vec3(max(w - 1.1, 0.0) * 0.3, max(w - 1.1, 0.0) * 0.15, 0.0), clamp(w * 1.4, 0.0, 1.0));
 	COLOR = vec4(col, 1.0);
 }

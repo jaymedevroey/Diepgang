@@ -87,6 +87,7 @@ func _run(pl: Player) -> void:
 		"sprint": await _sprint()
 		"crouch": await _crouch()
 		"heavy_kinds": await _heavy_kinds()
+		"grabbed": await _grabbed()
 		_: _log("onbekende take")
 	_log("klaar")
 	get_tree().quit(0)
@@ -647,6 +648,43 @@ func _sprint() -> void:
 	_log("weer lopen: fov %.1f" % p.camera.fov)
 	Input.action_release("move_forward")
 	await _wait(0.6)
+
+
+## De worm grijpt jou (pakket G1): het klapmoment en de volgcamera terwijl hij je wegsleurt (de worm
+## heeft geen botsvorm: de camera moet uit zijn lijf blijven).
+func _grabbed() -> void:
+	var worm: Worm = game.worm
+	var r: Array = await _cave(45.0, Vector3(-35.0, 0.0, 15.0), 10.0)
+	var ground: Vector3 = r[1]
+	var spot := ground + Vector3(1.0, 0.05, 0.0)
+	_stand(spot, spot + Vector3(-8.0, 1.0, 0.0))
+	p.set_physics_process(true)
+	game.magma.elapsed = worm.wake_after() + 1.0
+	await _wait(1.5)
+	worm.mode = Worm.Mode.HUNT
+	worm.pos = spot + Vector3(-12.0, -6.0, 0.0)
+	worm._net_pos = worm.pos
+	worm._cool = 0.0
+	worm._grab_cool = 0.0
+	worm._try_lunge(p.global_position)
+	var t0 := _gt
+	var shots := {}
+	while _gt - t0 < 9.0:
+		await get_tree().physics_frame
+		var held := worm.holds(p.peer_id)
+		if held and not shots.has("a"):
+			shots["a"] = _gt
+			_log("gegrepen")
+		if shots.has("a") and not shots.has("b") and _gt - float(shots.a) > 0.6:
+			shots["b"] = true
+			await _snap("gesleurd_1")
+		if shots.has("a") and not shots.has("c") and _gt - float(shots.a) > 1.6:
+			shots["c"] = true
+			await _snap("gesleurd_2")
+		if shots.has("a") and not held and not shots.has("d"):
+			shots["d"] = true
+			_log("losgelaten")
+	_log("gegrepen: %s" % shots.has("a"))
 
 
 ## De nieuwe zware stukken van golf 3 (ontwerp-8) naast een robot en een titanschedel: de loonzak

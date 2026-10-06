@@ -1047,7 +1047,17 @@ func _update_alarm(player: Player, game: Game, mol: Mol) -> void:
 		hz = 1.6
 	if not _in_hub and not _world_hidden and hazard.magma_m < 15.0:
 		lvl = maxf(lvl, 0.3)
-	# In een gasbel: een gloed in de kleur van gas, al vóór er een vonk is (G2, gevoel2-01, ui2-02).
+	# De worm (pakket G1, ui2-05): een zwakke rode gloed als hij dichtbij rommelt, fel als hij je vasthoudt
+	# of in de Mol bijt waar je in zit.
+	if not _in_hub and not _world_hidden and game.worm:
+		if hazard.worm > 0.5:
+			lvl = maxf(lvl, 0.2 + 0.35 * smoothstep(0.5, 0.9, hazard.worm))
+			hz = maxf(hz, 1.3)
+		if game.worm.holds(player.peer_id) or (game.worm.biting() and mol and mol.body and (player.seated or mol.contains_point(player.global_position))):
+			lvl = maxf(lvl, 0.75)
+			hz = maxf(hz, 2.2)
+	# In een gasbel: een gloed in de kleur van gas, al vóór er een vonk is (G2, gevoel2-01, ui2-02). Een
+	# sterkere rode gloed (beving, worm, magma) gaat voor: dan blijft hij rood.
 	var tint := UiTheme.DANGER
 	if not _in_hub and not _world_hidden and hazard.gas and lvl < 0.35:
 		lvl = 0.35
@@ -1224,7 +1234,12 @@ func _update_prompt(player: Player, game: Game, terrain: TerrainAPI) -> void:
 		var cam := player.camera
 		var hit := terrain.raycast(cam.global_position, cam.global_position - cam.global_basis.z * 3.5,
 				Layers.TERRAIN | Layers.CRUST | Layers.LOOT | Layers.LIFT)
-		if not hit.is_empty() and hit.collider is Rubble and (hit.collider as Rubble).blocks:
+		if not hit.is_empty() and (hit.collider as Node).has_meta("worm"):
+			# De kop van de worm (pakket G1): slaan doet hem loslaten.
+			state = HudCrosshair.State.CRUST
+			text = "The %s: hit it!" % Worm.NAME
+			sub = "Pickaxe: it lets go"
+		elif not hit.is_empty() and hit.collider is Rubble and (hit.collider as Rubble).blocks:
 			var rb: Rubble = hit.collider
 			state = HudCrosshair.State.CRUST
 			crosshair.crust_hp = rb.hp

@@ -40,7 +40,8 @@ extends Node3D
 ##   feel_bench        metingen en filmpjes van lopen, gereedschap, dragen en vondsten (--part=…)
 ##   threat_test       dreiging (F2): worm, bakens, gas, neergaan en redden, instortingen, climax (headless)
 ##   net_threat_test   neergaan, dragen en redden, en de worm in co-op (tools/net_test.py --scenario=net_threat_test)
-##   threat_film       films en beelden van de dreiging (--take=model|worm|lunge|gas|rescue|collapse|hud)
+##   threat_film       films en beelden van de dreiging (--take=model|worm|lunge|gas|rescue|collapse|hud|beacon|climax|grab|ram)
+##   worm_balance      meting: hoe vaak raakt de worm de Mol, midden in de dienst en in de climax (G1)
 ##   impact_film       films en beelden van pakket G2: klap, neergaan, dragen, kleinere gevaren (--take=…)
 ## Extra in play (voor controle door de agent):
 ##   --shot=naam --frames=90,140   screenshots N frames na het spawnen, dan afsluiten
@@ -95,6 +96,7 @@ const SCENARIOS := {
 	"threat_test": preload("res://src/main/scenarios/threat_test.gd"),
 	"net_threat_test": preload("res://src/main/scenarios/net_threat_test.gd"),
 	"threat_film": preload("res://src/main/scenarios/threat_film.gd"),
+	"worm_balance": preload("res://src/main/scenarios/worm_balance.gd"),
 	"impact_film": preload("res://src/main/scenarios/impact_film.gd"),
 }
 ## Scenario's die op De Ekster beginnen (de Mol in de dropbaai). De rest begint op de planeet.

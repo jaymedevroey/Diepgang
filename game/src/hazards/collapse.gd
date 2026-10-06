@@ -111,15 +111,16 @@ func _host_roll(step: float) -> void:
 		return
 	for z: Vector4 in game.unrest.zones:
 		var c := Vector3(z.x, z.y, z.z)
-		var close := false
+		var closest := INF
 		for s in spots:
-			if s.distance_to(c) < near:
-				close = true
-				break
-		if not close:
+			closest = minf(closest, s.distance_to(c))
+		if closest >= near:
 			continue
 		var depth := t.surface_height_at(c.x, c.z) - c.y
-		var p := rate_at(depth, unrest_frac, tension, planet) * step / 60.0
+		# Dichtbij een speler groter (golf 3, ontwerp2-2: wie voorzichtig werkt, staat ook eens onder
+		# een zone die het begeeft); aan de rand van near_m kleiner.
+		var k := lerpf(Tuning.get_f("collapse", "near_boost", 2.5), 0.6, smoothstep(6.0, near, closest))
+		var p := rate_at(depth, unrest_frac, tension, planet) * k * step / 60.0
 		if _rng.randf() < p:
 			host_collapse(z)
 			return # hooguit één per keer

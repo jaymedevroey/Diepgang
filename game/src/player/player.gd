@@ -123,6 +123,8 @@ var _view_from := Transform3D()
 var _view_blend := 1.0
 var _orbit_pos := Vector3.INF # de volgcamera, afgevlakt
 var _cabin_pick := -1 # vast camerapunt in de Mol (index in CABIN_CAMS)
+var _held_last := Vector3.INF # in de muil van de worm: plek van de romp bij de vorige frame
+var _held_dir := Vector3.ZERO # en de richting waarin de worm zwemt (vlak, afgevlakt)
 var _unstick := Vector3.ZERO # gehurkt vast: richting naar een plek waar je recht kan staan
 var _unstick_t := 0.0
 
@@ -524,7 +526,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		game.mol.press(Mol.Cmd.HORN)
 	elif event.is_action_pressed("sonar_ping") and captured and (seated or game.mol.contains_point(global_position)):
 		game.mol.press(Mol.Cmd.PING)
-	elif event.is_action_pressed("beacon") and captured and not seated and game.beacons:
+	elif event.is_action_pressed("beacon") and captured and game.beacons and (not seated or game.beacons.launch_ready(game.mol)):
+		# In de stoel enkel door de achterklep van een rijdende Mol (pakket G1).
 		game.beacons.request_throw(self)
 	elif seated:
 		return # geen gereedschap in de stoel
@@ -551,7 +554,8 @@ func _physics_process(delta: float) -> void:
 		velocity = Vector3.ZERO
 		_air_top = global_position.y
 		var awake := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or DisplayServer.get_name() == "headless"
-		if awake and life == Rescue.Life.DOWNED and Input.is_action_just_pressed("jump"):
+		# Neer: spartelen. In de muil van de worm (G1): spartelen maakt je los.
+		if awake and (life == Rescue.Life.DOWNED or game.rescue.is_held(peer_id)) and Input.is_action_just_pressed("jump"):
 			game.rescue.request_flail()
 		return
 	if life == Rescue.Life.BROKEN:
@@ -968,6 +972,21 @@ func _follow_cam(delta: float) -> Transform3D:
 	var want := Tuning.get_f("camera", "follow_dist", 3.2)
 	var pitch := clampf(head.rotation.x - 0.35, -1.25, 0.6)
 	var yaw0 := rotation.y
+	if game.rescue and game.rescue.is_held(peer_id):
+		# In de muil van de worm (pakket G1): de worm heeft geen botsvorm, en zijn lijf sleept achter de
+		# kop aan. Dus de camera vóór de kop, in de richting waarin hij zwemt, en van boven: je ziet de muil
+		# en jezelf erin, niet de binnenkant van zijn lijf.
+		var mv := focus - _held_last
+		mv.y = 0.0
+		if _held_last != Vector3.INF and mv.length() > 0.005 and mv.length() < 2.0:
+			_held_dir = (_held_dir.lerp(mv.normalized(), 1.0 - exp(-delta * 4.0))).normalized() if _held_dir != Vector3.ZERO else mv.normalized()
+		_held_last = focus
+		if _held_dir != Vector3.ZERO:
+			yaw0 = atan2(_held_dir.x, _held_dir.z)
+		pitch = minf(pitch, -0.5)
+	else:
+		_held_last = Vector3.INF
+		_held_dir = Vector3.ZERO
 	if carrier:
 		# Schuin van achter en opzij, van boven: je ziet jezelf in de armen van je drager, en de weg.
 		pitch = minf(pitch, -0.6)
