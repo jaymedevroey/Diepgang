@@ -17,16 +17,16 @@ Hier staan de oude punten die 'beter, niet genoeg' of 'erger' waren en alle nieu
 
 | ID | Pakket | Status | Wat er gedaan is | Verificatie |
 |---|---|---|---|---|
-| ontwerp-1 | G1 | open | | |
-| ontwerp-7 | G1 | open | | |
-| ontwerp2-1 | G1 | open | | |
-| ontwerp2-2 | G1 | open | | |
-| ontwerp2-3 | G1 | open | | |
-| binnen2-01 | G1 | open | | |
-| binnen2-02 | G1 | open | | |
-| gevoel2-05 | G1 | open | | |
-| gevoel2-07 | G1 | open | | |
-| ui2-05 | G1 | open | | |
+| ontwerp-1 | G1 | klaar (niet met echte invoer gespeeld) | Gevaar voor de spelers zelf midden in de dienst: grijpen, rondsluipen, doorbreken | threat_test (99), net_threat_test (29) |
+| ontwerp-7 | G1 | klaar (standhouden aan de oppervlakte niet gedaan) | Een baken in een rijdende Mol telt niet; de ram is een beet die duurt (2,5%/s per vondst, max 5 s, Mol aan 55%); de piloot schudt hem los (4× links-rechts); G gooit een baken door de achterklep; aan de oppervlakte sla je hem van de Mol | worm_balance: terugrit zonder iets −13/−38/−63%, met een ploeg die iets doet −5/−18/−23% |
+| ontwerp2-1 | G1 | klaar | Midden in de dienst duwt de worm de Mol hooguit (Mol valt stil, wie staat gaat omver, lading heel), daarna 40 s doof voor de Mol en 60 s geen duw; rijden lokt minder (0,6 → 0,3) | worm_balance: 120 s rijden voor 8× geraakt en −75% lading, na 2× en 0% |
+| ontwerp2-2 | G1 | klaar | Hij grijpt wie hij raakt; breekt na lang boorlawaai door een smalle gangwand (houweel blijft stil); sluipt onder wie 5 s binnen 9 m blijft; gas ook ondiep (22 m) en bij de landing (35% binnen 70 m); instortingen ×2,5 dicht bij een speler | worm_balance --only=gas: bellen binnen bereik 0–1 → 1–5 |
+| ontwerp2-3 | G1 | klaar | Zie ontwerp-7: één baken zet de climax niet meer uit | worm_balance |
+| binnen2-01 | G1 | klaar | De lip van de kop stopt tegen de romp op de flank (zichtbaar in het volgshot) en trekt terug de grond in | threat_test (vier kanten en beet); G1: film |
+| binnen2-02 | G1 | klaar (ter goedkeuring: model) | Nieuw model: drie flappen, vlezige muil met drie kransen tanden en tongen, gloed diep in de keel, gloeiende naden en stippen, bleke buik; uitval met 1,6 s waarschuwing (rots barst open en gloeit), kegel scherven, kop komt traag uit de rots | G1: voor_na_*.png, films |
+| gevoel2-05 | G1 | deels | Model slaat opzij en kantelt, cabinecamera helt en schokt, lichten haperen, vonken. Open: de zijwaartse ruk leest weinig in stilstaand beeld; de schok van binnen niet gefilmd | G1: voor_na_*.png |
+| gevoel2-07 | G1 | klaar | Baken als fakkel: worp met de linkerhand, 18 m licht met vonken, gloeiende ring op de vloer zo groot als de veilige zone (14 m), sputtert de laatste 8 s | G1: films |
+| ui2-05 | G1 | klaar (ter goedkeuring: naam) | Eén naam: the Gulper; rood-oranje op de sonar met eigen teken, bovenaan dichtbij ('! GULPER 4 m · ATTACKING'); HUD-rij met icoon; rode gloed rond het scherm. Open: merkteken op het kompas | G1: beelden |
 | gevoel2-01 | G2 | open | | |
 | gevoel2-02 | G2 | open | | |
 | binnen2-03 | G2 | open | | |
