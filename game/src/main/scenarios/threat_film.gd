@@ -11,6 +11,9 @@ extends Node
 ##             (--cam=side: van opzij gefilmd)
 ##   collapse  diep in het zandsteen: een zone stort in, het puin blijft liggen, je bikt het weg
 ##   hud       beelden (geen film) van de HUD onder de grond: het magma ver weg, voor (--legacy) en na
+##   beacon    een lichtbaken gooien in een donkere grot: de worp, het licht, de veilige zone (G1)
+##   climax    de hendel, de terugrit over de vlakte (buitenzicht met de sonar), de worm die achtervolgt
+##             en ramt (--beacon=1: met een baken in de Mol; --inside=1: van binnen gefilmd) (G1)
 ## Eindigt zelf.
 
 const TAG := "[threat_film]"
@@ -53,6 +56,10 @@ func _run(pl: Player) -> void:
 			await _collapse()
 		"hud":
 			await _hud()
+		"beacon":
+			await _beacon()
+		"climax":
+			await _climax()
 	print(TAG, " klaar")
 	get_tree().quit(0)
 
@@ -415,6 +422,110 @@ func _hud() -> void:
 	game.rescue.host_damage(p.peer_id, 2.0, Vector3(1.0, 1.0, 0.0), true, "film")
 	await _wait(1.2)
 	_snap("hud_neer")
+
+
+## Een lichtbaken in een donkere grot (gevoel2-07): de speler gooit het over de vloer, het licht en
+## de veilige zone; daarna nadert de worm en zwemt weg.
+func _beacon() -> void:
+	var r: Array = await _cave(50.0, Vector3(-30.0, 0.0, -25.0), 9.0)
+	var ground: Vector3 = r[1]
+	_stand(ground + Vector3(6.0, 0.05, 0.0), ground + Vector3(-4.0, 0.0, 0.0))
+	p.set_physics_process(true)
+	game.magma.elapsed = game.worm.wake_after() + 1.0
+	await _wait(1.5)
+	_snap("baken_voor")
+	game.beacons.request_throw(p)
+	await _wait(0.15)
+	_snap("baken_worp")
+	await _wait(2.6)
+	_snap("baken_ligt")
+	# De worm komt eraan, maar bij het baken valt hij niet uit.
+	var worm: Worm = game.worm
+	worm.pos = ground + Vector3(-30.0, -6.0, 0.0)
+	worm._net_pos = worm.pos
+	worm.mode = Worm.Mode.HUNT
+	worm._cool = 0.0
+	worm._noises.clear()
+	worm.hear(ground + Vector3(-2.0, 0.5, 0.0), 6.0)
+	await _wait(5.0)
+	_snap("baken_worm")
+	await _wait(2.0)
+
+
+## De climax (ontwerp-7, ontwerp2-3): de hendel, dan rijdt de Mol achteruit terug over de vlakte
+## (zoals na de hendel een spoor af, hier boven de grond zodat je de worm ziet). Twee vondsten in het
+## laadruim. De worm achtervolgt met de climaxsnelheid.
+func _climax() -> void:
+	var mol: Mol = game.mol
+	var worm: Worm = game.worm
+	var inside: bool = str(CmdArgs.value("inside", "")) == "1"
+	Tuning.set_value("mol", "countdown_s", 3.0)
+	# Roestbol heeft een trage worm (×0,7): voor de film zo snel als op Fossielwereld (7,5 m/s).
+	Tuning.set_value("worm", "climax_speed", 7.5 / maxf(0.1, HazardParams.of(game, "worm", 1.0)))
+	game.magma.elapsed = 600.0
+	# Het spoor: 220 m recht achter de Mol, op de grond (de rupsen op het oppervlak).
+	var start := mol.body.global_position
+	var back := mol.body.global_basis.z
+	back.y = 0.0
+	back = back.normalized()
+	var path: Array[Vector3] = []
+	var n := 24
+	for i in n + 1:
+		var q := start + back * (220.0 * (1.0 - float(i) / n))
+		q.y = t.surface_height_at(q.x, q.z) - Mol.TRACK_BOTTOM
+		path.append(q)
+	path[n] = start
+	mol._path.assign(path)
+	# Twee vondsten in het laadruim.
+	var k := 0
+	var cargo: Array[FindItem] = []
+	for it: FindItem in game.finds.items:
+		if it.freed or not it.carriers.is_empty():
+			continue
+		game.finds._free(it.find_id)
+		await _wait(0.3)
+		it.global_position = mol.to_world_mol(Vector3(-0.6 + 1.2 * k, -1.2, 2.4))
+		it.linear_velocity = Vector3.ZERO
+		it.reset_physics_interpolation()
+		cargo.append(it)
+		k += 1
+		if k >= 2:
+			break
+	if str(CmdArgs.value("beacon", "")) == "1":
+		# Een baken in het laadruim (zoals de ploeg het voor de hendel neerlegt).
+		game.beacons._rpc_spawn(99, mol.to_world_mol(Vector3(0.0, -1.0, 1.0)), Vector3.ZERO)
+	p.set_physics_process(true)
+	if inside:
+		p.global_transform = Transform3D(Basis(Vector3.UP, mol.yaw + PI), mol.to_world_mol(Vector3(0.0, -1.45, 0.4)))
+		p.head.rotation.x = deg_to_rad(-12.0)
+	else:
+		p.global_transform = Transform3D(Basis(Vector3.UP, mol.yaw), mol.to_world_mol(Vector3(0.0, -1.45, -1.0)))
+		await _wait(0.4)
+		mol.press(Mol.Cmd.SEAT)
+		await _wait(0.6)
+		p.chase.activate()
+	await _wait(0.5)
+	print(TAG, " climax: lading bij de start %s" % [mol.cargo_contents().map(func(i: FindItem) -> String: return "%d%%" % int(i.condition * 100))])
+	# De worm komt van achter (waar de Mol vandaan rijdt), 30 m weg.
+	worm.pos = start - back * 30.0 + mol.body.global_basis.x * 10.0 + Vector3(0.0, -10.0, 0.0)
+	worm._net_pos = worm.pos
+	worm.vel = Vector3.ZERO
+	worm.mode = Worm.Mode.ROAM
+	worm._noises.clear()
+	worm._cool = 0.0
+	worm._ram_cool = 0.0
+	mol.press(Mol.Cmd.DEPART)
+	var t0 := _now()
+	var shots := 0
+	var rams := [0]
+	worm.rammed.connect(func(_a: Vector3) -> void: rams[0] += 1)
+	while _now() - t0 < 48.0 and (mol.mode in [Mol.Mode.COUNTDOWN, Mol.Mode.EXTRACTING] or _now() - t0 < 1.0):
+		await get_tree().process_frame
+		if _now() - t0 > 6.0 + shots * 6.0 and shots < 4:
+			_snap("climax_%d" % shots)
+			shots += 1
+	print(TAG, " climax: %d keer geramd in %.0f s, lading %s" % [rams[0], _now() - t0, cargo.map(func(i: FindItem) -> String: return "%d%%" % int(i.condition * 100))])
+	await _wait(1.0)
 
 
 func _snap(name: String) -> void:
