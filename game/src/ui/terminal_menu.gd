@@ -318,7 +318,7 @@ func _refresh() -> void:
 	var c := company
 	var q := c.quota()
 	var shifts := Tuning.get_i("company", "shifts", 3)
-	_status.text = "FUNDS %s   ·   REP %+d   ·   Q%d · SHIFT %d/%d" % [UiTheme.euro(c.cash), c.reputation, c.quarter, c.shift, shifts]
+	_status.text = "FUNDS %s   ·   REP %s   ·   Q%d · SHIFT %d/%d" % [UiTheme.euro(c.cash), UiTheme.signed(c.reputation), c.quarter, c.shift, shifts]
 	_refresh_warning(c, q, shifts)
 	var robots := clampi(c.game.players.get_child_count(), 1, 4)
 	_quota_label.text = "%s / %s  ·  %s" % [UiTheme.euro(c.earned), UiTheme.euro(q), UiTheme.count(robots, "robot")]
@@ -343,11 +343,11 @@ func _refresh() -> void:
 	var mol: Mol = c.game.mol
 	var docked: bool = mol != null and mol.mode == Mol.Mode.DOCKED
 	if not docked:
-		_note.text = "The Mole is out. You can pick a contract once it's back in the bay."
+		_note.text = "The Mole is out. You can choose a contract once it's back in the bay."
 	elif c.contract_ready():
 		_note.text = "Board the Mole and pull the LAUNCH lever to drop."
 	else:
-		_note.text = "More risk pays more, but brings risky conditions and faster magma. Miss the quota and head office fines you."
+		_note.text = "More risk pays more, but brings harsher conditions and faster magma. Miss the quota and head office fines you."
 
 
 func _first_button(n: Node) -> Button:
@@ -506,7 +506,7 @@ func _refresh_warning(c: Company, q: int, shifts: int) -> void:
 		if c.shift >= shifts:
 			lines.append("Signing closes quarter %d: %s of %s so far." % [c.quarter, UiTheme.euro(c.earned), UiTheme.euro(q)])
 	if c.on_probation():
-		lines.append("Probation (reputation %+d): no HIGH-risk contracts until you meet a quota." % c.reputation)
+		lines.append("Probation (reputation %s): no HIGH-risk contracts until you meet a quota." % UiTheme.signed(c.reputation))
 	_warn.visible = not lines.is_empty()
 	_warn_label.text = "
 ".join(lines)

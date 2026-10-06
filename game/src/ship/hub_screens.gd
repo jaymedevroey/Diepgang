@@ -451,6 +451,12 @@ static func _num(v: float, decimals := 2) -> String:
 	return ("%." + str(decimals) + "f") % v
 
 
+## Een factor als verschil in procenten: 1.35 → "+35%", 0.9 → "−10%", 1.0 → "±0%".
+static func _pct(v: float) -> String:
+	var p := roundi((v - 1.0) * 100.0)
+	return ("±0" if p == 0 else UiTheme.signed(p)) + "%"
+
+
 func _planet_name() -> String:
 	return PlanetType.NAMES[clampi(int(game.planet_type), 0, PlanetType.NAMES.size() - 1)]
 
@@ -473,7 +479,7 @@ func _vars() -> Dictionary:
 		"shifts": _shifts(),
 		"left": maxi(1, _shifts() - c.shift + 1),
 		"left_shifts": UiTheme.count(maxi(1, _shifts() - c.shift + 1), "shift"),
-		"rep": "%+d" % c.reputation,
+		"rep": UiTheme.signed(c.reputation),
 		"contract": str(c.contract.name) if chosen else "not chosen yet",
 		"risk": Company.RISK_NAMES[int(c.contract.risk)].to_lower() if chosen else "unknown",
 		"magma": _num(c.contract_magma()),
@@ -1071,7 +1077,7 @@ func _build_board(s: Screen) -> void:
 func _paint_board(s: Screen) -> void:
 	var c := _company()
 	var q := c.quota()
-	_text(s, "status", ("PROBATION  ·  SHIFT %d/%d" % [c.shift, _shifts()]) if c.on_probation() else "REP %+d  ·  SHIFT %d/%d" % [c.reputation, c.shift, _shifts()])
+	_text(s, "status", ("PROBATION  ·  SHIFT %d/%d" % [c.shift, _shifts()]) if c.on_probation() else "REP %s  ·  SHIFT %d/%d" % [UiTheme.signed(c.reputation), c.shift, _shifts()])
 	_text(s, "cash", UiTheme.euro(c.cash))
 	# Schuld = bevroren rekening (F1): geen upgrades tot de kas weer positief is.
 	_text(s, "cap_cash", "FUNDS · FROZEN" if c.in_debt() else "FUNDS")
@@ -1164,7 +1170,8 @@ func _paint_terminal(s: Screen) -> void:
 		name_l.modulate.a = 1.0
 		_text(s, "where", "%s · %s" % [str(c.contract.name), TerminalMenu.nickname(c.contract).to_upper()])
 		_text(s, "risk", "RISK %s" % Company.RISK_NAMES[risk])
-		_text(s, "pay", "PAY ×%s   MAGMA ×%s" % [_num(Company.pay_factor(risk)), _num(Company.magma_factor(risk))])
+		# In procenten: in VT323 leest "×1.35" als de letter X (ui2-07).
+		_text(s, "pay", "PAY %s   MAGMA %s" % [_pct(Company.pay_factor(risk)), _pct(Company.magma_factor(risk))])
 		# Na het kiezen laadt de nieuwe wereld: De Ekster vliegt erheen (de hendel wacht daarop).
 		var loading: bool = not game.world_ready()
 		var dots := ".".repeat(1 + int(_time * 2.5) % 3)
@@ -1180,7 +1187,7 @@ func _paint_terminal(s: Screen) -> void:
 		_text(s, "where", "CHOOSE A CONTRACT")
 		_text(s, "risk", "")
 		_text(s, "pay", "QUARTER %d  ·  SHIFT %d/%d" % [c.quarter, c.shift, _shifts()])
-		_text(s, "prompt", ("> PRESS E AT THE TABLE" if docked else "> WAIT FOR THE MOLE TO RETURN") + cursor)
+		_text(s, "prompt", ("> PRESS %s AT THE CONTRACT TABLE" % Settings.key_of("interact").to_upper() if docked else "> WAIT FOR THE MOLE TO RETURN") + cursor)
 
 
 func _draw_terminal(c: Control) -> void:

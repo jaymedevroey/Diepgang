@@ -38,6 +38,18 @@ from kit import (G, PARTS, bake_wear, box, cyl, empty, export_glb, join_group, m
 ARGS = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 OUT = Path(ARGS[0]) if ARGS else Path("mol.glb")
 RENDER_DIR = Path(ARGS[ARGS.index("--render") + 1]) if "--render" in ARGS else None
+TUNING = Path(__file__).resolve().parents[2] / "game" / "data" / "tuning"
+
+
+def tuning(file, key, default):
+    """Een waarde uit game/data/tuning/<file>.cfg: een opschrift zegt wat het spel doet (ui2-08)."""
+    try:
+        for line in (TUNING / f"{file}.cfg").read_text(encoding="utf-8").splitlines():
+            if line.split("=")[0].strip() == key:
+                return float(line.split("=", 1)[1].strip())
+    except OSError:
+        pass
+    return default
 
 # --- Maten (docs/de-mol.md) -----------------------------------------------------------
 HULL_W, HULL_H, HULL_CH = 4.8, 4.2, 0.9
@@ -129,7 +141,7 @@ def build_hull():
     # Opschriften.
     for s in (-1, 1):
         rot = (0, 90 * s, 0)
-        text("DIEPGANG LTD", 0.42, (s * (HULL_W / 2 + 0.02), 0.5, 2.45), rot, "DecalDark", "Hull")
+        text("DIG", 0.6, (s * (HULL_W / 2 + 0.02), 0.5, 2.45), rot, "DecalDark", "Hull")  # de firma (woordenlijst)
         text("THE MOLE  M-01", 0.24, (s * (HULL_W / 2 + 0.02), 0.08, 2.45), rot, "DecalDark", "Hull")
         # Waarschuwingsbalk vooraan op de flank.
         box((0.02, 0.5, 0.9), (s * (HULL_W / 2 + 0.015), -0.25, -3.25), "Hazard", "Hull", bevel=0.0)
@@ -412,7 +424,7 @@ def build_ramp():
     for x in (-1.92, 1.92):
         box((0.18, 2.6, 0.02), (x, 0.0, z1 + 0.005), "Hazard", g, bevel=0.0)
     text("THE MOLE", 0.62, (0, 0.55, z1 + 0.012), (0, 0, 0), "DecalDark", g)
-    text("DIEPGANG LTD  ·  M-01", 0.16, (0, -0.1, z1 + 0.012), (0, 0, 0), "DecalDark", g)
+    text("DIG  ·  M-01", 0.16, (0, -0.1, z1 + 0.012), (0, 0, 0), "DecalDark", g)
     box((1.2, 0.08, 0.03), (0, -0.55, z1 + 0.01), "Anthracite", g, bevel=0.01)
     # Binnenkant: antislipribben (worden treden als hij open ligt).
     y = IN_Y0 + 0.3
@@ -824,7 +836,7 @@ def build_living(g):
     text("SAFETY?", 0.07, (hw - 0.025, 0.72, -1.05), (0, -90, 0), "DecalDark", g)
     text("NEVER", 0.055, (hw - 0.025, 0.6, -1.05), (0, -90, 0), "DecalDark", g)
     text("HEARD OF IT", 0.055, (hw - 0.025, 0.52, -1.05), (0, -90, 0), "DecalDark", g)
-    text("DIEPGANG LTD", 0.045, (hw - 0.025, 0.35, -1.05), (0, -90, 0), "Red", g)
+    text("DIG", 0.045, (hw - 0.025, 0.35, -1.05), (0, -90, 0), "Red", g)
 
 
 def build_cargo(g):
@@ -844,7 +856,11 @@ def build_cargo(g):
         for dz in (-sz / 2 + 0.06, sz / 2 - 0.06):
             box((sz + 0.02, sz + 0.02, 0.05), (x, y, z + dz), "Anthracite", g, bevel=0.01)
     text("CARGO HOLD", 0.16, (hw - 0.02, 0.9, 2.32), (0, -90, 0), "DecalDark", g)
-    text("MAX 400 KG  ·  DO NOT STACK", 0.06, (hw - 0.02, 0.72, 2.32), (0, -90, 0), "DecalDark", g)
+    # De echte limiet uit de tuning (economy.cfg), met de upgrade erbij: "MAX 400 KG" sprak de hendel
+    # tegen die bij 64 kg weigert (ui2-08).
+    kg, kg2 = int(tuning("economy", "cargo_kg", 60.0)), int(tuning("economy", "cargo_kg_t2", 140.0))
+    text(f"MAX {kg} KG  ·  HEAD OFFICE KNOWS", 0.06, (hw - 0.02, 0.72, 2.32), (0, -90, 0), "DecalDark", g)
+    text(f"EXTENDED HOLD: {kg2} KG", 0.045, (hw - 0.02, 0.6, 2.32), (0, -90, 0), "DecalDark", g)
     build_hopper(g)
     # Bediening laadklep bij de klep.
     box((0.08, 0.32, 0.22), (hw - 0.04, -0.25, 3.7), "Anthracite", g, bevel=0.02)

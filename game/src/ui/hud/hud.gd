@@ -90,7 +90,10 @@ var _result_stamp: InkStamp
 var _team: HudFader
 var _team_rows: VBoxContainer
 var _pilot: HudFader
+var _pilot_box: CenterContainer
+var _pilot_chip: PanelContainer
 var _sonar: HudFader
+var _sonar_chip: PanelContainer
 var _sonar_view: TextureRect
 var _stats: Label
 var _host_chip: HudFader
@@ -382,9 +385,11 @@ func _build_bottom() -> void:
 	var pc := CenterContainer.new()
 	pc.size = Vector2(1520, 72)
 	_pilot.add_child(pc)
+	_pilot_box = pc
 	var pchip := PanelContainer.new()
 	pchip.theme_type_variation = &"HudChip"
 	pc.add_child(pchip)
+	_pilot_chip = pchip
 	var prow := HBoxContainer.new()
 	prow.add_theme_constant_override("separation", 6)
 	pchip.add_child(prow)
@@ -416,6 +421,7 @@ func _build_bottom() -> void:
 	var schip := PanelContainer.new()
 	schip.theme_type_variation = &"HudChip"
 	_sonar.add_child(schip)
+	_sonar_chip = schip
 	var scol := VBoxContainer.new()
 	scol.add_theme_constant_override("separation", 4)
 	schip.add_child(scol)
@@ -589,7 +595,7 @@ func _build_overlays() -> void:
 	_result_rows = VBoxContainer.new()
 	_result_rows.add_theme_constant_override("separation", 4)
 	rc.add_child(_result_rows)
-	var sign := _paper_label("Signed: Head Office (automated)", MIN_FONT, INK_DIM, 600)
+	var sign := _paper_label("Signed: head office (automated)", MIN_FONT, INK_DIM, 600)
 	sign.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	rc.add_child(sign)
 	# Onderaan plaats voor de stempel (die ligt dan over niets dat je moet lezen).
@@ -630,6 +636,9 @@ func _paper_label(text: String, size: int, color: Color, weight := 700) -> Label
 func toast(text: String, kind := "info", seconds := 4.5) -> void:
 	if not TOAST_KINDS.has(kind):
 		kind = "info"
+	# Toetsen in een melding staan als {actie} en worden hier ingevuld, met de toetsen van wie het leest
+	# (een melding van de host kan zo ook "{scan}" bevatten, ui2-09).
+	text = Settings.fill_keys(text)
 	var urgent := kind in ["warn", "alarm"]
 	# Tijdens het drop-aftellen in de Mol zegt de aftelling alles: enkel waarschuwingen komen erdoor.
 	if _countdown_focus and not urgent:
@@ -739,7 +748,7 @@ func _on_alarm() -> void:
 func stamp(title: String, sub: String) -> void:
 	var holder := Control.new()
 	holder.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
-	holder.position = Vector2(0, 220)
+	holder.position = Vector2(0, 260) # onder de magmachip, die er na de landing altijd staat (ui2-13)
 	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(holder)
 	var s := InkStamp.make(title, UiTheme.YELLOW, 60, -4.0)
@@ -807,7 +816,7 @@ func show_report(r: Dictionary) -> void:
 		_result_row("Quota met (%s)" % quota, "", INK_GREEN)
 		_set_report_stamp("QUOTA MET", INK_GREEN)
 	elif result == "gemist":
-		_result_row("Quota missed (%s): fine" % quota, UiTheme.euro(-int(r.get("fine", 0))), INK_RED)
+		_result_row("Fine: quota missed (%s)" % quota, UiTheme.euro(-int(r.get("fine", 0))), INK_RED)
 		_set_report_stamp("QUOTA MISSED", INK_RED)
 	else:
 		_result_row("Quota so far (sell your finds!)" if haul > 0 else "Quota so far", quota, INK)
@@ -839,8 +848,8 @@ func _show_quarter(r: Dictionary) -> void:
 		_result_row("Quota met (%s)" % quota, "REP +1", INK_GREEN, true)
 		_set_report_stamp("QUOTA MET", INK_GREEN)
 	else:
-		_result_row("Quota missed (%s): fine" % quota, UiTheme.euro(-int(r.get("fine", 0))), INK_RED, true)
-		_result_row("Reputation", "%+d" % int(r.get("reputation", 0)), INK_RED)
+		_result_row("Fine: quota missed (%s)" % quota, UiTheme.euro(-int(r.get("fine", 0))), INK_RED, true)
+		_result_row("Reputation", UiTheme.signed(int(r.get("reputation", 0))), INK_RED)
 		_set_report_stamp("QUOTA MISSED", INK_RED)
 	if bool(r.get("probation", false)):
 		_result_row("Probation: no HIGH-risk contracts", "", INK_RED)
@@ -1005,6 +1014,7 @@ func _update_hazard(player: Player, game: Game) -> void:
 		frac = game.unrest.value / maxf(1.0, Tuning.get_f("unrest", "stage", 100.0))
 		phase = game.unrest.phase
 	hazard.always_magma = underground or in_mol
+	hazard.hide_magma = player.seated and _own_cam # het statusscherm in de cabine toont het al (ui2-13)
 	if game.magma and not game.magma.quake_rise.is_connected(hazard.flash_rise):
 		game.magma.quake_rise.connect(hazard.flash_rise)
 	hazard.magma_eta = eta
@@ -1294,8 +1304,41 @@ func _update_sonar(player: Player, mol: Mol) -> void:
 	var show := mol != null and player.seated and player.chase.current
 	_sonar.active = show
 	_sonar.blocked = not show
+	_place_pilot(show)
 	if show and _sonar_view.texture == null:
 		_sonar_view.texture = mol.visual.sonar_screen.texture()
+
+
+## De pilootstrook: onderaan in het midden. In buitenzicht staat rechtsonder de sonar: dan gecentreerd
+## in de ruimte links ervan, en als ze daar niet past (een grote interface, een smal scherm) boven de
+## sonar. Nooit eronder, want "Get out" stond er net onder (ui2-04).
+func _place_pilot(sonar_shown: bool) -> void:
+	var vp := get_viewport_rect().size
+	var chip_w := _pilot_chip.get_combined_minimum_size().x
+	var h := 72.0
+	var x0 := 24.0
+	var x1 := vp.x - 24.0
+	var y := vp.y - 98.0
+	if sonar_shown:
+		var sonar_left := _sonar.get_rect().position.x
+		if chip_w <= sonar_left - 16.0 - x0:
+			x1 = sonar_left - 16.0
+		else:
+			y = _sonar.get_rect().position.y - 12.0 - h
+	_pilot.position = Vector2(x0, y)
+	_pilot.size = Vector2(x1 - x0, h)
+	_pilot_box.size = _pilot.size
+
+
+## Waar de grote HUD-onderdelen nu staan (schermrechthoeken van wat zichtbaar is), voor de test op
+## overlap (ui_test): pilootstrook en sonar.
+func layout_rects() -> Dictionary:
+	var out := {}
+	if not _pilot.blocked:
+		out["pilot"] = _pilot_chip.get_global_rect()
+	if not _sonar.blocked:
+		out["sonar"] = _sonar_chip.get_global_rect()
+	return out
 
 
 ## De aftelling van de Mol (ui-11): de titel ("DROP IN", "THE MOLE LEAVES IN"), een groot getal dat
@@ -1410,8 +1453,8 @@ func _hub_state(player: Player, game: Game, mol: Mol) -> Dictionary:
 				s.target = ship.anchor_position("Sell_Hatch") + Vector3(0, 1.2, 0)
 				s.icon = HudCompass.TERMINAL_ICON
 			elif c == null or not c.contract_ready():
-				s.title = "Pick a contract"
-				s.sub = "At the terminal on the bridge"
+				s.title = "Choose a contract"
+				s.sub = "At the contract table on the bridge"
 				s.has_target = true
 				s.target = ship.terminal_target()
 				s.icon = HudCompass.TERMINAL_ICON

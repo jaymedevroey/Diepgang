@@ -5,6 +5,8 @@ extends Node
 ##   dragen     een vondst dragen (kaartje linksonder)
 ##   ver        ver van de Mol (kompas met de richting en afstand)
 ##   piloot     in de stoel (besturing onderaan)
+##   buitenzicht in de stoel met buitenzicht: de sonar rechtsonder naast de besturing
+##   dreiging   je robot met schade, de bakens (de worm is wakker) en een neergegane ploegmaat
 ##   vertrek    de Mol telt af (de grote aftelling), met meldingen; daarna een noodophaling (alarm)
 ##              en de laatste tellen
 ##   resultaat  eindoverzicht van een dienst
@@ -65,7 +67,22 @@ func _run(p: Player) -> void:
 		p.rotation.y = deg_to_rad(40)
 		p.head.rotation.x = deg_to_rad(-5)
 		await _shot("hud_ver", 1.2)
-	if want.call("piloot") or want.call("vertrek") or want.call("resultaat") or want.call("stempel"):
+	if want.call("dreiging"):
+		# De HUD van de dreiging in de huisstijl (ui2-06): de staat van je robot en de bakens (de worm
+		# is wakker), en het merkteken boven een neergegane ploegmaat.
+		var game: Game = main.game
+		var mate_at := p.global_position - p.global_basis.z * 7.0 + p.global_basis.x * 1.5
+		mate_at.y = t.surface_height_at(mate_at.x, mate_at.z) + 0.1
+		game._spawn(2, 1, mate_at)
+		await _wait(0.4)
+		game.player_node(2).global_position = mate_at
+		await _wait(0.2)
+		game.rescue.host_damage(2, 2.0, Vector3.ZERO, true, "preview", true)
+		game.rescue.info(p.peer_id).health = 0.64
+		game.worm.mode = Worm.Mode.ROAM
+		p.head.rotation.x = deg_to_rad(-8)
+		await _shot("hud_dreiging", 2.0)
+	if want.call("piloot") or want.call("buitenzicht") or want.call("vertrek") or want.call("resultaat") or want.call("stempel"):
 		p.global_transform = Transform3D(Basis(Vector3.UP, mol.yaw), mol.to_world_mol(Vector3(0, -1.45, -1.0)))
 		p.set_physics_process(true)
 		await _wait(0.4)
@@ -73,6 +90,12 @@ func _run(p: Player) -> void:
 		await _wait(0.6)
 		if want.call("piloot"):
 			await _shot("hud_piloot", 0.8)
+		if want.call("buitenzicht"):
+			# Buitenzicht met de sonar rechtsonder: de pilootstrook mag er niet onder liggen (ui2-04).
+			p.chase.activate()
+			await _shot("hud_buitenzicht", 1.0)
+			p.camera.make_current()
+			await _wait(0.2)
 		if want.call("stempel"):
 			# De landingsstempel tegen de crème wand van de cabine (ui-18).
 			mol.leave_seat()

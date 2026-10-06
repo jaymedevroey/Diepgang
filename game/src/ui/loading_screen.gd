@@ -3,6 +3,7 @@ extends Control
 ## Laadscherm tussen het menu en de put: de boorkop van de Mol van voren (hij draait om zijn as,
 ## met rukjes, zoals een motor die slaat), wat er gebeurt, en een "veiligheidsbriefing" van de
 ## firma met een tip (ui-16). De tip staat in een brede kolom, met de regels gelijk verdeeld.
+## Toetsen in een tip staan als {actie}: de speler leest zijn eigen toets (ui2-09).
 
 const TIPS := [
 	"The pickaxe is slow but safe. The drill is fast, but finds lose condition.",
@@ -12,8 +13,8 @@ const TIPS := [
 	"Granite stops the Mole's drill head. Nose up, or steer away.",
 	"Launch lever pulled? Ten seconds. Anyone not on board climbs back up on foot.",
 	"Lost? The compass at the top of the screen points the way to the Mole.",
-	"Diepgang Ltd. accepts no liability for lost robots, fingers or good spirits.",
-	"Press C in the Mole's seat to watch from outside while you drive.",
+	"DIG accepts no liability for lost robots, fingers or good spirits.",
+	"Press {mol_view} in the Mole's seat to watch from outside while you drive.",
 	"Settings > Keys: put every key wherever you want it.",
 ]
 
@@ -80,7 +81,7 @@ func show_status(text: String) -> void:
 	if not visible:
 		var i := randi() % TIPS.size()
 		_kicker.text = "DIG SAFETY BRIEFING  ·  No. %02d" % (i + 1)
-		_tip.text = TIPS[i]
+		_tip.text = Settings.fill_keys(TIPS[i])
 		modulate.a = 1.0
 		mouse_filter = Control.MOUSE_FILTER_STOP
 		visible = true

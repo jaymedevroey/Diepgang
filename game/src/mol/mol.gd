@@ -476,7 +476,7 @@ func _handle(sender: int, button: int, arg: float) -> void:
 				_rpc_message.rpc("Autopilot: already at −%d m or deeper." % int(target), "mol")
 		Cmd.DEPART:
 			if inside and mode == Mode.DOCKED and not game.company.contract_ready():
-				_rpc_message.rpc("Choose a contract first, at the terminal in the hub.", "warn")
+				_rpc_message.rpc("Choose a contract first, at the contract table on the bridge.", "warn")
 			elif inside and mode == Mode.DOCKED and not game.world_ready():
 				_rpc_message.rpc("The Magpie is still en route to the claim. Hang tight.", "mol")
 			elif inside and mode == Mode.DOCKED and not game.world_ready_everywhere():
@@ -1113,8 +1113,8 @@ func _autopilot_down(delta: float) -> Vector3:
 	var auto_speed := Tuning.get_f("mol", "auto_speed", 1.3)
 	if blocked and d < auto_depth - 1.0:
 		auto_depth = d
-		_rpc_message.rpc(("Pit edge" if at_edge else ("Hard layer (a T2 drill head bores it, Mole yard aboard)" if tier() < Strata.Tool.BOOR_T2
-				else "Hard layer")) + ": autopilot stops at −%d m" % int(d), "warn")
+		_rpc_message.rpc(("Pit edge" if at_edge else "Hard layer") + ": autopilot stops at −%d m" % int(d)
+				+ (". The T2 drill head (Mole yard, aboard) bores through it." if not at_edge and tier() < Strata.Tool.BOOR_T2 else ""), "warn")
 	if d < auto_depth - 1.0:
 		var want := deg_to_rad(-Tuning.get_f("mol", "auto_pitch_deg", 22.0))
 		var p_in := clampf((want - pitch) * 4.0, -1.0, 1.0)
@@ -1683,7 +1683,7 @@ func _update_visual() -> void:
 		var c: Company = game.company
 		var states := ["PARKED", "DRIVING", "AUTOPILOT", "LAUNCH %d" % int(ceil(countdown)), "GOING UP",
 				"IN THE MAGPIE", "DROP %d" % int(ceil(countdown)), "DROP", "GRAPPLE INBOUND", "TO THE MAGPIE"]
-		var state: String = ("! PIT EDGE" if at_edge else ("! TOO HARD: HEAD T2" if tier() < Strata.Tool.BOOR_T2 else "! TOO HARD")) if blocked else ("DRILLING" if drilling and mode == Mode.DRIVING else states[mode])
+		var state: String = ("! PIT EDGE" if at_edge else ("! TOO HARD · T2 HEAD" if tier() < Strata.Tool.BOOR_T2 else "! TOO HARD")) if blocked else ("DRILLING" if drilling and mode == Mode.DRIVING else states[mode])
 		var ore: PackedInt32Array = game.ores.hold
 		visual.set_readout("%s
 DEPTH    %4d m
@@ -1691,11 +1691,11 @@ DEPTH    %4d m
 UNREST   %4d%%
 FUEL     %4d%%
 %s
-ORE      %d · €%d
+ORE      %d · %s
 QUOTA %s/%s" % [state, int(depth()), _magma_line(), int(game.unrest.value / maxf(1.0, Tuning.get_f("unrest", "stage", 100.0)) * 100.0),
-				int(fuel * 100.0), ("! CARGO %d/%d KG" if kg > cap + 0.01 else "CARGO %d · %d/%d kg") % ([int(ceil(kg)), int(cap)] if kg > cap + 0.01
-				else [cargo.size(), int(ceil(kg)), int(cap)]), OreField.units(ore), OreField.value(ore),
-				UiTheme.euro(c.earned).replace(",", ""), UiTheme.euro(c.quota()).replace(",", "")])
+				int(fuel * 100.0), ("! CARGO %d/%d kg" if kg > cap + 0.01 else "CARGO %d · %d/%d kg") % ([int(ceil(kg)), int(cap)] if kg > cap + 0.01
+				else [cargo.size(), int(ceil(kg)), int(cap)]), OreField.units(ore), UiTheme.euro(OreField.value(ore)),
+				UiTheme.euro(c.earned), UiTheme.euro(c.quota())])
 		visual.feed_text = "%d m  ·  %s  ·  %.1f m/s" % [int(depth()), HudCompass.layer_name(front, int(game.planet_type)), absf(speed)]
 		if mode == Mode.DROP_COUNTDOWN:
 			visual.feed_text = "HATCHES  ·  DROP IN %d s" % int(ceil(countdown))
