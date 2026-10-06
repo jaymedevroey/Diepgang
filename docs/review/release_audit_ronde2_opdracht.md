@@ -55,12 +55,23 @@ De nieuwe bevindingen krijgen de ID `<rol>2-<nr>`. Kijk vooral naar wat er sinds
 - **Waar:** zo staat het in de voortgangslijst bij de modellen en keuzes die het team zelf maakte (de worm, de scanner, de hand, de vondsten, de nissen, de Mol, het schip, de badlands, de schuld en de contracten).
 - **Wat je doet:** geef er een eerlijk oordeel over. Jayme beslist.
 
+### 5. Voorstellen (Jayme: "ook op toevoegingen en verbeteringen")
+
+Naast fouten doe je ook voorstellen: wat het spel nog niet heeft (of veel beter kan) en wat het in jouw deel het meest dichter bij een sterke Steam-demo brengt. Zet ze in een derde deel van je rapport, **Voorstellen**:
+- hooguit ±10, gerangschikt op impact, het sterkste eerst;
+- per voorstel:
+  - **wat**: concreet;
+  - **waarom**: de waarde voor de speler, met een referentiegame;
+  - **moeite**: S, M of L;
+  - **GDD**: hoe het in het GDD past, of dat het dat zou veranderen.
+
 ## Praktisch
 
 - **Bewijs** komt in `C:\Dev\Diepgang\logs\review2\<rol>\`. Je rapport staat in `logs\review2\<rol>\rapport.md`.
-- **Je rapport heeft twee delen:**
+- **Je rapport heeft drie delen:**
   1. een tabel met **alle** vorige ID's van je rol (oordeel en een korte reden);
-  2. je nieuwe bevindingen, gerangschikt van Blokkerend naar Klein.
+  2. je nieuwe bevindingen, gerangschikt van Blokkerend naar Klein;
+  3. je voorstellen.
 - **Je eindoordeel:** sluit af met één alinea. Haalt dit deel van het spel de lat van een publieke Steam-demo? Zo niet, wat zijn de drie dingen die het meest ontbreken?
 - **Nettests** draai je op je eigen poort:
   - ontwerp 24900;
