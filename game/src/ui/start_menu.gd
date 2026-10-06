@@ -297,15 +297,15 @@ static func local_ips() -> PackedStringArray:
 
 ## [soort, adres] waarmee vrienden kunnen meedoen: eerst een virtueel LAN (Tailscale, Radmin VPN),
 ## dan het eigen netwerk. Virtuele netwerkkaarten van VMware, VirtualBox en Hyper-V/WSL laten we
-## weg: die adressen (192.168.x.1) bereikt niemand anders.
+## weg: die adressen bereikt niemand anders (is_host_only).
 static func join_addresses() -> Array:
 	var vpn: Array = []
 	var lan: Array = []
 	for itf: Dictionary in IP.get_local_interfaces():
 		var name := (str(itf.get("friendly", "")) + " " + str(itf.get("name", ""))).to_lower()
-		if ["vmware", "virtualbox", "vethernet", "hyper-v", "wsl", "loopback", "bluetooth"].any(func(w: String) -> bool: return name.contains(w)):
-			continue
 		for a: String in itf.get("addresses", []):
+			if is_host_only(a, name):
+				continue
 			if a.contains(":"):
 				continue # IPv6: niet nodig
 			var parts := a.split(".")
@@ -320,6 +320,28 @@ static func join_addresses() -> Array:
 			elif p0 == 192 and p1 == 168 or p0 == 10 or (p0 == 172 and p1 >= 16 and p1 < 32):
 				lan.append(["Same network", a])
 	return vpn + lan
+
+
+## Een adres van een virtuele netwerkkaart op deze pc, dat een vriend in hetzelfde huis niet bereikt
+## (ui2-10). Op naam (als Windows die geeft) en op adres, want Godot geeft vaak enkel "Ethernet 3":
+## - 192.168.56.0/24 is het standaardnet van VirtualBox (host-only);
+## - een privéadres dat op .1 eindigt, is de "router" van een net dat deze pc zelf maakt: VMware
+##   (192.168.x.1), Windows-internetdeling (192.168.137.1), Hyper-V, WSL en Docker (172.16–31.x.1).
+##   Een gewone pc in een thuisnet krijgt nooit .1, dat is de router.
+static func is_host_only(address: String, name := "") -> bool:
+	var n := name.to_lower()
+	if ["vmware", "virtualbox", "vethernet", "hyper-v", "wsl", "docker", "loopback", "bluetooth", "host-only"].any(func(w: String) -> bool: return n.contains(w)):
+		return true
+	var parts := address.split(".")
+	if parts.size() != 4 or address.contains(":"):
+		return false
+	var p0 := int(parts[0])
+	var p1 := int(parts[1])
+	var p2 := int(parts[2])
+	var private := p0 == 10 or (p0 == 172 and p1 >= 16 and p1 < 32) or (p0 == 192 and p1 == 168)
+	if p0 == 192 and p1 == 168 and p2 == 56:
+		return true
+	return private and parts[3] == "1"
 
 
 ## De uitleg in het pauzemenu: welk adres vrienden intypen, en dat iedereen dezelfde versie nodig heeft.

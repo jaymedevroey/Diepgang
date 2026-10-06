@@ -358,18 +358,17 @@ def rivets(points, radius, material, group):
     return objs
 
 
-def text(body, size, pos, rot, material, group, extrude=0.012, align="CENTER"):
-    """Tekst als mesh. rot in graden rond Godot-assen; tekst ligt standaard in het Godot x/y-vlak, leest naar +z."""
+def text(body, size, pos, rot, material, group, extrude=0.012, align="CENTER", font=None):
+    """Tekst als mesh. rot in graden rond Godot-assen; tekst ligt standaard in het Godot x/y-vlak, leest naar +z.
+    font: pad naar een .ttf (bv. Bungee, de huisstijl); standaard het lettertype van Blender."""
     cu = bpy.data.curves.new("text", "FONT")
     cu.body = body
     cu.size = size
     cu.extrude = extrude
     cu.align_x = align
     cu.align_y = "CENTER"
-    try:
-        cu.font = bpy.data.fonts.load("<builtin>") if False else cu.font
-    except Exception:
-        pass
+    if font:
+        cu.font = bpy.data.fonts.load(str(font), check_existing=True)
     o = bpy.data.objects.new("text", cu)
     bpy.context.collection.objects.link(o)
     # Blender-tekst ligt in het XY-vlak (normaal +Z). Rechtop zetten: normaal naar Godot +z (= Blender −y).

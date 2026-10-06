@@ -109,7 +109,7 @@ const QUOTA_REMARKS: Array[String] = [
 ## Lopende balk onderaan (kort).
 const TICKER: Array[String] = [
 	"DIG: we dig, you pay",
-	"Crew funds: {cash}",
+	"Team funds: {cash}",
 	"Quarter {quarter}, shift {shift}/{shifts}: {earned} of {quota}",
 	"Reputation with head office: {rep}",
 	"Replacement robots now {replacement} each (price may rise for no reason)",
@@ -123,7 +123,7 @@ const TICKER: Array[String] = [
 	"Overtime is not paid, but it is counted",
 	"Tip of the day: digging goes faster downhill",
 	"Found: 1 garden gnome. Owner may come forward and pay.",
-	"New rule: laughing in The Mole costs €1 per laugh",
+	"New rule: laughing in the Mole costs €1 per laugh",
 	"This program is brought to you by DIG",
 	"Contract: {contract}",
 	"{left_shifts} left this quarter",
