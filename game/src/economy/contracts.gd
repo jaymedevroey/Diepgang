@@ -146,8 +146,11 @@ static func describe(m: Dictionary) -> Array:
 			return ["Low fuel: the Mole starts at %d%%" % int(round(Tuning.get_f("economy", "mod_low_fuel", 0.65) * 100.0)), Tone.RISK]
 		TARGET:
 			var k := int(m.get("kind", -1))
-			var what := FindKinds.NAMES[k].to_lower() if k >= 0 and k < FindKinds.NAMES.size() else "find"
-			return ["Wanted: a %s (+%s)" % [what, UiTheme.euro(target_bonus(k))], Tone.TARGET]
+			# Enkel de eerste letter klein ("old TV", niet "old tv"), en "an" voor een klinker.
+			var name := FindKinds.NAMES[k] if k >= 0 and k < FindKinds.NAMES.size() else "find"
+			var what := name.substr(0, 1).to_lower() + name.substr(1)
+			var article := "an" if what.substr(0, 1) in ["a", "e", "i", "o", "u"] else "a"
+			return ["Wanted: %s %s (+%s)" % [article, what, UiTheme.euro(target_bonus(k))], Tone.TARGET]
 	return [str(m.get("id", "")), Tone.GOOD]
 
 
