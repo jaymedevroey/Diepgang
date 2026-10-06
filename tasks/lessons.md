@@ -2,6 +2,16 @@
 
 Wat we onderweg leerden en wat het GDD bijstuurt. Nieuwste bovenaan.
 
+## 2026-10-06 — Golf 3, pakket G5: de ondergrond
+
+- **Een plek om naartoe te gaan moet je ook vinden.** Set pieces in grotten helpen pas als de eerste ervan te zien is: daarom een startgrot met een oude gang vanaf de rand van de landingsplek (een gat met stutten en lampjes), niet enkel taferelen diep in de rots. In GDD §4 ("golf 3").
+- **Wat uit de seed komt, plan je één keer en deel je:** CaveSetPieces maakt een lijst (soort, grot, vloerpunt) uit de SDF van de generator; FindField leest dezelfde lijst voor de buit. Achteraan in FindField.generate, zodat alle vondsten ervoor op dezelfde plek blijven.
+- **`sin()` van grote getallen als hash gaf rechthoekige blokken** in een schermshader met TIME erin (dezelfde fout als de rechte naden in het magma). Altijd de hash zonder sin (Hoskins).
+- **Een icosaëder uit een tabel heeft de "OpenGL"-draairichting:** in Godot is met de klok mee de voorkant, dus a, c, b; anders tekent cull_back de binnenkant en wijst generate_normals naar binnen.
+- **Een bestand dat PowerShell met Set-Content schrijft, krijgt een BOM.** Een tuningbestand even aanpassen voor een proef: achteraf uit versiebeheer terugzetten, niet terugschrijven.
+- **De scratchpad wordt gedeeld door parallelle agents:** eigen submap en eigen scriptnamen, anders overschrijft een ander je hulpscript (en draait het in zijn worktree).
+- **Een glinster is een facet, geen bol:** een hard ruitje met korte stralen dat oplicht als zijn eigen (gekantelde) normaal naar de lamp op je hoofd kijkt. Zachte schijfjes met bloom lezen als bokeh.
+
 ## 2026-10-05 — Release-audit, pakket F2: dreiging en climax
 
 De keuzes waar het GDD zweeg staan in GDD §6 ("Uitwerking (pakket F2)").

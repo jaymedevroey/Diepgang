@@ -32,10 +32,20 @@ const KIND_NAMES: Array[String] = ["camp", "old_mole", "ribcage", "geode"]
 const LOOT := {
 	Kind.CAMP: [FindKinds.Kind.COINS, FindKinds.Kind.COINS, FindKinds.Kind.BOTTLE, FindKinds.Kind.GNOME,
 			FindKinds.Kind.TV, FindKinds.Kind.LAMP, FindKinds.Kind.GOLD],
-	Kind.OLD_MOLE: [FindKinds.Kind.GOLD, FindKinds.Kind.COINS, FindKinds.Kind.LAMP, FindKinds.Kind.TV, FindKinds.Kind.GEODE],
+	Kind.OLD_MOLE: [FindKinds.Kind.GOLD, FindKinds.Kind.COINS, FindKinds.Kind.LAMP, FindKinds.Kind.TV, FindKinds.Kind.GOLD],
 	Kind.RIBCAGE: [FindKinds.Kind.SKULL, FindKinds.Kind.FEMUR, FindKinds.Kind.CLAW, FindKinds.Kind.VERTEBRA, FindKinds.Kind.TUSK],
-	Kind.GEODE: [FindKinds.Kind.GEODE, FindKinds.Kind.GEODE, FindKinds.Kind.GLOWSHARD, FindKinds.Kind.BLOOM, FindKinds.Kind.GOLD],
+	Kind.GEODE: [FindKinds.Kind.GEODE, FindKinds.Kind.GOLD, FindKinds.Kind.GOLD, FindKinds.Kind.COINS, FindKinds.Kind.GOLD],
 }
+## Op de Kristalmaan ligt bij een geode de breekbare, lichtgevende buit van die planeet (PlanetLoot);
+## elders goud en een geode (de planeten blijven verschillen: find_test).
+const LOOT_GEODE_KRISTAL := [FindKinds.Kind.GLOWSHARD, FindKinds.Kind.BLOOM, FindKinds.Kind.GEODE, FindKinds.Kind.GLOWSHARD, FindKinds.Kind.GOLD]
+
+
+## De pot buit van een set piece op deze planeet.
+static func loot_pool(kind: int, planet: int) -> Array:
+	if kind == Kind.GEODE and planet == 2:
+		return LOOT_GEODE_KRISTAL
+	return LOOT[kind]
 ## Botsvormen van de kampspullen: [maat, midden] per doos (lokaal, de voet op y = 0).
 const SOLID := {
 	"CampTent": [[Vector3(2.0, 1.35, 2.6), Vector3(0, 0.67, 0)]],
@@ -137,7 +147,9 @@ func _make_plan() -> void:
 			if not ramp.is_empty():
 				var e: Vector3 = ramp[ramp.size() - 1]
 				front = Vector3(e.x - c.x, 0.0, e.z - c.z).normalized()
+		_use_shapes(c, 4.0)
 		var anchor := _floor_below(center + front * (c.w * 0.18 if is_starter else 0.0), c.w / PlanetGenerator.CAVERN_SQUASH + 3.0)
+		_shapes = []
 		if anchor.is_finite() == false:
 			continue
 		_plan.append({"kind": kind, "cave": c, "anchor": anchor, "front": front, "starter": is_starter,
@@ -180,7 +192,16 @@ static func _pick_kind(planet: int, layer: Strata.Layer, radius: float, r: float
 # --- Vragen aan de seed (de SDF van de generator, niet de bewerkte voxels) ---------------------------
 
 func _sdf(world: Vector3) -> float:
-	return terrain._generator.sdf_at(world / TerrainAPI.VOXEL_SIZE) * TerrainAPI.VOXEL_SIZE
+	var vs := TerrainAPI.VOXEL_SIZE
+	if not _shapes.is_empty():
+		return terrain._generator.sdf_local(world / vs, _shapes) * vs
+	return terrain._generator.sdf_at(world / vs) * vs
+
+
+## Enkel de vormen rond een grot (zoals CaveDecor): de hele SDF per punt kost in GDScript te veel.
+func _use_shapes(c: Vector4, extra_m: float) -> void:
+	var vs := TerrainAPI.VOXEL_SIZE
+	_shapes = terrain._generator.local_shapes(Vector3(c.x, c.y, c.z) / vs, (c.w + extra_m) / vs)
 
 
 ## Het eerste rotspunt onder `from` (wereld), tot `reach` m diep; Vector3.INF als er niets is.
@@ -272,6 +293,8 @@ func _process(delta: float) -> void:
 var _building := false
 var _pending: Array[Callable] = []
 var _pending_root: Node3D
+var _pending_shapes: Array = []
+var _shapes: Array = [] # de vormen rond de set piece in opbouw (leeg = de hele SDF)
 
 
 ## Bouwt een set piece in stappen (een beeld ertussen), zodat geen enkel beeld lang duurt.
@@ -313,6 +336,9 @@ func _build(i: int) -> void:
 			steps.append(_build_geode.bind(i, root, body, sp, rng, rng.randi_range(4, 6)))
 	_pending = steps
 	_pending_root = root
+	_use_shapes(sp.cave, 45.0 if sp.starter else 8.0)
+	_pending_shapes = _shapes
+	_shapes = []
 
 
 ## De volgende stap van de set piece in opbouw (één per beeld).
@@ -326,7 +352,9 @@ func _step_build() -> void:
 		_building = false
 		return
 	var t0 := Time.get_ticks_usec()
+	_shapes = _pending_shapes
 	step.call()
+	_shapes = []
 	build_ms_max = maxf(build_ms_max, (Time.get_ticks_usec() - t0) / 1000.0)
 
 

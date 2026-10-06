@@ -190,7 +190,7 @@ func _place_heap(rng: RandomNumberGenerator, center: Vector3, pool: Array, radiu
 ## soort (het kamp: munten, rommel, een lamp en een goudklomp), de helft in de wand rond het tafereel
 ## en de helft net onder de vloer ernaast. Uit de seed, zoals al de rest.
 func _place_setpiece_loot(rng: RandomNumberGenerator, sp: Dictionary) -> void:
-	var pool: Array = CaveSetPieces.LOOT[int(sp.kind)]
+	var pool: Array = CaveSetPieces.loot_pool(int(sp.kind), int(game.planet_type))
 	var c: Vector4 = sp.cave
 	var a: Vector3 = sp.anchor
 	var n := rng.randi_range(Tuning.get_i("setpieces", "loot_min", 4), Tuning.get_i("setpieces", "loot_max", 6))
