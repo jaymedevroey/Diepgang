@@ -44,6 +44,8 @@ func _run_client(p: Player) -> void:
 	var reveals: Array = []
 	c.buy_denied.connect(func(_id: String, why: String) -> void: denied.append(why))
 	c.appraisal.revealed.connect(func(info: Dictionary) -> void: reveals.append(info))
+	var scans: Array = []
+	c.appraisal.scan_started.connect(func(info: Dictionary) -> void: scans.append(info))
 	await _wait(2.0)
 	_rpc_client_ready.rpc_id(1)
 	# Stap 1: kopen aan het gereedschapsrek, en de scanner aan de verkeerde toonbank.
@@ -75,6 +77,9 @@ func _run_client(p: Player) -> void:
 		while reveals.is_empty() and Time.get_ticks_msec() - t0 < 6000:
 			await get_tree().process_frame
 		game.finds.request_release(it.find_id, it.global_transform, Vector3.ZERO)
+		# Van de band af (naast de poort): wie op de band blijft staan, houdt de volgende vondst tegen.
+		await _wait(0.3)
+		await _stand(p, ship.anchor_position("Appraisal_Gate") + Vector3(0.0, 0.0, 2.3))
 	await _wait(0.5)
 	_rpc_done.rpc_id(1, 2, {"unknown_before": unknown, "reveals": reveals.size(),
 			"value": int(reveals[0].value) if not reveals.is_empty() else -1, "known_after": it != null and main.hud._appraised_value(it) > 0})
@@ -84,7 +89,8 @@ func _run_client(p: Player) -> void:
 	await _wait(0.5)
 	c.appraisal.request_sell()
 	await _wait(1.0)
-	_rpc_done.rpc_id(1, 3, {"cash": c.cash, "haul_open": c.haul_open(), "earned": c.earned})
+	_rpc_done.rpc_id(1, 3, {"cash": c.cash, "haul_open": c.haul_open(), "earned": c.earned, "scans": scans.size(),
+			"reveals": reveals.size(), "sale_items": (c.appraisal.last_sale.get("items", []) as Array).size()})
 
 
 func _until(step: int) -> void:
@@ -102,13 +108,13 @@ func _run_host(p: Player) -> void:
 		await get_tree().process_frame
 	await _wait(0.5)
 	# 1. De client koopt (de host beslist), aan de verkeerde toonbank niet.
-	c.cash = 9000
+	c.cash = 15000 # golf 3: upgrades ×1,5; genoeg voor de boor én de scanner (anders "te weinig geld" i.p.v. "verkeerde toonbank")
 	c._broadcast()
 	await _wait(0.5)
 	_set_step(1)
 	await _done(1)
 	var price := Upgrades.price(Upgrades.DRILL_T2, c.team_size())
-	_expect(c.has_upgrade(Upgrades.DRILL_T2) and c.cash == 9000 - price, "client kocht boor T2 via de host (−€%d, ploeg van 2)" % price)
+	_expect(c.has_upgrade(Upgrades.DRILL_T2) and c.cash == 15000 - price, "client kocht boor T2 via de host (−€%d, ploeg van 2)" % price)
 	_expect(not c.has_upgrade(Upgrades.SCANNER) and "Not sold at this counter" in _client_info.get("denied", []),
 			"scanner aan het gereedschapsrek: geweigerd, de client hoort waarom")
 	_expect((_client_info.upgrades as Array).has(Upgrades.DRILL_T2) and int(_client_info.cash) == c.cash and int(_client_info.tier) == Strata.Tool.BOOR_T2,
@@ -134,10 +140,18 @@ func _run_host(p: Player) -> void:
 	_expect(bool(_client_info.unknown_before), "client: de waarde van de buit is onbekend tot de taxatie")
 	_expect(int(_client_info.reveals) == 1 and int(_client_info.value) == c.appraisal.appraised_value(picks[0].find_id) and bool(_client_info.known_after),
 			"client droeg een vondst door de poort: de host taxeerde (€%d), de client zag de onthulling" % int(_client_info.value))
-	# 3. De tweede vondst door de poort (host), daarna verkoopt de client alles aan het luik.
-	var gate := game.ship.anchor_position("Appraisal_Gate")
-	picks[1].global_position = gate + Vector3(0.0, picks[1].rest_height() + 0.05, 0.0)
+	# 3. Golf 3: de tweede vondst op de band aan de voet van de klep; de band draagt hem de poort in
+	# (de host beweegt hem, iedereen ziet de scan en de onthulling). Daarna verkoopt de client alles.
+	var gate_xf := (game.ship.anchors["Appraisal_Gate"] as Node3D).global_transform
+	picks[1].global_position = gate_xf * Vector3(-2.8, picks[1].rest_height() + 0.05, 0.0)
+	picks[1].reset_physics_interpolation()
 	picks[1].linear_velocity = Vector3.ZERO
+	var t0 := Time.get_ticks_msec()
+	while not c.appraisal.is_appraised(picks[1].find_id) and Time.get_ticks_msec() - t0 < 15000:
+		await get_tree().process_frame
+	var bx := (gate_xf.affine_inverse() * picks[1].global_position).x
+	_expect(c.appraisal.is_appraised(picks[1].find_id) and bx > -0.5,
+			"de band droeg de vondst van de klep de poort in (x %.2f), de host taxeerde hem" % bx)
 	await _wait(2.5)
 	var cash_before := c.cash
 	var gain := c.appraisal.value_of(picks[0]) + c.appraisal.value_of(picks[1])
@@ -146,6 +160,9 @@ func _run_host(p: Player) -> void:
 	_expect(c.cash == cash_before + gain and not c.haul_open(), "client verkocht aan het luik: +€%d, de dienst is afgesloten" % gain)
 	_expect(int(_client_info.cash) == c.cash and not bool(_client_info.haul_open) and int(_client_info.earned) == c.earned,
 			"client: dezelfde kas (€%d) en het kwartaal (€%d)" % [int(_client_info.cash), int(_client_info.earned)])
+	_expect(int(_client_info.get("scans", 0)) >= 2 and int(_client_info.get("reveals", 0)) >= 2 and int(_client_info.get("sale_items", 0)) == 2,
+			"client zag elke scan en onthulling, en de verkoop per stuk (%d scans, %d onthullingen, %d stukken)" % [
+			int(_client_info.get("scans", 0)), int(_client_info.get("reveals", 0)), int(_client_info.get("sale_items", 0))])
 	_finish()
 
 

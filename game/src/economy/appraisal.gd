@@ -50,6 +50,8 @@ var _scan_id := -1
 var _scan_t := 0.0
 var _hold := 0.0
 var _belt_was_running := false
+## Host: waar elk stuk op de band de vorige tick lag (lokaal x), om te zien of het vastzit.
+var _belt_last := {}
 ## Lokaal: wat het laatst onthuld werd (het scherm aan de poort) en verkocht (het luik).
 var last_reveal: Dictionary = {}
 var last_sale: Dictionary = {}
@@ -325,8 +327,14 @@ func _move_belt() -> void:
 			# Naar het midden van de band schuiven als hij op de rand ligt.
 			want = Vector3(speed, 0.0, clampf(-l.z * 1.5, -0.4, 0.4) if absf(l.z) > 0.55 else 0.0)
 			any_moving = true
+		var vy := minf(v.y, 0.5)
+		# Een klein stuk (een muntenbuidel) blijft haken achter een naad in de vloer: dan wipt de band
+		# het er even over (een tikje omhoog), zoals een lat van een echte band.
+		if want != Vector3.ZERO and _belt_last.has(it.find_id) and l.x - float(_belt_last[it.find_id]) < speed * get_physics_process_delta_time() * 0.25:
+			vy = maxf(vy, 0.9)
+		_belt_last[it.find_id] = l.x
 		var w := basis * want
-		it.linear_velocity = Vector3(w.x, minf(v.y, 0.5), w.z)
+		it.linear_velocity = Vector3(w.x, vy, w.z)
 		if want != Vector3.ZERO:
 			it.angular_velocity = it.angular_velocity * 0.8
 	if any_moving != _belt_was_running:
