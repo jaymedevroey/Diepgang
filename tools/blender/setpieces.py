@@ -430,9 +430,11 @@ def build_bracket():
     """Konzoolzwammen (1 breed): drie halve schijven boven elkaar tegen de wand (de wand is het vlak
     y = 0, ze steken uit naar +y; "boven" is +z), met een gloeiende onderkant."""
     g = "Decor_Bracket"
-    for (h, r, x) in ((0.0, 0.5, 0.0), (0.38, 0.36, 0.2), (-0.32, 0.3, -0.22)):
-        _plate(1.0, (x, r * 0.4, h), (r, r * 0.42, 0.065), "FungusCap", g)
-        _plate(1.0, (x, r * 0.4, h - 0.05), (r * 0.9, r * 0.38, 0.025), "FungusGlow", g)
+    for (h, r, x) in ((0.0, 0.5, 0.0), (0.38, 0.38, 0.22), (-0.34, 0.32, -0.24), (0.66, 0.24, -0.1)):
+        # Een dikke, bolle plank met een lichtere, golvende rand (groeiringen) en gloeiende poriën eronder.
+        _plate(1.0, (x, r * 0.5, h), (r, r * 0.55, 0.11), "FungusCap", g, 14, 7)
+        _plate(1.0, (x, r * 0.52, h + 0.03), (r * 1.04, r * 0.58, 0.05), "FungusStem", g, 14, 7)
+        _plate(1.0, (x, r * 0.48, h - 0.07), (r * 0.9, r * 0.48, 0.04), "FungusGlow", g, 14, 7)
 
 
 def build_threads():
@@ -455,10 +457,13 @@ def build_geode_wall():
     kwartspunten die naar buiten en naar het midden wijzen. +y = uit de wand."""
     g = "Decor_Geode"
     rng = random.Random(13)
-    for k in range(14):
-        a = k * math.tau / 14
-        r = 0.42 + rng.uniform(-0.04, 0.04)
-        sphere(0.13 + rng.uniform(0, 0.04), (math.cos(a) * r, 0.04, math.sin(a) * r), "GeodeRind", g, scale=(1.0, 0.7, 1.0), segments=8, rings=4)
+    # De schil: een dikke, grillige ring (geen kralen), hier en daar een bult.
+    ring = [(math.cos(k * math.tau / 24) * (0.42 + 0.04 * math.sin(k * 1.7)), 0.03, math.sin(k * math.tau / 24) * (0.42 + 0.04 * math.sin(k * 1.7)))
+            for k in range(24)]
+    tube(ring, 0.12, "GeodeRind", g, verts=8, closed=True)
+    for k in range(5):
+        a = rng.uniform(0, math.tau)
+        sphere(0.12 + rng.uniform(0, 0.05), (math.cos(a) * 0.46, 0.0, math.sin(a) * 0.46), "GeodeRind", g, scale=(1.0, 0.6, 1.0), segments=8, rings=4)
     cyl(0.4, 0.06, (0.0, -0.04, 0.0), "GeodeRind", g, verts=14, bevel=0.0)
     for k in range(22):
         a = rng.uniform(0, math.tau)

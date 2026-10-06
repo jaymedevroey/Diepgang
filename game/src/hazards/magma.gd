@@ -384,10 +384,11 @@ func _update_heat(delta: float) -> void:
 		if _after_t > 0.9:
 			_after_t = -1.0
 	var shimmer_k := shimmer * 0.6
-	# De camera onder het oppervlak (een spookdrone, een preview): het hele beeld is lava.
+	# De camera onder het oppervlak (wie smelt, een preview): het hele beeld is lava, geen waas van de
+	# mist die het magma van onderen aanlicht. Niet meer zodra het zwart wordt.
 	var under := 0.0
-	if cam and visible and _melt_t < 0.0:
-		under = clampf((level - cam.global_position.y + 0.05) / 0.35, 0.0, 1.0)
+	if cam and visible:
+		under = clampf((level - cam.global_position.y + 0.05) / 0.35, 0.0, 1.0) * (1.0 - black)
 	_screen.visible = shimmer_k > 0.02 or danger > 0.0 or melt > 0.0 or black > 0.0 or under > 0.0
 	if _screen.visible:
 		_screen_mat.set_shader_parameter("shimmer", shimmer_k)

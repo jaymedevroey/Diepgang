@@ -99,7 +99,7 @@ func _recipe(planet: int, layer: Strata.Layer, radius: float, rng: RandomNumberG
 			match planet:
 				1:
 					out.append({"kind": Kind.BRACKET if not sand else Kind.PARASOL, "where": "wall" if not sand else "floor",
-							"clusters": rng.randi_range(2, 3) + extra, "per": [3, 6], "size": [0.35, 0.8] if not sand else [0.5, 1.0], "spread": 1.2, "color": glow})
+							"clusters": rng.randi_range(2, 4) + extra, "per": [3, 6], "size": [0.6, 1.2] if not sand else [0.5, 1.0], "spread": 1.2, "color": glow})
 					out.append({"kind": Kind.SALT, "where": "wall", "clusters": rng.randi_range(2, 4) + extra, "per": [2, 4],
 							"size": [0.5, 1.1], "spread": 0.9, "color": Color(0.95, 0.95, 0.92)})
 				2:
