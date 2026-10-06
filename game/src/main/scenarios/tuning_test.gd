@@ -36,6 +36,16 @@ func _run() -> void:
 
 	var snap := Tuning.snapshot()
 	_expect(snap.has("drill") and snap["drill"].has("heat_max"), "snapshot voor de clients bevat alles")
+	# ontwerp2-7: elke laag heeft een eigen boorwaarde in drill.cfg (geen stille terugval in de code), en
+	# dieper is trager en heter: klei > zandsteen > graniet > kristal.
+	var layers := ["klei", "zandsteen", "graniet", "kristal"]
+	var all_set := true
+	var slower := true
+	for i in layers.size():
+		all_set = all_set and Tuning.get_f("drill", "bite_depth_" + layers[i], -1.0) > 0.0 and Tuning.get_f("drill", "heat_rate_" + layers[i], -1.0) > 0.0
+		if i > 0:
+			slower = slower and Tuning.get_f("drill", "bite_depth_" + layers[i], 0.0) < Tuning.get_f("drill", "bite_depth_" + layers[i - 1], 0.0) 					and Tuning.get_f("drill", "heat_rate_" + layers[i], 0.0) > Tuning.get_f("drill", "heat_rate_" + layers[i - 1], 0.0)
+	_expect(all_set and slower, "boor: elke laag in drill.cfg, en dieper boort trager en heter")
 
 	print("[tuning_test] %d controles, %d mislukt → %s" % [_checks, _failures.size(), "GESLAAGD" if _failures.is_empty() else "GEFAALD"])
 	get_tree().quit(0 if _failures.is_empty() else 1)

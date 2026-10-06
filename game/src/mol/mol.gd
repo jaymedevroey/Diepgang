@@ -875,8 +875,8 @@ func _drive(inp: Vector3, delta: float) -> void:
 	var hull_rock: bool = rock or _probe_ring(ahead, fwd, HULL_PROBE, 12)[0]
 	var too_hard: bool = probe[1]
 	var rear_rock: bool = _probe_ring(body.global_position - fwd * 5.4, fwd)[0]
-	var bore_speed := Tuning.get_f("mol", "bore_speed", 1.3)
-	var open_speed := Tuning.get_f("mol", "open_speed", 1.8)
+	var bore_speed := bore_speed_at(pitch)
+	var open_speed := maxf(Tuning.get_f("mol", "open_speed", 1.8), bore_speed)
 	# De autopiloot is nooit sneller dan zelf sturen (ontwerp-6): door rots zo snel als de piloot boort.
 	var auto_speed := minf(Tuning.get_f("mol", "auto_speed", 1.3), bore_speed if rock else open_speed)
 	var target := 0.0
@@ -1105,6 +1105,17 @@ func _record_path(pos: Vector3) -> void:
 			_path.resize(i + 1)
 			break
 	_path.append(pos)
+
+
+## Boorsnelheid bij deze helling (rad, neus omlaag = negatief): met de neus omlaag sneller, tot
+## bore_speed_down bij max_pitch_deg; waterpas en omhoog de gewone bore_speed. Zo duurt de afdaling geen
+## kwart van de dienst meer (ontwerp2-8), terwijl rijden traag blijft (GDD §5A). Voor de piloot en de
+## autopiloot gelijk: de autopiloot is nooit sneller dan zelf boren (ontwerp-6).
+static func bore_speed_at(p: float) -> float:
+	var base := Tuning.get_f("mol", "bore_speed", 1.3)
+	var down := maxf(Tuning.get_f("mol", "bore_speed_down", base), base)
+	var f := clampf(-sin(p) / sin(deg_to_rad(Tuning.get_f("mol", "max_pitch_deg", 25.0))), 0.0, 1.0)
+	return lerpf(base, down, f)
 
 
 func _autopilot_down(delta: float) -> Vector3:

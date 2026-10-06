@@ -211,7 +211,7 @@ Een grote rupsvoertuig-drilboor (±10 m lang, ±6 m breed) van DIG: vooraan een 
 **Besturing:** één piloot in de cabine; iedereen mag piloot worden. De anderen rijden mee, binnen of op het dek.
 
 **Traag, luid en beperkt** (zodat met de hand graven en uitbikken de kern blijven):
-- traag (±1,5 m/s rijden, trager tijdens het boren);
+- traag (±1,5 m/s rijden, trager tijdens het boren); **uitzondering (golf 3):** met de neus omlaag boort hij sneller, tot ±2,7 m/s bij de grootste helling (±1,1 m/s verticaal), voor piloot en autopiloot gelijk. De afdaling naar het zandsteen duurde 2:40, 15–30 % van de dienst stilzitten (ontwerp2-8); nu ±1:10. Rijden blijft traag;
 - **luid**: rijden en boren doen de onrust sterk stijgen, en de Graafworm komt erop af;
 - **brandstof** per dienst is beperkt;
 - de **boorkop** volgt de laagregels (T1: klei en zandsteen; betere koppen zijn upgrades).
