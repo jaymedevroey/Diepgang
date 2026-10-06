@@ -139,8 +139,35 @@ static func materials(kind: Kind) -> Array[Material]:
 	for i in m.get_surface_count():
 		var src := m.surface_get_material(i)
 		var name := src.resource_name if src else ""
-		out.append(_material(name))
+		if name == "Bone" or name == "BoneDark":
+			out.append(bone_material(name == "BoneDark", m.get_aabb(), DETAIL))
+		else:
+			out.append(_material(name))
 	return out
+
+
+const BONE_SHADER := preload("res://src/loot/bone.gdshader")
+
+
+## Bot (golf 3, binnen2-08): ivoor met okervlekken, bruine holtes, donkere uiteinden langs de lange
+## as (als het stuk lang is), putjes en haarscheurtjes. Eigen exemplaar (de gloed bij het vrijkomen).
+## Ook voor de ribbenkast in de grotten (CaveSetPieces).
+static func bone_material(dark := false, aabb := AABB(), detail := 1.0) -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = BONE_SHADER
+	m.set_shader_parameter("dark", dark)
+	m.set_shader_parameter("detail_scale", detail)
+	if aabb.size != Vector3.ZERO:
+		var half := aabb.size * 0.5
+		m.set_shader_parameter("half_size", half)
+		m.set_shader_parameter("center", aabb.get_center())
+		var longest := half.max_axis_index()
+		var rest := (half[(longest + 1) % 3] + half[(longest + 2) % 3]) * 0.5
+		if half[longest] > rest * 1.6:
+			var axis := Vector3.ZERO
+			axis[longest] = 1.0
+			m.set_shader_parameter("long_axis", axis)
+	return m
 
 
 static func _material(name: String) -> Material:

@@ -1719,6 +1719,7 @@ QUOTA %s/%s" % [state, int(depth()), _magma_line(), int(game.unrest.value / maxf
 				else [cargo.size(), int(ceil(kg)), int(cap)]), OreField.units(ore), UiTheme.euro(OreField.value(ore)),
 				UiTheme.euro(c.earned), UiTheme.euro(c.quota())])
 		visual.feed_text = "%d m  ·  %s  ·  %.1f m/s" % [int(depth()), HudCompass.layer_name(front, int(game.planet_type)), absf(speed)]
+		visual.feed_underground = depth() > 3.0
 		if mode == Mode.DROP_COUNTDOWN:
 			visual.feed_text = "HATCHES  ·  DROP IN %d s" % int(ceil(countdown))
 		elif mode == Mode.DROPPING:

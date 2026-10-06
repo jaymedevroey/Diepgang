@@ -887,7 +887,8 @@ func _rpc_broken(peer: int, at: Vector3, melted: bool) -> void:
 	if pl:
 		pl.on_broken(at)
 		if pl.is_local:
-			game.notice.emit("Your robot is broken. You're a ghost drone now.", "alarm")
+			if not melted: # gesmolten: Magma gaf al de enige melding (golf 3, binnen2-05)
+				game.notice.emit("Your robot is broken. You're a ghost drone now.", "alarm")
 		else:
 			game.notice.emit("%s's robot is broken." % _name_of(peer), "warn")
 	life_changed.emit(peer, Life.BROKEN)

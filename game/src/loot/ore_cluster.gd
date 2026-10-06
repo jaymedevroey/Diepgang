@@ -21,15 +21,14 @@ func setup(id: int, kind_value: OreKinds.Kind, units: int, variant: int) -> void
 	collision_layer = Layers.CRUST
 	collision_mask = 0
 	_mesh = MeshInstance3D.new()
-	_mesh.mesh = OreKinds.mesh(kind, variant)
-	_mesh.material_override = OreKinds.material(kind)
+	_mesh.mesh = OreKinds.mesh(kind, variant) # knol, kristallen en metaal: elk een eigen materiaal
 	_mesh.visibility_range_end = Tuning.get_f("ore", "draw_distance", 55.0)
 	add_child(_mesh)
 	var shape := SphereShape3D.new()
-	shape.radius = 0.5 # de naalden steken in alle richtingen uit (OreKinds._build)
+	shape.radius = 0.55 # de knol (0,3 m) met naalden in alle richtingen (OreKinds._build)
 	var cs := CollisionShape3D.new()
 	cs.shape = shape
-	cs.position = Vector3(0, 0.1, 0)
+	cs.position = Vector3.ZERO
 	add_child(cs)
 
 
