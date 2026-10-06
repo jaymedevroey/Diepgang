@@ -103,6 +103,25 @@ uniform int hazard_count = 0;
 global uniform float magma_height;
 global uniform float magma_heat_m;
 
+// --- G4 (golf 3): de grond aan de oppervlakte ------------------------------------------------
+// Pakket G4 (release-audit buiten2-1, buiten-3, -4, -8, -12). Enkel de bovenste laag aan de
+// oppervlakte en de losse rotsen in het speelgebied; de ondergrond hoort bij pakket G5. Per planeet
+// uit PlanetType.ground (PlanetSurface.build), sRGB. Zie g4_ground() voor wat het doet.
+uniform bool g4_on = false;
+uniform vec3 g4_low = vec3(0.24, 0.16, 0.15);     // laagtes en geulbodems
+uniform vec3 g4_high = vec3(0.85, 0.63, 0.49);    // ruggen en kammen
+uniform vec3 g4_peb_a = vec3(0.22, 0.15, 0.14);   // kiezels (meestal)
+uniform vec3 g4_peb_b = vec3(0.7, 0.5, 0.38);     // kiezels (soms)
+uniform vec3 g4_rock = vec3(0.4, 0.23, 0.17);     // rotsen in het speelgebied
+// x = hoeveel laagtekleur, y = hoeveel rugkleur, z = reliëf (m) voor het volle effect, w = kiezels (0..1)
+uniform vec4 g4_amt = vec4(0.7, 0.6, 0.6, 0.6);
+// x = barsten in de laagtes, y = ribbels (enkel in de normaal), z = lagen in hellingen, w = kristalgruis
+uniform vec4 g4_amt2 = vec4(0.0, 1.0, 0.0, 0.0);
+// Zandvlakken in de windrichting op vlakke grond (waar geen vorm is om aan te hangen, zoals de
+// landingsplek): x = hoeveel donker (g4_low), y = hoeveel licht (g4_high), z = lengte (m), w = breedte (m).
+uniform vec4 g4_sheet = vec4(0.0, 0.0, 30.0, 6.0);
+uniform vec2 g4_wind = vec2(0.8, 0.6);
+
 varying vec3 wpos;
 varying vec3 wnrm;
 varying vec4 vtint; // verre landschap: tint van de landvorm (rgb maal de rotskleur, a = lagen)
@@ -237,6 +256,207 @@ vec4 crystal(vec3 p, float size, float chance, float rad, float half_len, float 
 	return vec4(dd, side + hash1(ci + vec3(salt + 9.9)), step(1.0 - chance, h), border);
 }
 
+// --- G4 (golf 3): de grond aan de oppervlakte --------------------------------------------------
+// Pakket G4. De open grond (vlak, de bovenste meter) en de losse rotsen in het speelgebied. Wat de
+// audit zag (buiten2-1): vlakke veelhoekplaten in twee tinten, strepen in de albedo, vlekkenruis, en
+// een waarde-IQR van 5-8 op ooghoogte (de concepten: 22-24). Nu, zoals planeten.md §3.5:
+// - geen facetten en geen tint per facet op open grond (enkel in wanden en rotsen), geen vlekken;
+// - drie waardegroepen die aan de vorm hangen: laagtes en geulbodems in g4_low, ruggen en kammen in
+//   g4_high (het reliëf op 3-8 m uit surf_height, bovenop het grote reliëf van PlanetSurface);
+// - klein detail tot ±25 m: kiezels met een schaduwkant en een contactschaduw (meer in de laagtes,
+//   waar grind blijft liggen), fijn gruis, barsten in opgedroogde laagtes (Fossielwereld), lagen in
+//   de geulwanden (Fossielwereld), kristalgruis dat glinstert (Kristalmaan);
+// - Roestbol: de windribbels enkel in de normaal (geen zebrastrepen meer);
+// - de landingsplek: een brandvlek met stralen van weggeblazen stof (de klap van de stuwraketten);
+// - rotsen: hun eigen kleur per planeet (een krijtblok verdwijnt niet meer in het zand) en scherpe vlakken.
+
+// Hoogte van het oppervlak van de generator (surf_height, m).
+float g4_surf(vec2 xz) {
+	return texture(surf_height, (xz / surf_height_rect.x + 0.5) / surf_height_rect.yz).r;
+}
+
+// Reliëf op middelgrote schaal (m boven het gemiddelde van de omgeving op ±3 m en ±8 m).
+float g4_relief(vec3 p, float h0) {
+	float a = 0.25 * (g4_surf(p.xz + vec2(3.0, 0.0)) + g4_surf(p.xz - vec2(3.0, 0.0)) + g4_surf(p.xz + vec2(0.0, 3.0)) + g4_surf(p.xz - vec2(0.0, 3.0)));
+	float b = 0.25 * (g4_surf(p.xz + vec2(8.0, 2.5)) + g4_surf(p.xz - vec2(8.0, 2.5)) + g4_surf(p.xz + vec2(-2.5, 8.0)) + g4_surf(p.xz - vec2(-2.5, 8.0)));
+	return (h0 - a) * 0.55 + (h0 - b) * 0.45;
+}
+
+// Een kiezel in een vierkante cel van `size` m (enkel de eigen cel: hij past er altijd in).
+// x = afstand tot het midden / straal (grillig, < 1 = erin), y = hash, z = 1 als de cel er een heeft;
+// `off` = plek in de kiezel (-1..1, wereld x/z) voor de bolle normaal.
+vec3 g4_pebble(vec2 p, float size, float chance, float rmin, float rmax, float salt, out vec2 off) {
+	vec2 q = p / size;
+	vec2 ci = floor(q);
+	vec2 f = fract(q);
+	float h = hash1(vec3(ci, salt));
+	float r = mix(rmin, rmax, hash1(vec3(ci, salt + 7.3)));
+	vec2 c = vec2(0.5) + (hash33(vec3(ci, salt + 1.7)).xy - 0.5) * (1.0 - 2.4 * r);
+	off = (f - c) / r;
+	float ang = hash1(vec3(ci, salt + 3.9)) * 6.2831;
+	vec2 e = mat2(vec2(cos(ang), sin(ang)), vec2(-sin(ang), cos(ang))) * off;
+	e.y /= mix(0.55, 0.95, hash1(vec3(ci, salt + 5.1))); // langwerpig
+	float d = length(e) + (vnoise(vec3(p * (9.0 / size), salt)) - 0.5) * 0.35;
+	return vec3(d, hash1(vec3(ci, salt + 3.1)), step(1.0 - chance, h));
+}
+
+// Afstand tot de rand van een 2D-voronoi (in cellen): voor barsten.
+float g4_cracks(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	float f1 = 8.0;
+	float f2 = 8.0;
+	vec2 r1 = vec2(0.0);
+	vec2 r2 = vec2(1.0);
+	for (int y = -1; y <= 1; y++) {
+		for (int x = -1; x <= 1; x++) {
+			vec2 g = vec2(float(x), float(y));
+			vec2 r = g + hash33(vec3(i + g, 4.2)).xy * 0.9 + 0.05 - f;
+			float d = dot(r, r);
+			if (d < f1) {
+				f2 = f1;
+				r2 = r1;
+				f1 = d;
+				r1 = r;
+			} else if (d < f2) {
+				f2 = d;
+				r2 = r;
+			}
+		}
+	}
+	return (f2 - f1) / (2.0 * max(length(r2 - r1), 1e-3));
+}
+
+// De open grond en de rotsen. `open` = hoeveel open grond (vlak, bovenste meter), `rel` = reliëf (m),
+// `rock_k` = hoeveel losse rots, `fid` = tint van het vlak (rotsen), `seed_s` = kleine seed.
+void g4_ground(inout vec3 col, inout vec3 n, inout float rough, inout vec3 emit, vec3 p, float open, float rel,
+		float dist, float px, float up, float seed_s, float rock_k, float fid) {
+	vec3 low = lin(g4_low);
+	vec3 high = lin(g4_high);
+	// Rotsen: hun eigen kleur, met een tint per vlak (de vlakken zelf komen uit de facetten).
+	if (rock_k > 0.0) {
+		vec3 rc = lin(g4_rock) * (0.78 + 0.44 * fid);
+		col = mix(col, rc, rock_k);
+		rough = mix(rough, 0.85, rock_k);
+	}
+	if (open <= 0.0) {
+		return;
+	}
+	// 1. Drie waardegroepen aan de vorm.
+	float r = clamp(rel / max(g4_amt.z, 0.05), -1.0, 1.0);
+	float lowk = smoothstep(0.08, 0.85, -r);
+	float highk = smoothstep(0.12, 0.85, r);
+	col = mix(col, low, lowk * g4_amt.x * open);
+	col = mix(col, high, highk * g4_amt.y * open);
+	// Zandvlakken: lange, scherp begrensde vlakken in de windrichting (donker basaltzand en licht stof,
+	// zoals windstrepen op Mars), geen wazige vlekken. Over de hele grond, ook ver weg.
+	if (g4_sheet.x + g4_sheet.y > 0.0) {
+		vec2 wd = normalize(g4_wind);
+		float al = dot(p.xz, wd) / g4_sheet.z;
+		float ac = dot(p.xz, vec2(-wd.y, wd.x)) / g4_sheet.w;
+		float sh = vnoise(vec3(al, ac, seed_s * 1.3)) * 0.62 + vnoise(vec3(al * 2.3, ac * 2.1, seed_s + 7.0)) * 0.26
+				+ vnoise(vec3(p.xz * 0.35, seed_s + 2.0)) * 0.12;
+		float shw = max(fwidth(sh), 1e-4) + 0.012;
+		float dk = smoothstep(0.565 - shw, 0.565 + shw, sh);
+		float lt = 1.0 - smoothstep(0.415 - shw, 0.415 + shw, sh);
+		col = mix(col, low, dk * g4_sheet.x * open * (1.0 - highk));
+		col = mix(col, high, lt * g4_sheet.y * open * (1.0 - lowk));
+	}
+	// Een smalle donkere zone aan de voet van een rug (grind dat blijft liggen) breekt de middentoon.
+	float foot = smoothstep(0.02, 0.25, -r) * (1.0 - smoothstep(0.25, 0.6, -r));
+	col *= 1.0 - 0.12 * foot * open;
+	float near_k = 1.0 - smoothstep(16.0, 28.0, dist);
+	// 2. De landingsplek: een brandvlek met stralen van weggeblazen stof en lichte strepen erlangs.
+	if (landing_pad.w > 0.0) {
+		vec2 dv = p.xz - landing_pad.xy;
+		float pd = length(dv);
+		float ang = atan(dv.y, dv.x);
+		float rays = vnoise(vec3(ang * 7.0, pd * 0.06, seed_s)) * 0.7 + vnoise(vec3(ang * 19.0, pd * 0.12, seed_s + 3.0)) * 0.3;
+		float scorch = 1.0 - smoothstep(4.0, 9.0 + 5.0 * rays, pd);
+		float blown = smoothstep(5.0, 8.0, pd) * (1.0 - smoothstep(13.0, 22.0 + 6.0 * rays, pd)) * smoothstep(0.45, 0.7, rays);
+		col = mix(col, col * 0.62, scorch * 0.75 * open);
+		col = mix(col, high, blown * 0.4 * open);
+	}
+	if (near_k <= 0.0) {
+		return;
+	}
+	// 3. Ribbels in het zand (Roestbol): enkel in de normaal, een lange flank en een steile luwte.
+	if (g4_amt2.y > 0.0) {
+		vec2 wd = vec2(0.8, 0.6);
+		float along = dot(p.xz, wd);
+		float rp = (along + 1.6 * vnoise(vec3(p.xz * 0.3, 3.0))) * 11.4;
+		float rpw = max(fwidth(rp), 1e-3);
+		float ph = fract(rp / 6.2831853);
+		float rk = clamp(1.5 / rpw, 0.0, 1.0) * open * near_k * smoothstep(0.8, 0.95, up);
+		rk *= smoothstep(0.4, 0.75, vnoise(vec3(p.xz * 0.06, seed_s + 9.0)) * 0.7 + vnoise(vec3(p.xz * 0.25, seed_s + 2.0)) * 0.3); // niet overal
+		float slope = ph < 0.72 ? 0.3 : -0.8;
+		n = normalize(n - normalize(vec3(wd.x, 0.0, wd.y)) * slope * 0.08 * g4_amt2.y * rk);
+	}
+	// 4. Lagen in de hellingen (geulwanden van het badland): banden in de kleuren van de klif.
+	if (g4_amt2.z > 0.0) {
+		float steep = (1.0 - smoothstep(0.7, 0.95, up)) * open;
+		float sb = p.y * 1.25 + 0.7 * vnoise(vec3(p.xz * 0.04, seed_s));
+		float bid = floor(sb);
+		float hb = hash1(vec3(bid, seed_s, 2.0));
+		vec3 sc = hb < 0.4 ? lin(strata_light) : (hb < 0.75 ? lin(strata_mid) : lin(strata_dark));
+		if (hb > 0.93) {
+			sc = lin(strata_key_color);
+		}
+		float bw = fwidth(sb);
+		col = mix(col, sc, steep * g4_amt2.z * (1.0 - smoothstep(0.15, 0.5, bw)));
+	}
+	// 5. Barsten in opgedroogde laagtes (niet op ruggen): dunne donkere lijnen, onderbroken.
+	if (g4_amt2.x > 0.0) {
+		float ce = g4_cracks(p.xz / 0.85 + vec2(seed_s * 3.7, 1.3)) * 0.85; // m tot de barst
+		float cw = mix(0.008, 0.03, vnoise(vec3(p.xz * 1.7, 2.0)));
+		float cfw = max(fwidth(ce), 1e-4);
+		float crack = 1.0 - smoothstep(cw, cw + cfw * 1.5, ce);
+		float in_low = smoothstep(0.12, 0.55, -r) * open * near_k;
+		crack *= smoothstep(0.35, 0.55, vnoise(vec3(p.xz * 0.9, 6.0))); // onderbroken
+		crack *= in_low * (1.0 - smoothstep(0.02, 0.06, px)) * g4_amt2.x;
+		col = mix(col, low * 0.4, crack);
+		col *= 1.0 + 0.06 * (1.0 - smoothstep(0.0, 0.12, ce)) * in_low; // opgekrulde randjes
+	}
+	// 6. Kiezels: een bolle normaal (een licht- en een schaduwkant) en een contactschaduw.
+	float kp = 1.0 - smoothstep(0.012, 0.04, px);
+	if (g4_amt.w > 0.0 && kp > 0.0) {
+		float dens = g4_amt.w * mix(0.45, 1.0, lowk) * open;
+		vec2 off;
+		vec3 pb = g4_pebble(p.xz + vec2(seed_s * 3.1, seed_s * 1.7), 0.6, 0.38 * dens, 0.14, 0.32, 11.0, off);
+		if (pb.z > 0.5) {
+			float in_p = 1.0 - smoothstep(0.85, 1.0, pb.x);
+			float ring = (1.0 - smoothstep(1.0, 1.5, pb.x)) * (1.0 - in_p);
+			vec3 pc = mix(lin(g4_peb_a), lin(g4_peb_b), step(0.68, pb.y)) * (0.8 + 0.4 * fract(pb.y * 13.0));
+			float k = near_k * kp;
+			col = mix(col, col * 0.82, ring * 0.4 * k);
+			col = mix(col, pc, in_p * k);
+			n = normalize(mix(n, normalize(vec3(off.x * 1.1, 1.0, off.y * 1.1)), in_p * k * 0.85));
+			rough = mix(rough, 0.6, in_p * k);
+			if (g4_amt2.w > 0.0 && pb.y > 0.8) {
+				// Kristalgruis (Kristalmaan): een splinter die van binnen gloeit.
+				emit += lin(ug_accent[0]) * in_p * k * g4_amt2.w * (0.6 + 0.4 * sin(TIME * 1.3 + pb.y * 40.0));
+			}
+		}
+		// Fijn gruis heel dichtbij.
+		float kf = (1.0 - smoothstep(4.0, 9.0, dist)) * (1.0 - smoothstep(0.004, 0.012, px));
+		if (kf > 0.0) {
+			vec2 off2;
+			vec3 gb = g4_pebble(p.xz + vec2(7.7, seed_s), 0.16, 0.55 * dens + 0.1, 0.16, 0.34, 23.0, off2);
+			float in_g = (1.0 - smoothstep(0.8, 1.0, gb.x)) * gb.z * kf;
+			col = mix(col, mix(lin(g4_peb_a), lin(g4_peb_b), step(0.5, gb.y)) * 0.95, in_g * 0.85);
+			n = normalize(mix(n, normalize(vec3(off2.x, 1.0, off2.y)), in_g * 0.6));
+		}
+	}
+	// 7. Kristalgruis dat glinstert (Kristalmaan), enkel van dichtbij.
+	if (g4_amt2.w > 0.0) {
+		vec3 gp = p * 7.0 + vec3(seed_s, 1.0, 2.0);
+		float g = hash1(floor(gp));
+		float gd = 1.0 - smoothstep(0.1, 0.18, length(fract(gp) - 0.5));
+		float tw = pow(max(0.0, sin(TIME * 1.7 + g * 80.0)), 10.0);
+		emit += mix(lin(ug_accent[3]), vec3(1.0), 0.4) * step(0.994, g) * gd * tw * 1.2 * open * near_k * kp * g4_amt2.w;
+	}
+}
+
 void vertex() {
 	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	wnrm = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
@@ -341,15 +561,23 @@ void fragment() {
 		float rough_edge = (vnoise(vec3(wpos.xz * 0.12, 7.0)) - 0.5) * 9.0;
 		pad_k = (1.0 - smoothstep(landing_pad.z, landing_pad.w, pad_d + rough_edge)) * smoothstep(0.8, 0.95, up);
 	}
+	// G4 (golf 3): open grond (geen facetten, geen tint per facet) en losse rotsen (scherpe vlakken).
+	float g4_rock_k = 0.0;
+	float g4_open = 0.0;
+	if (g4_on && layer == 3) {
+		g4_rock_k = far_terrain ? 0.0 : smoothstep(0.3, 0.85, -depth) * (1.0 - under_k);
+		g4_open = crust_k * smoothstep(0.55, 0.85, up) * (1.0 - g4_rock_k) * (1.0 - under_k);
+		qamt = mix(qamt * (1.0 - 0.9 * g4_open), 1.0, g4_rock_k);
+	}
 	vec3 n = normalize(mix(wn, nq, qamt));
 	// Daarbovenop een kleine willekeurige kanteling per voronoi-cel: breekt grote vlakke wanden.
 	vec3 rv = hash33(cell + vec3(31.7, 5.1, 9.9)) * 2.0 - 1.0;
 	vec3 tilt = rv - dot(rv, n) * n;
 	// Geen afschuining: die tekende een omtrek rond elke cel. Vlakken grenzen hard aan elkaar.
-	n = normalize(n + tilt * FACET_TILT[layer] * 0.35 * facet_strength * near * (1.0 - 0.75 * pad_k) * (1.0 - 0.8 * ug_floor));
+	n = normalize(n + tilt * FACET_TILT[layer] * 0.35 * facet_strength * near * (1.0 - 0.75 * pad_k) * (1.0 - 0.8 * ug_floor) * (1.0 - 0.85 * g4_open) * (1.0 + 0.4 * g4_rock_k));
 
 	// 2. Kleur: grote vlekken, een tint per facet, af en toe een lichter of donkerder vlak.
-	float big = mix(0.5, vnoise(wpos * 0.11 + vec3(seed_s)), fine_k);
+	float big = mix(0.5, vnoise(wpos * 0.11 + vec3(seed_s)), fine_k * (1.0 - 0.9 * g4_open)); // G4: geen vlekken op open grond
 	vec3 col = mix(base, light, smoothstep(0.55, 0.85, big) * 0.55);
 	col = mix(col, dark, (1.0 - smoothstep(0.15, 0.42, big)) * 0.5);
 	// Van ver: grote vlekken (donkere puinvelden, lichte stofvlakten) van honderden meters.
@@ -359,8 +587,8 @@ void fragment() {
 		col = mix(col, dark * 1.5, smoothstep(0.56, 0.8, lv) * 0.5 * far_k);
 		col = mix(col, light, smoothstep(0.44, 0.22, lv) * 0.3 * far_k);
 	}
-	col *= 0.9 + 0.2 * mix(facet_id, 0.5, 0.6 * ug_floor); // elk vlak een eigen tint, zoals geschilderd (van ver gemiddeld)
-	col *= 0.96 + 0.08 * cid;
+	col *= 0.9 + 0.2 * mix(facet_id, 0.5, max(0.6 * ug_floor, g4_open)); // elk vlak een eigen tint, zoals geschilderd (van ver gemiddeld)
+	col *= 0.96 + 0.08 * mix(cid, 0.5, g4_open);
 	float rough = ROUGH[layer];
 	vec3 emit = vec3(0.0);
 	// Fijn detail tot hier (m): kleine dingen verdwijnen eerder, zodat ze niet flikkeren.
@@ -592,7 +820,11 @@ void fragment() {
 	// 3. De korst aan het oppervlak: een eigen patroon per planeet (buiten-12), enkel in de bovenste
 	// meter, op vlakke grond en van dichtbij.
 	float flat_top = smoothstep(0.5, 0.85, up) * crust_k * (1.0 - 0.8 * pad_k) * (layer == 3 ? 1.0 : 0.0);
-	if (flat_top > 0.0 && near > 0.0) {
+	if (g4_on && layer == 3) {
+		// G4 (golf 3): de open grond en de rotsen (g4_ground).
+		float g4_rel = (!far_terrain && surf_height_rect.w > 0.5) ? g4_relief(wpos, surf_h) : 0.0;
+		g4_ground(col, n, rough, emit, wpos, g4_open, g4_rel, dist, px, up, seed_s, g4_rock_k, facet_id);
+	} else if (flat_top > 0.0 && near > 0.0) {
 		if (planet_id == 0) {
 			// Roestbol: windribbels (±0,55 m) en lange stofsporen in de windrichting.
 			vec2 wd = vec2(0.8, 0.6);
@@ -664,7 +896,7 @@ void fragment() {
 
 	// 4. Stof op vloeren, donkerder en iets koeler onder overhangen (niet op een verse snede).
 	float dn = dust_k > 0.0 ? mix(0.5, vnoise(wpos * 0.8 + vec3(4.0)), dust_k) : 0.5;
-	float dust = smoothstep(0.5, 0.88, up) * (0.5 + 0.5 * dn) * (1.0 - 0.4 * under_k) * (1.0 - fresh);
+	float dust = smoothstep(0.5, 0.88, up) * (0.5 + 0.5 * dn) * (1.0 - 0.4 * under_k) * (1.0 - fresh) * (1.0 - 0.7 * g4_open);
 	vec3 dust_col = mix(light, vec3(dot(light, vec3(0.333))), 0.3);
 	col = mix(col, dust_col, dust * 0.45);
 	rough = mix(rough, 1.0, dust);
@@ -724,6 +956,9 @@ void fragment() {
 	// Vlekken in de bovenste laag (binnen en buiten het speelgebied, zodat de rand wegvalt).
 	if (layer == 3 && (patch_dark.a > 0.0 || patch_light.a > 0.0)) {
 		float top_k = far_terrain ? 1.0 : smoothstep(surface_world_y - 9.0, surface_world_y - 3.0, wpos.y) * smoothstep(0.2, 0.6, n.y) * (1.0 - under_k);
+		// G4 (golf 3): van dichtbij geen vlekken van 100 m op open grond (die lazen als vlekkenruis en
+		// maakten de grond rond de ploeg egaal donker); van hoog in de lucht blijven ze.
+		top_k *= 1.0 - 0.7 * g4_open * (1.0 - smoothstep(40.0, 220.0, dist));
 		vec3 pp = vec3(wpos.x / patch_scale, 0.0, wpos.z / patch_scale);
 		float pm = vnoise(pp) * 0.7 + vnoise(pp * 2.7 + vec3(4.1, 0.0, 9.3)) * 0.3;
 		col *= mix(vec3(1.0), patch_dark.rgb, smoothstep(0.58, 0.72, pm) * patch_dark.a * top_k);
