@@ -41,6 +41,7 @@ extends Node3D
 ##   threat_test       dreiging (F2): worm, bakens, gas, neergaan en redden, instortingen, climax (headless)
 ##   net_threat_test   neergaan, dragen en redden, en de worm in co-op (tools/net_test.py --scenario=net_threat_test)
 ##   threat_film       films en beelden van de dreiging (--take=model|worm|lunge|gas|rescue|collapse|hud)
+##   impact_film       films en beelden van pakket G2: klap, neergaan, dragen, kleinere gevaren (--take=…)
 ## Extra in play (voor controle door de agent):
 ##   --shot=naam --frames=90,140   screenshots N frames na het spawnen, dan afsluiten
 ##   --autodig                     gereedschap werkt vanzelf (houweel zwaait, boor boort)
@@ -94,11 +95,12 @@ const SCENARIOS := {
 	"threat_test": preload("res://src/main/scenarios/threat_test.gd"),
 	"net_threat_test": preload("res://src/main/scenarios/net_threat_test.gd"),
 	"threat_film": preload("res://src/main/scenarios/threat_film.gd"),
+	"impact_film": preload("res://src/main/scenarios/impact_film.gd"),
 }
 ## Scenario's die op De Ekster beginnen (de Mol in de dropbaai). De rest begint op de planeet.
 const SCENARIOS_ON_SHIP := ["play", "ship_preview", "drop_sequence", "drop_flow_test", "net_drop_flow_test", "ship_test", "net_ship_test", "company_test", "interior_preview", "surface_bench", "economy_test", "economy_preview", "net_economy_test"]
 ## Scenario's waarin de host ook een eigen speler krijgt.
-const SCENARIOS_WITH_PLAYER := ["play", "ship_preview", "drop_sequence", "drop_flow_test", "net_drop_flow_test", "ship_test", "net_ship_test", "net_test", "find_test", "carry_test", "carry_preview", "mol_test", "sonar_test", "mol_edge_test", "stream_test", "ore_test", "drive_perf", "mol_preview", "hud_preview", "ui_test", "tool_preview", "magma_test", "company_test", "surface_bench", "feel_bench", "economy_test", "economy_preview", "net_economy_test", "loot_preview", "threat_test", "net_threat_test", "threat_film"]
+const SCENARIOS_WITH_PLAYER := ["play", "ship_preview", "drop_sequence", "drop_flow_test", "net_drop_flow_test", "ship_test", "net_ship_test", "net_test", "find_test", "carry_test", "carry_preview", "mol_test", "sonar_test", "mol_edge_test", "stream_test", "ore_test", "drive_perf", "mol_preview", "hud_preview", "ui_test", "tool_preview", "magma_test", "company_test", "surface_bench", "feel_bench", "economy_test", "economy_preview", "net_economy_test", "loot_preview", "threat_test", "net_threat_test", "threat_film", "impact_film"]
 
 var game: Game
 var player: Player
