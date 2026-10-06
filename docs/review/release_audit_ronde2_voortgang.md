@@ -49,22 +49,22 @@ Hier staan de oude punten die 'beter, niet genoeg' of 'erger' waren en alle nieu
 | gevoel2-15 | G2 | open | | |
 | gevoel2-16 | G2 | open | | |
 | ontwerp-8 | G2 | open | | |
-| ui2-01 | G3 | open | | |
-| gevoel2-04 | G3 | open | | |
-| binnen2-10 | G3 | open | | |
-| binnen2-11 | G3 | open | | |
-| ui2-11 | G3 | open | | |
-| ui2-12 | G3 | open | | |
-| ontwerp2-4 | G3 | open | | |
-| ontwerp2-5 | G3 | open | | |
-| ontwerp2-6 | G3 | open | | |
-| ontwerp2-9 | G3 | open | | |
-| ontwerp2-10 | G3 | open | | |
-| ontwerp2-11 | G3 | open | | |
-| ontwerp-3 | G3 | open | | |
-| ontwerp-10 | G3 | open | | |
-| ui-03 | G3 | open | | |
-| ui2-14 | G3 | open | | |
+| ui2-01 | G3 | klaar | Geen zwevende tekst meer; groot podiumscherm boven de poort (soort, gaafheid als stempel, oplopende teller, doelbonus/skelet 3/5, quotabalk); scherm op het luik telt per stuk op; één verkoopmelding | G3: vergelijk_poort, vergelijk_luik, g3_ceremonie.mp4 |
+| gevoel2-04 | G3 | klaar | Wie zelf draagt krijgt de onthulling boven het vizier (HudReveal); aan het luik gaan de stukken één voor één het luik in, teller op ooghoogte, quotabalk vult, stempel QUOTA MET; geluidshaken via Appraisal.cue | G3: g3_ceremonie.mp4 |
+| binnen2-10 | G3 | klaar | De poort doet zelf iets: lopende band, scanstraal over het stuk, lichtstroken wit/goud/fel goud per waardeklasse, regenboog bij een compleet skelet, lamp kleurt het stuk | G3: vergelijk_poort |
+| binnen2-11 | G3 | klaar (ter goedkeuring) | Zichtbare upgrades: gouden tanden op de boorkop, bagagebakken op de flanken, boor T2 oranje met gouden punt, helmlamp T2 zichtbaar bij anderen; Mol-werf met boorkop en bagagebak op een bok met prijskaartje, daarna INSTALLED ON THE MOLE | G3: vergelijk_upgrades_hub |
+| ui2-11 | G3 | klaar | Winkelkaarten met het echte model, draaiend; boor T2 op het schaduwbord met prijskaartje (daarna ISSUED TO CREW); pakje schuift over de uitgiftebalie | G3: vergelijk_winkel |
+| ui2-12 | G3 | klaar | Statusscherm in de Mol: HAUL-bandbreedte en HOLD-balk; laadmeter boven de klep (rood bij te zwaar); melding bij het inladen; quota linksboven in hub en Mol | G3: vergelijk_veld |
+| ontwerp2-4 | G3 | klaar | Draagkaartje en prompt tonen kg en een bandbreedte ('€460–800 ESTIMATE') waar de echte waarde altijd in valt; exacte prijs aan de poort | economy_test controleert de bandbreedte voor elke vondst |
+| ontwerp2-5 | G3 | klaar | Risicolabel = planeet (Roestbol 0, Fossielwereld 1, Kristalmaan 2) + voorwaarden; Kristalmaan nooit LOW, Roestbol nooit HIGH; regel per kaart over worm en gas; kaarten van veilig naar gevaarlijk | economy_test |
+| ontwerp2-6 | G3 | klaar | Laadruim groeit met de ploeg (60/80/100/120 kg, upgrade +80); draagkaartje zegt of een Titanset past; solo enkel met de upgrade (bewust, en het spel zegt het) | economy_test |
+| ontwerp2-9 | G3 | klaar | Een band van de klep van de Mol door de poort naar het luik (host zet de snelheid, stopt onder de scanner). Open: nog 2–4 m dragen van het laadruim naar de band | net_economy_test: vondst rijdt van de klep tot in de poort, ook bij de client |
+| ontwerp2-10 | G3 | deels | Upgrades ×1,5 (solo samen €15.600 i.p.v. €10.400); de automaat verkoopt pakken van 2 lichtbakens. Open: geen nieuwe upgrade-niveaus, tempo niet gemeten | economy_test |
+| ontwerp2-11 | G3 | klaar | Proeftijd sluit de veiligste kaart, niet de rijkste | economy_test |
+| ontwerp-3 | G3 | deels (niet gespeeld) | Quotabasis €6.000 (solo €2.400 in kwartaal 1); quota en buitschatting zichtbaar | economy_test |
+| ontwerp-10 | G3 | klaar | Het label zegt wat de planeet vraagt (planeet en risico apart kiezen niet gebouwd) | economy_test |
+| ui-03 | G3 | klaar | Hologram = kaart van de drie opdrachten, de gekozen planeet groot naar voren met haar voorwaarden; DIG-amber op een dichte plaat, '+35%' | G3: vergelijk_hologram |
+| ui2-14 | G3 | klaar | Eigen planeetbeeld op de kaarten (kloof en kraters, ribbenkast, kristalpieken en facetten) | G3: vergelijk_kaarten |
 | buiten-3 | G4 | deels | Grijsblauwe geulbodems, lagen in de hellingen, barsten in de laagtes; drop-IQR 16,3 (was 9–14). Op ooghoogte nog bleek | G4: metingen.txt |
 | buiten-4 | G4 | deels | Rustbowl lichter (L* 22 → 36), violet basalt in laagtes, perzik op ruggen, donkere stenen; drop-IQR 17,8. Blijft één oranje tint | G4: metingen.txt |
 | buiten-5 | G4 | klaar | Buitenbeeld start bij het zakken van de grijper, lichtbundel volgt de grijper, kraanshot op de grond met de reus, laatste stuk schip boven in beeld | G4: film ophalen |
