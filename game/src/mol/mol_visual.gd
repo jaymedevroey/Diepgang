@@ -170,6 +170,10 @@ var _flash := 0.0 # ontsteken: felle gloed die uitdooft
 var _wobble_t := 0.0
 var _sag := 0.0 # veren na de landing (m), enkel het model
 var _sag_v := 0.0
+var _hit := Vector3.ZERO # de worm ramt: het model slaat opzij (m) en kantelt (rad), en veert terug
+var _hit_v := Vector3.ZERO
+var _hit_roll := 0.0
+var _hit_roll_v := 0.0
 var _lever_angle := 0.0
 var _lever_v := 0.0
 var _ping_light: OmniLight3D
@@ -882,6 +886,19 @@ func jolt(strength: float) -> void:
 	_flicker = maxf(_flicker, 0.12)
 
 
+## De worm raakt de romp (pakket G1, gevoel2-05): de Mol slaat opzij weg van de klap (`local_n`: de
+## normaal van de romp waar hij raakt, t.o.v. de Mol) en kantelt, de lichten vallen even uit. Het
+## model enkel van buiten (binnen helt de camera, MolRideFeel.ram_hit).
+func ram_hit(local_n: Vector3, strength: float) -> void:
+	var side := Vector2(local_n.x, local_n.z)
+	side = side.normalized() if side.length() > 0.05 else Vector2(1, 0)
+	if outside_view:
+		_hit_v += Vector3(-side.x * 1.9, 0.0, -side.y * 1.9) * strength
+		_hit_roll_v += -side.x * 0.55 * strength
+		_sag_v += 1.2 * strength
+	_flicker = maxf(_flicker, 0.55 * strength)
+
+
 ## PING: een groene puls door de cabine en een ping met zijn echo ([plaatshouder]: het piepje van de
 ## Mol, hoger; het echte geluid komt met M6).
 func ping_pulse() -> void:
@@ -1304,17 +1321,22 @@ func _update_drop_fx(delta: float) -> void:
 			# Aan de kabel: een trage slinger.
 			want.x += deg_to_rad(2.5) * sin(_wobble_t * 0.9)
 			want.z += deg_to_rad(3.5) * sin(_wobble_t * 0.7 + 1.2)
+	want.z += _hit_roll # de worm ramt (ram_hit)
 	model.rotation = model.rotation.lerp(want, minf(1.0, delta * (9.0 if outside_view and not over_ground else 4.0)))
 	var left := minf(delta, 0.1) # veer in kleine stapjes (stabiel, ook bij een lang frame)
 	while left > 0.0:
 		var step := minf(left, 1.0 / 120.0)
 		_sag_v += (-_sag * 140.0 - _sag_v * 11.0) * step
 		_sag += _sag_v * step
+		_hit_v += (-_hit * 70.0 - _hit_v * 7.0) * step
+		_hit += _hit_v * step
+		_hit_roll_v += (-_hit_roll * 60.0 - _hit_roll_v * 6.0) * step
+		_hit_roll += _hit_roll_v * step
 		left -= step
 	if absf(_sag) < 0.0005 and absf(_sag_v) < 0.005:
 		_sag = 0.0
 		_sag_v = 0.0
-	model.position = Vector3(shake_off.x, _sag + shake_off.y, 0.0)
+	model.position = Vector3(shake_off.x + _hit.x, _sag + shake_off.y, _hit.z)
 	# PING: een groene puls door de cabine.
 	_ping_glow = maxf(0.0, _ping_glow - delta * 1.8)
 	_ping_light.light_energy = 3.0 * _ping_glow * _ping_glow

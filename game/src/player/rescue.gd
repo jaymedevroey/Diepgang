@@ -38,6 +38,8 @@ class Info:
 	var flail_cd := 0.0
 	var limp_wait := 0.0
 	var last_safe := Vector3.ZERO
+	## De worm houdt hem vast (pakket G1): omver, maar de klok loopt niet; de romp hangt in de muil.
+	var held := false
 
 
 var game: Node # Game
@@ -95,6 +97,11 @@ func can_act(peer: int) -> bool:
 ## Volledig in orde (gereedschap, dragen, rijden)?
 func is_ok(peer: int) -> bool:
 	return info(peer).life == Life.OK
+
+
+## Houdt de worm deze robot vast (op elk peer)?
+func is_held(peer: int) -> bool:
+	return info(peer).held
 
 
 func ragdoll_of(peer: int) -> RobotRagdoll:
@@ -174,6 +181,8 @@ func host_damage(peer: int, amount: float, push := Vector3.ZERO, knock := false,
 	if i.life == Life.LIMPING:
 		host_break(peer, false)
 		return
+	if i.held and knock:
+		knock = false # in de muil: geen nieuwe ragdoll, de worm houdt hem al
 	i.health = maxf(0.0, i.health - amount)
 	if not quiet:
 		_rpc_damaged.rpc(peer, amount, source)
@@ -244,9 +253,62 @@ func host_break(peer: int, melted: bool) -> void:
 	i.melted = melted
 	i.health = 0.0
 	i.timer = 0.0
+	i.held = false
 	i.carriers = PackedInt32Array()
 	_stowed.erase(peer)
 	_rpc_broken.rpc(peer, at + Vector3.UP * 0.8, melted)
+
+
+## Host: de worm grijpt deze robot (pakket G1). Hij gaat omver als ragdoll (KNOCKED), maar de klok
+## loopt niet zolang de worm hem vasthoudt: _host_bodies zet de romp elke tick in de muil
+## (Worm.hold_transform). `damage`: de beet. False als hij daarvan meteen neergaat (geen greep).
+func host_grab(peer: int, push: Vector3, damage: float) -> bool:
+	if not multiplayer.is_server():
+		return false
+	var pl: Player = game.player_node(peer)
+	var i := info(peer)
+	if pl == null or i.life != Life.OK or pl.seated:
+		return false
+	i.health = maxf(0.0, i.health - damage)
+	_rpc_damaged.rpc(peer, damage, "worm")
+	if i.health <= 0.0:
+		_host_down(peer, push)
+		return false
+	i.life = Life.KNOCKED
+	i.timer = Tuning.get_f("rescue", "knock_s", 1.8)
+	i.held = true
+	_rpc_ragdoll.rpc(peer, _feet_of(pl), push, i.life, i.health, i.timer)
+	_rpc_held.rpc(peer, true)
+	return true
+
+
+## Host: de worm laat los (losgeslagen, losgespard, een baken, of hij spuwt hem uit). De pop vliegt met
+## `push` weg; `damage` > 0: nog een beet. Daarna loopt de gewone tijd van omver (of neer).
+func host_release_grab(peer: int, push: Vector3, damage: float) -> void:
+	if not multiplayer.is_server():
+		return
+	var i := info(peer)
+	if not i.held:
+		return
+	i.held = false
+	_rpc_held.rpc(peer, false)
+	var rd := ragdoll_of(peer)
+	if rd:
+		rd.set_pinned(false)
+		if damage <= 0.0:
+			rd.push(push)
+	if i.life == Life.KNOCKED:
+		i.timer = Tuning.get_f("rescue", "knock_s", 1.8)
+	if damage > 0.0:
+		host_damage(peer, damage, push, true, "worm")
+	else:
+		_sync(peer)
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_held(peer: int, on: bool) -> void:
+	info(peer).held = on
+	life_changed.emit(peer, info(peer).life)
 
 
 ## Host: alles terug op nul (einde van de dienst, of een nieuwe dienst zonder schip).
@@ -361,6 +423,11 @@ func _rpc_flail() -> void:
 
 func _host_flail(peer: int) -> void:
 	var i := info(peer)
+	if i.held:
+		# In de muil van de worm: spartelen maakt je los (pakket G1).
+		if game.worm:
+			game.worm.host_struggle(peer)
+		return
 	var rd := ragdoll_of(peer)
 	if rd == null or i.flail_cd > 0.0 or not i.carriers.is_empty():
 		return
@@ -502,8 +569,9 @@ func _host_tick(delta: float) -> void:
 			Life.OK:
 				_host_ok(peer, i, pl, delta)
 			Life.KNOCKED:
-				i.timer -= delta
-				if i.timer <= 0.0:
+				if not i.held:
+					i.timer -= delta
+				if i.timer <= 0.0 and not i.held:
 					_host_stand(peer, Life.OK, i.health)
 			Life.DOWNED:
 				_host_downed(peer, i, delta)
@@ -617,6 +685,14 @@ func _host_bodies(_delta: float) -> void:
 			continue
 		var i := info(peer)
 		var t := rd.torso
+		if i.held and game.worm:
+			# In de muil van de worm (pakket G1).
+			_stowed.erase(peer)
+			if not rd.pinned:
+				rd.set_pinned(true)
+			rd.move_torso(game.worm.hold_transform(peer))
+			i.last_safe = game.worm.hold_transform(peer).origin
+			continue
 		if not i.carriers.is_empty():
 			_stowed.erase(peer)
 			if not rd.pinned:
@@ -783,6 +859,7 @@ func _rpc_ragdoll(peer: int, feet: Transform3D, push: Vector3, life: int, health
 @rpc("authority", "call_local", "reliable")
 func _rpc_stand(peer: int, feet: Vector3, yaw: float, life: int, health: float, timer: float) -> void:
 	var i := info(peer)
+	i.held = false
 	i.life = life as Life
 	i.health = health
 	i.timer = timer
@@ -797,6 +874,7 @@ func _rpc_stand(peer: int, feet: Vector3, yaw: float, life: int, health: float, 
 @rpc("authority", "call_local", "reliable")
 func _rpc_broken(peer: int, at: Vector3, melted: bool) -> void:
 	var i := info(peer)
+	i.held = false
 	i.life = Life.BROKEN
 	i.melted = melted
 	i.health = 0.0
@@ -824,6 +902,7 @@ func _rpc_reset(peer: int, feet: Vector3, move: bool) -> void:
 	i.timer = 0.0
 	i.repair = 0.0
 	i.melted = false
+	i.held = false
 	i.carriers = PackedInt32Array()
 	_remove_ragdoll(peer)
 	var pl: Player = game.player_node(peer)

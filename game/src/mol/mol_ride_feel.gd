@@ -89,6 +89,16 @@ func _process(delta: float) -> void:
 		me.camera.rotation.z += deg_to_rad(_lean.y) * shake
 
 
+## De worm raakt de romp (pakket G1, gevoel2-05): de cabine helt hard weg van de klap (een stoot op de
+## veer: ±8°, met naschok) en de camera krijgt een ruk. `local_n`: de normaal van de romp waar hij
+## raakt, t.o.v. de Mol.
+func ram_hit(local_n: Vector3, strength: float) -> void:
+	_lean_v += Vector2(local_n.z * 45.0, local_n.x * 65.0) * strength
+	var me := _local_inside()
+	if me:
+		me.camera_fx.kick(-3.5 * strength, -local_n.x * 4.0 * strength)
+
+
 ## De lokale speler, als hij in de Mol is; anders null. (De schok telt ook in het buitenzicht: daar
 ## schokt MolChaseCam mee met dezelfde trauma.)
 func _local_inside() -> Player:

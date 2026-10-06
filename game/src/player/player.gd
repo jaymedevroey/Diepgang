@@ -519,7 +519,8 @@ func _physics_process(delta: float) -> void:
 		velocity = Vector3.ZERO
 		_air_top = global_position.y
 		var awake := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or DisplayServer.get_name() == "headless"
-		if awake and life == Rescue.Life.DOWNED and Input.is_action_just_pressed("jump"):
+		# Neer: spartelen. In de muil van de worm (G1): spartelen maakt je los.
+		if awake and (life == Rescue.Life.DOWNED or game.rescue.is_held(peer_id)) and Input.is_action_just_pressed("jump"):
 			game.rescue.request_flail()
 		return
 	if life == Rescue.Life.BROKEN:
