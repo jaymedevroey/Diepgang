@@ -93,6 +93,7 @@ func _ready() -> void:
 	_generator.crater_count = [22, 6, 16][clampi(planet, 0, 2)]
 	_generator.boulder_count = [70, 40, 60][clampi(planet, 0, 2)]
 	_generator.planet = clampi(planet, 0, 2)
+	_generator.starter_cave = Tuning.get_i("setpieces", "starter_cave", 1) != 0
 	_bake_near(_generator, size_m)
 	_generator.setup(pit_seed, dims)
 
@@ -117,6 +118,11 @@ func _ready() -> void:
 	decor.name = "CaveDecor"
 	add_child(decor)
 	decor.setup(self)
+	# Set pieces (golf 3): het kamp in de startgrot, oude Mollen, ribbenkasten, geodes (enkel props).
+	var pieces := CaveSetPieces.new()
+	pieces.name = "CaveSetPieces"
+	add_child(pieces)
+	pieces.setup(self)
 
 	_tool = _terrain.get_voxel_tool() as VoxelToolTerrain
 	_tool.channel = VoxelBuffer.CHANNEL_SDF
@@ -451,6 +457,24 @@ func set_hazard_zones(zones: Array[Vector4]) -> void:
 ## Grotten (wereld): xyz = midden, w = horizontale straal; hoogte = w / PlanetGenerator.CAVERN_SQUASH.
 func caverns() -> Array[Vector4]:
 	return _generator.caverns_world(VOXEL_SIZE)
+
+
+## De startgrot bij de landingsplek (wereld; w = 0 als er geen is) en de as van haar oude gang.
+func starter_cave() -> Vector4:
+	return _generator.starter * VOXEL_SIZE
+
+
+func starter_ramp() -> Array[Vector3]:
+	var out: Array[Vector3] = []
+	for p in _generator.starter_ramp:
+		out.append(p * VOXEL_SIZE)
+	return out
+
+
+## De set pieces van deze wereld (CaveSetPieces.plan, uit de seed): voor FindField en tests.
+func set_pieces() -> Array:
+	var sp := get_node_or_null("CaveSetPieces") as CaveSetPieces
+	return sp.plan_list() if sp else []
 
 
 ## Is de voxeldata rond dit punt geladen (los van meshes en collision)?

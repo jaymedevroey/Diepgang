@@ -108,6 +108,10 @@ func generate(pit_seed: int) -> void:
 			var p := Vector3(rng.randf_range(8.0, size.x - 8.0), 0, rng.randf_range(8.0, size.z - 8.0))
 			p.y = rng.randf_range(6.0, t.surface_height_at(p.x, p.z) - 2.0)
 			return [p, -1])
+	# 6. Bij de set pieces in de grotten (golf 3, CaveSetPieces): goede buit in de wanden en de vloer
+	# errond. Achteraan, zodat alles hierboven op dezelfde plek blijft.
+	for sp: Dictionary in t.set_pieces():
+		_place_setpiece_loot(rng, sp)
 	print("[finds] %d vondsten geplaatst op %s (seed %d, %d skeletten) in %d ms" % [items.size(),
 			PlanetType.NAMES[clampi(planet, 0, 2)], pit_seed, sets().size(), Time.get_ticks_msec() - t_start])
 
@@ -182,6 +186,31 @@ func _place_heap(rng: RandomNumberGenerator, center: Vector3, pool: Array, radiu
 			return [center + Vector3(cos(a) * radius, rng.randf_range(-0.6, 0.6), sin(a) * radius), k], 10)
 
 
+## Buit bij een set piece (CaveSetPieces.plan_list): loot_min..loot_max vondsten uit de pot van die
+## soort (het kamp: munten, rommel, een lamp en een goudklomp), de helft in de wand rond het tafereel
+## en de helft net onder de vloer ernaast. Uit de seed, zoals al de rest.
+func _place_setpiece_loot(rng: RandomNumberGenerator, sp: Dictionary) -> void:
+	var pool: Array = CaveSetPieces.loot_pool(int(sp.kind), int(game.planet_type))
+	var c: Vector4 = sp.cave
+	var a: Vector3 = sp.anchor
+	var n := rng.randi_range(Tuning.get_i("setpieces", "loot_min", 4), Tuning.get_i("setpieces", "loot_max", 6))
+	if sp.starter:
+		n = Tuning.get_i("setpieces", "starter_loot", 7)
+	for k in n:
+		var kind: int = pool[k % pool.size()] if k < pool.size() else pool[rng.randi() % pool.size()]
+		var in_wall := k % 2 == 0
+		_place(rng, func() -> Array:
+			var ang := rng.randf() * TAU
+			if in_wall:
+				# Net achter de wand op die hoogte (een grot is een platgedrukte bol).
+				var y := a.y + rng.randf_range(0.6, 2.4)
+				var e := clampf((y - c.y) * PlanetGenerator.CAVERN_SQUASH / c.w, -1.0, 1.0)
+				var r := c.w * sqrt(1.0 - e * e) + rng.randf_range(0.7, 1.8)
+				return [Vector3(c.x + cos(ang) * r, y, c.z + sin(ang) * r), kind]
+			var d := rng.randf_range(1.5, minf(c.w * 0.8, 6.0))
+			return [Vector3(a.x + cos(ang) * d, a.y - rng.randf_range(1.2, 2.0), a.z + sin(ang) * d), kind], 14)
+
+
 ## Kristalgrot: 3-5 kristallen net achter de wand van grot `cv`, samen in een boog van ±70°.
 func _place_pocket(rng: RandomNumberGenerator, cv: Vector4, a0: float) -> void:
 	if cv.w <= 0.0:
@@ -253,7 +282,7 @@ func _place(rng: RandomNumberGenerator, where: Callable, attempts := 40) -> Find
 		var crust := Crust.new()
 		crust.name = "Crust%d" % item.find_id
 		crust.setup(item.find_id, item.half_extents, crust_hp_of(item), float(item.find_id) * 3.7,
-				t.layer_at(pos), FindKinds.FAMILIES[kind])
+				t.layer_at(pos), FindKinds.FAMILIES[kind], int(game.planet_type))
 		add_child(crust)
 		crust.global_transform = item.global_transform
 		crusts[item.find_id] = crust
