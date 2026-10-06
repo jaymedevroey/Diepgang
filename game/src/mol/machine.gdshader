@@ -15,6 +15,10 @@ uniform vec3 bare_metal : source_color = vec3(0.62, 0.62, 0.6);
 uniform float grime = 0.6;          // vuil in holtes en onderaan
 uniform float low_grime = 1.0;      // tunnelstof onderaan (enkel buiten)
 uniform vec3 grime_color : source_color = vec3(0.16, 0.12, 0.09);
+// Golf 3 (G4, buiten2-5): het stof onderaan in de grondkleur van de planeet (MolVisual.tint_dust),
+// als zachte gradiënt van onder naar boven. low_amount 0 = zoals vroeger (het stof in grime_color).
+uniform vec3 low_color : source_color = vec3(0.55, 0.42, 0.32);
+uniform float low_amount = 0.0;
 uniform float variation = 0.06;
 uniform bool hazard = false;        // geel-zwarte strepen
 uniform float hazard_scale = 2.2;   // strepen per meter
@@ -95,6 +99,9 @@ void fragment() {
 	float dust = low * low_grime * (0.25 + 0.2 * smoothstep(0.2, 0.8, vnoise(opos * 0.8)));
 	float dirt = clamp(smoothstep(0.3, 0.9, wear.g) + dust, 0.0, 1.0) * grime;
 	col = mix(col, grime_color, dirt * 0.45);
+	float low_dust = smoothstep(-0.2, -2.4, opos.y / detail_scale) * low_amount * low_grime * (0.75 + 0.25 * vnoise(opos * vec3(2.5, 0.6, 2.5)));
+	col = mix(col, low_color, low_dust * 0.6);
+	rough = mix(rough, 0.95, low_dust * 0.5);
 	rough = mix(rough, 0.92, dirt * 0.6);
 
 	ALBEDO = col;

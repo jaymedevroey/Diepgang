@@ -861,6 +861,10 @@ func _commit() -> void:
 	scatter.name = "GroundScatter"
 	scatter.setup(terrain, _seed, planet, landform.landing)
 	add_child(scatter)
+	# Het stof op de Mol in de grondkleur van deze planeet (golf 3, buiten2-5).
+	var game := get_parent() as Game
+	if game and game.mol and game.mol.visual:
+		game.mol.visual.tint_dust(PlanetType.ground(planet))
 	# Een gecomponeerde landingsplek: een vaste groep met een verhaal schuin vóór de Mol (golf 3).
 	var site := LandingSite.new()
 	site.name = "LandingSite"
