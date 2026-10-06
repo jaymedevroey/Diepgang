@@ -370,8 +370,8 @@ void g4_ground(inout vec3 col, inout vec3 n, inout float rough, inout vec3 emit,
 	if (landing_pad.w > 0.0) {
 		vec2 dv = p.xz - landing_pad.xy;
 		float pd = length(dv);
-		float ang = atan(dv.y, dv.x);
-		float rays = vnoise(vec3(ang * 7.0, pd * 0.06, seed_s)) * 0.7 + vnoise(vec3(ang * 19.0, pd * 0.12, seed_s + 3.0)) * 0.3;
+		vec2 dn = dv / max(pd, 0.01); // richting (geen hoek: atan heeft een naad achter je)
+		float rays = vnoise(vec3(dn * 4.5, pd * 0.06 + seed_s)) * 0.7 + vnoise(vec3(dn * 12.0, pd * 0.12 + seed_s + 3.0)) * 0.3;
 		float scorch = 1.0 - smoothstep(4.0, 9.0 + 5.0 * rays, pd);
 		float blown = smoothstep(5.0, 8.0, pd) * (1.0 - smoothstep(13.0, 22.0 + 6.0 * rays, pd)) * smoothstep(0.45, 0.7, rays);
 		col = mix(col, col * 0.62, scorch * 0.75 * open);

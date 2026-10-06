@@ -137,8 +137,11 @@ static func _roestbol(style: String) -> Dictionary:
 					"ground_lit": _hex("C8642F"), "ground_shadow": _hex("4A2F4F"),
 					"giant_base": _hex("F5E6C8"), "giant_band": _hex("C9A88A"), "giant_storm": _hex("FFF4E0"),
 					"giant_night": _hex("4A2A22"), "ring_color": _hex("CDB79A"), "ring_glow": _hex("FFD9A8"),
-					"giant_dir": dir(205.0, 24.0), "giant_radius_deg": 10.0, "ring_open_deg": 16.0, "ring_roll_deg": -18.0,
-					"sky_energy": 1.2, "dust_tau": 0.6, "giant_haze": 0.3, "aureole_mix": 0.35,
+					# Golf 3 (buiten-9: "een effen mauve schijf zonder banden en zonder belichte sikkel"): verder
+					# van de zon (±70° in plaats van 45°), zodat de sikkel breed genoeg is om de banden te tonen,
+					# hoger en met minder waas (de onderste helft vloeide weg in de lucht).
+					"giant_dir": dir(232.0, 28.0), "giant_radius_deg": 10.0, "ring_open_deg": 16.0, "ring_roll_deg": -18.0,
+					"sky_energy": 1.2, "dust_tau": 0.6, "giant_haze": 0.14, "aureole_mix": 0.35,
 				},
 				"sun_rotation_deg": Vector3(-10.0, 160.0, 0.0),
 				"sun_color": _hex("FFC890"), "sun_energy": 1.4,
